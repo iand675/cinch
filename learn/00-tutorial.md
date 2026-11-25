@@ -72,6 +72,4 @@ Start at [chapter 2](02-values-and-layout.md) for literal, layout, and applicati
 - [Compiler user's guide](../reference/00-guide.md): precise syntax, checking rules, commands, artifacts, and runtime controls.
 - [Built-in and shipped libraries](../library/00-index.md): real module APIs extracted from checked interfaces, with distribution and load instructions.
 - [Compiler-provided vocabulary](../reference/20-compiler-vocabulary.md): special forms and operations installed by the checker.
-- [Original design overview](../overview.md): specifications, historical tutorials, and design background.
-
-The design archive preserves intended semantics and earlier decisions. For current accepted behaviour, this book and the guide follow the Rust implementation and its executable tests. The Cinch-written bootstrap compiler has its own progress record.
+- [Support matrix](../reference/16-support-and-roadmap.md): current Rust compiler support and planned features.

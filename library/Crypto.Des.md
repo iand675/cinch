@@ -2,19 +2,11 @@
 
 DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Des</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Des/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Des">Search module</a><a href="/reference-sources/Crypto.Des.cinch" download="Crypto.Des.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.Des`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Crypto.Des.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Crypto.Des](Crypto.Des.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 DES and Triple DES (FIPS 46-3, SP 800-67) block ciphers with ECB, CBC and CTR over 64-bit blocks.
 These ciphers exist for interoperation with legacy formats and protocols: DES
@@ -28,147 +20,129 @@ inputs are never retained or mutated.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-DesCipher">DesCipher</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DesCipher</strong></code></li><li><a class="syn-name" href="#t-DesError">DesError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DesError</strong></code></li><li><a class="syn-name" href="#v-des-block-size">des-block-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-des-cbc-decrypt">des-cbc-decrypt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-cbc-decrypt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-cbc-encrypt">des-cbc-encrypt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-cbc-encrypt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-cipher">des-cipher</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a></code></li><li><a class="syn-name" href="#v-des-ctr-xor">des-ctr-xor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-ctr-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-decrypt-block">des-decrypt-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-decrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-decrypt-ecb">des-decrypt-ecb</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-decrypt-ecb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-encrypt-block">des-encrypt-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-encrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-encrypt-ecb">des-encrypt-ecb</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-encrypt-ecb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-des-error-message">des-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">des-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-triple-des-cipher">triple-des-cipher</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">triple-des-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a></code></li></ul>
+</details>
 
-<a id="type-446573436970686572"></a>
+# Types
 
-## `DesCipher`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DesCipher</span></code></pre>
+<article class="doc-entry" id="t-DesCipher">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DesCipher</strong></code><span class="doc-sig-links"><a href="#t-DesCipher" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 A keyed cipher: one schedule for DES, three for Triple DES (applied encrypt, decrypt, encrypt).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 46
+</div>
+</article>
 
-<a id="type-4465734572726f72"></a>
-
-## `DesError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DesError</span></code></pre>
+<article class="doc-entry" id="t-DesError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DesError</strong></code><span class="doc-sig-links"><a href="#t-DesError" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 A rejected key, input or initialization vector.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesInvalidKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesInvalidInputSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesInvalidIvSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DesInvalidKeySize"><code><strong class="tok-constructor">DesInvalidKeySize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a></code></li><li id="k-DesInvalidInputSize"><code><strong class="tok-constructor">DesInvalidInputSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a></code></li><li id="k-DesInvalidIvSize"><code><strong class="tok-constructor">DesInvalidIvSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6465732d626c6f636b2d73697a65"></a>
-
-## `des-block-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-block-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-des-block-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-des-block-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 The block size in bytes.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 53
+</div>
+</article>
 
-<a id="value-6465732d6362632d64656372797074"></a>
-
-## `des-cbc-decrypt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-cbc-decrypt</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-des-cbc-decrypt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-cbc-decrypt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-cbc-decrypt" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L246" title="View source at line 246">Source</a></span></div>
+<div class="doc-body">
 
 CBC decryption.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 246
+</div>
+</article>
 
-<a id="value-6465732d6362632d656e6372797074"></a>
-
-## `des-cbc-encrypt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-cbc-encrypt</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-des-cbc-encrypt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-cbc-encrypt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-cbc-encrypt" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L231" title="View source at line 231">Source</a></span></div>
+<div class="doc-body">
 
 CBC encryption: each plaintext block is XORed with the previous ciphertext block (the IV first).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 231
+</div>
+</article>
 
-<a id="value-6465732d636970686572"></a>
-
-## `des-cipher`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-cipher</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span>))</code></pre>
+<article class="doc-entry" id="v-des-cipher">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a></code><span class="doc-sig-links"><a href="#v-des-cipher" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Key DES with an 8-byte key (parity bits are ignored).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 57
+</div>
+</article>
 
-<a id="value-6465732d6374722d786f72"></a>
-
-## `des-ctr-xor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-ctr-xor</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-des-ctr-xor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-ctr-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-ctr-xor" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 CTR mode: XOR the input (any length) with encryptions of the counter block, which increments as a
 big-endian 64-bit integer. Encryption and decryption are the same operation.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 262
+</div>
+</article>
 
-<a id="value-6465732d646563727970742d626c6f636b"></a>
-
-## `des-decrypt-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-decrypt-block</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-des-decrypt-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-decrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-decrypt-block" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Decrypt exactly one 8-byte block.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 202
+</div>
+</article>
 
-<a id="value-6465732d646563727970742d656362"></a>
-
-## `des-decrypt-ecb`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-decrypt-ecb</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-des-decrypt-ecb">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-decrypt-ecb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-decrypt-ecb" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L214" title="View source at line 214">Source</a></span></div>
+<div class="doc-body">
 
 Decrypt each block independently.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 214
+</div>
+</article>
 
-<a id="value-6465732d656e63727970742d626c6f636b"></a>
-
-## `des-encrypt-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-encrypt-block</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-des-encrypt-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-encrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-encrypt-block" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 Encrypt exactly one 8-byte block.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 198
+</div>
+</article>
 
-<a id="value-6465732d656e63727970742d656362"></a>
-
-## `des-encrypt-ecb`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-encrypt-ecb</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-des-encrypt-ecb">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-encrypt-ecb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-des-encrypt-ecb" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L210" title="View source at line 210">Source</a></span></div>
+<div class="doc-body">
 
 Encrypt each block independently.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 210
+</div>
+</article>
 
-<a id="value-6465732d6572726f722d6d657373616765"></a>
-
-## `des-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">des-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-des-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">des-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-des-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 34
+</div>
+</article>
 
-<a id="value-747269706c652d6465732d636970686572"></a>
-
-## `triple-des-cipher`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">triple-des-cipher</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesCipher</span>))</code></pre>
+<article class="doc-entry" id="v-triple-des-cipher">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">triple-des-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesError" title="Crypto.Des.DesError">DesError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Des/#t-DesCipher" title="Crypto.Des.DesCipher">DesCipher</a></code><span class="doc-sig-links"><a href="#v-triple-des-cipher" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Des/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Key Triple DES with a 24-byte key: three DES keys in order.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 61
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Des.cinch`. Source SHA-256: `1b89a9d3607c6748b528b98517e9ba4e70e1d99327432c8d654db4080ec5cb2b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

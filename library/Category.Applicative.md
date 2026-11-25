@@ -2,17 +2,11 @@
 
 Container application and value lifting for independent structure-preserving composition.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Applicative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Applicative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Applicative">Search module</a><a href="/reference-sources/Category.Applicative.cinch" download="Category.Applicative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Category.Applicative`. Selected exports may already be in Prelude.
+**Dependencies:** [Category.Functor](Category.Functor.md).
 
-[Download exact module source](/reference-sources/Category.Applicative.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Category.Functor](Category.Functor.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Category.Applicative: the applicative class over type constructors.
 
@@ -48,62 +42,37 @@ Each states its own constraint and is reached with an explicit
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Applicative">Applicative</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Applicative</strong> <span class="tok-variable">f</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Applicative-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Applicative-op-3c2a3e">&lt;*&gt;</a><code class="syn-sig"><strong class="tok-variable">&lt;*&gt;</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Applicative-lift-a2">lift-a2</a><code class="syn-sig"><strong class="tok-variable">lift-a2</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-ap">ap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-replicate-m">replicate-m</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">replicate-m</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-unless">unless</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unless</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-void">void</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">void</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-when">when</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">when</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-4170706c69636174697665"></a>
-
-## `Applicative`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span></code></pre>
-
-[Source](/reference-sources/Category.Applicative.cinch)
-
-<a id="method-4170706c696361746976652e70757265"></a>
-
-## `Applicative.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-4170706c696361746976652e3c2a3e"></a>
-
-## `Applicative.<*>`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;*&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
-
-
-
-<a id="method-4170706c696361746976652e6c6966742d6132"></a>
-
-## `Applicative.lift-a2`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">c</span>))))</code></pre>
-
-
+<article class="doc-entry" id="c-Applicative">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Applicative</strong> <span class="tok-variable">f</span></code><span class="doc-sig-links"><a href="#c-Applicative" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Applicative-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Applicative-pure" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L37">Source</a></span></div></li><li id="m-Applicative-op-3c2a3e"><div class="doc-method-row"><code><strong class="tok-variable">&lt;*&gt;</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-Applicative-op-3c2a3e" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L38">Source</a></span></div></li><li id="m-Applicative-lift-a2"><div class="doc-method-row"><code><strong class="tok-variable">lift-a2</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#m-Applicative-lift-a2" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L39">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (7)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> ((-&gt;) r)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Category.Applicative/#instances">Category.Applicative</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Const/#instances">Data.Const</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Identity/#instances">Data.Identity</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Result/#instances">Data.Result</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6170"></a>
-
-## `ap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-ap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-ap" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 `ap` is `(<*>)` under the name `Control.Monad` carries for it.
 `base` states it at `Monad` because its body there reaches `pure`;
 here `Monad` entails no `Applicative`, so the honest constraint is
 the `Applicative` itself, whose `<*>` is this function.
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 76
+</div>
+</article>
 
-<a id="value-7265706c69636174652d6d"></a>
-
-## `replicate-m`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate-m</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-replicate-m">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">replicate-m</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-replicate-m" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 `replicate-m`: the action run `n` times, its results in order. Zero
 runs nothing and yields the empty list inside the effect; n runs
@@ -111,56 +80,47 @@ the action left to right through `lift-a2`. The count is a `Nat`
 because a length cannot be negative and a count that cannot be
 negative needs no refusal.
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 84
+</div>
+</article>
 
-<a id="value-756e6c657373"></a>
+<article class="doc-entry" id="v-unless">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unless</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-unless" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L69" title="View source at line 69">Source</a></span></div>
+</article>
 
-## `unless`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unless</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
-
-[Source](/reference-sources/Category.Applicative.cinch)
-
-<a id="value-766f6964"></a>
-
-## `void`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">void</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Functor</span>.<span class="tok-constructor">Functor</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-void">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">void</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">fun</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-void" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 `void` keeps the structure and discards its values (base's
 Data.Functor.void). Its home is this module, whose combinators
 below discard their results the same way; `()` is a constant, so
 nothing is built and nothing is observed.
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 59
+</div>
+</article>
 
-<a id="value-7768656e"></a>
-
-## `when`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">when</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Applicative</span>.<span class="tok-constructor">Applicative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-constructor">Bool</span> -&gt; ((<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-when">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">when</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">app</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-when" title="Permalink">#</a><a href="/packages/stdlib/Category.Applicative/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 `when`/`unless`: run the action only under the condition. The
 branch that does not run still needs a value of the effect's type
 and `pure ()` is the only operation either body uses, which is why
 the constraint is `Applicative` (base's own constraint for both).
 
-[Source](/reference-sources/Category.Applicative.cinch) · line 66
+</div>
+</article>
 
 # Operator fixities
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">4</span> <span class="tok-operator">&lt;*&gt;</span></code></pre>
+| Operator | Associativity | Precedence |
+| --- | --- | --- |
+| `<*>` | `infixl` | `4` |
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Category.Applicative.Applicative_Function` | `Category.Applicative.Applicative ((->) r)` | Implicit |
-
-**`Category.Applicative.Applicative_Function`**: Structural: apply a function in an environment to a value in it.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Category/Applicative.cinch`. Source SHA-256: `fe2bc906c714b1d4d01cedc10c1f5b8eb05a1b73e7be0d80c67f17018af0ffa1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Applicative_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> ((-&gt;) r)</code> <span class="doc-inst-meta">Implicit · <code>Category.Applicative.Applicative_Function</code></span><div class="doc-child-prose">Structural: apply a function in an environment to a value in it.</div></li>
+</ul>

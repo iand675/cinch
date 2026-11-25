@@ -2,19 +2,11 @@
 
 ISO 8601 and friendly duration text for spans and exact durations, printing and parsing.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Duration">Search module</a><a href="/reference-sources/Text.Time.Duration.cinch" download="Text.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Time.Duration`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
 
-[Download exact module source](/reference-sources/Text.Time.Duration.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Text.Time.Duration](Text.Time.Duration.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Time.Duration: ISO 8601 durations and Jiff's "friendly"
 duration format, printing and parsing, for `Span` (Data.Time.Span,
@@ -173,104 +165,48 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (35 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-DurationTextError">DurationTextError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DurationTextError</strong></code></li><li><a class="syn-name" href="#t-FriendlyDesignator">FriendlyDesignator</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyDesignator</strong></code></li><li><a class="syn-name" href="#t-FriendlyFractional">FriendlyFractional</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyFractional</strong></code></li><li><a class="syn-name" href="#t-FriendlyPrinter">FriendlyPrinter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyPrinter</strong></code></li><li><a class="syn-name" href="#t-FriendlySign">FriendlySign</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlySign</strong></code></li><li><a class="syn-name" href="#t-FriendlySpacing">FriendlySpacing</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlySpacing</strong></code></li><li><a class="syn-name" href="#v-duration-from-friendly-string">duration-from-friendly-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-iso-string">duration-from-iso-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-iso-string-lenient">duration-from-iso-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-iso-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-string">duration-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-print-friendly">duration-print-friendly</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-print-friendly</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-duration-text-error-position">duration-text-error-position</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-text-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-friendly-string">duration-to-friendly-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-duration-to-iso-string">duration-to-iso-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-friendly-printer-default">friendly-printer-default</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-printer-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-clock-form">friendly-with-clock-form</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-clock-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-comma">friendly-with-comma</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-comma</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-designator">friendly-with-designator</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-designator</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyDesignator" title="Text.Time.Duration.FriendlyDesignator">FriendlyDesignator</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-fractional">friendly-with-fractional</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-fractional</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-precision">friendly-with-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-shortest-precision">friendly-with-shortest-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-shortest-precision</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-sign">friendly-with-sign</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-sign</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-spacing">friendly-with-spacing</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-spacing</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySpacing" title="Text.Time.Duration.FriendlySpacing">FriendlySpacing</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-unicode-micro">friendly-with-unicode-micro</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-unicode-micro</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-friendly-with-zero-unit">friendly-with-zero-unit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">friendly-with-zero-unit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code></li><li><a class="syn-name" href="#v-span-clock-from-friendly-string">span-clock-from-friendly-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-clock-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-span-clock-from-iso-string">span-clock-from-iso-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-clock-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-span-clock-from-string">span-clock-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-clock-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-span-from-friendly-string">span-from-friendly-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-span-from-iso-string">span-from-iso-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-span-from-iso-string-lenient">span-from-iso-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-from-iso-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-span-from-string">span-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-span-print-friendly">span-print-friendly</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-print-friendly</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-span-to-friendly-string">span-to-friendly-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-to-friendly-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-span-to-iso-string">span-to-iso-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-to-iso-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4475726174696f6e546578744572726f72"></a>
+# Types
 
-## `DurationTextError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DurationTextError</span></code></pre>
+<article class="doc-entry" id="t-DurationTextError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DurationTextError</strong></code><span class="doc-sig-links"><a href="#t-DurationTextError" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Every refusal, each with the byte position it was detected at.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 202
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DurationTextEmpty"><code><strong class="tok-constructor">DurationTextEmpty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextMissingP"><code><strong class="tok-constructor">DurationTextMissingP</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextLowercaseDesignator"><code><strong class="tok-constructor">DurationTextLowercaseDesignator</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextMissingComponent"><code><strong class="tok-constructor">DurationTextMissingComponent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextExpectedNumber"><code><strong class="tok-constructor">DurationTextExpectedNumber</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextBadDesignator"><code><strong class="tok-constructor">DurationTextBadDesignator</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextUnitsOutOfOrder"><code><strong class="tok-constructor">DurationTextUnitsOutOfOrder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextRepeatedUnit"><code><strong class="tok-constructor">DurationTextRepeatedUnit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextFractionNotLast"><code><strong class="tok-constructor">DurationTextFractionNotLast</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextFractionOnUnit"><code><strong class="tok-constructor">DurationTextFractionOnUnit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextTooManyFractionDigits"><code><strong class="tok-constructor">DurationTextTooManyFractionDigits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextEmptyFraction"><code><strong class="tok-constructor">DurationTextEmptyFraction</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextNumberTooLarge"><code><strong class="tok-constructor">DurationTextNumberTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextUnitLimit"><code><strong class="tok-constructor">DurationTextUnitLimit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextTimeWithoutComponent"><code><strong class="tok-constructor">DurationTextTimeWithoutComponent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextSignTwice"><code><strong class="tok-constructor">DurationTextSignTwice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextTrailingInput"><code><strong class="tok-constructor">DurationTextTrailingInput</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextCalendarUnit"><code><strong class="tok-constructor">DurationTextCalendarUnit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextExpectedColon"><code><strong class="tok-constructor">DurationTextExpectedColon</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li><li id="k-DurationTextOutOfRange"><code><strong class="tok-constructor">DurationTextOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextEmpty</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextMissingP</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextLowercaseDesignator</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextMissingComponent</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextExpectedNumber</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextBadDesignator</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextUnitsOutOfOrder</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextRepeatedUnit</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextFractionNotLast</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextFractionOnUnit</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextTooManyFractionDigits</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextEmptyFraction</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextNumberTooLarge</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextUnitLimit</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextTimeWithoutComponent</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextSignTwice</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextTrailingInput</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextCalendarUnit</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextExpectedColon</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DurationTextOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span>)</code></pre>
-
-<a id="type-467269656e646c7944657369676e61746f72"></a>
-
-## `FriendlyDesignator`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FriendlyDesignator</span></code></pre>
+<article class="doc-entry" id="t-FriendlyDesignator">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyDesignator</strong></code><span class="doc-sig-links"><a href="#t-FriendlyDesignator" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1246" title="View source at line 1246">Source</a></span></div>
+<div class="doc-body">
 
 How units are named. Compact: `y mo w d h m s ms us ns`. Short:
 `yr mo wk day hr min sec msec usec nsec`, with `s` added for any
 value but 1. Verbose: `year month week day hour minute second
 millisecond microsecond nanosecond`, likewise.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1246
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DesignatorCompact"><code><strong class="tok-constructor">DesignatorCompact</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyDesignator" title="Text.Time.Duration.FriendlyDesignator">FriendlyDesignator</a></code></li><li id="k-DesignatorShort"><code><strong class="tok-constructor">DesignatorShort</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyDesignator" title="Text.Time.Duration.FriendlyDesignator">FriendlyDesignator</a></code></li><li id="k-DesignatorVerbose"><code><strong class="tok-constructor">DesignatorVerbose</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyDesignator" title="Text.Time.Duration.FriendlyDesignator">FriendlyDesignator</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesignatorCompact</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyDesignator</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesignatorShort</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyDesignator</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesignatorVerbose</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyDesignator</span></code></pre>
-
-<a id="type-467269656e646c794672616374696f6e616c"></a>
-
-## `FriendlyFractional`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FriendlyFractional</span></code></pre>
+<article class="doc-entry" id="t-FriendlyFractional">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyFractional</strong></code><span class="doc-sig-links"><a href="#t-FriendlyFractional" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1269" title="View source at line 1269">Source</a></span></div>
+<div class="doc-body">
 
 The unit, if any, that the smaller units fold into as a fraction.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1269
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FractionalNone"><code><strong class="tok-constructor">FractionalNone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li><li id="k-FractionalHour"><code><strong class="tok-constructor">FractionalHour</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li><li id="k-FractionalMinute"><code><strong class="tok-constructor">FractionalMinute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li><li id="k-FractionalSecond"><code><strong class="tok-constructor">FractionalSecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li><li id="k-FractionalMillisecond"><code><strong class="tok-constructor">FractionalMillisecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li><li id="k-FractionalMicrosecond"><code><strong class="tok-constructor">FractionalMicrosecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalNone</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalHour</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalMinute</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalSecond</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalMillisecond</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FractionalMicrosecond</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span></code></pre>
-
-<a id="type-467269656e646c795072696e746572"></a>
-
-## `FriendlyPrinter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FriendlyPrinter</span></code></pre>
+<article class="doc-entry" id="t-FriendlyPrinter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlyPrinter</strong></code><span class="doc-sig-links"><a href="#t-FriendlyPrinter" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1282" title="View source at line 1282">Source</a></span></div>
+<div class="doc-body">
 
 Designator style (0 compact, 1 short, 2 verbose); spacing (0, 1,
 2); comma; sign style (0 auto, 1 prefix, 2 force, 3 suffix);
@@ -278,13 +214,12 @@ fractional unit's rank (-1 for none, else 4..=8); precision (-1 for
 the shortest exact, else 0..=9); clock form; zero unit's rank;
 Unicode micro sign.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1282
+</div>
+</article>
 
-<a id="type-467269656e646c795369676e"></a>
-
-## `FriendlySign`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FriendlySign</span></code></pre>
+<article class="doc-entry" id="t-FriendlySign">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlySign</strong></code><span class="doc-sig-links"><a href="#t-FriendlySign" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1262" title="View source at line 1262">Source</a></span></div>
+<div class="doc-body">
 
 How a negative value is marked. `SignAuto` (the default, Jiff's):
 the suffix ` ago` when units are spaced, the prefix `-` with
@@ -292,160 +227,119 @@ the suffix ` ago` when units are spaced, the prefix `-` with
 `SignForce`: `-`, and `+` on a positive value (zero is unsigned).
 `SignSuffix`: always ` ago`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1262
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SignAuto"><code><strong class="tok-constructor">SignAuto</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a></code></li><li id="k-SignPrefix"><code><strong class="tok-constructor">SignPrefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a></code></li><li id="k-SignForce"><code><strong class="tok-constructor">SignForce</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a></code></li><li id="k-SignSuffix"><code><strong class="tok-constructor">SignSuffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignAuto</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySign</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignPrefix</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySign</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignForce</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySign</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignSuffix</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySign</span></code></pre>
-
-<a id="type-467269656e646c7953706163696e67"></a>
-
-## `FriendlySpacing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FriendlySpacing</span></code></pre>
+<article class="doc-entry" id="t-FriendlySpacing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FriendlySpacing</strong></code><span class="doc-sig-links"><a href="#t-FriendlySpacing" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1252" title="View source at line 1252">Source</a></span></div>
+<div class="doc-body">
 
 `1y2mo`, `1y 2mo` (the default), `1 y 2 mo`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1252
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SpacingNone</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySpacing</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SpacingBetweenUnits</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySpacing</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SpacingBetweenUnitsAndDesignators</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySpacing</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SpacingNone"><code><strong class="tok-constructor">SpacingNone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySpacing" title="Text.Time.Duration.FriendlySpacing">FriendlySpacing</a></code></li><li id="k-SpacingBetweenUnits"><code><strong class="tok-constructor">SpacingBetweenUnits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySpacing" title="Text.Time.Duration.FriendlySpacing">FriendlySpacing</a></code></li><li id="k-SpacingBetweenUnitsAndDesignators"><code><strong class="tok-constructor">SpacingBetweenUnitsAndDesignators</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySpacing" title="Text.Time.Duration.FriendlySpacing">FriendlySpacing</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6475726174696f6e2d66726f6d2d667269656e646c792d737472696e67"></a>
-
-## `duration-from-friendly-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-friendly-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-from-friendly-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-friendly-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1217" title="View source at line 1217">Source</a></span></div>
+<div class="doc-body">
 
 A friendly duration of hours and smaller as an exact duration.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1217
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d66726f6d2d69736f2d737472696e67"></a>
-
-## `duration-from-iso-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-iso-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-from-iso-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-iso-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L818" title="View source at line 818">Source</a></span></div>
+<div class="doc-body">
 
 An ISO 8601 duration of hours, minutes and seconds as an exact
 duration. A component of days or larger is refused with
 `DurationTextCalendarUnit`; a total beyond the range with
 `DurationTextOutOfRange`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 818
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d66726f6d2d69736f2d737472696e672d6c656e69656e74"></a>
+<article class="doc-entry" id="v-duration-from-iso-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-iso-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-iso-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L821" title="View source at line 821">Source</a></span></div>
+</article>
 
-## `duration-from-iso-string-lenient`
+<article class="doc-entry" id="v-duration-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1232" title="View source at line 1232">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-iso-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d737472696e67"></a>
-
-## `duration-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d7072696e742d667269656e646c79"></a>
-
-## `duration-print-friendly`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-print-friendly</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-duration-print-friendly">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-print-friendly</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-duration-print-friendly" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1555" title="View source at line 1555">Source</a></span></div>
+<div class="doc-body">
 
 A duration balanced into hours, minutes, seconds and the non-zero
 sub-second units (`2h 30m`, `1s 500ms`), under the given options.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1555
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d746578742d6572726f722d706f736974696f6e"></a>
+<article class="doc-entry" id="v-duration-text-error-position">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-text-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-text-error-position" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L249" title="View source at line 249">Source</a></span></div>
+</article>
 
-## `duration-text-error-position`
+<article class="doc-entry" id="v-duration-to-friendly-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-duration-to-friendly-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1561" title="View source at line 1561">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-text-error-position</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d746f2d667269656e646c792d737472696e67"></a>
-
-## `duration-to-friendly-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-friendly-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d746f2d69736f2d737472696e67"></a>
-
-## `duration-to-iso-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-iso-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-duration-to-iso-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-duration-to-iso-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L518" title="View source at line 518">Source</a></span></div>
+<div class="doc-body">
 
 Hours, minutes and fractional seconds only (`PT5H30M`,
 `PT0.000000001S`, `-PT1.5S`); never days. Exact.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 518
+</div>
+</article>
 
-<a id="value-667269656e646c792d7072696e7465722d64656661756c74"></a>
-
-## `friendly-printer-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-printer-default</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span></code></pre>
+<article class="doc-entry" id="v-friendly-printer-default">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-printer-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-printer-default" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1288" title="View source at line 1288">Source</a></span></div>
+<div class="doc-body">
 
 Compact designators, a space between units, no comma, `SignAuto`,
 no fractional unit, the shortest exact precision, no clock form,
 zero printed in seconds, ASCII `us`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1288
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d636c6f636b2d666f726d"></a>
-
-## `friendly-with-clock-form`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-clock-form</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-clock-form">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-clock-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-clock-form" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1349" title="View source at line 1349">Source</a></span></div>
+<div class="doc-body">
 
 Whether hours and smaller print as `HH:MM:SS[.fraction]` (at least
 two digits each; the sub-second units fold into the fraction, so
 the breakdown below seconds is lost). Takes precedence over a
 fractional unit. Zero prints `00:00:00`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1349
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d636f6d6d61"></a>
-
-## `friendly-with-comma`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-comma</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-comma">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-comma</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-comma" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1307" title="View source at line 1307">Source</a></span></div>
+<div class="doc-body">
 
 Whether a comma follows each designator but the last
 (`1 year, 2 months`).
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1307
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d64657369676e61746f72"></a>
+<article class="doc-entry" id="v-friendly-with-designator">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-designator</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyDesignator" title="Text.Time.Duration.FriendlyDesignator">FriendlyDesignator</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-designator" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1291" title="View source at line 1291">Source</a></span></div>
+</article>
 
-## `friendly-with-designator`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-designator</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyDesignator</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-667269656e646c792d776974682d6672616374696f6e616c"></a>
-
-## `friendly-with-fractional`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-fractional</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyFractional</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-fractional">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-fractional</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyFractional" title="Text.Time.Duration.FriendlyFractional">FriendlyFractional</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-fractional" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1324" title="View source at line 1324">Source</a></span></div>
+<div class="doc-body">
 
 With a fractional unit, that unit and every smaller one print as
 one number with a fraction of up to nine digits (1 hour 30 minutes
@@ -453,178 +347,150 @@ one number with a fraction of up to nine digits (1 hour 30 minutes
 value prints in that unit. Lossy for the breakdown; a fraction of
 an hour or a minute is cut at nine digits.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1324
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d707265636973696f6e"></a>
-
-## `friendly-with-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1336" title="View source at line 1336">Source</a></span></div>
+<div class="doc-body">
 
 Exactly `digits` fraction digits wherever a fraction is printed
 (the fractional unit, or the clock form's seconds), truncating.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1336
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d73686f72746573742d707265636973696f6e"></a>
-
-## `friendly-with-shortest-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-shortest-precision</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>)</code></pre>
+<article class="doc-entry" id="v-friendly-with-shortest-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-shortest-precision</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-shortest-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1341" title="View source at line 1341">Source</a></span></div>
+<div class="doc-body">
 
 The default: the shortest fraction that is exact in nine digits.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1341
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d7369676e"></a>
+<article class="doc-entry" id="v-friendly-with-sign">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-sign</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySign" title="Text.Time.Duration.FriendlySign">FriendlySign</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-sign" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1311" title="View source at line 1311">Source</a></span></div>
+</article>
 
-## `friendly-with-sign`
+<article class="doc-entry" id="v-friendly-with-spacing">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-spacing</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlySpacing" title="Text.Time.Duration.FriendlySpacing">FriendlySpacing</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-spacing" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1298" title="View source at line 1298">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-sign</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySign</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-667269656e646c792d776974682d73706163696e67"></a>
-
-## `friendly-with-spacing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-spacing</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlySpacing</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Duration.cinch)
-
-<a id="value-667269656e646c792d776974682d756e69636f64652d6d6963726f"></a>
-
-## `friendly-with-unicode-micro`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-unicode-micro</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-unicode-micro">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-unicode-micro</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-unicode-micro" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1362" title="View source at line 1362">Source</a></span></div>
+<div class="doc-body">
 
 Whether the compact microsecond designator is `s` after U+00B5
 MICRO SIGN (UTF-8) in place of the ASCII `us`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1362
+</div>
+</article>
 
-<a id="value-667269656e646c792d776974682d7a65726f2d756e6974"></a>
-
-## `friendly-with-zero-unit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">friendly-with-zero-unit</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span>))</code></pre>
+<article class="doc-entry" id="v-friendly-with-zero-unit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">friendly-with-zero-unit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a></code><span class="doc-sig-links"><a href="#v-friendly-with-zero-unit" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1356" title="View source at line 1356">Source</a></span></div>
+<div class="doc-body">
 
 The unit a zero value prints in (`0s` by default). A `Duration`
 printed with a zero unit of days or larger prints `0s`, so that it
 parses back as a `Duration`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1356
+</div>
+</article>
 
-<a id="value-7370616e2d636c6f636b2d66726f6d2d667269656e646c792d737472696e67"></a>
-
-## `span-clock-from-friendly-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-clock-from-friendly-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
-
-The same as a clock span: a component of days or larger is refused
-with `DurationTextCalendarUnit`.
-
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1213
-
-<a id="value-7370616e2d636c6f636b2d66726f6d2d69736f2d737472696e67"></a>
-
-## `span-clock-from-iso-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-clock-from-iso-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+<article class="doc-entry" id="v-span-clock-from-friendly-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-clock-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-span-clock-from-friendly-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1213" title="View source at line 1213">Source</a></span></div>
+<div class="doc-body">
 
 The same as a clock span: a component of days or larger is refused
 with `DurationTextCalendarUnit`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 811
+</div>
+</article>
 
-<a id="value-7370616e2d636c6f636b2d66726f6d2d737472696e67"></a>
+<article class="doc-entry" id="v-span-clock-from-iso-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-clock-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-span-clock-from-iso-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L811" title="View source at line 811">Source</a></span></div>
+<div class="doc-body">
 
-## `span-clock-from-string`
+The same as a clock span: a component of days or larger is refused
+with `DurationTextCalendarUnit`.
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-clock-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+</div>
+</article>
 
-[Source](/reference-sources/Text.Time.Duration.cinch)
+<article class="doc-entry" id="v-span-clock-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-clock-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-span-clock-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1227" title="View source at line 1227">Source</a></span></div>
+</article>
 
-<a id="value-7370616e2d66726f6d2d667269656e646c792d737472696e67"></a>
-
-## `span-from-friendly-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-from-friendly-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-span-from-friendly-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-from-friendly-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-span-from-friendly-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1208" title="View source at line 1208">Source</a></span></div>
+<div class="doc-body">
 
 A friendly duration as a span, each unit as written (`1.5h` is 1
 hour 30 minutes; see the header's grammar).
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1208
+</div>
+</article>
 
-<a id="value-7370616e2d66726f6d2d69736f2d737472696e67"></a>
-
-## `span-from-iso-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-from-iso-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-span-from-iso-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-from-iso-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-span-from-iso-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L801" title="View source at line 801">Source</a></span></div>
+<div class="doc-body">
 
 An ISO 8601 duration as a span, each unit as written (strict: the
 grammar in the header, upper case designators).
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 801
+</div>
+</article>
 
-<a id="value-7370616e2d66726f6d2d69736f2d737472696e672d6c656e69656e74"></a>
-
-## `span-from-iso-string-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-from-iso-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-span-from-iso-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-from-iso-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-span-from-iso-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L806" title="View source at line 806">Source</a></span></div>
+<div class="doc-body">
 
 Also accepts lower case designators (`p1y2m3dt4h`), as Temporal and
 Jiff do.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 806
+</div>
+</article>
 
-<a id="value-7370616e2d66726f6d2d737472696e67"></a>
-
-## `span-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">DurationTextError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-span-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-DurationTextError" title="Text.Time.Duration.DurationTextError">DurationTextError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-span-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1222" title="View source at line 1222">Source</a></span></div>
+<div class="doc-body">
 
 Either format (strict ISO when the first byte after an optional
 sign is `P` or `p`, friendly otherwise), as Jiff's `FromStr`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1222
+</div>
+</article>
 
-<a id="value-7370616e2d7072696e742d667269656e646c79"></a>
-
-## `span-print-friendly`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-print-friendly</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">FriendlyPrinter</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-span-print-friendly">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-print-friendly</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Duration/#t-FriendlyPrinter" title="Text.Time.Duration.FriendlyPrinter">FriendlyPrinter</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-span-print-friendly" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1541" title="View source at line 1541">Source</a></span></div>
+<div class="doc-body">
 
 The friendly form under the given options.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1541
+</div>
+</article>
 
-<a id="value-7370616e2d746f2d667269656e646c792d737472696e67"></a>
-
-## `span-to-friendly-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-to-friendly-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-span-to-friendly-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-to-friendly-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-span-to-friendly-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L1550" title="View source at line 1550">Source</a></span></div>
+<div class="doc-body">
 
 The friendly form with the default options. LOSSLESS: every
 non-zero unit with its own compact designator, a space between
 units (`6y 10mo 3d 23h`, `2000ms`), `0s` for the zero span, and
 ` ago` after a negative one.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 1550
+</div>
+</article>
 
-<a id="value-7370616e2d746f2d69736f2d737472696e67"></a>
-
-## `span-to-iso-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-to-iso-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-span-to-iso-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-to-iso-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-span-to-iso-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Duration/source/#L511" title="View source at line 511">Source</a></span></div>
+<div class="doc-body">
 
 The ISO 8601 form. LOSSY for the breakdown below seconds:
 milliseconds, microseconds and nanoseconds fold into fractional
 seconds (2000 milliseconds prints `PT2S`); see the header. The
 zero span prints `PT0S`; a negative span has a leading `-`.
 
-[Source](/reference-sources/Text.Time.Duration.cinch) · line 511
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Time/Duration.cinch`. Source SHA-256: `20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

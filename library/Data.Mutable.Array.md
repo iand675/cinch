@@ -2,19 +2,11 @@
 
 A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Array</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Array/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Array">Search module</a><a href="/reference-sources/Data.Mutable.Array.cinch" download="Data.Mutable.Array.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Mutable.Array`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.Array.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-Non-embedded source closure: [Data.Mutable.Array](Data.Mutable.Array.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.Array: the fixed-length mutable array (C++ `std::array`
 held by reference, Haskell's `MutableArray`).
@@ -35,136 +27,101 @@ written before the array is returned, so no read meets an empty slot.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-MutArray">MutArray</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MutArray</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-fill">mut-array-fill</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-fill</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-mut-array-fold">mut-array-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-mut-array-freeze">mut-array-freeze</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-freeze</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-from-list">mut-array-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-get">mut-array-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-length">mut-array-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-mut-array-modify">mut-array-modify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mut-array-new">mut-array-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-set">mut-array-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mut-array-swap">mut-array-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mut-array-tabulate">mut-array-tabulate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-tabulate</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-thaw">mut-array-thaw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-thaw</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mut-array-to-list">mut-array-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mut-array-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-4d75744172726179"></a>
+# Types
 
-## `MutArray`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MutArray</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
+<article class="doc-entry" id="t-MutArray">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MutArray</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-MutArray" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L34" title="View source at line 34">Source</a></span></div>
+</article>
 
 # Values
 
-<a id="value-6d75742d61727261792d66696c6c"></a>
-
-## `mut-array-fill`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fill</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-mut-array-fill">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-fill</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-mut-array-fill" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L143" title="View source at line 143">Source</a></span></div>
+<div class="doc-body">
 
 Every element becomes `x`.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 143
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d666f6c64"></a>
+<article class="doc-entry" id="v-mut-array-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-mut-array-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L160" title="View source at line 160">Source</a></span></div>
+</article>
 
-## `mut-array-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-<a id="value-6d75742d61727261792d667265657a65"></a>
-
-## `mut-array-freeze`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-freeze</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mut-array-freeze">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-freeze</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-freeze" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 An immutable copy (a fresh block).
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 170
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d66726f6d2d6c697374"></a>
+<article class="doc-entry" id="v-mut-array-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L78" title="View source at line 78">Source</a></span></div>
+</article>
 
-## `mut-array-from-list`
+<article class="doc-entry" id="v-mut-array-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-get" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L101" title="View source at line 101">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mut-array-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-mut-array-length" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L96" title="View source at line 96">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-<a id="value-6d75742d61727261792d676574"></a>
-
-## `mut-array-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-<a id="value-6d75742d61727261792d6c656e677468"></a>
-
-## `mut-array-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-<a id="value-6d75742d61727261792d6d6f64696679"></a>
-
-## `mut-array-modify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-modify</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-mut-array-modify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mut-array-modify" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 Rewrite element `i` through `f`, moving it out and back.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 116
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d6e6577"></a>
-
-## `mut-array-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-mut-array-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-new" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 `n` copies of `x`.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 51
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d736574"></a>
-
-## `mut-array-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-mut-array-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mut-array-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 Replace element `i`: `False` (and nothing written) when out of range.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 107
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d73776170"></a>
+<article class="doc-entry" id="v-mut-array-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mut-array-swap" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L126" title="View source at line 126">Source</a></span></div>
+</article>
 
-## `mut-array-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-<a id="value-6d75742d61727261792d746162756c617465"></a>
-
-## `mut-array-tabulate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-tabulate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-mut-array-tabulate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-tabulate</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-tabulate" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Element i is `f i`.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 65
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d74686177"></a>
-
-## `mut-array-thaw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-thaw</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mut-array-thaw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-thaw</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-thaw" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 A mutable copy of an immutable array.
 
-[Source](/reference-sources/Data.Mutable.Array.cinch) · line 179
+</div>
+</article>
 
-<a id="value-6d75742d61727261792d746f2d6c697374"></a>
-
-## `mut-array-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mut-array-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Array</span>.<span class="tok-constructor">MutArray</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Array.cinch)
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Array.cinch`. Source SHA-256: `94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<article class="doc-entry" id="v-mut-array-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L148" title="View source at line 148">Source</a></span></div>
+</article>

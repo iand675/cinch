@@ -2,19 +2,11 @@
 
 Time values, durations, and conversions with explicit units and admitted ranges.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time/source/">View source</a><a href="/packages/search/?q=%2BData.Time">Search module</a><a href="/reference-sources/Data.Time.cinch" download="Data.Time.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Time`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Date](Data.Date.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Clock](Effect.Clock.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.Time.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Date](Data.Date.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Clock](Effect.Clock.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Data.Date](Data.Date.md), [Data.Time](Data.Time.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time: the civil date-time: a calendar date plus a time of day.
 
@@ -85,99 +77,83 @@ atop the P34 `Clock` capability").
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (17 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Time">Time</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Time</strong></code></li><li><a class="syn-name" href="#t-TimeParseError">TimeParseError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeParseError</strong></code></li><li><a class="syn-name" href="#v-add-duration">add-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li><li><a class="syn-name" href="#v-cmp">cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-date-part">date-part</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-diff">diff</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">diff</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-from-epoch-nanos">from-epoch-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-epoch-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li><li><a class="syn-name" href="#v-from-string">from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-TimeParseError" title="Data.Time.TimeParseError">TimeParseError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li><li><a class="syn-name" href="#v-hour">hour</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hour</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-minute">minute</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">minute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nanosecond">nanosecond</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nanoseconds-of-day">nanoseconds-of-day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nanoseconds-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-second">second</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">second</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sub-duration">sub-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li><li><a class="syn-name" href="#v-time">time</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li><li><a class="syn-name" href="#v-to-epoch-nanos">to-epoch-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-epoch-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-54696d65"></a>
+# Types
 
-## `Time`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Time</span></code></pre>
+<article class="doc-entry" id="t-Time">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Time</strong></code><span class="doc-sig-links"><a href="#t-Time" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L95" title="View source at line 95">Source</a></span></div>
+<div class="doc-body">
 
 The civil date-time: the date and the nanoseconds since its
 midnight, below one day. Not exported (the invariant above);
 `time` is the only constructor.
 
-[Source](/reference-sources/Data.Time.cinch) · line 95
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Time"><code><strong class="tok-constructor">Time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Time</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
-
-<a id="type-54696d6550617273654572726f72"></a>
-
-## `TimeParseError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TimeParseError</span></code></pre>
+<article class="doc-entry" id="t-TimeParseError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeParseError</strong></code><span class="doc-sig-links"><a href="#t-TimeParseError" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The literal reader's errors, one per refusal: the text is not a
 date-time, its time fields are out of range, or its date half
 failed its own reader (carried through unchanged, so the date
 diagnostics survive the composition).
 
-[Source](/reference-sources/Data.Time.cinch) · line 102
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotATime</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimeFieldsOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadDatePart</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-NotATime"><code><strong class="tok-constructor">NotATime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-TimeParseError" title="Data.Time.TimeParseError">TimeParseError</a></code></li><li id="k-TimeFieldsOutOfRange"><code><strong class="tok-constructor">TimeFieldsOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-TimeParseError" title="Data.Time.TimeParseError">TimeParseError</a></code></li><li id="k-BadDatePart"><code><strong class="tok-constructor">BadDatePart</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-DateParseError" title="Data.Date.DateParseError">DateParseError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-TimeParseError" title="Data.Time.TimeParseError">TimeParseError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6164642d6475726174696f6e"></a>
-
-## `add-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-duration</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
+<article class="doc-entry" id="v-add-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code><span class="doc-sig-links"><a href="#v-add-duration" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Move forward by `d` (a whole number of milliseconds; the day
 carries).
 
-[Source](/reference-sources/Data.Time.cinch) · line 167
+</div>
+</article>
 
-<a id="value-636d70"></a>
+<article class="doc-entry" id="v-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-cmp" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L190" title="View source at line 190">Source</a></span></div>
+</article>
 
-## `cmp`
+<article class="doc-entry" id="v-date-part">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-part" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L126" title="View source at line 126">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-646174652d70617274"></a>
-
-## `date-part`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-64696666"></a>
-
-## `diff`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-diff">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">diff</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-diff" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L183" title="View source at line 183">Source</a></span></div>
+<div class="doc-body">
 
 The distance between two instants in whole milliseconds (truncated
 toward zero): unsigned, because `Duration` is, so the caller reads
 direction from `cmp` (the refusal above).
 
-[Source](/reference-sources/Data.Time.cinch) · line 183
+</div>
+</article>
 
-<a id="value-66726f6d2d65706f63682d6e616e6f73"></a>
-
-## `from-epoch-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-nanos</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>)</code></pre>
+<article class="doc-entry" id="v-from-epoch-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-epoch-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code><span class="doc-sig-links"><a href="#v-from-epoch-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 The inverse: every `Int` is an instant, so the result is total and
 the floored split keeps the day's remainder non-negative for the
 pre-epoch instants too.
 
-[Source](/reference-sources/Data.Time.cinch) · line 159
+</div>
+</article>
 
-<a id="value-66726f6d2d737472696e67"></a>
-
-## `from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeParseError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
+<article class="doc-entry" id="v-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-TimeParseError" title="Data.Time.TimeParseError">TimeParseError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code><span class="doc-sig-links"><a href="#v-from-string" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Strict ISO 8601 date-time: the date half (Data.Date's reader, so
 its `NotADate`/`InvalidDate` survive as `BadDatePart`), `T`, then
@@ -187,85 +163,61 @@ or after. `NotATime` is the shape refusal (a space separator, no
 seconds, an empty fraction, junk after `Z`); `TimeFieldsOutOfRange`
 is the fields refusal (`24:00:00`, `00:60:00`).
 
-[Source](/reference-sources/Data.Time.cinch) · line 215
+</div>
+</article>
 
-<a id="value-686f7572"></a>
+<article class="doc-entry" id="v-hour">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hour</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-hour" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L134" title="View source at line 134">Source</a></span></div>
+</article>
 
-## `hour`
+<article class="doc-entry" id="v-minute">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">minute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-minute" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L137" title="View source at line 137">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hour</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-nanosecond">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nanosecond" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L143" title="View source at line 143">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.cinch)
+<article class="doc-entry" id="v-nanoseconds-of-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nanoseconds-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nanoseconds-of-day" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L130" title="View source at line 130">Source</a></span></div>
+</article>
 
-<a id="value-6d696e757465"></a>
+<article class="doc-entry" id="v-second">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">second</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-second" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L140" title="View source at line 140">Source</a></span></div>
+</article>
 
-## `minute`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minute</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-6e616e6f7365636f6e64"></a>
-
-## `nanosecond`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanosecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-6e616e6f7365636f6e64732d6f662d646179"></a>
-
-## `nanoseconds-of-day`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanoseconds-of-day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-7365636f6e64"></a>
-
-## `second`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">second</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.cinch)
-
-<a id="value-7375622d6475726174696f6e"></a>
-
-## `sub-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-duration</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>))</code></pre>
+<article class="doc-entry" id="v-sub-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code><span class="doc-sig-links"><a href="#v-sub-duration" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L171" title="View source at line 171">Source</a></span></div>
+<div class="doc-body">
 
 Move backward by `d`.
 
-[Source](/reference-sources/Data.Time.cinch) · line 171
+</div>
+</article>
 
-<a id="value-74696d65"></a>
-
-## `time`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span>)))</code></pre>
+<article class="doc-entry" id="v-time">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code><span class="doc-sig-links"><a href="#v-time" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 The only constructor: a nanosecond count inside the day. At or past
 the day's end is `None`, so an out-of-range `Time` has no
 representation.
 
-[Source](/reference-sources/Data.Time.cinch) · line 123
+</div>
+</article>
 
-<a id="value-746f2d65706f63682d6e616e6f73"></a>
-
-## `to-epoch-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-to-epoch-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-epoch-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-to-epoch-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
 
-[Source](/reference-sources/Data.Time.cinch) · line 152
+</div>
+</article>
 
-<a id="value-746f2d737472696e67"></a>
-
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Time</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.Time/source/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-body">
 
 `YYYY-MM-DDTHH:MM:SS` (the date half is Data.Date's rendering), with
 `.fffffffff` appended when the sub-second field is non-zero. No
@@ -273,20 +225,14 @@ offset designator is emitted: the value is UTC by construction, and
 the reader accepts a trailing `Z` (RFC 3339's UTC designator) as
 well as its absence.
 
-[Source](/reference-sources/Data.Time.cinch) · line 204
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.Eq_Time` | `Relation.Eq.Eq Data.Time.Time` | Implicit |
-| `Data.Time.Ord_Time` | `Relation.Ord.Ord Data.Time.Time` | Implicit |
-
-**`Data.Time.Eq_Time`**: Instances (the class spellings of `cmp`; instances live with their
-type per design/base-library.md).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time.cinch`. Source SHA-256: `eaebe31539cf831410efab83a69447edab72cad03b00a27d4b515ddd4d54761c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_Time"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Eq_Time</code></span><div class="doc-child-prose">Instances (the class spellings of cmp; instances live with their type per design/base-library.md).</div></li>
+<li id="i-Ord_Time"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Ord_Time</code></span></li>
+</ul>

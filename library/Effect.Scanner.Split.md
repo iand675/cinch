@@ -2,19 +2,11 @@
 
 Byte-preserving token splitters with explicit absent, empty and final token states.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Scanner.Split</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Scanner.Split/source/">View source</a><a href="/packages/search/?q=%2BEffect.Scanner.Split">Search module</a><a href="/reference-sources/Effect.Scanner.Split.cinch" download="Effect.Scanner.Split.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Scanner.Split`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
 
-[Download exact module source](/reference-sources/Effect.Scanner.Split.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
-
-Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Scanner.Split](Effect.Scanner.Split.md), [Effect.Stream](Effect.Stream.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Byte-preserving token splitters with explicit absent, empty and final token states.
 Built-in tokens are fresh. Custom callbacks receive a private snapshot and their
@@ -23,146 +15,113 @@ request more input; they never inspect storage outside the logical byte span.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ScanError">ScanError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanError</strong></code></li><li><a class="syn-name" href="#t-ScanSplit">ScanSplit</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanSplit</strong></code></li><li><a class="syn-name" href="#t-ScanStep">ScanStep</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanStep</strong></code></li><li><a class="syn-name" href="#v-scan-apply">scan-apply</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-apply</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li><li><a class="syn-name" href="#v-scan-apply-between">scan-apply-between</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-apply-between</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li><li><a class="syn-name" href="#v-scan-bytes">scan-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li><li><a class="syn-name" href="#v-scan-error-message">scan-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-scan-lines">scan-lines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-lines</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li><li><a class="syn-name" href="#v-scan-runes">scan-runes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-runes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li><li><a class="syn-name" href="#v-scan-split">scan-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-split</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a></code></li><li><a class="syn-name" href="#v-scan-words">scan-words</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-words</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li></ul>
+</details>
 
-<a id="type-5363616e4572726f72"></a>
+# Types
 
-## `ScanError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScanError</span></code></pre>
+<article class="doc-entry" id="t-ScanError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanError</strong></code><span class="doc-sig-links"><a href="#t-ScanError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 A checked scanner failure, final-token sentinel, source failure or explicit custom diagnostic.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 25
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ScanTooLong"><code><strong class="tok-constructor">ScanTooLong</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanNegativeAdvance"><code><strong class="tok-constructor">ScanNegativeAdvance</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanAdvanceTooFar"><code><strong class="tok-constructor">ScanAdvanceTooFar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanBadReadCount"><code><strong class="tok-constructor">ScanBadReadCount</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanFinalToken"><code><strong class="tok-constructor">ScanFinalToken</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanNoProgress"><code><strong class="tok-constructor">ScanNoProgress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanEmptyTokens"><code><strong class="tok-constructor">ScanEmptyTokens</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanEmptyTokensAfter"><code><strong class="tok-constructor">ScanEmptyTokensAfter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanStarted"><code><strong class="tok-constructor">ScanStarted</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanSourceError"><code><strong class="tok-constructor">ScanSourceError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Buffered.Core/#t-BufferError" title="Effect.Buffered.Core.BufferError">BufferError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li><li id="k-ScanCustomError"><code><strong class="tok-constructor">ScanCustomError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanTooLong</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanNegativeAdvance</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanAdvanceTooFar</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanBadReadCount</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanFinalToken</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanNoProgress</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanEmptyTokens</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanEmptyTokensAfter</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanStarted</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanSourceError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">BufferError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanCustomError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span>)</code></pre>
-
-<a id="type-5363616e53706c6974"></a>
-
-## `ScanSplit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScanSplit</span></code></pre>
+<article class="doc-entry" id="t-ScanSplit">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanSplit</strong></code><span class="doc-sig-links"><a href="#t-ScanSplit" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 A pure split capability receiving owned bytes and a flag indicating any terminal source status.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 70
+</div>
+</article>
 
-<a id="type-5363616e53746570"></a>
-
-## `ScanStep`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScanStep</span></code></pre>
+<article class="doc-entry" id="t-ScanStep">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScanStep</strong></code><span class="doc-sig-links"><a href="#t-ScanStep" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 Final-token errors take precedence over the advance count; other counts are checked by the scanner.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 67
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScanStep</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>)))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ScanStep"><code><strong class="tok-constructor">ScanStep</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-7363616e2d6170706c79"></a>
-
-## `scan-apply`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-apply</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanSplit</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>)))</code></pre>
+<article class="doc-entry" id="v-scan-apply">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-apply</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-apply" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L85" title="View source at line 85">Source</a></span></div>
+<div class="doc-body">
 
 Invoke a split capability with a fresh input snapshot and snapshot any mutable returned token.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 85
+</div>
+</article>
 
-<a id="value-7363616e2d6170706c792d6265747765656e"></a>
-
-## `scan-apply-between`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-apply-between</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanSplit</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>)))))</code></pre>
+<article class="doc-entry" id="v-scan-apply-between">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-apply-between</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-apply-between" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 Invoke a splitter over a checked owner span with exactly one callback-input snapshot and one retained-token snapshot.
 Offsets are absolute and invalid bounds return a checked error without invoking the callback.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 90
+</div>
+</article>
 
-<a id="value-7363616e2d6279746573"></a>
-
-## `scan-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>))</code></pre>
+<article class="doc-entry" id="v-scan-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-bytes" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 Split one arbitrary byte; an empty input safely requests more data or completes at end-of-input.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 101
+</div>
+</article>
 
-<a id="value-7363616e2d6572726f722d6d657373616765"></a>
-
-## `scan-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-error-message</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-scan-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanError" title="Effect.Scanner.Split.ScanError">ScanError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-scan-error-message" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Explain a scanner failure while retaining exact counts and original causes in its structured value.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 50
+</div>
+</article>
 
-<a id="value-7363616e2d6c696e6573"></a>
-
-## `scan-lines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-lines</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>))</code></pre>
+<article class="doc-entry" id="v-scan-lines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-lines</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-lines" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 Split LF-terminated lines, remove one optional preceding CR, and return a final nonempty unterminated line.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 123
+</div>
+</article>
 
-<a id="value-7363616e2d72756e6573"></a>
-
-## `scan-runes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-runes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>))</code></pre>
+<article class="doc-entry" id="v-scan-runes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-runes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-runes" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 Split one shortest-form Unicode scalar, replacing each malformed input byte with encoded U+FFFD.
 An incomplete nonterminal encoding requests more input; invalid and truncated terminal bytes consume one byte each.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 107
+</div>
+</article>
 
-<a id="value-7363616e2d73706c6974"></a>
-
-## `scan-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-split</span> :: ((<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>)) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanSplit</span>)</code></pre>
+<article class="doc-entry" id="v-scan-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-split</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanSplit" title="Effect.Scanner.Split.ScanSplit">ScanSplit</a></code><span class="doc-sig-links"><a href="#v-scan-split" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 Define a custom tokenization capability without exposing the scanner's private buffer.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 75
+</div>
+</article>
 
-<a id="value-7363616e2d776f726473"></a>
-
-## `scan-words`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-words</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Scanner</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ScanStep</span>))</code></pre>
+<article class="doc-entry" id="v-scan-words">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-words</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Scanner.Split/#t-ScanStep" title="Effect.Scanner.Split.ScanStep">ScanStep</a></code><span class="doc-sig-links"><a href="#v-scan-words" title="Permalink">#</a><a href="/packages/stdlib/Effect.Scanner.Split/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Split nonempty words on the Unicode White_Space property, retaining arbitrary non-whitespace bytes exactly.
 
-[Source](/reference-sources/Effect.Scanner.Split.cinch) · line 152
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Scanner/Split.cinch`. Source SHA-256: `5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

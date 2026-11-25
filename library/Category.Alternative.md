@@ -2,17 +2,11 @@
 
 Empty and choice operations for admitted higher-kinded containers.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Alternative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Alternative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Alternative">Search module</a><a href="/reference-sources/Category.Alternative.cinch" download="Category.Alternative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Category.Alternative`. Selected exports may already be in Prelude.
+**Dependencies:** [Category.Applicative](Category.Applicative.md).
 
-[Download exact module source](/reference-sources/Category.Alternative.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Category.Applicative](Category.Applicative.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Category.Alternative: the class of containers with an identity for
 choice.
@@ -31,38 +25,22 @@ prelude split (Data.List/Data.Option).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Alternative">Alternative</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Alternative</strong> <span class="tok-variable">f</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Alternative-empty">empty</a><code class="syn-sig"><strong class="tok-variable">empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Alternative-op-3c7c3e">&lt;|&gt;</a><code class="syn-sig"><strong class="tok-variable">&lt;|&gt;</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-416c7465726e6174697665"></a>
-
-## `Alternative`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span></code></pre>
-
-[Source](/reference-sources/Category.Alternative.cinch)
-
-<a id="method-416c7465726e61746976652e656d707479"></a>
-
-## `Alternative.empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Alternative</span>.<span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="method-416c7465726e61746976652e3c7c3e"></a>
-
-## `Alternative.<|>`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;|&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Category</span>.<span class="tok-constructor">Alternative</span>.<span class="tok-constructor">Alternative</span> <span class="tok-variable">f</span>) =&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">f</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> <span class="tok-variable">a</span>)))</code></pre>
-
-
+<article class="doc-entry" id="c-Alternative">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Alternative</strong> <span class="tok-variable">f</span></code><span class="doc-sig-links"><a href="#c-Alternative" title="Permalink">#</a><a href="/packages/stdlib/Category.Alternative/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Alternative-empty"><div class="doc-method-row"><code><strong class="tok-variable">empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Alternative-empty" title="Permalink">#</a><a href="/packages/stdlib/Category.Alternative/source/#L20">Source</a></span></div></li><li id="m-Alternative-op-3c7c3e"><div class="doc-method-row"><code><strong class="tok-variable">&lt;|&gt;</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <span class="tok-variable">f</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Alternative-op-3c7c3e" title="Permalink">#</a><a href="/packages/stdlib/Category.Alternative/source/#L21">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li></ul></details>
+</div>
+</article>
 
 # Operator fixities
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;|&gt;</span></code></pre>
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Category/Alternative.cinch`. Source SHA-256: `4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+| Operator | Associativity | Precedence |
+| --- | --- | --- |
+| `<\|>` | `infixl` | `3` |

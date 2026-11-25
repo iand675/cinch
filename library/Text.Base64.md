@@ -2,19 +2,11 @@
 
 Base64 encoding/decoding over bytes with explicit invalid-input results.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Base64</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Base64/source/">View source</a><a href="/packages/search/?q=%2BText.Base64">Search module</a><a href="/reference-sources/Text.Base64.cinch" download="Text.Base64.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Base64`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Text.Base64.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-Non-embedded source closure: [Text.Base64](Text.Base64.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Base64: Base64 text to and from `Bytes` (RFC 4648).
 
@@ -67,74 +59,57 @@ Not carried (unproductions this module deliberately does not build):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Base64Error">Base64Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base64Error</strong></code></li><li><a class="syn-name" href="#v-base64-decode">base64-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base64-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base64-decode-lenient">base64-decode-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base64-decode-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base64-encode">base64-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base64-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base64-url-decode">base64-url-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base64-url-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base64-url-encode">base64-url-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base64-url-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4261736536344572726f72"></a>
+# Types
 
-## `Base64Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base64Error</span></code></pre>
+<article class="doc-entry" id="t-Base64Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base64Error</strong></code><span class="doc-sig-links"><a href="#t-Base64Error" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 The named decode failures (the house style: Text.Parse's named
 vocabulary shape, never a fault).
 
-[Source](/reference-sources/Text.Base64.cinch) · line 68
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Character</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Padding</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidBase64Character"><code><strong class="tok-constructor">InvalidBase64Character</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a></code></li><li id="k-InvalidBase64Length"><code><strong class="tok-constructor">InvalidBase64Length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a></code></li><li id="k-InvalidBase64Padding"><code><strong class="tok-constructor">InvalidBase64Padding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6261736536342d6465636f6465"></a>
-
-## `base64-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-base64-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base64-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Strict decoding.
 
-[Source](/reference-sources/Text.Base64.cinch) · line 191
+</div>
+</article>
 
-<a id="value-6261736536342d6465636f64652d6c656e69656e74"></a>
-
-## `base64-decode-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-decode-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-base64-decode-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-decode-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base64-decode-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L310" title="View source at line 310">Source</a></span></div>
+<div class="doc-body">
 
 Lenient decoding (Ruby's `decode64`): drop every non-alphabet
 scalar and pack what remains, never failing.
 
-[Source](/reference-sources/Text.Base64.cinch) · line 310
+</div>
+</article>
 
-<a id="value-6261736536342d656e636f6465"></a>
-
-## `base64-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-base64-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base64-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L129" title="View source at line 129">Source</a></span></div>
+<div class="doc-body">
 
 Encoding.
 
-[Source](/reference-sources/Text.Base64.cinch) · line 129
+</div>
+</article>
 
-<a id="value-6261736536342d75726c2d6465636f6465"></a>
+<article class="doc-entry" id="v-base64-url-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-url-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base64/#t-Base64Error" title="Text.Base64.Base64Error">Base64Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base64-url-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L194" title="View source at line 194">Source</a></span></div>
+</article>
 
-## `base64-url-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Base64Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
-
-[Source](/reference-sources/Text.Base64.cinch)
-
-<a id="value-6261736536342d75726c2d656e636f6465"></a>
-
-## `base64-url-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base64-url-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Base64.cinch)
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base64.cinch`. Source SHA-256: `54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<article class="doc-entry" id="v-base64-url-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-url-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base64-url-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L132" title="View source at line 132">Source</a></span></div>
+</article>

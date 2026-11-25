@@ -2,19 +2,11 @@
 
 Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Jpeg</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Jpeg/source/">View source</a><a href="/packages/search/?q=%2BImage.Jpeg">Search module</a><a href="/reference-sources/Image.Jpeg.cinch" download="Image.Jpeg.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Image.Jpeg`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
 
-[Download exact module source](/reference-sources/Image.Jpeg.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
-
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Jpeg](Image.Jpeg.md), [Image.Raster](Image.Raster.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 JPEG images: baseline, extended-sequential and progressive Huffman decoding, and baseline encoding.
 Decoding yields the image in its coded colour space: one component as a Gray8 raster, YCbCr as planes
@@ -40,425 +32,353 @@ column pass with rounding quantization, colour conversion and chroma averaging r
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (37 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ChromaRatio">ChromaRatio</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ChromaRatio</strong></code></li><li><a class="syn-name" href="#t-CmykImage">CmykImage</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CmykImage</strong></code></li><li><a class="syn-name" href="#t-JpegColorModel">JpegColorModel</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegColorModel</strong></code></li><li><a class="syn-name" href="#t-JpegConfig">JpegConfig</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegConfig</strong></code></li><li><a class="syn-name" href="#t-JpegError">JpegError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegError</strong></code></li><li><a class="syn-name" href="#t-JpegImage">JpegImage</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegImage</strong></code></li><li><a class="syn-name" href="#t-YcbcrImage">YcbcrImage</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YcbcrImage</strong></code></li><li><a class="syn-name" href="#v-chroma-height">chroma-height</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chroma-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-chroma-width">chroma-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chroma-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-cmyk-height">cmyk-height</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmyk-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-cmyk-image">cmyk-image</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmyk-image</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a></code></li><li><a class="syn-name" href="#v-cmyk-pixels">cmyk-pixels</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmyk-pixels</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-cmyk-to-raster">cmyk-to-raster</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmyk-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-cmyk-width">cmyk-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmyk-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-jpeg-config-height">jpeg-config-height</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-config-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-jpeg-config-model">jpeg-config-model</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-config-model</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code></li><li><a class="syn-name" href="#v-jpeg-config-width">jpeg-config-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-config-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-jpeg-decode">jpeg-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code></li><li><a class="syn-name" href="#v-jpeg-decode-config">jpeg-decode-config</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-decode-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a></code></li><li><a class="syn-name" href="#v-jpeg-default-quality">jpeg-default-quality</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-default-quality</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-jpeg-encode">jpeg-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-jpeg-encode-ycbcr">jpeg-encode-ycbcr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-encode-ycbcr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-jpeg-error-message">jpeg-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-jpeg-to-raster">jpeg-to-raster</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">jpeg-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-ycbcr-c-offset">ycbcr-c-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-c-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ycbcr-c-stride">ycbcr-c-stride</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-c-stride</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ycbcr-cb">ycbcr-cb</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-cb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ycbcr-cr">ycbcr-cr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-cr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ycbcr-from-planes">ycbcr-from-planes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-from-planes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a></code></li><li><a class="syn-name" href="#v-ycbcr-height">ycbcr-height</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ycbcr-image">ycbcr-image</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-image</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a></code></li><li><a class="syn-name" href="#v-ycbcr-ratio">ycbcr-ratio</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-ratio</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li><a class="syn-name" href="#v-ycbcr-to-raster">ycbcr-to-raster</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-ycbcr-width">ycbcr-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ycbcr-y">ycbcr-y</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-y</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ycbcr-y-offset">ycbcr-y-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-y-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ycbcr-y-stride">ycbcr-y-stride</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ycbcr-y-stride</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-4368726f6d61526174696f"></a>
+# Types
 
-## `ChromaRatio`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ChromaRatio</span></code></pre>
+<article class="doc-entry" id="t-ChromaRatio">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ChromaRatio</strong></code><span class="doc-sig-links"><a href="#t-ChromaRatio" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 How chroma planes are subsampled against the luma plane (horizontal then vertical factors).
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 69
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Chroma444"><code><strong class="tok-constructor">Chroma444</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li id="k-Chroma422"><code><strong class="tok-constructor">Chroma422</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li id="k-Chroma420"><code><strong class="tok-constructor">Chroma420</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li id="k-Chroma440"><code><strong class="tok-constructor">Chroma440</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li id="k-Chroma411"><code><strong class="tok-constructor">Chroma411</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li><li id="k-Chroma410"><code><strong class="tok-constructor">Chroma410</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma444</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma422</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma420</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma440</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma411</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Chroma410</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span></code></pre>
-
-<a id="type-436d796b496d616765"></a>
-
-## `CmykImage`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CmykImage</span></code></pre>
+<article class="doc-entry" id="t-CmykImage">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CmykImage</strong></code><span class="doc-sig-links"><a href="#t-CmykImage" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 229
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-CmykImage"><code><strong class="tok-constructor">CmykImage</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CmykImage</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span>)))</code></pre>
-
-<a id="type-4a706567436f6c6f724d6f64656c"></a>
-
-## `JpegColorModel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JpegColorModel</span></code></pre>
+<article class="doc-entry" id="t-JpegColorModel">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegColorModel</strong></code><span class="doc-sig-links"><a href="#t-JpegColorModel" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L284" title="View source at line 284">Source</a></span></div>
+<div class="doc-body">
 
 The colour model a JPEG decodes to.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 284
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JpegGrayModel"><code><strong class="tok-constructor">JpegGrayModel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code></li><li id="k-JpegYcbcrModel"><code><strong class="tok-constructor">JpegYcbcrModel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code></li><li id="k-JpegRgbModel"><code><strong class="tok-constructor">JpegRgbModel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code></li><li id="k-JpegCmykModel"><code><strong class="tok-constructor">JpegCmykModel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegGrayModel</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegYcbcrModel</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegRgbModel</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegCmykModel</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span></code></pre>
-
-<a id="type-4a706567436f6e666967"></a>
-
-## `JpegConfig`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JpegConfig</span></code></pre>
+<article class="doc-entry" id="t-JpegConfig">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegConfig</strong></code><span class="doc-sig-links"><a href="#t-JpegConfig" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L297" title="View source at line 297">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 297
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JpegConfig"><code><strong class="tok-constructor">JpegConfig</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegConfig</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegConfig</span>)))</code></pre>
-
-<a id="type-4a7065674572726f72"></a>
-
-## `JpegError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JpegError</span></code></pre>
+<article class="doc-entry" id="t-JpegError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegError</strong></code><span class="doc-sig-links"><a href="#t-JpegError" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Why a JPEG could not be decoded or encoded.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 50
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JpegFormatError"><code><strong class="tok-constructor">JpegFormatError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a></code></li><li id="k-JpegUnsupported"><code><strong class="tok-constructor">JpegUnsupported</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a></code></li><li id="k-JpegTruncated"><code><strong class="tok-constructor">JpegTruncated</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a></code></li><li id="k-JpegTooLarge"><code><strong class="tok-constructor">JpegTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegFormatError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegUnsupported</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegTruncated</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegTooLarge</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span></code></pre>
-
-<a id="type-4a706567496d616765"></a>
-
-## `JpegImage`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JpegImage</span></code></pre>
+<article class="doc-entry" id="t-JpegImage">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JpegImage</strong></code><span class="doc-sig-links"><a href="#t-JpegImage" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L265" title="View source at line 265">Source</a></span></div>
+<div class="doc-body">
 
 A decoded image in its coded colour space.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 265
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JpegGray"><code><strong class="tok-constructor">JpegGray</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code></li><li id="k-JpegYcbcr"><code><strong class="tok-constructor">JpegYcbcr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code></li><li id="k-JpegRgb"><code><strong class="tok-constructor">JpegRgb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code></li><li id="k-JpegCmyk"><code><strong class="tok-constructor">JpegCmyk</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegGray</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegYcbcr</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegRgb</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JpegCmyk</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span>)</code></pre>
-
-<a id="type-5963626372496d616765"></a>
-
-## `YcbcrImage`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">YcbcrImage</span></code></pre>
+<article class="doc-entry" id="t-YcbcrImage">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YcbcrImage</strong></code><span class="doc-sig-links"><a href="#t-YcbcrImage" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 115
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YcbcrImage</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span>))))))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-YcbcrImage"><code><strong class="tok-constructor">YcbcrImage</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6368726f6d612d686569676874"></a>
-
-## `chroma-height`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chroma-height</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-chroma-height">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chroma-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-chroma-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 The height of a chroma plane for a luma height (rounded up).
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 108
+</div>
+</article>
 
-<a id="value-6368726f6d612d7769647468"></a>
-
-## `chroma-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chroma-width</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-chroma-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chroma-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-chroma-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 The width of a chroma plane for a luma width (rounded up).
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 104
+</div>
+</article>
 
-<a id="value-636d796b2d686569676874"></a>
-
-## `cmyk-height`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmyk-height</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-cmyk-height">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmyk-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-cmyk-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L240" title="View source at line 240">Source</a></span></div>
+<div class="doc-body">
 
 The height in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 240
+</div>
+</article>
 
-<a id="value-636d796b2d696d616765"></a>
-
-## `cmyk-image`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmyk-image</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span>))))</code></pre>
+<article class="doc-entry" id="v-cmyk-image">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmyk-image</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a></code><span class="doc-sig-links"><a href="#v-cmyk-image" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L232" title="View source at line 232">Source</a></span></div>
+<div class="doc-body">
 
 A CMYK image over existing samples; None when they are too short.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 232
+</div>
+</article>
 
-<a id="value-636d796b2d706978656c73"></a>
-
-## `cmyk-pixels`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmyk-pixels</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-cmyk-pixels">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmyk-pixels</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-cmyk-pixels" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L244" title="View source at line 244">Source</a></span></div>
+<div class="doc-body">
 
 The samples, four bytes per pixel.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 244
+</div>
+</article>
 
-<a id="value-636d796b2d746f2d726173746572"></a>
-
-## `cmyk-to-raster`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmyk-to-raster</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>)</code></pre>
+<article class="doc-entry" id="v-cmyk-to-raster">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmyk-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-cmyk-to-raster" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L248" title="View source at line 248">Source</a></span></div>
+<div class="doc-body">
 
 Convert to an Rgb8 raster: each channel is (65535 - 257c) * (65535 - 257k) / 65535, high byte.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 248
+</div>
+</article>
 
-<a id="value-636d796b2d7769647468"></a>
-
-## `cmyk-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmyk-width</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">CmykImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-cmyk-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmyk-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-CmykImage" title="Image.Jpeg.CmykImage">CmykImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-cmyk-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L236" title="View source at line 236">Source</a></span></div>
+<div class="doc-body">
 
 The width in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 236
+</div>
+</article>
 
-<a id="value-6a7065672d636f6e6669672d686569676874"></a>
-
-## `jpeg-config-height`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-config-height</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegConfig</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-jpeg-config-height">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-config-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-jpeg-config-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L308" title="View source at line 308">Source</a></span></div>
+<div class="doc-body">
 
 The height in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 308
+</div>
+</article>
 
-<a id="value-6a7065672d636f6e6669672d6d6f64656c"></a>
-
-## `jpeg-config-model`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-config-model</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegConfig</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegColorModel</span>)</code></pre>
+<article class="doc-entry" id="v-jpeg-config-model">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-config-model</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegColorModel" title="Image.Jpeg.JpegColorModel">JpegColorModel</a></code><span class="doc-sig-links"><a href="#v-jpeg-config-model" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L300" title="View source at line 300">Source</a></span></div>
+<div class="doc-body">
 
 The colour model.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 300
+</div>
+</article>
 
-<a id="value-6a7065672d636f6e6669672d7769647468"></a>
-
-## `jpeg-config-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-config-width</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegConfig</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-jpeg-config-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-config-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-jpeg-config-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L304" title="View source at line 304">Source</a></span></div>
+<div class="doc-body">
 
 The width in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 304
+</div>
+</article>
 
-<a id="value-6a7065672d6465636f6465"></a>
-
-## `jpeg-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-decode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span>))</code></pre>
+<article class="doc-entry" id="v-jpeg-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L462" title="View source at line 462">Source</a></span></div>
+<div class="doc-body">
 
 Decode a whole image.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 462
+</div>
+</article>
 
-<a id="value-6a7065672d6465636f64652d636f6e666967"></a>
-
-## `jpeg-decode-config`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-decode-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegConfig</span>))</code></pre>
+<article class="doc-entry" id="v-jpeg-decode-config">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L473" title="View source at line 473">Source</a></span></div>
+<div class="doc-body">
 
 Read the colour model and size: stops at the frame header after a JFIF marker, otherwise at the first scan.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 473
+</div>
+</article>
 
-<a id="value-6a7065672d64656661756c742d7175616c697479"></a>
-
-## `jpeg-default-quality`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-default-quality</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-jpeg-default-quality">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-default-quality</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-jpeg-default-quality" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1694" title="View source at line 1694">Source</a></span></div>
+<div class="doc-body">
 
 The quality used when none is chosen.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1694
+</div>
+</article>
 
-<a id="value-6a7065672d656e636f6465"></a>
-
-## `jpeg-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-encode</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-jpeg-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1699" title="View source at line 1699">Source</a></span></div>
+<div class="doc-body">
 
 Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every other format as YCbCr
 4:2:0 after premultiplying alpha.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1699
+</div>
+</article>
 
-<a id="value-6a7065672d656e636f64652d7963626372"></a>
-
-## `jpeg-encode-ycbcr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-encode-ycbcr</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-jpeg-encode-ycbcr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode-ycbcr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode-ycbcr" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1710" title="View source at line 1710">Source</a></span></div>
+<div class="doc-body">
 
 Encode YCbCr planes at a quality as YCbCr 4:2:0; each pixel takes the chroma sample covering it, and
 each 2x2 neighbourhood is averaged.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1710
+</div>
+</article>
 
-<a id="value-6a7065672d6572726f722d6d657373616765"></a>
-
-## `jpeg-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-error-message</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-jpeg-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-jpeg-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 A readable description of an error.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 61
+</div>
+</article>
 
-<a id="value-6a7065672d746f2d726173746572"></a>
-
-## `jpeg-to-raster`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jpeg-to-raster</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">JpegImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>)</code></pre>
+<article class="doc-entry" id="v-jpeg-to-raster">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-jpeg-to-raster" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L276" title="View source at line 276">Source</a></span></div>
+<div class="doc-body">
 
 The image as a raster: Gray8 for grayscale, Rgb8 otherwise.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 276
+</div>
+</article>
 
-<a id="value-79636263722d632d6f6666736574"></a>
-
-## `ycbcr-c-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-c-offset</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-ycbcr-c-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-c-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-c-offset" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 The chroma offset of pixel (x, y).
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 170
+</div>
+</article>
 
-<a id="value-79636263722d632d737472696465"></a>
-
-## `ycbcr-c-stride`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-c-stride</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-c-stride">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-c-stride</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-c-stride" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L150" title="View source at line 150">Source</a></span></div>
+<div class="doc-body">
 
 Bytes between vertically adjacent chroma samples.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 150
+</div>
+</article>
 
-<a id="value-79636263722d6362"></a>
-
-## `ycbcr-cb`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-cb</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-cb">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-cb</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ycbcr-cb" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L158" title="View source at line 158">Source</a></span></div>
+<div class="doc-body">
 
 The blue-difference chroma plane.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 158
+</div>
+</article>
 
-<a id="value-79636263722d6372"></a>
-
-## `ycbcr-cr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-cr</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-cr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-cr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ycbcr-cr" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L162" title="View source at line 162">Source</a></span></div>
+<div class="doc-body">
 
 The red-difference chroma plane.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 162
+</div>
+</article>
 
-<a id="value-79636263722d66726f6d2d706c616e6573"></a>
-
-## `ycbcr-from-planes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-from-planes</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span>)))))))))</code></pre>
+<article class="doc-entry" id="v-ycbcr-from-planes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-from-planes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a></code><span class="doc-sig-links"><a href="#v-ycbcr-from-planes" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 A YCbCr image over existing planes; None when a stride is narrower than its plane or a plane is too short.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 125
+</div>
+</article>
 
-<a id="value-79636263722d686569676874"></a>
-
-## `ycbcr-height`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-height</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-height">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-body">
 
 The height in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 142
+</div>
+</article>
 
-<a id="value-79636263722d696d616765"></a>
-
-## `ycbcr-image`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-image</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span>)))</code></pre>
+<article class="doc-entry" id="v-ycbcr-image">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-image</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a></code><span class="doc-sig-links"><a href="#v-ycbcr-image" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-body">
 
 A zeroed YCbCr image with tight strides.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 118
+</div>
+</article>
 
-<a id="value-79636263722d726174696f"></a>
-
-## `ycbcr-ratio`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-ratio</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">ChromaRatio</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-ratio">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-ratio</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-ChromaRatio" title="Image.Jpeg.ChromaRatio">ChromaRatio</a></code><span class="doc-sig-links"><a href="#v-ycbcr-ratio" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 The chroma ratio.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 134
+</div>
+</article>
 
-<a id="value-79636263722d746f2d726173746572"></a>
-
-## `ycbcr-to-raster`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-to-raster</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-to-raster">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-to-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-ycbcr-to-raster" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L175" title="View source at line 175">Source</a></span></div>
+<div class="doc-body">
 
 Convert to an Rgb8 raster with the 8-bit YCbCr to RGB conversion, taking each pixel's chroma from the
 sample covering it; four pixels per kernel step.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 175
+</div>
+</article>
 
-<a id="value-79636263722d7769647468"></a>
-
-## `ycbcr-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-width</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 The width in pixels.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 138
+</div>
+</article>
 
-<a id="value-79636263722d79"></a>
-
-## `ycbcr-y`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-y</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-y">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-y</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ycbcr-y" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-body">
 
 The luma plane.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 154
+</div>
+</article>
 
-<a id="value-79636263722d792d6f6666736574"></a>
-
-## `ycbcr-y-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-y-offset</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-ycbcr-y-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-y-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-y-offset" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L166" title="View source at line 166">Source</a></span></div>
+<div class="doc-body">
 
 The luma offset of pixel (x, y).
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 166
+</div>
+</article>
 
-<a id="value-79636263722d792d737472696465"></a>
-
-## `ycbcr-y-stride`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ycbcr-y-stride</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Jpeg</span>.<span class="tok-constructor">YcbcrImage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ycbcr-y-stride">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ycbcr-y-stride</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ycbcr-y-stride" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L146" title="View source at line 146">Source</a></span></div>
+<div class="doc-body">
 
 Bytes between vertically adjacent luma samples.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 146
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Jpeg.cinch`. Source SHA-256: `3efe49f20c865c41d0cbc594e87b539ec57013c246a8332332e21a4b57996d2b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

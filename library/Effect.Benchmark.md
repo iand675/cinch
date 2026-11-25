@@ -2,19 +2,11 @@
 
 Benchmark case execution and timing/reporting helpers over runtime clocks.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Benchmark</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Benchmark/source/">View source</a><a href="/packages/search/?q=%2BEffect.Benchmark">Search module</a><a href="/reference-sources/Effect.Benchmark.cinch" download="Effect.Benchmark.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Benchmark`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Effect.Clock](Effect.Clock.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Effect.Benchmark.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Effect.Clock](Effect.Clock.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Effect.Benchmark](Effect.Benchmark.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Benchmark: timing `IO r` actions against the runtime's
 monotonic clock, the Ruby `Benchmark` surface (the tooling entry in
@@ -64,46 +56,38 @@ system's vocabulary, and timing is a runtime capability in the
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-BenchmarkReport">BenchmarkReport</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BenchmarkReport</strong></code></li><li><a class="syn-name" href="#v-benchmark-elapsed-ns">benchmark-elapsed-ns</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">benchmark-elapsed-ns</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-benchmark-label">benchmark-label</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">benchmark-label</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-benchmark-measure">benchmark-measure</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">benchmark-measure</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a>, <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-benchmark-realtime">benchmark-realtime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">benchmark-realtime</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-benchmark-table">benchmark-table</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">benchmark-table</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-42656e63686d61726b5265706f7274"></a>
+# Types
 
-## `BenchmarkReport`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BenchmarkReport</span></code></pre>
+<article class="doc-entry" id="t-BenchmarkReport">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BenchmarkReport</strong></code><span class="doc-sig-links"><a href="#t-BenchmarkReport" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 One measurement: the label the caller supplied and the elapsed
 monotonic nanoseconds around the action. The constructor is the
 smart surface's only source of reports, so a report's interval is
 always one this module read.
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 62
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BenchmarkReport</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BenchmarkReport"><code><strong class="tok-constructor">BenchmarkReport</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-62656e63686d61726b2d656c61707365642d6e73"></a>
+<article class="doc-entry" id="v-benchmark-elapsed-ns">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">benchmark-elapsed-ns</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-benchmark-elapsed-ns" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L69" title="View source at line 69">Source</a></span></div>
+</article>
 
-## `benchmark-elapsed-ns`
+<article class="doc-entry" id="v-benchmark-label">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">benchmark-label</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-benchmark-label" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L65" title="View source at line 65">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-elapsed-ns</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Benchmark.cinch)
-
-<a id="value-62656e63686d61726b2d6c6162656c"></a>
-
-## `benchmark-label`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-label</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Benchmark.cinch)
-
-<a id="value-62656e63686d61726b2d6d656173757265"></a>
-
-## `benchmark-measure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-measure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>, <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-benchmark-measure">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">benchmark-measure</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a>, <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-benchmark-measure" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 Run `work` and report the monotonic span around it, together with
 `work`'s own value so a measurement never discards the result. The
@@ -111,34 +95,29 @@ elapsed is `t1 - t0`; the monotonic clock guarantees `t1 >= t0`,
 but that is the OS's promise, not a fact the checker sees, so the
 span clamps at zero (a duration is never negative).
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 79
+</div>
+</article>
 
-<a id="value-62656e63686d61726b2d7265616c74696d65"></a>
-
-## `benchmark-realtime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-realtime</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-benchmark-realtime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">benchmark-realtime</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-benchmark-realtime" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 The same interval as `benchmark-measure`, truncated to whole
 milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's
 value is deliberately dropped, so callers wanting it use
 `benchmark-measure`.
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 90
+</div>
+</article>
 
-<a id="value-62656e63686d61726b2d7461626c65"></a>
-
-## `benchmark-table`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">benchmark-table</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Benchmark</span>.<span class="tok-constructor">BenchmarkReport</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-benchmark-table">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">benchmark-table</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Benchmark/#t-BenchmarkReport" title="Effect.Benchmark.BenchmarkReport">BenchmarkReport</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-benchmark-table" title="Permalink">#</a><a href="/packages/stdlib/Effect.Benchmark/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The table: a header, one row per report in input order, and the
 total row. Labels are the caller's, printed verbatim. The rows are
 flattened once: nesting `string-concat` would re-copy the rest of the
 table at every row.
 
-[Source](/reference-sources/Effect.Benchmark.cinch) · line 102
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Benchmark.cinch`. Source SHA-256: `59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

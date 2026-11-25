@@ -2,19 +2,11 @@
 
 In-memory string-oriented I/O utilities with explicit state and error results.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.StringIo</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.StringIo/source/">View source</a><a href="/packages/search/?q=%2BData.StringIo">Search module</a><a href="/reference-sources/Data.StringIo.cinch" download="Data.StringIo.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.StringIo`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Result](Data.Result.md).
 
-[Download exact module source](/reference-sources/Data.StringIo.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Result](Data.Result.md).
-
-Non-embedded source closure: [Data.StringIo](Data.StringIo.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.StringIo: Ruby's StringIO as an in-memory byte buffer with a
 read/write cursor.
@@ -77,13 +69,15 @@ Named refusals (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-StringIo">StringIo</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StringIo</strong></code></li><li><a class="syn-name" href="#t-StringIoError">StringIoError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StringIoError</strong></code></li><li><a class="syn-name" href="#v-string-io-eof">string-io-eof</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-eof</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-string-io-from-bytes">string-io-from-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li><li><a class="syn-name" href="#v-string-io-len">string-io-len</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-len</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-io-new">string-io-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li><li><a class="syn-name" href="#v-string-io-pos">string-io-pos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-pos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-io-read">string-io-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a>)</code></li><li><a class="syn-name" href="#v-string-io-read-line">string-io-read-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-read-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a>)</code></li><li><a class="syn-name" href="#v-string-io-rewind">string-io-rewind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-rewind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li><li><a class="syn-name" href="#v-string-io-seek">string-io-seek</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-seek</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIoError" title="Data.StringIo.StringIoError">StringIoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li><li><a class="syn-name" href="#v-string-io-to-bytes">string-io-to-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-string-io-truncate">string-io-truncate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-truncate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li><li><a class="syn-name" href="#v-string-io-write">string-io-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-io-write</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code></li></ul>
+</details>
 
-<a id="type-537472696e67496f"></a>
+# Types
 
-## `StringIo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">StringIo</span></code></pre>
+<article class="doc-entry" id="t-StringIo">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StringIo</strong></code><span class="doc-sig-links"><a href="#t-StringIo" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 The buffer and the cursor. The representation is module-private: the
 constructor is deliberately NOT the type's name (`IoBuf`, not
@@ -94,110 +88,90 @@ from `string-io-new` or `string-io-from-bytes`, so the cursor
 invariant (0 <= pos <= bytes-len buffer) holds by construction and
 a caller cannot put the cursor outside it.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 79
+</div>
+</article>
 
-<a id="type-537472696e67496f4572726f72"></a>
-
-## `StringIoError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">StringIoError</span></code></pre>
+<article class="doc-entry" id="t-StringIoError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StringIoError</strong></code><span class="doc-sig-links"><a href="#t-StringIoError" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 The named seek refusal: the requested target and the length it
 exceeds.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 84
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SeekOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIoError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SeekOutOfRange"><code><strong class="tok-constructor">SeekOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIoError" title="Data.StringIo.StringIoError">StringIoError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-737472696e672d696f2d656f66"></a>
-
-## `string-io-eof`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-eof</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-string-io-eof">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-eof</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-string-io-eof" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 At or past the last byte: a read returns nothing and the cursor
 does not move.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 132
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d66726f6d2d6279746573"></a>
-
-## `string-io-from-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)</code></pre>
+<article class="doc-entry" id="v-string-io-from-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 The conversion in copies (the wrap/copy discipline Data.String
 states for its backing): the caller keeps its mutable buffer and a
 later `bytes-set` on it never shows through the handle. The cursor
 starts at the beginning.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 110
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d6c656e"></a>
+<article class="doc-entry" id="v-string-io-len">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-len</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-io-len" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L124" title="View source at line 124">Source</a></span></div>
+</article>
 
-## `string-io-len`
+<article class="doc-entry" id="v-string-io-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-new" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L103" title="View source at line 103">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-len</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-string-io-pos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-pos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-io-pos" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L127" title="View source at line 127">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.StringIo.cinch)
-
-<a id="value-737472696e672d696f2d6e6577"></a>
-
-## `string-io-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-new</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span></code></pre>
-
-[Source](/reference-sources/Data.StringIo.cinch)
-
-<a id="value-737472696e672d696f2d706f73"></a>
-
-## `string-io-pos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-pos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.StringIo.cinch)
-
-<a id="value-737472696e672d696f2d72656164"></a>
-
-## `string-io-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)))</code></pre>
+<article class="doc-entry" id="v-string-io-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a>)</code><span class="doc-sig-links"><a href="#v-string-io-read" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L162" title="View source at line 162">Source</a></span></div>
+<div class="doc-body">
 
 Read up to n bytes from the cursor, advancing by the number
 consumed. At or past the end the result is the empty buffer and the
 cursor does not move (`string-io-eof` is how a caller sees it;
 Ruby's nil is not spelled here).
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 162
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d726561642d6c696e65"></a>
-
-## `string-io-read-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-read-line</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
+<article class="doc-entry" id="v-string-io-read-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-read-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a>)</code><span class="doc-sig-links"><a href="#v-string-io-read-line" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Read through the next LF (0x0A), inclusive; the last line without a
 terminator yields the rest of the buffer.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 167
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d726577696e64"></a>
-
-## `string-io-rewind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-rewind</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)</code></pre>
+<article class="doc-entry" id="v-string-io-rewind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-rewind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-rewind" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 The cursor to the start: what was read is read again.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 198
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d7365656b"></a>
-
-## `string-io-seek`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-seek</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>)))</code></pre>
+<article class="doc-entry" id="v-string-io-seek">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-seek</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIoError" title="Data.StringIo.StringIoError">StringIoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-seek" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L206" title="View source at line 206">Source</a></span></div>
+<div class="doc-body">
 
 The cursor to an absolute byte offset. A target past the buffer
 length is the named refusal: this module never pads, so the cursor
@@ -205,35 +179,32 @@ would leave the invariant 0 <= pos <= length that the rest of the
 module relies on. A negative target cannot be written down (the
 cursor is a `Nat`).
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 206
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d746f2d6279746573"></a>
-
-## `string-io-to-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-to-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-string-io-to-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-string-io-to-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 The conversion out copies too, for the same reason.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 117
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d7472756e63617465"></a>
-
-## `string-io-truncate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-truncate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
+<article class="doc-entry" id="v-string-io-truncate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-truncate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-truncate" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Shrink the buffer to at most n bytes (a larger n is a no-op: this
 never extends, matching Ruby's `truncate`). The cursor is clamped
 into the new length, which keeps 0 <= pos <= length.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 215
+</div>
+</article>
 
-<a id="value-737472696e672d696f2d7772697465"></a>
-
-## `string-io-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-io-write</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">StringIo</span>.<span class="tok-constructor">StringIo</span>))</code></pre>
+<article class="doc-entry" id="v-string-io-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-io-write</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.StringIo/#t-StringIo" title="Data.StringIo.StringIo">StringIo</a></code><span class="doc-sig-links"><a href="#v-string-io-write" title="Permalink">#</a><a href="/packages/stdlib/Data.StringIo/source/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 Write at the cursor: `bs` overwrites the bytes already there and
 extends the buffer when it runs past the end; the bytes after the
@@ -241,8 +212,5 @@ write stay where they were (Ruby's overwrite, never an insert).
 The cursor lands just past the last byte written, so a write of no
 bytes leaves buffer and cursor unchanged.
 
-[Source](/reference-sources/Data.StringIo.cinch) · line 140
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/StringIo.cinch`. Source SHA-256: `9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

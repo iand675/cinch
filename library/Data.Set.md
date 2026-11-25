@@ -2,13 +2,9 @@
 
 Ordered sets and their membership, combination, difference, and conversion operations.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Set</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Set/source/">View source</a><a href="/packages/search/?q=%2BData.Set">Search module</a><a href="/reference-sources/Data.Set.cinch" download="Data.Set.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Set`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Data.Set.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Set: the ordered set.
 
@@ -55,60 +51,53 @@ Module scheme (design/base-library.md): the type's home carries its
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Set">Set</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Set</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-delete">set-delete</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-delete</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-difference">set-difference</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-difference</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-empty">set-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-filter">set-filter</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-filter</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-fold">set-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-set-from-list">set-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-insert">set-insert</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-insert</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-intersection">set-intersection</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-intersection</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-is-empty">set-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-set-map">set-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">b</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-set-member">set-member</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-member</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-set-size">set-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-size</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-set-subset">set-subset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-subset</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-set-to-list">set-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-set-union">set-union</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">set-union</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-536574"></a>
+# Types
 
-## `Set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Set</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Set">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Set</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Set" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 The ordered set: a height-augmented AVL tree over `Ord a`.
 
-[Source](/reference-sources/Data.Set.cinch) · line 50
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Tip"><code><strong class="tok-constructor">Tip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li><li id="k-Bin"><code><strong class="tok-constructor">Bin</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Set/#instances">Data.Set</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-7365742d64656c657465"></a>
-
-## `set-delete`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-delete</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-set-delete">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-delete</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-delete" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 Removal: the search descends as `set-member` does, and a found
 node's subtrees rejoin through the right subtree's smallest element
 (the AVL delete), so the height invariant survives. An absent
 element rebuilds the same tree.
 
-[Source](/reference-sources/Data.Set.cinch) · line 141
+</div>
+</article>
 
-<a id="value-7365742d646966666572656e6365"></a>
-
-## `set-difference`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-difference</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-set-difference">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-difference</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-difference" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L208" title="View source at line 208">Source</a></span></div>
+<div class="doc-body">
 
 The elements of the left set that the right set does NOT hold.
 
-[Source](/reference-sources/Data.Set.cinch) · line 208
+</div>
+</article>
 
-<a id="value-7365742d656d707479"></a>
+<article class="doc-entry" id="v-set-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L54" title="View source at line 54">Source</a></span></div>
+</article>
 
-## `set-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d66696c746572"></a>
-
-## `set-filter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-filter</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-set-filter">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-filter</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-filter" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L243" title="View source at line 243">Source</a></span></div>
+<div class="doc-body">
 
 The elements the predicate accepts, rebuilt from the surviving
 ascending listing. The rebuild is why this states `Ord a` where
@@ -118,130 +107,98 @@ can empty one whole side) has no join to use and reinserts
 instead. The rebuild also means duplicates cannot appear and the
 ascending order is re-derived.
 
-[Source](/reference-sources/Data.Set.cinch) · line 243
+</div>
+</article>
 
-<a id="value-7365742d666f6c64"></a>
-
-## `set-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-set-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-set-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L255" title="View source at line 255">Source</a></span></div>
+<div class="doc-body">
 
 A RIGHT fold in ascending order (Data.Set's `foldr`): folding with
 `Cons` rebuilds `set-to-list`, and the empty set is the identity.
 
-[Source](/reference-sources/Data.Set.cinch) · line 255
+</div>
+</article>
 
-<a id="value-7365742d66726f6d2d6c697374"></a>
+<article class="doc-entry" id="v-set-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L132" title="View source at line 132">Source</a></span></div>
+</article>
 
-## `set-from-list`
+<article class="doc-entry" id="v-set-insert">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-insert</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-insert" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L102" title="View source at line 102">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d696e73657274"></a>
-
-## `set-insert`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-insert</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d696e74657273656374696f6e"></a>
-
-## `set-intersection`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-intersection</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-set-intersection">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-intersection</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-intersection" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L197" title="View source at line 197">Source</a></span></div>
+<div class="doc-body">
 
 The elements of the left set that the right set also holds.
 
-[Source](/reference-sources/Data.Set.cinch) · line 197
+</div>
+</article>
 
-<a id="value-7365742d69732d656d707479"></a>
-
-## `set-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-set-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-set-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 Named `set-is-empty` because the bare `is-empty` is the list's
 (`List a -> Bool`) and there is no overloading to share one
 spelling; the module prefix is how the family disambiguates.
 
-[Source](/reference-sources/Data.Set.cinch) · line 179
+</div>
+</article>
 
-<a id="value-7365742d6d6170"></a>
-
-## `set-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">b</span>) =&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-set-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">b</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-set-map" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L233" title="View source at line 233">Source</a></span></div>
+<div class="doc-body">
 
 The image of a set under a function (Data.Set's `map`): every
 element is rewritten and reinserted, so two elements that collide
 keep one copy and the result is ordered by the NEW values, hence
 `Ord b` and never `Ord a`.
 
-[Source](/reference-sources/Data.Set.cinch) · line 233
+</div>
+</article>
 
-<a id="value-7365742d6d656d626572"></a>
+<article class="doc-entry" id="v-set-member">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-member</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-set-member" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L110" title="View source at line 110">Source</a></span></div>
+</article>
 
-## `set-member`
+<article class="doc-entry" id="v-set-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-size</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-set-size" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L127" title="View source at line 127">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-member</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d73697a65"></a>
-
-## `set-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-size</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d737562736574"></a>
-
-## `set-subset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-subset</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-set-subset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-subset</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-set-subset" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L221" title="View source at line 221">Source</a></span></div>
+<div class="doc-body">
 
 Whether every element of the first set is in the second (Data.Set's
 `isSubsetOf`, kept under the module prefix, which is how every
 other ordered operation here names itself).
 
-[Source](/reference-sources/Data.Set.cinch) · line 221
+</div>
+</article>
 
-<a id="value-7365742d746f2d6c697374"></a>
+<article class="doc-entry" id="v-set-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L124" title="View source at line 124">Source</a></span></div>
+</article>
 
-## `set-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Set.cinch)
-
-<a id="value-7365742d756e696f6e"></a>
-
-## `set-union`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-union</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Set</span>.<span class="tok-constructor">Set</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-set-union">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">set-union</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-set-union" title="Permalink">#</a><a href="/packages/stdlib/Data.Set/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 The union inserts the left set's ascending listing into the right;
 `set-insert` keeps one copy per element and rebalances, so the
 result is a proper AVL tree. The result is symmetric in its
 elements but the cost is not: O(m log n) for m and n elements.
 
-[Source](/reference-sources/Data.Set.cinch) · line 188
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Set.FromList_Set` | `Data.FromList.FromList (Data.Set.Set a) a` | Implicit |
-
-**`Data.Set.FromList_Set`**: Collection literals at `Set` (surface grammar local amendments
-section 10).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Set.cinch`. Source SHA-256: `1c762cb524ccc587696d8927ad46d3fd2c83e42cb7d8590fe096277b45eb6161`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-FromList_Set"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Set.FromList_Set</code></span><div class="doc-child-prose">Collection literals at Set (surface grammar local amendments section 10).</div></li>
+</ul>

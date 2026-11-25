@@ -2,19 +2,11 @@
 
 Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Bytes.View</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.View/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.View">Search module</a><a href="/reference-sources/Data.Bytes.View.cinch" download="Data.Bytes.View.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Bytes.View`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.View.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Bounded mutable aliases retaining an entire fixed byte-buffer owner.
 Views share observable mutations with their owner and overlapping views.
@@ -24,555 +16,497 @@ are never exposed; all reads, writes and range copies carry checked bounds.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (53 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-BytePattern">BytePattern</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BytePattern</strong></code></li><li><a class="syn-name" href="#t-ByteView">ByteView</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteView</strong></code></li><li><a class="syn-name" href="#t-ByteViewError">ByteViewError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteViewError</strong></code></li><li><a class="syn-name" href="#v-byte-pattern-bytes">byte-pattern-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-pattern-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-byte-pattern-length">byte-pattern-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-pattern-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-ascii-space-run-end">byte-view-ascii-space-run-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-ascii-space-run-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-clone">byte-view-clone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-compare">byte-view-compare</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-byte-view-contains">byte-view-contains</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-contains</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-contains-pattern">byte-view-contains-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-contains-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-copy-into">byte-view-copy-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-copy-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-count">byte-view-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-count-pattern">byte-view-count-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-count-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-cut">byte-view-cut</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-byte-view-cut-last">byte-view-cut-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-byte-view-cut-last-pattern">byte-view-cut-last-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-last-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-byte-view-cut-pattern">byte-view-cut-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-byte-view-cut-prefix">byte-view-cut-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-cut-prefix-pattern">byte-view-cut-prefix-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-prefix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-cut-suffix">byte-view-cut-suffix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-cut-suffix-pattern">byte-view-cut-suffix-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-suffix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-drop">byte-view-drop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-drop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-equal">byte-view-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-get">byte-view-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-byte-view-has-prefix">byte-view-has-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-has-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-has-prefix-pattern">byte-view-has-prefix-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-has-prefix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-has-suffix">byte-view-has-suffix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-has-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-has-suffix-pattern">byte-view-has-suffix-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-has-suffix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-index">byte-view-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-index-byte">byte-view-index-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-index-pattern">byte-view-index-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-index-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-is-empty">byte-view-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-is-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-last-index">byte-view-last-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-last-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-last-index-pattern">byte-view-last-index-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-last-index-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-length">byte-view-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-byte-view-set">byte-view-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-byte-view-slice">byte-view-slice</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-snapshot">byte-view-snapshot</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-snapshot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-byte-view-take">byte-view-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-take</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-utf8-at">byte-view-utf8-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-utf8-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.Utf8/#t-Utf8Step" title="Data.Bytes.Utf8.Utf8Step">Utf8Step</a></code></li><li><a class="syn-name" href="#v-bytes-compile-pattern">bytes-compile-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-compile-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a></code></li><li><a class="syn-name" href="#v-bytes-contains">bytes-contains</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-contains</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bytes-count">bytes-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-cut">bytes-cut</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-cut</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-bytes-cut-last">bytes-cut-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-cut-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code></li><li><a class="syn-name" href="#v-bytes-cut-prefix">bytes-cut-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-cut-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-cut-suffix">bytes-cut-suffix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-cut-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-has-prefix">bytes-has-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-has-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bytes-has-suffix">bytes-has-suffix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-has-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bytes-index">bytes-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-last-index">bytes-last-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-last-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-view">bytes-view</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-view</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-view-range">bytes-view-range</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-view-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li></ul>
+</details>
 
-<a id="type-427974655061747465726e"></a>
+# Types
 
-## `BytePattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BytePattern</span></code></pre>
+<article class="doc-entry" id="t-BytePattern">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BytePattern</strong></code><span class="doc-sig-links"><a href="#t-BytePattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L133" title="View source at line 133">Source</a></span></div>
+<div class="doc-body">
 
 A stable private needle snapshot and its complete proper-prefix failure table.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 133
+</div>
+</article>
 
-<a id="type-4279746556696577"></a>
-
-## `ByteView`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteView</span></code></pre>
+<article class="doc-entry" id="t-ByteView">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteView</strong></code><span class="doc-sig-links"><a href="#t-ByteView" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 An opaque fixed range whose endpoint refinements preserve the owner's bounds.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 34
+</div>
+</article>
 
-<a id="type-42797465566965774572726f72"></a>
-
-## `ByteViewError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteViewError</span></code></pre>
+<article class="doc-entry" id="t-ByteViewError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteViewError</strong></code><span class="doc-sig-links"><a href="#t-ByteViewError" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 A refused view range or complete-copy destination; refusals never mutate storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 39
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ByteViewReversedRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ByteViewPastEnd</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ByteViewShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span>)))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ByteViewReversedRange"><code><strong class="tok-constructor">ByteViewReversedRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a></code></li><li id="k-ByteViewPastEnd"><code><strong class="tok-constructor">ByteViewPastEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a></code></li><li id="k-ByteViewShortDestination"><code><strong class="tok-constructor">ByteViewShortDestination</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-627974652d7061747465726e2d6279746573"></a>
-
-## `byte-pattern-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-pattern-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-byte-pattern-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-pattern-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-byte-pattern-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L185" title="View source at line 185">Source</a></span></div>
+<div class="doc-body">
 
 Copy the compiled needle into fresh caller-owned storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 185
+</div>
+</article>
 
-<a id="value-627974652d7061747465726e2d6c656e677468"></a>
-
-## `byte-pattern-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-pattern-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-byte-pattern-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-pattern-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-pattern-length" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-body">
 
 Count exact needle bytes without exposing private snapshot storage.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 181
+</div>
+</article>
 
-<a id="value-627974652d766965772d61736369692d73706163652d72756e2d656e64"></a>
-
-## `byte-view-ascii-space-run-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-ascii-space-run-end</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-ascii-space-run-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-ascii-space-run-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-ascii-space-run-end" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L894" title="View source at line 894">Source</a></span></div>
+<div class="doc-body">
 
 End a maximal ASCII whitespace or non-whitespace run from a relative position.
 True selects exactly TAB through CR and SPACE; False selects other ASCII bytes.
 A non-ASCII byte ends either run. End positions are valid; positions past the view return None.
 Observes current aliases, retains the whole owner and never reads outside the logical view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 894
+</div>
+</article>
 
-<a id="value-627974652d766965772d636c6f6e65"></a>
-
-## `byte-view-clone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-clone</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-clone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-clone" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L95" title="View source at line 95">Source</a></span></div>
+<div class="doc-body">
 
 Clone a view into a new independent whole-buffer view, including empty ranges.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 95
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f6d70617265"></a>
-
-## `byte-view-compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-compare</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-compare">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-byte-view-compare" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L728" title="View source at line 728">Source</a></span></div>
+<div class="doc-body">
 
 Compare raw view bytes lexicographically, returning exactly negative one, zero or one.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 728
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f6e7461696e73"></a>
-
-## `byte-view-contains`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-contains</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-contains">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-contains</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-contains" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L758" title="View source at line 758">Source</a></span></div>
+<div class="doc-body">
 
 Test exact raw needle containment without copying the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 758
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f6e7461696e732d7061747465726e"></a>
-
-## `byte-view-contains-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-contains-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-contains-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-contains-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-contains-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L576" title="View source at line 576">Source</a></span></div>
+<div class="doc-body">
 
 Test whether a compiled needle occurs, including the empty needle in an empty view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 576
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f70792d696e746f"></a>
-
-## `byte-view-copy-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-copy-into</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-copy-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-copy-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-copy-into" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-body">
 
 Copy a complete view into a checked destination interval with overlap-safe range copying.
 Destination refusal is atomic; the required and available sizes are preserved in the error.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 100
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f756e74"></a>
-
-## `byte-view-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L762" title="View source at line 762">Source</a></span></div>
+<div class="doc-body">
 
 Count a raw needle with bounded malformed-byte counting for empty patterns.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 762
+</div>
+</article>
 
-<a id="value-627974652d766965772d636f756e742d7061747465726e"></a>
-
-## `byte-view-count-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-count-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-count-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-count-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-count-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L661" title="View source at line 661">Source</a></span></div>
+<div class="doc-body">
 
 Count nonoverlapping compiled matches; an empty pattern counts bounded decoded scalars plus one.
 Malformed or view-truncated bytes each make one replacement-scalar step without copying the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 661
+</div>
+</article>
 
-<a id="value-627974652d766965772d637574"></a>
-
-## `byte-view-cut`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-byte-view-cut" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L781" title="View source at line 781">Source</a></span></div>
+<div class="doc-body">
 
 Cut at the first raw match into aliases that retain the complete original owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 781
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d6c617374"></a>
-
-## `byte-view-cut-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-last</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-byte-view-cut-last" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L785" title="View source at line 785">Source</a></span></div>
+<div class="doc-body">
 
 Cut at the final raw match, including overlapping candidates.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 785
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d6c6173742d7061747465726e"></a>
-
-## `byte-view-cut-last-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-last-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-last-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-last-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-byte-view-cut-last-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L611" title="View source at line 611">Source</a></span></div>
+<div class="doc-body">
 
 Cut around the final compiled match, preserving overlapping last-match semantics.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 611
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d7061747465726e"></a>
-
-## `byte-view-cut-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-byte-view-cut-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L605" title="View source at line 605">Source</a></span></div>
+<div class="doc-body">
 
 Cut around the first compiled match; empty needles produce empty-before and the complete view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 605
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d707265666978"></a>
-
-## `byte-view-cut-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-prefix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-cut-prefix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L789" title="View source at line 789">Source</a></span></div>
+<div class="doc-body">
 
 Remove a raw prefix as an owner-retaining alias, including an unchanged empty prefix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 789
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d7072656669782d7061747465726e"></a>
-
-## `byte-view-cut-prefix-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-prefix-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-prefix-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-prefix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-cut-prefix-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L617" title="View source at line 617">Source</a></span></div>
+<div class="doc-body">
 
 Remove an exact compiled prefix as an owner-retaining alias, or report no match.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 617
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d737566666978"></a>
-
-## `byte-view-cut-suffix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-suffix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-suffix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-cut-suffix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L794" title="View source at line 794">Source</a></span></div>
+<div class="doc-body">
 
 Remove a raw suffix as an owner-retaining alias, including an unchanged empty suffix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 794
+</div>
+</article>
 
-<a id="value-627974652d766965772d6375742d7375666669782d7061747465726e"></a>
-
-## `byte-view-cut-suffix-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-cut-suffix-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-cut-suffix-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-cut-suffix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-cut-suffix-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L622" title="View source at line 622">Source</a></span></div>
+<div class="doc-body">
 
 Remove an exact compiled suffix as an owner-retaining alias, or report no match.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 622
+</div>
+</article>
 
-<a id="value-627974652d766965772d64726f70"></a>
-
-## `byte-view-drop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-drop</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-drop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-drop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-drop" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Drop up to the requested leading bytes, clamping at an empty view of the original end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 115
+</div>
+</article>
 
-<a id="value-627974652d766965772d657175616c"></a>
-
-## `byte-view-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-equal</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-equal" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L675" title="View source at line 675">Source</a></span></div>
+<div class="doc-body">
 
 Compare two exact view ranges using SIMD blocks and scalar fringes, preserving shared mutations.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 675
+</div>
+</article>
 
-<a id="value-627974652d766965772d676574"></a>
-
-## `byte-view-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-get</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-byte-view-get" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 Read an exact relative byte, or no value when the coordinate is outside the view.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 75
+</div>
+</article>
 
-<a id="value-627974652d766965772d6861732d707265666978"></a>
-
-## `byte-view-has-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-has-prefix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-has-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-has-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-has-prefix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L766" title="View source at line 766">Source</a></span></div>
+<div class="doc-body">
 
 Test an exact raw prefix with SIMD block comparisons and no snapshots or pattern allocation.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 766
+</div>
+</article>
 
-<a id="value-627974652d766965772d6861732d7072656669782d7061747465726e"></a>
-
-## `byte-view-has-prefix-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-has-prefix-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-has-prefix-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-has-prefix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-has-prefix-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L580" title="View source at line 580">Source</a></span></div>
+<div class="doc-body">
 
 Test an exact compiled prefix using SIMD block comparisons and checked view lengths.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 580
+</div>
+</article>
 
-<a id="value-627974652d766965772d6861732d737566666978"></a>
-
-## `byte-view-has-suffix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-has-suffix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-has-suffix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-has-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-has-suffix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L773" title="View source at line 773">Source</a></span></div>
+<div class="doc-body">
 
 Test an exact raw suffix with no snapshots, pattern allocation or unrelated prefix scan.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 773
+</div>
+</article>
 
-<a id="value-627974652d766965772d6861732d7375666669782d7061747465726e"></a>
-
-## `byte-view-has-suffix-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-has-suffix-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-has-suffix-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-has-suffix-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-has-suffix-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L588" title="View source at line 588">Source</a></span></div>
+<div class="doc-body">
 
 Test an exact compiled suffix without copying or scanning the unrelated prefix.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 588
+</div>
+</article>
 
-<a id="value-627974652d766965772d696e646578"></a>
-
-## `byte-view-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-index</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-index" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L750" title="View source at line 750">Source</a></span></div>
+<div class="doc-body">
 
 Find a raw needle relative to a retained view, compiling one stable snapshot for this query.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 750
+</div>
+</article>
 
-<a id="value-627974652d766965772d696e6465782d62797465"></a>
-
-## `byte-view-index-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-index-byte</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-index-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-index-byte" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L543" title="View source at line 543">Source</a></span></div>
+<div class="doc-body">
 
 Find the first exact byte relative to the checked view, or None when it is absent.
 Every byte value is compared directly, including malformed UTF-8 bytes; current aliases remain observable.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 543
+</div>
+</article>
 
-<a id="value-627974652d766965772d696e6465782d7061747465726e"></a>
-
-## `byte-view-index-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-index-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-index-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-index-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-index-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L551" title="View source at line 551">Source</a></span></div>
+<div class="doc-body">
 
 Find the first compiled needle match relative to the view; an empty needle matches zero.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 551
+</div>
+</article>
 
-<a id="value-627974652d766965772d69732d656d707479"></a>
-
-## `byte-view-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-is-empty</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-is-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 Test whether a retained range has no logical bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 62
+</div>
+</article>
 
-<a id="value-627974652d766965772d6c6173742d696e646578"></a>
-
-## `byte-view-last-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-last-index</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-last-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-last-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-last-index" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L754" title="View source at line 754">Source</a></span></div>
+<div class="doc-body">
 
 Find the last raw needle, including overlapping matches and the empty end position.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 754
+</div>
+</article>
 
-<a id="value-627974652d766965772d6c6173742d696e6465782d7061747465726e"></a>
-
-## `byte-view-last-index-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-last-index-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-last-index-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-last-index-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-last-index-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L561" title="View source at line 561">Source</a></span></div>
+<div class="doc-body">
 
 Find the final compiled match, including overlaps; an empty needle matches the view end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 561
+</div>
+</article>
 
-<a id="value-627974652d766965772d6c656e677468"></a>
-
-## `byte-view-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-byte-view-length" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L58" title="View source at line 58">Source</a></span></div>
+<div class="doc-body">
 
 Count logical bytes in a view without copying or releasing its retained owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 58
+</div>
+</article>
 
-<a id="value-627974652d766965772d736574"></a>
-
-## `byte-view-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-set</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-byte-view-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 Write one exact relative byte and report whether it fit; refusal leaves all aliases unchanged.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 82
+</div>
+</article>
 
-<a id="value-627974652d766965772d736c696365"></a>
-
-## `byte-view-slice`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-slice</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-slice">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-slice" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Retain a checked half-open subrange relative to this view, preserving shared mutations.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 66
+</div>
+</article>
 
-<a id="value-627974652d766965772d736e617073686f74"></a>
-
-## `byte-view-snapshot`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-snapshot</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-snapshot">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-snapshot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-byte-view-snapshot" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 Copy exactly the logical range into fresh mutable storage without retaining the source owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 89
+</div>
+</article>
 
-<a id="value-627974652d766965772d74616b65"></a>
-
-## `byte-view-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-take</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-take</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-take" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Retain up to the requested leading bytes, clamping the count to this view's length.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 108
+</div>
+</article>
 
-<a id="value-627974652d766965772d757466382d6174"></a>
-
-## `byte-view-utf8-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-utf8-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Utf8</span>.<span class="tok-constructor">Utf8Step</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-utf8-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-utf8-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.Utf8/#t-Utf8Step" title="Data.Bytes.Utf8.Utf8Step">Utf8Step</a></code><span class="doc-sig-links"><a href="#v-byte-view-utf8-at" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 Observe one bounded scalar at a relative byte position without copying or exposing backing storage.
 The logical end returns Utf8End; positions past it return Utf8OutOfBounds.
 Each malformed or view-truncated byte returns U+FFFD with width one and Utf8Invalid.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 126
+</div>
+</article>
 
-<a id="value-62797465732d636f6d70696c652d7061747465726e"></a>
-
-## `bytes-compile-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-compile-pattern</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-compile-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-compile-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a></code><span class="doc-sig-links"><a href="#v-bytes-compile-pattern" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L174" title="View source at line 174">Source</a></span></div>
+<div class="doc-body">
 
 Compile an independent needle snapshot and a reusable linear-search failure table.
 Caller mutation after compilation never changes this pattern or its later search results.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 174
+</div>
+</article>
 
-<a id="value-62797465732d636f6e7461696e73"></a>
-
-## `bytes-contains`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-contains</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-contains">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-contains</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bytes-contains" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L809" title="View source at line 809">Source</a></span></div>
+<div class="doc-body">
 
 Test raw needle containment in a complete fixed buffer.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 809
+</div>
+</article>
 
-<a id="value-62797465732d636f756e74"></a>
-
-## `bytes-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-count</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L813" title="View source at line 813">Source</a></span></div>
+<div class="doc-body">
 
 Count nonoverlapping raw matches, or decoded scalars plus one for an empty needle.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 813
+</div>
+</article>
 
-<a id="value-62797465732d637574"></a>
-
-## `bytes-cut`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-cut</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-cut">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-cut</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-bytes-cut" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L825" title="View source at line 825">Source</a></span></div>
+<div class="doc-body">
 
 Cut a complete fixed buffer at its first raw match into retained mutable aliases.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 825
+</div>
+</article>
 
-<a id="value-62797465732d6375742d6c617374"></a>
-
-## `bytes-cut-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-cut-last</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-cut-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-cut-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a>)</code><span class="doc-sig-links"><a href="#v-bytes-cut-last" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L829" title="View source at line 829">Source</a></span></div>
+<div class="doc-body">
 
 Cut a complete fixed buffer at its final raw match into retained mutable aliases.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 829
+</div>
+</article>
 
-<a id="value-62797465732d6375742d707265666978"></a>
-
-## `bytes-cut-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-cut-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-cut-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-cut-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-cut-prefix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L833" title="View source at line 833">Source</a></span></div>
+<div class="doc-body">
 
 Remove an exact prefix from a complete buffer while retaining its whole owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 833
+</div>
+</article>
 
-<a id="value-62797465732d6375742d737566666978"></a>
-
-## `bytes-cut-suffix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-cut-suffix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-cut-suffix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-cut-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-cut-suffix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L837" title="View source at line 837">Source</a></span></div>
+<div class="doc-body">
 
 Remove an exact suffix from a complete buffer while retaining its whole owner.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 837
+</div>
+</article>
 
-<a id="value-62797465732d6861732d707265666978"></a>
-
-## `bytes-has-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-has-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-has-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-has-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bytes-has-prefix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L817" title="View source at line 817">Source</a></span></div>
+<div class="doc-body">
 
 Test whether a complete fixed buffer starts with exact raw bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 817
+</div>
+</article>
 
-<a id="value-62797465732d6861732d737566666978"></a>
-
-## `bytes-has-suffix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-has-suffix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-has-suffix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-has-suffix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bytes-has-suffix" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L821" title="View source at line 821">Source</a></span></div>
+<div class="doc-body">
 
 Test whether a complete fixed buffer ends with exact raw bytes.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 821
+</div>
+</article>
 
-<a id="value-62797465732d696e646578"></a>
-
-## `bytes-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-index</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-index" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L801" title="View source at line 801">Source</a></span></div>
+<div class="doc-body">
 
 Find the first raw needle in a complete fixed buffer as an optional byte offset.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 801
+</div>
+</article>
 
-<a id="value-62797465732d6c6173742d696e646578"></a>
-
-## `bytes-last-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-last-index</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-last-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-last-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-last-index" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L805" title="View source at line 805">Source</a></span></div>
+<div class="doc-body">
 
 Find the last raw needle in a complete fixed buffer, including overlaps.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 805
+</div>
+</article>
 
-<a id="value-62797465732d76696577"></a>
-
-## `bytes-view`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-view</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-view">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-view</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-view" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 Retain the whole fixed mutable buffer without copying its contents.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 48
+</div>
+</article>
 
-<a id="value-62797465732d766965772d72616e6765"></a>
-
-## `bytes-view-range`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-view-range</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteViewError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-view-range">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-view-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteViewError" title="Data.Bytes.View.ByteViewError">ByteViewError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-view-range" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.View/source/#L52" title="View source at line 52">Source</a></span></div>
+<div class="doc-body">
 
 Retain an explicitly checked half-open owner range, including empty ranges at the end.
 
-[Source](/reference-sources/Data.Bytes.View.cinch) · line 52
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/View.cinch`. Source SHA-256: `e6ea59b8000b06489ee66bcca41678df4ecf3efb6c96ffc42a821f554c7ac556`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

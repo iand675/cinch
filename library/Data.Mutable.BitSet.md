@@ -2,19 +2,11 @@
 
 A dynamic bitset in 64-bit words: test/set/toggle, popcount, next-set-bit scanning, and word-at-a-time union, intersection and difference.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.BitSet</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.BitSet/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.BitSet">Search module</a><a href="/reference-sources/Data.Mutable.BitSet.cinch" download="Data.Mutable.BitSet.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Mutable.BitSet`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.BitSet.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-Non-embedded source closure: [Data.Mutable.BitSet](Data.Mutable.BitSet.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.BitSet: the dynamic bitset (`boost::dynamic_bitset`,
 C++ `std::vector<bool>` done as words).
@@ -37,154 +29,114 @@ no holes: every word of the array is written (zero) when it is made.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-BitSet">BitSet</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BitSet</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-bitset-capacity">bitset-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bitset-clear">bitset-clear</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-clear-all">bitset-clear-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-clear-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-count">bitset-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-count</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bitset-difference-with">bitset-difference-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-difference-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-from-list">bitset-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-bitset-intersect-with">bitset-intersect-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-intersect-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-is-empty">bitset-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bitset-new">bitset-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-bitset-next-set">bitset-next-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-next-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bitset-set">bitset-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-test">bitset-test</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-test</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bitset-to-list">bitset-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bitset-toggle">bitset-toggle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-toggle</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bitset-union-with">bitset-union-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bitset-union-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-426974536574"></a>
+# Types
 
-## `BitSet`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BitSet</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-BitSet">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BitSet</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-BitSet" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 One cell holding the current words.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 38
+</div>
+</article>
 
 # Values
 
-<a id="value-6269747365742d6361706163697479"></a>
+<article class="doc-entry" id="v-bitset-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bitset-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L89" title="View source at line 89">Source</a></span></div>
+</article>
 
-## `bitset-capacity`
+<article class="doc-entry" id="v-bitset-clear">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-clear" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L109" title="View source at line 109">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-bitset-clear-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-clear-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-clear-all" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L185" title="View source at line 185">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d636c656172"></a>
-
-## `bitset-clear`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d636c6561722d616c6c"></a>
-
-## `bitset-clear-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-clear-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d636f756e74"></a>
-
-## `bitset-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-count</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-bitset-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-count</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bitset-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L128" title="View source at line 128">Source</a></span></div>
+<div class="doc-body">
 
 The number of set bits: one popcount per word.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 128
+</div>
+</article>
 
-<a id="value-6269747365742d646966666572656e63652d77697468"></a>
-
-## `bitset-difference-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-difference-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-bitset-difference-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-difference-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-difference-with" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L235" title="View source at line 235">Source</a></span></div>
+<div class="doc-body">
 
 `a` becomes a & ~b.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 235
+</div>
+</article>
 
-<a id="value-6269747365742d66726f6d2d6c697374"></a>
+<article class="doc-entry" id="v-bitset-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-bitset-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L191" title="View source at line 191">Source</a></span></div>
+</article>
 
-## `bitset-from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d696e746572736563742d77697468"></a>
-
-## `bitset-intersect-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-intersect-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-bitset-intersect-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-intersect-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-intersect-with" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 `a` becomes a & b.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 220
+</div>
+</article>
 
-<a id="value-6269747365742d69732d656d707479"></a>
+<article class="doc-entry" id="v-bitset-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bitset-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L137" title="View source at line 137">Source</a></span></div>
+</article>
 
-## `bitset-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d6e6577"></a>
-
-## `bitset-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-bitset-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-bitset-new" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 An empty set with `n` bits backed before its first growth.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 83
+</div>
+</article>
 
-<a id="value-6269747365742d6e6578742d736574"></a>
-
-## `bitset-next-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-next-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-bitset-next-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-next-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bitset-next-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L146" title="View source at line 146">Source</a></span></div>
+<div class="doc-body">
 
 The least set bit at or above `i`.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 146
+</div>
+</article>
 
-<a id="value-6269747365742d736574"></a>
+<article class="doc-entry" id="v-bitset-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L101" title="View source at line 101">Source</a></span></div>
+</article>
 
-## `bitset-set`
+<article class="doc-entry" id="v-bitset-test">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-test</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bitset-test" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L94" title="View source at line 94">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d74657374"></a>
-
-## `bitset-test`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-test</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d746f2d6c697374"></a>
-
-## `bitset-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-bitset-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bitset-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-body">
 
 The set bits, ascending.
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 165
+</div>
+</article>
 
-<a id="value-6269747365742d746f67676c65"></a>
+<article class="doc-entry" id="v-bitset-toggle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-toggle</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-toggle" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L119" title="View source at line 119">Source</a></span></div>
+</article>
 
-## `bitset-toggle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-toggle</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.BitSet.cinch)
-
-<a id="value-6269747365742d756e696f6e2d77697468"></a>
-
-## `bitset-union-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bitset-union-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">BitSet</span>.<span class="tok-constructor">BitSet</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-bitset-union-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bitset-union-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-BitSet" title="Data.Mutable.BitSet.BitSet">BitSet</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bitset-union-with" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.BitSet/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 `a` becomes a | b (growing to b's words).
 
-[Source](/reference-sources/Data.Mutable.BitSet.cinch) · line 205
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/BitSet.cinch`. Source SHA-256: `1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

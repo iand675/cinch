@@ -2,19 +2,11 @@
 
 Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Multipart</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Multipart/source/">View source</a><a href="/packages/search/?q=%2BText.Multipart">Search module</a><a href="/reference-sources/Text.Multipart.cinch" download="Text.Multipart.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Multipart`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Mime](Text.Mime.md).
 
-[Download exact module source](/reference-sources/Text.Multipart.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Mime](Text.Mime.md).
-
-Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mime](Text.Mime.md), [Text.Multipart](Text.Multipart.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Multipart wire primitives over arbitrary bytes, exact multi-value headers and
 explicit delimiter observations. Retained values and returned byte views are
@@ -22,338 +14,274 @@ independently owned snapshots. Boundary scans never read outside a checked span.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (29 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-MultipartBodyScan">MultipartBodyScan</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartBodyScan</strong></code></li><li><a class="syn-name" href="#t-MultipartDelimiter">MultipartDelimiter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartDelimiter</strong></code></li><li><a class="syn-name" href="#t-MultipartHeaders">MultipartHeaders</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartHeaders</strong></code></li><li><a class="syn-name" href="#t-MultipartSyntax">MultipartSyntax</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartSyntax</strong></code></li><li><a class="syn-name" href="#v-multipart-body-scan">multipart-body-scan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-body-scan</strong> :: <span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span> &lt;= 4096 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartBodyScan" title="Text.Multipart.MultipartBodyScan">MultipartBodyScan</a></code></li><li><a class="syn-name" href="#v-multipart-check-boundary">multipart-check-boundary</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-check-boundary</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-multipart-delimiter-line">multipart-delimiter-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-delimiter-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartDelimiter" title="Text.Multipart.MultipartDelimiter">MultipartDelimiter</a></code></li><li><a class="syn-name" href="#v-multipart-field-disposition">multipart-field-disposition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-field-disposition</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-file-disposition">multipart-file-disposition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-file-disposition</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-find-byte">multipart-find-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-multipart-form-content-type">multipart-form-content-type</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-form-content-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-header-append">multipart-header-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-append-raw">multipart-header-append-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-append-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-drop">multipart-header-drop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-drop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-drop-raw">multipart-header-drop-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-drop-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-get">multipart-header-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-header-key">multipart-header-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-header-pairs">multipart-header-pairs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-multipart-header-set">multipart-header-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-set-raw">multipart-header-set-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-set-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-header-size">multipart-header-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-multipart-header-values">multipart-header-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-header-wire">multipart-header-wire</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-header-wire</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-headers">multipart-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code></li><li><a class="syn-name" href="#v-multipart-parse-header-line">multipart-parse-header-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-parse-header-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-multipart-posix-filename">multipart-posix-filename</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-posix-filename</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-multipart-prefix">multipart-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-multipart-syntax-message">multipart-syntax-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-syntax-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-multipart-trim-header-line">multipart-trim-header-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">multipart-trim-header-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-4d756c746970617274426f64795363616e"></a>
+# Types
 
-## `MultipartBodyScan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MultipartBodyScan</span></code></pre>
+<article class="doc-entry" id="t-MultipartBodyScan">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartBodyScan</strong></code><span class="doc-sig-links"><a href="#t-MultipartBodyScan" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L405" title="View source at line 405">Source</a></span></div>
+<div class="doc-body">
 
 A body scan separates confirmed payload from incomplete delimiters and end.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 405
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MultipartBodyPrefix"><code><strong class="tok-constructor">MultipartBodyPrefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartBodyScan" title="Text.Multipart.MultipartBodyScan">MultipartBodyScan</a></code></li><li id="k-MultipartBodyNeedMore"><code><strong class="tok-constructor">MultipartBodyNeedMore</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartBodyScan" title="Text.Multipart.MultipartBodyScan">MultipartBodyScan</a></code></li><li id="k-MultipartBodyEnd"><code><strong class="tok-constructor">MultipartBodyEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartBodyScan" title="Text.Multipart.MultipartBodyScan">MultipartBodyScan</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBodyPrefix</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartBodyScan</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBodyNeedMore</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartBodyScan</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBodyEnd</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartBodyScan</span>)</code></pre>
-
-<a id="type-4d756c74697061727444656c696d69746572"></a>
-
-## `MultipartDelimiter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MultipartDelimiter</span></code></pre>
+<article class="doc-entry" id="t-MultipartDelimiter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartDelimiter</strong></code><span class="doc-sig-links"><a href="#t-MultipartDelimiter" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L536" title="View source at line 536">Source</a></span></div>
+<div class="doc-body">
 
 Delimiter recognition retains the first ordinary line's newline policy.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 536
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MultipartNoDelimiter"><code><strong class="tok-constructor">MultipartNoDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartDelimiter" title="Text.Multipart.MultipartDelimiter">MultipartDelimiter</a></code></li><li id="k-MultipartNextDelimiter"><code><strong class="tok-constructor">MultipartNextDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartDelimiter" title="Text.Multipart.MultipartDelimiter">MultipartDelimiter</a></code></li><li id="k-MultipartFinalDelimiter"><code><strong class="tok-constructor">MultipartFinalDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartDelimiter" title="Text.Multipart.MultipartDelimiter">MultipartDelimiter</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartNoDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartDelimiter</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartNextDelimiter</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartDelimiter</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartFinalDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartDelimiter</span></code></pre>
-
-<a id="type-4d756c74697061727448656164657273"></a>
-
-## `MultipartHeaders`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MultipartHeaders</span></code></pre>
+<article class="doc-entry" id="t-MultipartHeaders">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartHeaders</strong></code><span class="doc-sig-links"><a href="#t-MultipartHeaders" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-body">
 
 Privately retained exact keys and ordered values.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 114
+</div>
+</article>
 
-<a id="type-4d756c74697061727453796e746178"></a>
-
-## `MultipartSyntax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MultipartSyntax</span></code></pre>
+<article class="doc-entry" id="t-MultipartSyntax">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MultipartSyntax</strong></code><span class="doc-sig-links"><a href="#t-MultipartSyntax" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 Named protocol refusals retain the original offending wire bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 33
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBoundaryLength</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBoundaryCharacter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartHeaderInitial</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartHeaderMissingColon</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartHeaderMalformed</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartMessageTooLarge</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartEmptyBoundary</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartUnexpectedLine</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartExpectedPart</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBufferFull</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartUnexpectedEnd</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartInputEnd</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartNoProgress</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MultipartBoundaryLength"><code><strong class="tok-constructor">MultipartBoundaryLength</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartBoundaryCharacter"><code><strong class="tok-constructor">MultipartBoundaryCharacter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartHeaderInitial"><code><strong class="tok-constructor">MultipartHeaderInitial</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartHeaderMissingColon"><code><strong class="tok-constructor">MultipartHeaderMissingColon</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartHeaderMalformed"><code><strong class="tok-constructor">MultipartHeaderMalformed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartMessageTooLarge"><code><strong class="tok-constructor">MultipartMessageTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartEmptyBoundary"><code><strong class="tok-constructor">MultipartEmptyBoundary</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartUnexpectedLine"><code><strong class="tok-constructor">MultipartUnexpectedLine</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartExpectedPart"><code><strong class="tok-constructor">MultipartExpectedPart</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartBufferFull"><code><strong class="tok-constructor">MultipartBufferFull</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartUnexpectedEnd"><code><strong class="tok-constructor">MultipartUnexpectedEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartInputEnd"><code><strong class="tok-constructor">MultipartInputEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li><li id="k-MultipartNoProgress"><code><strong class="tok-constructor">MultipartNoProgress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d756c7469706172742d626f64792d7363616e"></a>
-
-## `multipart-body-scan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-body-scan</span> :: <span class="tok-keyword">using</span> ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">&lt;=</span> <span class="tok-number">4096</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-variable">arg4</span> :: <span class="tok-constructor">Bool</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartBodyScan</span>)))))</code></pre>
+<article class="doc-entry" id="v-multipart-body-scan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-body-scan</strong> :: <span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span> &lt;= 4096 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartBodyScan" title="Text.Multipart.MultipartBodyScan">MultipartBodyScan</a></code><span class="doc-sig-links"><a href="#v-multipart-body-scan" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L463" title="View source at line 463">Source</a></span></div>
+<div class="doc-body">
 
 Observe one bounded raw-body span; terminal status decides ambiguous suffixes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 463
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d636865636b2d626f756e64617279"></a>
-
-## `multipart-check-boundary`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-check-boundary</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-check-boundary">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-check-boundary</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-multipart-check-boundary" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L268" title="View source at line 268">Source</a></span></div>
+<div class="doc-body">
 
 Validate a writer boundary without imposing this restriction on readers.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 268
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d64656c696d697465722d6c696e65"></a>
-
-## `multipart-delimiter-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-delimiter-line</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartDelimiter</span>))))</code></pre>
+<article class="doc-entry" id="v-multipart-delimiter-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-delimiter-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartDelimiter" title="Text.Multipart.MultipartDelimiter">MultipartDelimiter</a></code><span class="doc-sig-links"><a href="#v-multipart-delimiter-line" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L554" title="View source at line 554">Source</a></span></div>
+<div class="doc-body">
 
 Classify a complete line without validating a reader's arbitrary boundary.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 554
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6669656c642d646973706f736974696f6e"></a>
-
-## `multipart-field-disposition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-field-disposition</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-field-disposition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-field-disposition</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-field-disposition" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L311" title="View source at line 311">Source</a></span></div>
+<div class="doc-body">
 
 Render the exact disposition for a named value field.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 311
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d66696c652d646973706f736974696f6e"></a>
-
-## `multipart-file-disposition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-file-disposition</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-file-disposition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-file-disposition</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-file-disposition" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L315" title="View source at line 315">Source</a></span></div>
+<div class="doc-body">
 
 Render the exact disposition for a named file field.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 315
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d66696e642d62797465"></a>
-
-## `multipart-find-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-find-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-find-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-multipart-find-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L388" title="View source at line 388">Source</a></span></div>
+<div class="doc-body">
 
 Return the first target byte at or after start, or the input length.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 388
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d666f726d2d636f6e74656e742d74797065"></a>
-
-## `multipart-form-content-type`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-form-content-type</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-form-content-type">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-form-content-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-form-content-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L282" title="View source at line 282">Source</a></span></div>
+<div class="doc-body">
 
 Render a form content type with exactly the required boundary quoting.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 282
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d617070656e64"></a>
-
-## `multipart-header-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-append</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-header-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L218" title="View source at line 218">Source</a></span></div>
+<div class="doc-body">
 
 Append a value under a canonicalized lookup key.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 218
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d617070656e642d726177"></a>
-
-## `multipart-header-append-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-append-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-header-append-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-append-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-append-raw" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L206" title="View source at line 206">Source</a></span></div>
+<div class="doc-body">
 
 Append an independently retained raw-key value without changing key spelling.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 206
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d64726f70"></a>
-
-## `multipart-header-drop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-drop</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-header-drop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-drop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-drop" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L222" title="View source at line 222">Source</a></span></div>
+<div class="doc-body">
 
 Delete a canonicalized lookup key without touching differently spelled raw keys.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 222
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d64726f702d726177"></a>
-
-## `multipart-header-drop-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-drop-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-header-drop-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-drop-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-drop-raw" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L210" title="View source at line 210">Source</a></span></div>
+<div class="doc-body">
 
 Delete only the exact raw-key entry.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 210
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d676574"></a>
-
-## `multipart-header-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-get</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-header-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-header-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 Read the first canonical-key value, using an empty buffer for absent/empty lists.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 198
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d6b6579"></a>
-
-## `multipart-header-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-header-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-header-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 Canonicalize token keys; invalid and space-containing raw keys stay exact.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 188
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d7061697273"></a>
-
-## `multipart-header-pairs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-pairs</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-multipart-header-pairs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-multipart-header-pairs" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-body">
 
 Observe sorted raw keys and original per-key value order in fresh storage.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 161
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d736574"></a>
-
-## `multipart-header-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-set</span> :: (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-header-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-set" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L214" title="View source at line 214">Source</a></span></div>
+<div class="doc-body">
 
 Replace the values under a canonicalized lookup key.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 214
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d7365742d726177"></a>
-
-## `multipart-header-set-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-set-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-header-set-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-set-raw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-header-set-raw" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Replace an exact raw key with privately owned values.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 202
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d73697a65"></a>
-
-## `multipart-header-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-header-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-multipart-header-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L234" title="View source at line 234">Source</a></span></div>
+<div class="doc-body">
 
 Exact form-budget charge: four hundred plus per-key and value overhead.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 234
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d76616c756573"></a>
-
-## `multipart-header-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-values</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-header-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-header-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-body">
 
 Read every value for a canonicalized lookup key into fresh snapshots.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 194
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d6865616465722d77697265"></a>
-
-## `multipart-header-wire`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-header-wire</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-header-wire">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-header-wire</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-header-wire" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L252" title="View source at line 252">Source</a></span></div>
+<div class="doc-body">
 
 Serialize a complete header block with sorted raw keys and a final blank line.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 252
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d68656164657273"></a>
-
-## `multipart-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-headers</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span>))) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartHeaders</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartHeaders" title="Text.Multipart.MultipartHeaders">MultipartHeaders</a></code><span class="doc-sig-links"><a href="#v-multipart-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-body">
 
 Construct exact-key headers, including empty lists and arbitrary raw keys.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 148
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d70617273652d6865616465722d6c696e65"></a>
-
-## `multipart-parse-header-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-parse-header-line</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-multipart-parse-header-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-parse-header-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-multipart-parse-header-line" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L505" title="View source at line 505">Source</a></span></div>
+<div class="doc-body">
 
 Parse one unfolded logical header line, preserving exact refused bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 505
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d706f7369782d66696c656e616d65"></a>
-
-## `multipart-posix-filename`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-posix-filename</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-posix-filename">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-posix-filename</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-posix-filename" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L528" title="View source at line 528">Source</a></span></div>
+<div class="doc-body">
 
 Apply the POSIX basename byte policy, including empty and all-separator cases.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 528
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d707265666978"></a>
-
-## `multipart-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-multipart-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-multipart-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L401" title="View source at line 401">Source</a></span></div>
+<div class="doc-body">
 
 Test a complete raw prefix without exposing retained bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 401
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d73796e7461782d6d657373616765"></a>
-
-## `multipart-syntax-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-syntax-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-syntax-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-syntax-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Multipart/#t-MultipartSyntax" title="Text.Multipart.MultipartSyntax">MultipartSyntax</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-multipart-syntax-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 Render exact wire diagnostics while retaining the typed refusal.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 62
+</div>
+</article>
 
-<a id="value-6d756c7469706172742d7472696d2d6865616465722d6c696e65"></a>
-
-## `multipart-trim-header-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">multipart-trim-header-line</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-multipart-trim-header-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">multipart-trim-header-line</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-multipart-trim-header-line" title="Permalink">#</a><a href="/packages/stdlib/Text.Multipart/source/#L486" title="View source at line 486">Source</a></span></div>
+<div class="doc-body">
 
 Trim only header space and tab, never Unicode whitespace or body bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 486
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Multipart.cinch`. Source SHA-256: `bbbdb0e48e1c8a907097624dd570a5394fe8866f97603d43a49400da85283d75`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

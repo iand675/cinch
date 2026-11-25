@@ -1,31 +1,31 @@
 # Lexical structure and layout
 
-A source file goes through five stages before it is checked: `seed/src/lexer.rs` produces tokens, `seed/src/layout.rs` turns significant indentation into explicit `{`, `;`, and `}` tokens that carry `virtual_: true`, `seed/src/parser.rs` builds declarations and expressions, a fixity pass resolves operator chains against the imported tables, and the checker runs. This page states the rules of the first three stages and shows the compiler accepting or refusing one input per rule.
+A Cinch source file passes through tokenization, offside layout insertion (turning significant indentation into explicit `{`, `;`, and `}` delimiters), parsing, and operator fixity resolution before type checking. This chapter specifies the lexical grammar, operator fixity rules, and layout rules.
 
-# Identifiers
+# Identifiers and keywords
 
-A value name starts with an ASCII lowercase letter or `_` and continues with ASCII letters, digits, `_`, `'`, `!` and `?`. A constructor, type, or module name starts with an ASCII uppercase letter and continues the same way. An operator name is a run of symbol characters or a value name in parentheses, `(<+>)`.
+Value identifiers begin with an ASCII lowercase letter or `_`. Constructor, type, and module identifiers begin with an ASCII uppercase letter. After the first character, identifiers in both namespaces may contain ASCII letters, digits, `_`, `'`, `!`, and `?`. Non-ASCII characters are not valid in identifiers.
 
-`!` and `?` continue a name in any position and in any run, so `print!`, `empty?` and `read!?` are names; neither ever starts one, so a `!` or `?` in symbol position is still an operator run (`!=`, `?`, `(!)`). Because a sigil binds rightwards into the name, an operator that begins with one needs a space before it. A `!` tight before `(`, `[` or `{` is the macro call's bang instead, so `name!(...)` invokes a macro and a value named `print!` is invoked as `print!!(...)`.
+Sigils (`!` and `?`) may appear anywhere after the first character and in runs (`print!`, `empty?`, `read!?`), but never begin an identifier: in leading position they start an operator (`!=`, `?`, `(!)`). Because sigils bind rightwards into the preceding name, an operator beginning with `!` or `?` must be preceded by whitespace. One exception applies: a single `!` immediately before `(`, `[`, or `{` invokes a macro (`name!(...)`), so a value named `print!` is invoked as a macro via `print!!(...)`.
 
-A dash joins two parts into one name when it is tight on both sides and the character after it is alphabetic, `_`, `'`, `!`, or `?`. Digits do not continue a name across a dash. The rule is decided inside the lexer, so it applies before any meaning is attached to the spelling.
+A hyphen `-` joins two parts into a single identifier when it has no surrounding whitespace and the immediately following character is an ASCII letter, `_`, `'`, `!`, or `?`. Digits do not continue an identifier across a hyphen, so `x-1` lexes as subtraction. Because this rule runs in the lexer, spacing unambiguously separates hyphenated names from subtraction and signed literals:
 
-| Spelling | Interpretation |
+| Spelling | Tokenization |
 | --- | --- |
-| `x-y` | One name, when `x` and `y` satisfy the dash glue rule. |
-| `x - y` | Subtraction of two names. |
-| `x-1` | Subtraction: a digit does not continue a name across a dash. |
-| `x-y'` | One name: `'` continues the name after the dash. |
-| `_x` | A name. `_` alone is the pattern wildcard, not a name. |
-| `x'` | A name: an apostrophe continues an identifier. |
-| `empty?` | One name: `?` continues it and ends it. |
-| `print!` | One name: `!` continues it and ends it. |
-| `read!?` | One name: a run of sigils belongs to the name. |
-| `x!=y` | The name `x!`, then `=`, then `y`: a sigil binds into the name. |
-| `x != y` | An operator expression: a spaced `!` run is still an operator. |
-| `café` | Not an identifier: identifiers are ASCII. |
+| `x-y` | Single identifier `x-y`. |
+| `x - y` | Subtraction of `x` and `y`. |
+| `x-1` | Subtraction of `x` and `1` (digits do not glue across `-`). |
+| `x-y'` | Single identifier `x-y'` (`'` continues after `-`). |
+| `_x` | Identifier `_x` (`_` alone is the pattern wildcard). |
+| `x'` | Identifier `x'` (`'` continues an identifier but never starts one). |
+| `empty?` | Single identifier `empty?`. |
+| `print!` | Single identifier `print!`. |
+| `read!?` | Single identifier `read!?`. |
+| `x!=y` | Identifier `x!`, then `=`, then `y`. |
+| `x != y` | Operator application with `!=`. |
+| `café` | Lexical error (identifiers are ASCII-only). |
 
-This program defines a value named `x-y` and also uses the three-part subtraction `x - y`. It exits 0 only if `x-y` is one name holding 9 and `x - y` is 100 minus 1:
+Hyphenated names and spaced subtraction coexist in the same scope:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -43,7 +43,7 @@ module Main where
   main = if x-y + (x - y) == 108 then 0 else 1
 ```
 
-An apostrophe continues a name but never starts one. This program passes with both `_total` and `total'`:
+Leading underscores and trailing apostrophes are ordinary identifier characters:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -58,7 +58,7 @@ module Main where
   main = if _total + total' == 22 then 0 else 1
 ```
 
-The capitalized spelling belongs to another namespace, so this declaration is refused:
+Uppercase names belong to the type/constructor/module namespace and cannot declare values:
 
 <!-- cinch:reject contains="expected a declaration, found constructor" -->
 ```cinch
@@ -70,7 +70,7 @@ module Main where
   main = 0
 ```
 
-Keywords are reserved in every position, including declaration position:
+Keywords are reserved in every syntactic position:
 
 <!-- cinch:reject contains="expected a declaration, found Let" -->
 ```cinch
@@ -82,9 +82,11 @@ module Main where
   main = let
 ```
 
-The keyword set the lexer recognizes is `module`, `where`, `data`, `record`, `codata`, `effect`, `signature`, `instance`, `implicit`, `import`, `as`, `type`, `opaque`, `forall`, `Sigma`, `using`, `in`, `let`, `letrec`, `if`, `then`, `else`, `case`, `of`, `do`, `handle`, `with`, `rewrite`, `prim`, `law`, `target`, `justify`, `match`, `replace`, `require`, `upgrade`, `contract`, `to`, `generate`, `quoteDecls`, `foreign`, `export`, `ccall`, `component`, `proof`, `spec`, `stage`, `corec`, `macro`, `infix`, `infixl`, `infixr`, `erased`, `own`, `return`, `resume`.
+The reserved keywords are:
 
-A non-ASCII letter is not an identifier character:
+`as`, `case`, `ccall`, `codata`, `component`, `contract`, `corec`, `data`, `do`, `effect`, `else`, `erased`, `export`, `forall`, `foreign`, `generate`, `handle`, `if`, `implicit`, `import`, `in`, `infix`, `infixl`, `infixr`, `instance`, `justify`, `law`, `let`, `letrec`, `macro`, `match`, `module`, `of`, `opaque`, `own`, `prim`, `proof`, `quoteDecls`, `record`, `replace`, `require`, `resume`, `return`, `rewrite`, `Sigma`, `signature`, `spec`, `stage`, `target`, `then`, `to`, `type`, `upgrade`, `using`, `where`, `with`.
+
+Non-ASCII letters are rejected outside string and character literals and comments:
 
 <!-- cinch:reject contains="unexpected character" -->
 ```cinch
@@ -98,7 +100,7 @@ module Main where
 
 # Comments
 
-`--` starts a line comment. `{-` and `-}` delimit a block comment, and block comments nest. Comment recognition wins over operator runs, so `5 -- 3` is `5` followed by a comment rather than a subtraction. This program exits 0 for that reason:
+`--` introduces a line comment extending to the end of the line. `{-` and `-}` delimit block comments, which nest to arbitrary depth. Comment recognition takes precedence over operator runs, so `5 -- 3` parses as `5` followed by a comment:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -112,7 +114,7 @@ module Main where
   main = if v == 5 then 0 else 1
 ```
 
-An unclosed block comment runs to end of file:
+An unclosed block comment is a lexical error:
 
 <!-- cinch:reject contains="unterminated block comment" -->
 ```cinch
@@ -122,9 +124,9 @@ module Main where
   main = 0
 ```
 
-# Numbers
+# Numeric literals
 
-An integer literal is a run of decimal digits or a `0x` hexadecimal run. Single underscores inside the digits are dropped before the value is formed, and the digits are canonicalized, so `007` is the integer 7 and `0x1F` is 31. The lexer keeps the literal as a decimal digit string with no bound; the expected type decides how it is elaborated. This program exits 0:
+Integer literals are decimal digit sequences or `0x`-prefixed hexadecimal digit sequences. Single `_` characters may separate digits and are stripped during lexing, and leading zeros are canonicalized (`007` is `7`, `0x1F` is `31`). Integer literals carry arbitrary precision through lexing and are range-checked against their expected type during type checking (see [numbers and primitives](05-numbers-and-primitives.md)).
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -142,7 +144,7 @@ module Main where
   main = if hex + under + padded == 1038 then 0 else 1
 ```
 
-A fractional form is lexed as a float token and then refused. Use the conversion and parser vocabulary in [numbers and primitives](05-numbers-and-primitives.md) instead:
+A digit immediately following `.` after digits forms a fractional token, which is rejected because floating-point literals are not part of the surface syntax. Construct floating-point values through the conversion functions in [numbers and primitives](05-numbers-and-primitives.md):
 
 <!-- cinch:reject contains="float literals are not supported" -->
 ```cinch
@@ -154,13 +156,11 @@ module Main where
   main = 0
 ```
 
-The lexer requires a digit immediately after the `.` of a fractional form, so `1.5` is a float token while `Module.name` and `record.field` stay qualification and projection.
+Because fractional recognition requires a digit immediately after `.`, module qualification (`Module.name`) and record projection (`record.field`) remain unambiguous.
 
-# Strings and characters
+# Strings, characters, and symbols
 
-A string is double quoted, may not contain a raw newline, and decodes the escapes `\n`, `\t`, `\\`, `\"`, and `\u{...}`, whose hex digits name a Unicode scalar value. A character literal is one character or one escape between single quotes. The tick form is decided lexically: tick, one character, tick is a `Char`; a longer name after the tick is a symbol, `'answer`, and two ticks name a type, `''Item`.
-
-This program exits 0 only if `\u{41}` decodes to `A` and each escape is one character:
+Double-quoted string literals produce `String` values (immutable UTF-8). Raw newlines are not permitted inside string literals. Supported escape sequences are `\n`, `\t`, `\\`, `\"`, and `\u{...}` (hexadecimal Unicode scalar value):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -193,6 +193,8 @@ module Main where
     else 1
 ```
 
+Unknown escapes and out-of-range or surrogate Unicode code points are lexical errors:
+
 <!-- cinch:reject contains="unknown escape sequence" -->
 ```cinch
 module Main where
@@ -213,7 +215,15 @@ module Main where
   main = 0
 ```
 
-The three tick forms in one program. The last case is the one worth remembering: `'ab'` is not a malformed character literal, it is the symbol whose name is `ab'`, because the trailing apostrophe continues the name once the closing tick is not immediately after one character. The program exits 0 through that branch:
+Single-quote (`'`) forms are disambiguated lexically:
+
+| Form | Meaning |
+| --- | --- |
+| `'c'`, `'\n'` | Character literal (`Char`): one character or escape between single quotes. |
+| `'name` | Interned symbol literal (`Sym`). |
+| `''Type` | Quoted type name (see [staging and macros](14-staging-and-macros.md)). |
+
+Note that `'ab'` is not a malformed character literal: because no closing `'` follows the first character, it lexes as the symbol literal whose name is `ab'` (with the trailing `'` continuing the identifier):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -242,25 +252,32 @@ module Main where
 
 # Operators and fixity
 
-The symbol characters are `!`, `#`, `%`, `&`, `*`, `+`, `/`, `<`, `=`, `>`, `?`, `@`, `^`, `|`, `~`, `:`, and `-`. `$` continues an operator run such as `<$>` but never starts one, and `$(` opens a splice. The runs `::`, `->`, `<-`, `=>`, `!`, `@`, `=`, `|`, and `~` are reserved tokens rather than operators. Every other symbol run is an operator, including a longer run that contains those characters, so `<+>` and `<=` are operators while `!` alone is not. `|` stays usable in operator position: a fixity declaration and a definition accept it, while `!` is refused (both are shown below), and the guard and row positions consume `|` before a term is parsed.
+Operator names are sequences of symbol characters drawn from `!`, `#`, `%`, `&`, `*`, `+`, `/`, `<`, `=`, `>`, `?`, `@`, `^`, `|`, `~`, `:`, and `-`. The `$` character may continue an operator (such as `<$>`) but never starts one; `$(` begins a splice. Parenthesizing an operator (`(<+>)`) turns it into an ordinary prefix value.
 
-A module declares an operator's associativity and precedence with `infix`, `infixl`, or `infixr` and a precedence from 0 to 9. Only the declaring module declares it; importers inherit it with the operator's identity. The shipped table, as declared in the base family:
+The exact spellings `::`, `->`, `<-`, `=>`, `!`, `@`, `=`, `|`, and `~` are reserved tokens rather than general operators. Longer runs containing those characters (`<=`, `<+>`) are ordinary operators. As a special case, `|` may be declared and defined as an infix operator (except in guard and effect-row positions, where grammar syntax claims `|` first), whereas `!` is always reserved.
 
-| Declaration | Operators | Declared in |
+Every infix operator requires a fixity declaration (`infix`, `infixl`, or `infixr`) with integer precedence from `0` (lowest) to `9` (highest). There is no default fixity for undeclared operators. Only the module declaring an operator specifies its fixity; importing modules inherit that fixity automatically.
+
+The standard library defines the following fixities:
+
+| Fixity | Operators | Declaring module |
 | --- | --- | --- |
-| `infixl 9` | `*`, `/`, `%` | `Algebra/Arithmetic.cinch` |
-| `infixl 8` | `+`, `-` | `Algebra/Arithmetic.cinch` |
-| `infixl 7` | `<<`, `>>` | `Algebra/Bits.cinch` |
-| `infixr 6` | `<>` | `Algebra/Semigroup.cinch` |
-| `infixl 6` | `&` | `Algebra/Bits.cinch` |
-| `infixl 5` | `^` | `Algebra/Bits.cinch` |
-| `infixl 4` | `<$>`, `<*>` | `Category/Functor.cinch`, `Category/Applicative.cinch` |
-| `infix 3` | `==`, `/=`, `<`, `<=`, `>`, `>=` | `Relation/Eq.cinch`, `Relation/Ord.cinch` |
-| `infixr 2` | `&&` | `Data/Bool.cinch` |
-| `infixl 1` | `>>=` | `Category/Monad.cinch` |
-| `infixr 1` | `>=>`, `<=<` | `Category/Monad.cinch` |
+| `infixl 9` | `*`, `/`, `%` | `Algebra.Arithmetic` |
+| `infixl 8` | `+`, `-` | `Algebra.Arithmetic` |
+| `infixl 7` | `<<`, `>>` | `Algebra.Bits` |
+| `infixr 6` | `<>` | `Algebra.Semigroup` |
+| `infixl 6` | `&` | `Algebra.Bits` |
+| `infixl 5` | `^` | `Algebra.Bits` |
+| `infixl 4` | `\|` | `Algebra.Bits` |
+| `infixl 4` | `<$>`, `<*>` | `Category.Functor`, `Category.Applicative` |
+| `infixl 3` | `<\|>` | `Category.Alternative` |
+| `infix 3` | `==`, `/=`, `<`, `<=`, `>`, `>=` | `Relation.Eq`, `Relation.Ord` |
+| `infixr 2` | `&&` | `Data.Bool` |
+| `infixr 1` | `\|\|` | `Data.Bool` |
+| `infixl 1` | `>>=` | `Category.Monad` |
+| `infixr 1` | `>=>`, `<=<` | `Category.Monad` |
 
-Three declarations hold the pipe character, which a Markdown table cell cannot show, so they are named here. `||` is `infixr 1` in `Data/Bool.cinch`. `<|>` is `infixl 3` in `Category/Alternative.cinch`. `|` is `infixl 4` in `Algebra/Bits.cinch` as a `Bits` method, so `1 | 2` on `Int` is refused with `no instance for Bits Int`. A file may declare `|` for itself: this program declares it at precedence 5 and exits 0 through its own definition.
+In `Algebra.Bits`, `|` is a `Bits` method, so `1 | 2` on `Int` fails with `no instance for Bits Int`. A module may declare and define its own `|` operator locally:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -274,9 +291,7 @@ module Main where
   main = if 1 | 2 == 102 then 0 else 1
 ```
 
-Import a module to use its operators; the [library reference](../library/00-index.md) lists each one with its signature and precedence.
-
-A file may declare its own operator. This program declares `<+>` at precedence 5 and exits 0 through left association:
+User-defined operators follow the same rules:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -290,7 +305,7 @@ module Main where
   main = if 1 <+> 2 <+> 3 == 123 then 0 else 1
 ```
 
-Precedence outside 0 to 9 is refused:
+Precedences outside `0`–`9`, reserved tokens such as `!`, and unparenthesized chains of non-associative (`infix`) operators are rejected:
 
 <!-- cinch:reject contains="precedence 10 is out of range" -->
 ```cinch
@@ -300,8 +315,6 @@ module Main where
   main :: Int
   main = 1 + 2
 ```
-
-The reserved spelling cannot be declared as an operator:
 
 <!-- cinch:reject contains="expected an operator in the fixity declaration, found Bang" -->
 ```cinch
@@ -315,8 +328,6 @@ module Main where
   main = 0
 ```
 
-`infix` is non-associative, so an unparenthesized chain of it is refused rather than given a meaning:
-
 <!-- cinch:reject contains="cannot be chained at precedence 3" -->
 ```cinch
 module Main where
@@ -324,13 +335,19 @@ module Main where
   main = if 1 == 2 == 3 then 0 else 1
 ```
 
-Application binds tighter than any infix operator, so `f x + g y` is `(f x) + (g y)`, and `$` is the low-precedence application that avoids parentheses: `add 1 $ add 2 3` is `add 1 (add 2 3)`. The [expressions page](03-expressions-and-patterns.md) shows the forms.
+Function application binds tighter than every infix operator (`f x + g y` parses as `(f x) + (g y)`). Low-precedence right-associative application is written with `$`: `add 1 $ add 2 3` parses as `add 1 (add 2 3)`. See the [library reference](../library/00-index.md) for all standard operator signatures.
 
-# Layout blocks
+# Layout and indentation
 
-`where`, `of`, `do`, and `let` open an implicit block unless an explicit `{` follows. `letrec` opens one too, because the lexer emits it as a marker token and a `let` token sharing one span. The first token of the block sets its column. At a logical line start, equal indentation begins a new item, less indentation closes the innermost block, and greater indentation continues the item already open. A block must indent farther than the block that encloses it. Explicit `(`, `[`, and `{` shield their contents, and a closing delimiter first closes the implicit blocks opened inside it. `in` closes the nearest implicit `let`.
+The keywords `where`, `of`, `do`, `let`, and `letrec` open an implicit layout block unless immediately followed by an explicit `{`. The first token inside the block establishes its reference column:
 
-A tab in indentation is rejected, so indentation is spaces only:
+- A token on a new line at the **same column** starts a new item (inserts `;`).
+- A token at a **smaller column** closes the innermost layout block (inserts `}`), repeating while still to the left of enclosing blocks.
+- A token at a **greater column** continues the current item.
+
+Every nested layout block must indent strictly past its enclosing block. Explicit delimiters `(`, `[`, and `{` shield their contents from outer layout rules; a matching closing delimiter closes any implicit blocks opened inside it. The `in` keyword closes the nearest enclosing implicit `let` or `letrec` block.
+
+Indentation must use spaces only; leading tab characters are rejected:
 
 <!-- cinch:reject contains="tabs are rejected in indentation" -->
 ```cinch
@@ -339,7 +356,7 @@ module Main where
 	main = 0
 ```
 
-The alternatives of a `case` are items of the block that `of` opens, so they must indent past the declaration that holds the `case`. Two columns of indent is not enough here:
+Alternatives of a `case` form a layout block opened by `of` and must indent past the enclosing declaration:
 
 <!-- cinch:reject contains="layout block must indent farther than its enclosing block" -->
 ```cinch
@@ -353,7 +370,7 @@ module Main where
   main = classify 0
 ```
 
-A declaration ends where its block's column resumes. An expression continued on the next line must indent past the column of the name it belongs to. Here `0` sits at the same column as `main`, so it starts a new item and the parser expects an expression before it:
+An expression continued onto the next line must indent strictly past its declaration's column; returning to the declaration's column starts a new item instead:
 
 <!-- cinch:reject contains="expected an expression, found Semicolon" -->
 ```cinch
@@ -363,7 +380,7 @@ module Main where
   0
 ```
 
-Brackets shield layout, and a continuation line indented past the declaration's column continues it. Both are used here, with the list items placed at column 1 inside `[` and `]`:
+Explicit brackets shield layout regardless of indentation, while indented continuation lines extend the enclosing declaration:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -389,6 +406,4 @@ module Main where
       else 1
 ```
 
-The `in` that closes a `let` is described with the other expression forms on the [expressions page](03-expressions-and-patterns.md), and the fixity and layout rationale is in the [surface grammar](../specifications/surface-syntax-and-grammar.md) and its [local amendments](../specifications/surface-grammar-local-amendments.md). Some historical status notes on those pages predate implemented features; this page follows the compiler.
-
-Implementation: `seed/src/lexer.rs` (tokens, escapes, dash glue, tick forms), `seed/src/layout.rs` (block insertion), `seed/src/parser.rs` (fixity resolution and declaration boundaries). Suites: `surface.rs`, `driver.rs`, `modules.rs`.
+See [expressions, bindings, and patterns](03-expressions-and-patterns.md) for expression grammar and `let`/`in` scoping.

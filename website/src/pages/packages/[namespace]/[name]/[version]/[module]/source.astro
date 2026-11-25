@@ -4,14 +4,16 @@ import { loadCatalogue, moduleUrl } from '../../../../../../lib/catalogue';
 
 export async function getStaticPaths() {
   const catalogue = await loadCatalogue();
-  return catalogue.packages.flatMap((p) =>
-    p.releases.flatMap((release) =>
-      release.modules.map((module) => ({
-        params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version, module: module.name },
-        props: { package: p, release, module },
-      })),
-    ),
-  );
+  return catalogue.packages
+    .filter((p) => p.sourceKind === 'registry')
+    .flatMap((p) =>
+      p.releases.flatMap((release) =>
+        release.modules.map((module) => ({
+          params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version, module: module.name },
+          props: { package: p, release, module },
+        })),
+      ),
+    );
 }
 
 const { package: p, release, module: m } = Astro.props;

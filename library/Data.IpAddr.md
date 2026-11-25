@@ -2,19 +2,11 @@
 
 Validated IP addresses, parsing/rendering, and address-family vocabulary.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.IpAddr</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.IpAddr/source/">View source</a><a href="/packages/search/?q=%2BData.IpAddr">Search module</a><a href="/reference-sources/Data.IpAddr.cinch" download="Data.IpAddr.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.IpAddr`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.IpAddr.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.IpAddr: IPv4 and IPv6 addresses as data, not names to resolve.
 
@@ -62,180 +54,133 @@ implement; each is a named boundary, never a silent gap):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-IpAddr">IpAddr</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IpAddr</strong></code></li><li><a class="syn-name" href="#t-IpFamily">IpFamily</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IpFamily</strong></code></li><li><a class="syn-name" href="#t-Ipv4">Ipv4</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ipv4</strong></code></li><li><a class="syn-name" href="#t-Ipv6">Ipv6</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ipv6</strong></code></li><li><a class="syn-name" href="#v-ip-bytes">ip-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ip-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ip-family">ip-family</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ip-family</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a></code></li><li><a class="syn-name" href="#v-ip-parse">ip-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ip-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code></li><li><a class="syn-name" href="#v-ip-to-string">ip-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ip-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-ipv4-bytes">ipv4-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv4-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ipv4-from-octets">ipv4-from-octets</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv4-from-octets</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code></li><li><a class="syn-name" href="#v-ipv4-parse">ipv4-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv4-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code></li><li><a class="syn-name" href="#v-ipv4-to-string">ipv4-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv4-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-ipv6-bytes">ipv6-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv6-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ipv6-from-groups">ipv6-from-groups</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv6-from-groups</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code></li><li><a class="syn-name" href="#v-ipv6-parse">ipv6-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv6-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code></li><li><a class="syn-name" href="#v-ipv6-to-string">ipv6-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ipv6-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-497041646472"></a>
+# Types
 
-## `IpAddr`
+<article class="doc-entry" id="t-IpAddr">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IpAddr</strong></code><span class="doc-sig-links"><a href="#t-IpAddr" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-V4Addr"><code><strong class="tok-constructor">V4Addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code></li><li id="k-V6Addr"><code><strong class="tok-constructor">V6Addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IpAddr</span></code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V4Addr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">V6Addr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)</code></pre>
-
-<a id="type-497046616d696c79"></a>
-
-## `IpFamily`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IpFamily</span></code></pre>
+<article class="doc-entry" id="t-IpFamily">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IpFamily</strong></code><span class="doc-sig-links"><a href="#t-IpFamily" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Which family an address belongs to (Ruby spells this as a pair of
 predicates; one total witness keeps the answer exhaustive).
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 69
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Ipv4Family"><code><strong class="tok-constructor">Ipv4Family</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a></code></li><li id="k-Ipv6Family"><code><strong class="tok-constructor">Ipv6Family</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv4Family</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ipv6Family</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span></code></pre>
-
-<a id="type-49707634"></a>
-
-## `Ipv4`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ipv4</span></code></pre>
+<article class="doc-entry" id="t-Ipv4">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ipv4</strong></code><span class="doc-sig-links"><a href="#t-Ipv4" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 Four octets, each 0..=255. The field type carries the bound, so the
 byte form needs no check and no constructor site can exceed it.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 75
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="type-49707636"></a>
-
-## `Ipv6`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ipv6</span></code></pre>
+<article class="doc-entry" id="t-Ipv6">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ipv6</strong></code><span class="doc-sig-links"><a href="#t-Ipv6" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 Exactly eight 16-bit groups, most significant first.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 79
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-69702d6279746573"></a>
+<article class="doc-entry" id="v-ip-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ip-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ip-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L420" title="View source at line 420">Source</a></span></div>
+</article>
 
-## `ip-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-69702d66616d696c79"></a>
-
-## `ip-family`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-family</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span>)</code></pre>
+<article class="doc-entry" id="v-ip-family">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ip-family</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a></code><span class="doc-sig-links"><a href="#v-ip-family" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L410" title="View source at line 410">Source</a></span></div>
+<div class="doc-body">
 
 The sum over the families.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 410
+</div>
+</article>
 
-<a id="value-69702d7061727365"></a>
+<article class="doc-entry" id="v-ip-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ip-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code><span class="doc-sig-links"><a href="#v-ip-parse" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L425" title="View source at line 425">Source</a></span></div>
+</article>
 
-## `ip-parse`
+<article class="doc-entry" id="v-ip-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ip-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-ip-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L415" title="View source at line 415">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
+<article class="doc-entry" id="v-ipv4-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv4-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ipv4-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L194" title="View source at line 194">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-69702d746f2d737472696e67"></a>
-
-## `ip-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ip-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076342d6279746573"></a>
-
-## `ipv4-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076342d66726f6d2d6f6374657473"></a>
-
-## `ipv4-from-octets`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-from-octets</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span>)))))</code></pre>
+<article class="doc-entry" id="v-ipv4-from-octets">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv4-from-octets</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code><span class="doc-sig-links"><a href="#v-ipv4-from-octets" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 The smart constructor: octets outside 0..=255 are refused, so no
 caller can build an `Ipv4` the parser would never produce.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 179
+</div>
+</article>
 
-<a id="value-697076342d7061727365"></a>
+<article class="doc-entry" id="v-ipv4-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv4-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code><span class="doc-sig-links"><a href="#v-ipv4-parse" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L171" title="View source at line 171">Source</a></span></div>
+</article>
 
-## `ipv4-parse`
+<article class="doc-entry" id="v-ipv4-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv4-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-ipv4-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L184" title="View source at line 184">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span>))</code></pre>
+<article class="doc-entry" id="v-ipv6-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv6-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ipv6-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L375" title="View source at line 375">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076342d746f2d737472696e67"></a>
-
-## `ipv4-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv4-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv4</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076362d6279746573"></a>
-
-## `ipv6-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076362d66726f6d2d67726f757073"></a>
-
-## `ipv6-from-groups`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-from-groups</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span>))</code></pre>
+<article class="doc-entry" id="v-ipv6-from-groups">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv6-from-groups</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code><span class="doc-sig-links"><a href="#v-ipv6-from-groups" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L304" title="View source at line 304">Source</a></span></div>
+<div class="doc-body">
 
 The smart constructor: exactly eight groups, each 0..=65535.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 304
+</div>
+</article>
 
-<a id="value-697076362d7061727365"></a>
+<article class="doc-entry" id="v-ipv6-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv6-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code><span class="doc-sig-links"><a href="#v-ipv6-parse" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L291" title="View source at line 291">Source</a></span></div>
+</article>
 
-## `ipv6-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span>))</code></pre>
-
-[Source](/reference-sources/Data.IpAddr.cinch)
-
-<a id="value-697076362d746f2d737472696e67"></a>
-
-## `ipv6-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ipv6-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">Ipv6</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-ipv6-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ipv6-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-ipv6-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.IpAddr/source/#L356" title="View source at line 356">Source</a></span></div>
+<div class="doc-body">
 
 Canonical rendering: lower-case hex, the chosen zero run spelled
 `::`, at most one `::` per address.
 
-[Source](/reference-sources/Data.IpAddr.cinch) · line 356
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.IpAddr.Eq_IpAddr` | `Relation.Eq.Eq Data.IpAddr.IpAddr` | Implicit |
-| `Data.IpAddr.Eq_Ipv4` | `Relation.Eq.Eq Data.IpAddr.Ipv4` | Implicit |
-| `Data.IpAddr.Eq_Ipv6` | `Relation.Eq.Eq Data.IpAddr.Ipv6` | Implicit |
-| `Data.IpAddr.Ord_IpAddr` | `Relation.Ord.Ord Data.IpAddr.IpAddr` | Implicit |
-| `Data.IpAddr.Ord_Ipv4` | `Relation.Ord.Ord Data.IpAddr.Ipv4` | Implicit |
-| `Data.IpAddr.Ord_Ipv6` | `Relation.Ord.Ord Data.IpAddr.Ipv6` | Implicit |
-
-**`Data.IpAddr.Eq_Ipv4`**: Instances (they live with their type; D159's parked deviation is
-over).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/IpAddr.cinch`. Source SHA-256: `05576a008c5e1b982453d2d7b1e404fc56e21b038d69fbefe6ad6bc3845980ba`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_IpAddr"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Eq_IpAddr</code></span></li>
+<li id="i-Eq_Ipv4"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Eq_Ipv4</code></span><div class="doc-child-prose">Instances (they live with their type; D159's parked deviation is over).</div></li>
+<li id="i-Eq_Ipv6"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Eq_Ipv6</code></span></li>
+<li id="i-Ord_IpAddr"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Ord_IpAddr</code></span></li>
+<li id="i-Ord_Ipv4"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Ord_Ipv4</code></span></li>
+<li id="i-Ord_Ipv6"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Ord_Ipv6</code></span></li>
+</ul>

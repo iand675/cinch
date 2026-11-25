@@ -2,19 +2,11 @@
 
 Shared byte cursor, digit readers and digit writers for the time text modules.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Scan/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Scan">Search module</a><a href="/reference-sources/Text.Time.Scan.cinch" download="Text.Time.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Time.Scan`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Text.Time.Scan.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Text.Time.Scan](Text.Time.Scan.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Time.Scan: the byte cursor, digit readers and digit writers the
 datetime text modules share (Text.Time.Iso, Text.Time.Strtime, and
@@ -66,219 +58,186 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis"><summary>Synopsis (20 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-scan-byte-at">scan-byte-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-byte-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-bytes-of-string">scan-bytes-of-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-bytes-of-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-scan-count-digits">scan-count-digits</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-count-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-digit-at">scan-digit-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-digit-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-digits">scan-digits</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-fraction-digits">scan-fraction-digits</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-fraction-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-fraction-head">scan-fraction-head</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-fraction-head</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-is-space">scan-is-space</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-is-space</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-scan-length">scan-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-lower-at">scan-lower-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-lower-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-new">scan-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-scan-pow10">scan-pow10</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-pow10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-put-byte">scan-put-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-put-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-put-bytes">scan-put-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-put-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-put-digits">scan-put-digits</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-put-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-quot">scan-quot</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-quot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 2 9223372036854775807 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-rem">scan-rem</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-rem</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 2 9223372036854775807 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-scan-slice">scan-slice</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-scan-string-of-bytes">scan-string-of-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-string-of-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-scan-take">scan-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scan-take</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-7363616e2d627974652d6174"></a>
-
-## `scan-byte-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-byte-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-scan-byte-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-byte-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-byte-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 Reading.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 88
+</div>
+</article>
 
-<a id="value-7363616e2d62797465732d6f662d737472696e67"></a>
-
-## `scan-bytes-of-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-bytes-of-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-scan-bytes-of-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-bytes-of-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-scan-bytes-of-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 The UTF-8 bytes of a string: one copy (see the header).
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 71
+</div>
+</article>
 
-<a id="value-7363616e2d636f756e742d646967697473"></a>
-
-## `scan-count-digits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-count-digits</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-scan-count-digits">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-count-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-count-digits" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 The length of the run of digits at `i`, at most `limit`.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 126
+</div>
+</article>
 
-<a id="value-7363616e2d64696769742d6174"></a>
+<article class="doc-entry" id="v-scan-digit-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-digit-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-digit-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L95" title="View source at line 95">Source</a></span></div>
+</article>
 
-## `scan-digit-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-digit-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Scan.cinch)
-
-<a id="value-7363616e2d646967697473"></a>
-
-## `scan-digits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-digits</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-scan-digits">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-digits" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-body">
 
 Exactly `n` digits at `i` as a number, -1 if one is missing. The
 accumulator is below 10^n <= 10^18, so the wrapping operations never
 wrap for n <= 18; a larger `n` is refused with -1.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 114
+</div>
+</article>
 
-<a id="value-7363616e2d6672616374696f6e2d646967697473"></a>
-
-## `scan-fraction-digits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-fraction-digits</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-scan-fraction-digits">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-fraction-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-fraction-digits" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L240" title="View source at line 240">Source</a></span></div>
+<div class="doc-body">
 
 The number of fraction digits the shortest exact rendering of a
 subsecond nanosecond count needs: 0 for zero, otherwise 9 less the
 trailing zeros.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 240
+</div>
+</article>
 
-<a id="value-7363616e2d6672616374696f6e2d68656164"></a>
-
-## `scan-fraction-head`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-fraction-head</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-scan-fraction-head">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-fraction-head</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-fraction-head" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L255" title="View source at line 255">Source</a></span></div>
+<div class="doc-body">
 
 The first `digits` digits of a nine-digit subsecond (truncation);
 all nine for `digits` of 9 or more, the first for 1 or less.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 255
+</div>
+</article>
 
-<a id="value-7363616e2d69732d7370616365"></a>
-
-## `scan-is-space`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-is-space</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-scan-is-space">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-is-space</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-scan-is-space" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 ASCII white space: space, tab, LF, VT, FF, CR.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 108
+</div>
+</article>
 
-<a id="value-7363616e2d6c656e677468"></a>
+<article class="doc-entry" id="v-scan-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L81" title="View source at line 81">Source</a></span></div>
+</article>
 
-## `scan-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-length</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Scan.cinch)
-
-<a id="value-7363616e2d6c6f7765722d6174"></a>
-
-## `scan-lower-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-lower-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-scan-lower-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-lower-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-lower-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The byte at `i` with ASCII upper case letters folded to lower case;
 other bytes (and -1) unchanged.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 102
+</div>
+</article>
 
-<a id="value-7363616e2d6e6577"></a>
-
-## `scan-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-new</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-scan-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-scan-new" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 A zeroed buffer of `n` bytes (none for a negative `n`).
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 140
+</div>
+</article>
 
-<a id="value-7363616e2d706f773130"></a>
-
-## `scan-pow10`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-pow10</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-scan-pow10">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-pow10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-pow10" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L224" title="View source at line 224">Source</a></span></div>
+<div class="doc-body">
 
 10^k for k in 0..=9; 1 below 0 and 10^9 above 9.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 224
+</div>
+</article>
 
-<a id="value-7363616e2d7075742d62797465"></a>
-
-## `scan-put-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-put-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-scan-put-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-put-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-put-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L145" title="View source at line 145">Source</a></span></div>
+<div class="doc-body">
 
 Writes the low eight bits of `v` at `i`; answers `i + 1`. Positions
 are far below 2^62, so the increment does not wrap.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 145
+</div>
+</article>
 
-<a id="value-7363616e2d7075742d6279746573"></a>
-
-## `scan-put-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-put-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-scan-put-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-put-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-put-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-body">
 
 Copies `n` bytes of `src` from `si` to `dst` at `di`; answers
 `di + n`. A range that does not fit either buffer copies nothing.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 176
+</div>
+</article>
 
-<a id="value-7363616e2d7075742d646967697473"></a>
-
-## `scan-put-digits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-put-digits</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>))))</code></pre>
+<article class="doc-entry" id="v-scan-put-digits">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-put-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-put-digits" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 `v` as exactly `width` decimal digits at `i`; answers `i + width`.
 Written from the least significant digit backward. A negative `v`
 is written as zeros.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 159
+</div>
+</article>
 
-<a id="value-7363616e2d71756f74"></a>
-
-## `scan-quot`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-quot</span> :: (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">d</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">2</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-scan-quot">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-quot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 2 9223372036854775807 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-quot" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 Arithmetic.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 213
+</div>
+</article>
 
-<a id="value-7363616e2d72656d"></a>
+<article class="doc-entry" id="v-scan-rem">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-rem</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 2 9223372036854775807 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-scan-rem" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L218" title="View source at line 218">Source</a></span></div>
+</article>
 
-## `scan-rem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-rem</span> :: (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">d</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">2</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Scan.cinch)
-
-<a id="value-7363616e2d736c696365"></a>
-
-## `scan-slice`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-slice</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-scan-slice">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-scan-slice" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 The bytes `start .. end` of `b` as a fresh buffer; the empty buffer
 when the range is empty or does not lie inside `b`.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 200
+</div>
+</article>
 
-<a id="value-7363616e2d737472696e672d6f662d6279746573"></a>
-
-## `scan-string-of-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-string-of-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-scan-string-of-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-string-of-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-scan-string-of-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 The string a printer's buffer holds. The printers write ASCII only,
 so the validation never fails; the fallback is the empty string.
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 76
+</div>
+</article>
 
-<a id="value-7363616e2d74616b65"></a>
-
-## `scan-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scan-take</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-scan-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scan-take</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-scan-take" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Scan/source/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-body">
 
 The first `n` bytes of `b` as a fresh buffer (all of it when `n` is
 its length or more).
 
-[Source](/reference-sources/Text.Time.Scan.cinch) · line 190
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Time/Scan.cinch`. Source SHA-256: `47ad87f939deb5508bdab9756d9ecfc9358a47c3a11b12719065dab101aaaf2c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

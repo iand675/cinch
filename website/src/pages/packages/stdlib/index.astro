@@ -1,0 +1,127 @@
+---
+import PlatformLayout from '../../../layouts/PlatformLayout.astro';
+import StdlibNavigation from '../../../components/catalogue/StdlibNavigation.astro';
+import {
+  loadStdlibManifest,
+  STDLIB_FAMILIES,
+  STDLIB_VERSION,
+} from '../../../lib/stdlib';
+import '../../../styles/stdlib-docs.css';
+
+const manifest = await loadStdlibManifest();
+const modules = manifest.modules;
+const totalDeclarations =
+  manifest.search_entry_count ??
+  modules.reduce((acc, m) => acc + m.types + m.signatures + m.values + m.public_methods + m.instances, 0);
+
+const groups = STDLIB_FAMILIES.map((family) => ({
+  family,
+  items: modules.filter((m) => m.family === family),
+})).filter((g) => g.items.length > 0);
+---
+<PlatformLayout
+  title={`stdlib ${STDLIB_VERSION}`}
+  description={`Cinch standard library (cinch/stdlib ${STDLIB_VERSION}): ${modules.length} modules with checked .cinchif interfaces and ${totalDeclarations.toLocaleString('en-US')} indexed declarations.`}
+  section="packages"
+  sample={false}
+>
+  <div class="stdlib-topbar">
+    <div>
+      <a href="/packages/">Packages</a>
+      <span>/</span>
+      <span>stdlib</span>
+    </div>
+    <span class="sample-badge">CINCH/STDLIB · {STDLIB_VERSION}</span>
+  </div>
+
+  <div class="stdlib-workspace stdlib-workspace--overview">
+    <StdlibNavigation modules={modules} />
+
+    <article class="stdlib-article">
+      <header class="stdlib-header">
+        <div class="platform-eyebrow mono">
+          <span>STANDARD LIBRARY PACKAGE / CINCH/STDLIB</span>
+          <span>VERSION {STDLIB_VERSION}</span>
+        </div>
+        <h1>stdlib</h1>
+        <p>
+          The Cinch standard library package (<code>cinch/stdlib</code>), generated from checked
+          <code>.cinchif</code> interfaces across <strong>{modules.length} modules</strong> and{' '}
+          <strong>{totalDeclarations.toLocaleString('en-US')}</strong> indexed declarations.
+        </p>
+        <div class="stdlib-facts mono">
+          <span class="support-tag support-tag--current">{modules.length} Modules</span>
+          <span>.cinchpkg · .cpk interfaces</span>
+        </div>
+        <div class="stdlib-actions">
+          <a href="/packages/search/">Hoogle API Search ↗</a>
+          <a href="#modules">Browse {modules.length} modules ↓</a>
+          <a href="#using-stdlib">Using cinch/stdlib ↓</a>
+          <a href="/reference/20-compiler-vocabulary/">Compiler vocabulary ↗</a>
+        </div>
+      </header>
+
+      <form class="stdlib-hoogle-box" action="/packages/search/" method="get" role="search">
+        <label for="stdlib-hoogle-input">Search stdlib by symbol name or type signature</label>
+        <div class="stdlib-hoogle-row">
+          <input
+            id="stdlib-hoogle-input"
+            name="q"
+            type="search"
+            placeholder="e.g. (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map"
+            autocomplete="off"
+          />
+          <button type="submit">Search API</button>
+        </div>
+        <div class="stdlib-hoogle-chips">
+          <a href="/packages/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>
+          <a href="/packages/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>
+          <a href="/packages/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>
+          <a href="/packages/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>
+          <a href="/packages/search/?q=is%3Aclass">is:class</a>
+        </div>
+      </form>
+
+      <section id="using-stdlib" class="stdlib-doc-body">
+        <h2>Using <code>cinch/stdlib</code></h2>
+        <ul>
+          <li>
+            <strong>Direct imports:</strong> Every module in <code>cinch/stdlib</code> resolves automatically through the toolchain’s package manifest (<code>import Data.Rational</code>, <code>import Text.Json</code>, <code>import Crypto.Aes</code>) and checks against its <code>.cinchif</code>/<code>.cpk</code> interface closure.
+          </li>
+          <li>
+            <strong>Implicit prelude:</strong> <code>Prelude</code> is imported implicitly in every module unless a package sets <code>"prelude": "none"</code> or names a custom prelude in <code>.cinchpkg</code>. Compiler-installed special forms live in <a href="/reference/20-compiler-vocabulary/">compiler vocabulary</a>.
+          </li>
+          <li>
+            <strong>Package inspection &amp; linking:</strong> Inspect the resolved target surface with <code>cinch pkg info cinch/stdlib</code>, or link precompiled package objects with <code>cinch emit-object</code> and <code>--package-object</code> (see <a href="/reference/29-package-management/">packages, manifests, and the registry</a>).
+          </li>
+        </ul>
+      </section>
+
+      <section id="modules">
+        {groups.map(({ family, items }) => (
+          <div class="stdlib-family-section" id={`family-${family.toLowerCase()}`}>
+            <h2>
+              {family}
+              <span>{items.length} {items.length === 1 ? 'MODULE' : 'MODULES'}</span>
+            </h2>
+            <div class="stdlib-mod-grid">
+              {items.map((m) => {
+                const exportsCount = m.types + m.values + m.public_methods;
+                return (
+                  <a class="stdlib-mod-row" href={`/packages/stdlib/${m.module}/`}>
+                    <span class="stdlib-mod-name">{m.module}</span>
+                    <span class="stdlib-mod-desc">{m.description}</span>
+                    <span class="stdlib-mod-meta">
+                      <span>{exportsCount} exports</span>
+                      {m.instances > 0 && <span>{m.instances} {m.instances === 1 ? 'inst' : 'insts'}</span>}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </section>
+    </article>
+  </div>
+</PlatformLayout>

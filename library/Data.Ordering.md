@@ -2,17 +2,11 @@
 
 The LT, EQ, and GT comparison result vocabulary and its instances.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Ordering</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Ordering/source/">View source</a><a href="/packages/search/?q=%2BData.Ordering">Search module</a><a href="/reference-sources/Data.Ordering.cinch" download="Data.Ordering.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Ordering`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
 
-[Download exact module source](/reference-sources/Data.Ordering.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Ordering: the three-way comparison result.
 
@@ -21,36 +15,25 @@ instance family (the parked-instance deviation of D159 is over).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (1 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Ordering">Ordering</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ordering</strong></code></li></ul>
+</details>
 
-<a id="type-4f72646572696e67"></a>
+# Types
 
-## `Ordering`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ordering</span></code></pre>
-
-[Source](/reference-sources/Data.Ordering.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
+<article class="doc-entry" id="t-Ordering">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ordering</strong></code><span class="doc-sig-links"><a href="#t-Ordering" title="Permalink">#</a><a href="/packages/stdlib/Data.Ordering/source/#L13" title="View source at line 13">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-LT"><code><strong class="tok-constructor">LT</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li id="k-EQ"><code><strong class="tok-constructor">EQ</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li id="k-GT"><code><strong class="tok-constructor">GT</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Ordering/#instances">Data.Ordering</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Ordering/#instances">Data.Ordering</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Ordering.Monoid_Ordering` | `Algebra.Monoid.Monoid Data.Ordering.Ordering` | Implicit |
-| `Data.Ordering.Semigroup_Ordering` | `Algebra.Semigroup.Semigroup Data.Ordering.Ordering` | Implicit |
-
-**`Data.Ordering.Monoid_Ordering`**: `EQ` is the identity (moved from Algebra.Monoid).
-**`Data.Ordering.Semigroup_Ordering`**: Lexicographic composition of comparisons: `compare x y <> compare
-y z` gives `compare x z` when the first is not EQ (moved from
-Algebra.Semigroup at the prelude split).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Ordering.cinch`. Source SHA-256: `7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Monoid_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Ordering.Monoid_Ordering</code></span><div class="doc-child-prose">EQ is the identity (moved from Algebra.Monoid).</div></li>
+<li id="i-Semigroup_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Ordering.Semigroup_Ordering</code></span><div class="doc-child-prose">Lexicographic composition of comparisons: compare x y &lt;&gt; compare y z gives compare x z when the first is not EQ (moved from Algebra.Semigroup at the prelude split).</div></li>
+</ul>

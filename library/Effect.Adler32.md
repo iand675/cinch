@@ -2,19 +2,11 @@
 
 Inspectable scalar checksum sinks, generic byte writers and bounded reader-to-Adler-32 copying with advanced source continuations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Adler32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Adler32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Adler32">Search module</a><a href="/reference-sources/Effect.Adler32.cinch" download="Effect.Adler32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Adler32`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Adler32](Text.Adler32.md).
 
-[Download exact module source](/reference-sources/Effect.Adler32.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Adler32](Text.Adler32.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Adler32](Effect.Adler32.md), [Effect.Stream](Effect.Stream.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Inspectable Adler-32 hashing sinks and bounded reader-to-checksum copying.
 The immutable scalar state is the sink handle. Writes accept every byte and
@@ -23,44 +15,37 @@ valid checksum on failure, and never closes a borrowed source.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-adler32-copy">adler32-copy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a>))</code></li><li><a class="syn-name" href="#v-adler32-hashing-writer">adler32-hashing-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32-hashing-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-adler32-write">adler32-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a>)</code></li></ul>
+</details>
 
 # Values
 
-<a id="value-61646c657233322d636f7079"></a>
-
-## `adler32-copy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32-copy</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32State</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>), <span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32State</span>)))))</code></pre>
+<article class="doc-entry" id="v-adler32-copy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a>))</code><span class="doc-sig-links"><a href="#v-adler32-copy" title="Permalink">#</a><a href="/packages/stdlib/Effect.Adler32/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 Hash successful reader chunks through EOF, preserving both advanced handles on errors.
 A zero chunk size is rejected before reading. Invalid source counts do not enter the checksum.
 
-[Source](/reference-sources/Effect.Adler32.cinch) · line 27
+</div>
+</article>
 
-<a id="value-61646c657233322d68617368696e672d777269746572"></a>
-
-## `adler32-hashing-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32-hashing-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32State</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-adler32-hashing-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32-hashing-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-adler32-hashing-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Adler32/source/#L21" title="View source at line 21">Source</a></span></div>
+<div class="doc-body">
 
 Adapt a checksum state to the generic byte-writer protocol.
 Use the explicit state or adler32-copy when the advanced checksum must be inspected.
 
-[Source](/reference-sources/Effect.Adler32.cinch) · line 21
+</div>
+</article>
 
-<a id="value-61646c657233322d7772697465"></a>
-
-## `adler32-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32State</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32State</span>)))</code></pre>
+<article class="doc-entry" id="v-adler32-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Adler32/#t-Adler32State" title="Text.Adler32.Adler32State">Adler32State</a>)</code><span class="doc-sig-links"><a href="#v-adler32-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Adler32/source/#L16" title="View source at line 16">Source</a></span></div>
+<div class="doc-body">
 
 Hash a whole chunk, returning its accepted count and the advanced immutable state.
 
-[Source](/reference-sources/Effect.Adler32.cinch) · line 16
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Adler32.cinch`. Source SHA-256: `561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

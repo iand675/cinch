@@ -2,19 +2,11 @@
 
 Span units, rounding modes and the shared rounding kernel.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Unit</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Unit/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Unit">Search module</a><a href="/reference-sources/Data.Time.Unit.cinch" download="Data.Time.Unit.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Time.Unit`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Unit.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.Time.Unit](Data.Time.Unit.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Unit: the units of a span, the rounding modes and the
 rounding kernel.
@@ -80,138 +72,70 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (24 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-RoundMode">RoundMode</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RoundMode</strong></code></li><li><a class="syn-name" href="#t-TimeUnit">TimeUnit</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeUnit</strong></code></li><li><a class="syn-name" href="#c-LargestOption">LargestOption</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">LargestOption</strong> <span class="tok-variable">o</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-LargestOption-with-largest">with-largest</a><code class="syn-sig"><strong class="tok-variable">with-largest</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code></li><li><a class="syn-name" href="#c-RoundingOptions">RoundingOptions</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">RoundingOptions</strong> <span class="tok-variable">o</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-RoundingOptions-with-smallest">with-smallest</a><code class="syn-sig"><strong class="tok-variable">with-smallest</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-RoundingOptions-with-increment">with-increment</a><code class="syn-sig"><strong class="tok-variable">with-increment</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-RoundingOptions-with-mode">with-mode</a><code class="syn-sig"><strong class="tok-variable">with-mode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code></li><li><a class="syn-name" href="#v-nanos-per-civil-day">nanos-per-civil-day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nanos-per-civil-day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-round-i128">round-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-round-i128-as-if-positive">round-i128-as-if-positive</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round-i128-as-if-positive</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-round-mode-negate">round-mode-negate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round-mode-negate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li><a class="syn-name" href="#v-unit-cmp">unit-cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-unit-eq">unit-eq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-eq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unit-is-calendar">unit-is-calendar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-is-calendar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unit-larger-of">unit-larger-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-larger-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li><a class="syn-name" href="#v-unit-nanos">unit-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-unit-next-larger">unit-next-larger</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-next-larger</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li><a class="syn-name" href="#v-unit-next-smaller">unit-next-smaller</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-next-smaller</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li><a class="syn-name" href="#v-unit-rank">unit-rank</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-rank</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-unit-round-increment-ok">unit-round-increment-ok</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-round-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unit-smaller-of">unit-smaller-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-smaller-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li><a class="syn-name" href="#v-unit-span-increment-ok">unit-span-increment-ok</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-span-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unit-timestamp-increment-ok">unit-timestamp-increment-ok</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unit-timestamp-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li></ul>
+</details>
 
-<a id="type-526f756e644d6f6465"></a>
+# Types
 
-## `RoundMode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">RoundMode</span></code></pre>
+<article class="doc-entry" id="t-RoundMode">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RoundMode</strong></code><span class="doc-sig-links"><a href="#t-RoundMode" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 Rounding modes.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 187
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Ceil"><code><strong class="tok-constructor">Ceil</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-Floor"><code><strong class="tok-constructor">Floor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-Expand"><code><strong class="tok-constructor">Expand</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-Trunc"><code><strong class="tok-constructor">Trunc</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-HalfCeil"><code><strong class="tok-constructor">HalfCeil</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-HalfFloor"><code><strong class="tok-constructor">HalfFloor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-HalfExpand"><code><strong class="tok-constructor">HalfExpand</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-HalfTrunc"><code><strong class="tok-constructor">HalfTrunc</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li><li id="k-HalfEven"><code><strong class="tok-constructor">HalfEven</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ceil</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
+<article class="doc-entry" id="t-TimeUnit">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeUnit</strong></code><span class="doc-sig-links"><a href="#t-TimeUnit" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Nanosecond"><code><strong class="tok-constructor">Nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Microsecond"><code><strong class="tok-constructor">Microsecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Millisecond"><code><strong class="tok-constructor">Millisecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Second"><code><strong class="tok-constructor">Second</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Minute"><code><strong class="tok-constructor">Minute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Hour"><code><strong class="tok-constructor">Hour</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Day"><code><strong class="tok-constructor">Day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Week"><code><strong class="tok-constructor">Week</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Month"><code><strong class="tok-constructor">Month</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li><li id="k-Year"><code><strong class="tok-constructor">Year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Floor</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
+# Signatures
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Expand</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Trunc</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HalfCeil</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HalfFloor</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HalfExpand</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HalfTrunc</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HalfEven</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span></code></pre>
-
-<a id="type-54696d65556e6974"></a>
-
-## `TimeUnit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TimeUnit</span></code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nanosecond</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Microsecond</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Millisecond</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Second</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Minute</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Hour</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Day</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Week</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Month</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Year</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span></code></pre>
-
-# Signatures and methods
-
-<a id="class-4c6172676573744f7074696f6e"></a>
-
-## `LargestOption`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">LargestOption</span> <span class="tok-variable">o</span></code></pre>
+<article class="doc-entry" id="c-LargestOption">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">LargestOption</strong> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#c-LargestOption" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L380" title="View source at line 380">Source</a></span></div>
+<div class="doc-body">
 
 Options that also choose the largest unit of a result.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 380
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-LargestOption-with-largest"><div class="doc-method-row"><code><strong class="tok-variable">with-largest</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#m-LargestOption-with-largest" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L381">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanRound" title="Data.Time.Span.SpanRound">SpanRound</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Span/#instances">Data.Time.Span</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#t-ZonedDifference" title="Data.Time.Zoned.Arithmetic.ZonedDifference">ZonedDifference</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#instances">Data.Time.Zoned.Arithmetic</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-4c6172676573744f7074696f6e2e776974682d6c617267657374"></a>
-
-## `LargestOption.with-largest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-largest</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">LargestOption</span> <span class="tok-variable">o</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-variable">o</span> -&gt; <span class="tok-variable">o</span>))</code></pre>
-
-
-
-<a id="class-526f756e64696e674f7074696f6e73"></a>
-
-## `RoundingOptions`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">RoundingOptions</span> <span class="tok-variable">o</span></code></pre>
+<article class="doc-entry" id="c-RoundingOptions">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">RoundingOptions</strong> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#c-RoundingOptions" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L374" title="View source at line 374">Source</a></span></div>
+<div class="doc-body">
 
 Options with a smallest unit, an increment and a mode.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 374
-
-<a id="method-526f756e64696e674f7074696f6e732e776974682d736d616c6c657374"></a>
-
-## `RoundingOptions.with-smallest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-smallest</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundingOptions</span> <span class="tok-variable">o</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-variable">o</span> -&gt; <span class="tok-variable">o</span>))</code></pre>
-
-
-
-<a id="method-526f756e64696e674f7074696f6e732e776974682d696e6372656d656e74"></a>
-
-## `RoundingOptions.with-increment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-increment</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundingOptions</span> <span class="tok-variable">o</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-variable">o</span> -&gt; <span class="tok-variable">o</span>))</code></pre>
-
-
-
-<a id="method-526f756e64696e674f7074696f6e732e776974682d6d6f6465"></a>
-
-## `RoundingOptions.with-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-mode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundingOptions</span> <span class="tok-variable">o</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span> -&gt; (<span class="tok-variable">o</span> -&gt; <span class="tok-variable">o</span>))</code></pre>
-
-
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-RoundingOptions-with-smallest"><div class="doc-method-row"><code><strong class="tok-variable">with-smallest</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#m-RoundingOptions-with-smallest" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L375">Source</a></span></div></li><li id="m-RoundingOptions-with-increment"><div class="doc-method-row"><code><strong class="tok-variable">with-increment</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#m-RoundingOptions-with-increment" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L376">Source</a></span></div></li><li id="m-RoundingOptions-with-mode"><div class="doc-method-row"><code><strong class="tok-variable">with-mode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">o</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <span class="tok-variable">o</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">o</span></code><span class="doc-sig-links"><a href="#m-RoundingOptions-with-mode" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L377">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (5)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanRound" title="Data.Time.Span.SpanRound">SpanRound</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Span/#instances">Data.Time.Span</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#t-ZonedDifference" title="Data.Time.Zoned.Arithmetic.ZonedDifference">ZonedDifference</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#instances">Data.Time.Zoned.Arithmetic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#t-ZonedRound" title="Data.Time.Zoned.Arithmetic.ZonedRound">ZonedRound</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#instances">Data.Time.Zoned.Arithmetic</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6e616e6f732d7065722d636976696c2d646179"></a>
-
-## `nanos-per-civil-day`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanos-per-civil-day</span> :: <span class="tok-constructor">I128</span></code></pre>
+<article class="doc-entry" id="v-nanos-per-civil-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nanos-per-civil-day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-nanos-per-civil-day" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-body">
 
 A civil day of exactly 24 hours, in nanoseconds. Used only where
 Temporal says a day is 24 hours: civil date-time arithmetic (no
 zone, so no transition can change a day's length) and the
 conventions whose names say `days-24h`.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 154
+</div>
+</article>
 
-<a id="value-726f756e642d69313238"></a>
-
-## `round-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-i128</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))))</code></pre>
+<article class="doc-entry" id="v-round-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-round-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L259" title="View source at line 259">Source</a></span></div>
+<div class="doc-body">
 
 The kernel: `x` rounded to a multiple of `inc` under `mode`
 (Temporal's RoundNumberToIncrement; the header gives the law).
@@ -224,130 +148,99 @@ division with no overflow; `q + 1` cannot overflow because
 `q <= a`, and it is only formed when `r > 0`, where `q < a`. The
 final product is checked.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 259
+</div>
+</article>
 
-<a id="value-726f756e642d693132382d61732d69662d706f736974697665"></a>
-
-## `round-i128-as-if-positive`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-i128-as-if-positive</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))))</code></pre>
+<article class="doc-entry" id="v-round-i128-as-if-positive">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-i128-as-if-positive</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-round-i128-as-if-positive" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L282" title="View source at line 282">Source</a></span></div>
+<div class="doc-body">
 
 Temporal's RoundNumberToIncrementAsIfPositive: the direction-free
 modes are read on the number line rather than relative to zero, so
 an instant before the epoch rounds the same way as one after it.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 282
+</div>
+</article>
 
-<a id="value-726f756e642d6d6f64652d6e6567617465"></a>
-
-## `round-mode-negate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-mode-negate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">RoundMode</span>)</code></pre>
+<article class="doc-entry" id="v-round-mode-negate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-mode-negate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-RoundMode" title="Data.Time.Unit.RoundMode">RoundMode</a></code><span class="doc-sig-links"><a href="#v-round-mode-negate" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 Temporal's NegateRoundingMode: the mode that, applied to a negated
 quantity, gives the negated result. Only the four modes that name a
 direction on the number line change.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 201
+</div>
+</article>
 
-<a id="value-756e69742d636d70"></a>
+<article class="doc-entry" id="v-unit-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-unit-cmp" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L115" title="View source at line 115">Source</a></span></div>
+</article>
 
-## `unit-cmp`
+<article class="doc-entry" id="v-unit-eq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-eq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unit-eq" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L121" title="View source at line 121">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d6571"></a>
-
-## `unit-eq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d69732d63616c656e646172"></a>
-
-## `unit-is-calendar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-is-calendar</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unit-is-calendar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-is-calendar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unit-is-calendar" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Day and larger: units whose length is not a fixed number of
 nanoseconds.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 132
+</div>
+</article>
 
-<a id="value-756e69742d6c61726765722d6f66"></a>
+<article class="doc-entry" id="v-unit-larger-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-larger-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code><span class="doc-sig-links"><a href="#v-unit-larger-of" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L124" title="View source at line 124">Source</a></span></div>
+</article>
 
-## `unit-larger-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-larger-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d6e616e6f73"></a>
-
-## `unit-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
+<article class="doc-entry" id="v-unit-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-unit-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L137" title="View source at line 137">Source</a></span></div>
+<div class="doc-body">
 
 The length of a fixed-length unit in nanoseconds; `None` for `Day`
 and larger.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 137
+</div>
+</article>
 
-<a id="value-756e69742d6e6578742d6c6172676572"></a>
+<article class="doc-entry" id="v-unit-next-larger">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-next-larger</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code><span class="doc-sig-links"><a href="#v-unit-next-larger" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L157" title="View source at line 157">Source</a></span></div>
+</article>
 
-## `unit-next-larger`
+<article class="doc-entry" id="v-unit-next-smaller">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-next-smaller</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code><span class="doc-sig-links"><a href="#v-unit-next-smaller" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L170" title="View source at line 170">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-next-larger</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d6e6578742d736d616c6c6572"></a>
-
-## `unit-next-smaller`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-next-smaller</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d72616e6b"></a>
-
-## `unit-rank`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-rank</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-unit-rank">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-rank</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-unit-rank" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The order: Nanosecond is the smallest unit, Year the largest.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 102
+</div>
+</article>
 
-<a id="value-756e69742d726f756e642d696e6372656d656e742d6f6b"></a>
-
-## `unit-round-increment-ok`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-round-increment-ok</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unit-round-increment-ok">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-round-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unit-round-increment-ok" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L333" title="View source at line 333">Source</a></span></div>
+<div class="doc-body">
 
 For rounding a `TimeOfDay` or a `DateTime` (PlainTime.round,
 PlainDateTime.round): the same maxima for hour and smaller; a day
 increment must be exactly 1; week and larger are not rounding units
 of a value.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 333
+</div>
+</article>
 
-<a id="value-756e69742d736d616c6c65722d6f66"></a>
+<article class="doc-entry" id="v-unit-smaller-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-smaller-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a></code><span class="doc-sig-links"><a href="#v-unit-smaller-of" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L127" title="View source at line 127">Source</a></span></div>
+</article>
 
-## `unit-smaller-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-smaller-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Unit.cinch)
-
-<a id="value-756e69742d7370616e2d696e6372656d656e742d6f6b"></a>
-
-## `unit-span-increment-ok`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-span-increment-ok</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unit-span-increment-ok">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-span-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unit-span-increment-ok" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L316" title="View source at line 316">Source</a></span></div>
+<div class="doc-body">
 
 For rounding a span and for `until`/`since`
 (MaximumTemporalDurationRoundingIncrement, exclusive): hours must
@@ -355,13 +248,12 @@ divide 24 and be below it, minutes and seconds 60, milliseconds,
 microseconds and nanoseconds 1000. Day and larger have no maximum:
 any increment in 1..=1000000000.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 316
+</div>
+</article>
 
-<a id="value-756e69742d74696d657374616d702d696e6372656d656e742d6f6b"></a>
-
-## `unit-timestamp-increment-ok`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unit-timestamp-increment-ok</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unit-timestamp-increment-ok">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unit-timestamp-increment-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unit-timestamp-increment-ok" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Unit/source/#L351" title="View source at line 351">Source</a></span></div>
+<div class="doc-body">
 
 For rounding a `Timestamp` (Instant.round): the increment, in its
 unit, must divide one 24-hour day evenly, and may equal it
@@ -369,8 +261,5 @@ unit, must divide one 24-hour day evenly, and may equal it
 on, within the general bound of 1000000000. Day and larger are
 refused.
 
-[Source](/reference-sources/Data.Time.Unit.cinch) · line 351
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Unit.cinch`. Source SHA-256: `f2dfb80db9ec3788b0d698bb055050c8842b44d14bf47ee8a7c72762175cc8ab`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

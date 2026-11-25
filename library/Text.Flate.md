@@ -2,19 +2,11 @@
 
 RFC 1951 raw DEFLATE compression (hash-chain LZ77 and Package-Merge dynamic/fixed Huffman) and bounded decompression with preset dictionaries.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Flate</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Flate/source/">View source</a><a href="/packages/search/?q=%2BText.Flate">Search module</a><a href="/reference-sources/Text.Flate.cinch" download="Text.Flate.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Flate`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Flate.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Flate](Text.Flate.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Raw DEFLATE (RFC 1951) compression and decompression with preset dictionaries.
 Compression supports stored blocks, fixed Huffman blocks, and dynamic Huffman
@@ -27,190 +19,155 @@ optional output bounds.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-FlateCompression">FlateCompression</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateCompression</strong></code></li><li><a class="syn-name" href="#t-FlateError">FlateError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateError</strong></code></li><li><a class="syn-name" href="#v-flate-compress">flate-compress</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-compress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-flate-compress-chunk">flate-compress-chunk</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-compress-chunk</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-flate-compress-dict">flate-compress-dict</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-compress-dict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-flate-decompress">flate-decompress</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-at">flate-decompress-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-at-dict-limit">flate-decompress-at-dict-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-at-dict-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-block">flate-decompress-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-dict">flate-decompress-dict</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-dict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-dict-limit">flate-decompress-dict-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-dict-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-decompress-limit">flate-decompress-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-decompress-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-flate-error-message">flate-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-flate-level-from-int">flate-level-from-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-level-from-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li><a class="syn-name" href="#v-flate-sync-flush">flate-sync-flush</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-sync-flush</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li></ul>
+</details>
 
-<a id="type-466c617465436f6d7072657373696f6e"></a>
+# Types
 
-## `FlateCompression`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FlateCompression</span></code></pre>
+<article class="doc-entry" id="t-FlateCompression">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateCompression</strong></code><span class="doc-sig-links"><a href="#t-FlateCompression" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 Compression level controlling LZ77 search depth and Huffman coding.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 38
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FlateNoCompression"><code><strong class="tok-constructor">FlateNoCompression</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li id="k-FlateBestSpeed"><code><strong class="tok-constructor">FlateBestSpeed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li id="k-FlateLevel"><code><strong class="tok-constructor">FlateLevel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li id="k-FlateDefaultCompression"><code><strong class="tok-constructor">FlateDefaultCompression</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li id="k-FlateBestCompression"><code><strong class="tok-constructor">FlateBestCompression</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li><li id="k-FlateHuffmanOnly"><code><strong class="tok-constructor">FlateHuffmanOnly</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateNoCompression</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateBestSpeed</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateLevel</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateDefaultCompression</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateBestCompression</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateHuffmanOnly</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span></code></pre>
-
-<a id="type-466c6174654572726f72"></a>
-
-## `FlateError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FlateError</span></code></pre>
+<article class="doc-entry" id="t-FlateError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateError</strong></code><span class="doc-sig-links"><a href="#t-FlateError" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Named failures for raw DEFLATE encoding and decoding.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 53
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateCorruptInput</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateUnexpectedEof</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateBadLevel</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateOutputLimitExceeded</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlateUnsupportedBlock</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FlateCorruptInput"><code><strong class="tok-constructor">FlateCorruptInput</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a></code></li><li id="k-FlateUnexpectedEof"><code><strong class="tok-constructor">FlateUnexpectedEof</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a></code></li><li id="k-FlateBadLevel"><code><strong class="tok-constructor">FlateBadLevel</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a></code></li><li id="k-FlateOutputLimitExceeded"><code><strong class="tok-constructor">FlateOutputLimitExceeded</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a></code></li><li id="k-FlateUnsupportedBlock"><code><strong class="tok-constructor">FlateUnsupportedBlock</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-666c6174652d636f6d7072657373"></a>
-
-## `flate-compress`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-compress</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-compress">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-compress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-flate-compress" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L1537" title="View source at line 1537">Source</a></span></div>
+<div class="doc-body">
 
 Compress an input buffer at the given compression level (no preset dictionary).
 
-[Source](/reference-sources/Text.Flate.cinch) · line 1537
+</div>
+</article>
 
-<a id="value-666c6174652d636f6d70726573732d6368756e6b"></a>
-
-## `flate-compress-chunk`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-compress-chunk</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">U64</span>, <span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bytes</span>))))))))</code></pre>
+<article class="doc-entry" id="v-flate-compress-chunk">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-compress-chunk</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-flate-compress-chunk" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L1553" title="View source at line 1553">Source</a></span></div>
+<div class="doc-body">
 
 Compress one streaming chunk using a prior sliding window and carried-over
 0..7 bit accumulator. Returns whole emitted bytes, new leftover bits, bit count,
 and the updated 32 KiB sliding window.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 1553
+</div>
+</article>
 
-<a id="value-666c6174652d636f6d70726573732d64696374"></a>
-
-## `flate-compress-dict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-compress-dict</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-compress-dict">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-compress-dict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-flate-compress-dict" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L1541" title="View source at line 1541">Source</a></span></div>
+<div class="doc-body">
 
 Compress an input buffer at the given level using a preset dictionary (last 32 KiB).
 
-[Source](/reference-sources/Text.Flate.cinch) · line 1541
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d7072657373"></a>
-
-## `flate-decompress`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-decompress">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L652" title="View source at line 652">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream starting at offset 0.
 Returns the decompressed bytes and the exact count of input bytes consumed.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 652
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d6174"></a>
-
-## `flate-decompress-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L657" title="View source at line 657">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream starting at byte offset start.
 Returns the decompressed bytes and the byte offset immediately after the stream.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 657
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d61742d646963742d6c696d6974"></a>
-
-## `flate-decompress-at-dict-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-at-dict-limit</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-at-dict-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-at-dict-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-at-dict-limit" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L674" title="View source at line 674">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream at byte offset start with a preset dictionary
 and output byte limit. Returns decoded bytes and the next byte offset.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 674
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d626c6f636b"></a>
-
-## `flate-decompress-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-block</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bool</span>))))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-block" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L686" title="View source at line 686">Source</a></span></div>
+<div class="doc-body">
 
 Decode a single DEFLATE block starting at an absolute bit position with a
 sliding-window history buffer. Returns block output, next bit position, and BFINAL.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 686
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d64696374"></a>
-
-## `flate-decompress-dict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-dict</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-dict">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-dict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-dict" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L665" title="View source at line 665">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream using a preset dictionary (up to its last 32 KiB).
 
-[Source](/reference-sources/Text.Flate.cinch) · line 665
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d646963742d6c696d6974"></a>
-
-## `flate-decompress-dict-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-dict-limit</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-dict-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-dict-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-dict-limit" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L669" title="View source at line 669">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream using a preset dictionary and explicit output limit.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 669
+</div>
+</article>
 
-<a id="value-666c6174652d6465636f6d70726573732d6c696d6974"></a>
-
-## `flate-decompress-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-decompress-limit</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-decompress-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-decompress-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-decompress-limit" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L661" title="View source at line 661">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE stream with an explicit maximum output size in bytes.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 661
+</div>
+</article>
 
-<a id="value-666c6174652d6572726f722d6d657373616765"></a>
-
-## `flate-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-flate-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-flate-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Render a human-readable diagnostic for a raw DEFLATE failure.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 66
+</div>
+</article>
 
-<a id="value-666c6174652d6c6576656c2d66726f6d2d696e74"></a>
-
-## `flate-level-from-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-level-from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span>))</code></pre>
+<article class="doc-entry" id="v-flate-level-from-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-level-from-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a></code><span class="doc-sig-links"><a href="#v-flate-level-from-int" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 Convert an integer compression level (-2 for Huffman-only, -1 for default,
 0 for no compression, 1..9 for explicit levels) into a FlateCompression value.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 76
+</div>
+</article>
 
-<a id="value-666c6174652d73796e632d666c757368"></a>
-
-## `flate-sync-flush`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-sync-flush</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">U64</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-sync-flush">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-sync-flush</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-flate-sync-flush" title="Permalink">#</a><a href="/packages/stdlib/Text.Flate/source/#L1568" title="View source at line 1568">Source</a></span></div>
+<div class="doc-body">
 
 Emit an RFC 1951 sync flush (non-final empty stored block) aligning the bitstream
 to a byte boundary so all prior compressed bytes are immediately decodable.
 
-[Source](/reference-sources/Text.Flate.cinch) · line 1568
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Flate.cinch`. Source SHA-256: `2950d4890c729a4306cb2ecd1be43e805b4862926709ba822b8974fa502b47e4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

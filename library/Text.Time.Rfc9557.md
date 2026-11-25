@@ -2,19 +2,11 @@
 
 RFC 9557 date-time text with bracketed time zone annotations for zoned values.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Rfc9557</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Rfc9557/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Rfc9557">Search module</a><a href="/reference-sources/Text.Time.Rfc9557.cinch" download="Text.Time.Rfc9557.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Time.Rfc9557`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zoned](Data.Time.Zoned.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Iso](Text.Time.Iso.md), [Text.Time.Scan](Text.Time.Scan.md).
 
-[Download exact module source](/reference-sources/Text.Time.Rfc9557.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zoned](Data.Time.Zoned.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Iso](Text.Time.Iso.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Data.Time.Zoned](Data.Time.Zoned.md), [Text.Time.Iso](Text.Time.Iso.md), [Text.Time.Rfc9557](Text.Time.Rfc9557.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Time.Rfc9557: RFC 9557 ("IXDTF") text for `Zoned`: an RFC 3339
 date-time followed by a bracketed time zone annotation, as Temporal's
@@ -151,104 +143,57 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (34 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-OffsetConflict">OffsetConflict</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetConflict</strong></code></li><li><a class="syn-name" href="#t-Rfc9557Annotation">Rfc9557Annotation</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rfc9557Annotation</strong></code></li><li><a class="syn-name" href="#t-Rfc9557Error">Rfc9557Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rfc9557Error</strong></code></li><li><a class="syn-name" href="#t-ZoneAnnotation">ZoneAnnotation</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZoneAnnotation</strong></code></li><li><a class="syn-name" href="#t-ZonedText">ZonedText</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZonedText</strong></code></li><li><a class="syn-name" href="#t-ZonedTextOffset">ZonedTextOffset</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZonedTextOffset</strong></code></li><li><a class="syn-name" href="#v-parse-zoned-text">parse-zoned-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-zoned-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a></code></li><li><a class="syn-name" href="#v-parse-zoned-text-lenient">parse-zoned-text-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-zoned-text-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a></code></li><li><a class="syn-name" href="#v-rfc9557-annotation-is-critical">rfc9557-annotation-is-critical</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-is-critical</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-rfc9557-annotation-key">rfc9557-annotation-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-rfc9557-annotation-value">rfc9557-annotation-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-rfc9557-error-position">rfc9557-error-position</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-rfc9557-valid-zone-name">rfc9557-valid-zone-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-valid-zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-rfc9557-zoned-bytes">rfc9557-zoned-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rfc9557-zoned-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zoned-resolve-datetime">zoned-resolve-datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-resolve-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code></li><li><a class="syn-name" href="#v-zoned-text-annotations">zoned-text-annotations</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-annotations</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a></code></li><li><a class="syn-name" href="#v-zoned-text-date">zoned-text-date</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-zoned-text-datetime">zoned-text-datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-zoned-text-fixed-zone">zoned-text-fixed-zone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-fixed-zone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li><li><a class="syn-name" href="#v-zoned-text-is-date-only">zoned-text-is-date-only</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-is-date-only</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-zoned-text-is-zulu">zoned-text-is-zulu</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-is-zulu</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-zoned-text-numeric-offset">zoned-text-numeric-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-numeric-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-zoned-text-offset">zoned-text-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a></code></li><li><a class="syn-name" href="#v-zoned-text-resolve">zoned-text-resolve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code></li><li><a class="syn-name" href="#v-zoned-text-resolve-default">zoned-text-resolve-default</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-resolve-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code></li><li><a class="syn-name" href="#v-zoned-text-time">zoned-text-time</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-zoned-text-zone">zoned-text-zone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZoneAnnotation" title="Text.Time.Rfc9557.ZoneAnnotation">ZoneAnnotation</a></code></li><li><a class="syn-name" href="#v-zoned-text-zone-is-critical">zoned-text-zone-is-critical</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-is-critical</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-zoned-text-zone-name">zoned-text-zone-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zoned-text-zone-offset">zoned-text-zone-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-zoned-to-rfc3339">zoned-to-rfc3339</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-to-rfc3339</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zoned-to-rfc3339-precision">zoned-to-rfc3339-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-to-rfc3339-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zoned-to-string">zoned-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zoned-to-string-precision">zoned-to-string-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zoned-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4f6666736574436f6e666c696374"></a>
+# Types
 
-## `OffsetConflict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OffsetConflict</span></code></pre>
+<article class="doc-entry" id="t-OffsetConflict">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetConflict</strong></code><span class="doc-sig-links"><a href="#t-OffsetConflict" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L257" title="View source at line 257">Source</a></span></div>
+<div class="doc-body">
 
 What to do when a numeric offset and the zone disagree (the
 header's table; Temporal's `offset` option).
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 257
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-OffsetReject"><code><strong class="tok-constructor">OffsetReject</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a></code></li><li id="k-OffsetUse"><code><strong class="tok-constructor">OffsetUse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a></code></li><li id="k-OffsetPrefer"><code><strong class="tok-constructor">OffsetPrefer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a></code></li><li id="k-OffsetIgnore"><code><strong class="tok-constructor">OffsetIgnore</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OffsetReject</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OffsetUse</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OffsetPrefer</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OffsetIgnore</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span></code></pre>
-
-<a id="type-52666339353537416e6e6f746174696f6e"></a>
-
-## `Rfc9557Annotation`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rfc9557Annotation</span></code></pre>
+<article class="doc-entry" id="t-Rfc9557Annotation">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rfc9557Annotation</strong></code><span class="doc-sig-links"><a href="#t-Rfc9557Annotation" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L278" title="View source at line 278">Source</a></span></div>
+<div class="doc-body">
 
 A `key=value` annotation: key, value and the critical flag.
 Abstract.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 278
+</div>
+</article>
 
-<a id="type-526663393535374572726f72"></a>
-
-## `Rfc9557Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rfc9557Error</span></code></pre>
+<article class="doc-entry" id="t-Rfc9557Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rfc9557Error</strong></code><span class="doc-sig-links"><a href="#t-Rfc9557Error" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-body">
 
 One constructor per refusal. A position is a byte index into the
 input.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 181
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Rfc9557DateTime"><code><strong class="tok-constructor">Rfc9557DateTime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557MissingTime"><code><strong class="tok-constructor">Rfc9557MissingTime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557MissingZoneAnnotation"><code><strong class="tok-constructor">Rfc9557MissingZoneAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557TrailingInput"><code><strong class="tok-constructor">Rfc9557TrailingInput</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557UnclosedAnnotation"><code><strong class="tok-constructor">Rfc9557UnclosedAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557EmptyAnnotation"><code><strong class="tok-constructor">Rfc9557EmptyAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557InvalidAnnotation"><code><strong class="tok-constructor">Rfc9557InvalidAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557InvalidZoneName"><code><strong class="tok-constructor">Rfc9557InvalidZoneName</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557InvalidZoneOffset"><code><strong class="tok-constructor">Rfc9557InvalidZoneOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557SubMinuteZoneOffset"><code><strong class="tok-constructor">Rfc9557SubMinuteZoneOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557ZoneOffsetOutOfRange"><code><strong class="tok-constructor">Rfc9557ZoneOffsetOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557DuplicateZoneAnnotation"><code><strong class="tok-constructor">Rfc9557DuplicateZoneAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557ZoneAnnotationNotFirst"><code><strong class="tok-constructor">Rfc9557ZoneAnnotationNotFirst</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557CriticalUnknownAnnotation"><code><strong class="tok-constructor">Rfc9557CriticalUnknownAnnotation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557UnsupportedCalendar"><code><strong class="tok-constructor">Rfc9557UnsupportedCalendar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557OffsetMismatch"><code><strong class="tok-constructor">Rfc9557OffsetMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557Ambiguous"><code><strong class="tok-constructor">Rfc9557Ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li><li id="k-Rfc9557OutOfRange"><code><strong class="tok-constructor">Rfc9557OutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557DateTime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557MissingTime</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557MissingZoneAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557TrailingInput</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557UnclosedAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557EmptyAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557InvalidAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557InvalidZoneName</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557InvalidZoneOffset</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557SubMinuteZoneOffset</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557ZoneOffsetOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557DuplicateZoneAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557ZoneAnnotationNotFirst</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557CriticalUnknownAnnotation</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557UnsupportedCalendar</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557OffsetMismatch</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557Ambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rfc9557OutOfRange</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span></code></pre>
-
-<a id="type-5a6f6e65416e6e6f746174696f6e"></a>
-
-## `ZoneAnnotation`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZoneAnnotation</span></code></pre>
+<article class="doc-entry" id="t-ZoneAnnotation">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZoneAnnotation</strong></code><span class="doc-sig-links"><a href="#t-ZoneAnnotation" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L272" title="View source at line 272">Source</a></span></div>
+<div class="doc-body">
 
 The time zone annotation: a name to look up, or a fixed offset.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 272
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ZoneAnnotationName"><code><strong class="tok-constructor">ZoneAnnotationName</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZoneAnnotation" title="Text.Time.Rfc9557.ZoneAnnotation">ZoneAnnotation</a></code></li><li id="k-ZoneAnnotationOffset"><code><strong class="tok-constructor">ZoneAnnotationOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZoneAnnotation" title="Text.Time.Rfc9557.ZoneAnnotation">ZoneAnnotation</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneAnnotationName</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZoneAnnotation</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneAnnotationOffset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZoneAnnotation</span>)</code></pre>
-
-<a id="type-5a6f6e656454657874"></a>
-
-## `ZonedText`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZonedText</span></code></pre>
+<article class="doc-entry" id="t-ZonedText">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZonedText</strong></code><span class="doc-sig-links"><a href="#t-ZonedText" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L298" title="View source at line 298">Source</a></span></div>
+<div class="doc-body">
 
 What the text says, before any zone is consulted: the date, the
 time (absent for a lenient date-only text), the offset as written,
@@ -256,262 +201,198 @@ the zone annotation and its critical flag, and the `key=value`
 annotations in the order written. Abstract: only the parsers make
 one.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 298
+</div>
+</article>
 
-<a id="type-5a6f6e6564546578744f6666736574"></a>
-
-## `ZonedTextOffset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZonedTextOffset</span></code></pre>
+<article class="doc-entry" id="t-ZonedTextOffset">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZonedTextOffset</strong></code><span class="doc-sig-links"><a href="#t-ZonedTextOffset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L264" title="View source at line 264">Source</a></span></div>
+<div class="doc-body">
 
 The offset as written between the time and the annotation.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 264
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZonedTextNoOffset</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedTextOffset</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZonedTextZulu</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedTextOffset</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZonedTextNumeric</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedTextOffset</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ZonedTextNoOffset"><code><strong class="tok-constructor">ZonedTextNoOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a></code></li><li id="k-ZonedTextZulu"><code><strong class="tok-constructor">ZonedTextZulu</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a></code></li><li id="k-ZonedTextNumeric"><code><strong class="tok-constructor">ZonedTextNumeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70617273652d7a6f6e65642d74657874"></a>
-
-## `parse-zoned-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-zoned-text</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span>))</code></pre>
+<article class="doc-entry" id="v-parse-zoned-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-zoned-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a></code><span class="doc-sig-links"><a href="#v-parse-zoned-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L378" title="View source at line 378">Source</a></span></div>
+<div class="doc-body">
 
 Parsing. States, in order:
   (Iso date) -> st-after-date -> (Iso time) -> st-offset
   -> [st-offset-hour -> [st-offset-minute -> [st-offset-second]]]
   -> st-annotations -> (st-zone | st-key)* -> done.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 378
+</div>
+</article>
 
-<a id="value-70617273652d7a6f6e65642d746578742d6c656e69656e74"></a>
-
-## `parse-zoned-text-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-zoned-text-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span>))</code></pre>
+<article class="doc-entry" id="v-parse-zoned-text-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-zoned-text-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a></code><span class="doc-sig-links"><a href="#v-parse-zoned-text-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L382" title="View source at line 382">Source</a></span></div>
+<div class="doc-body">
 
 The lenient forms of the header, including a date with no time.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 382
+</div>
+</article>
 
-<a id="value-726663393535372d616e6e6f746174696f6e2d69732d637269746963616c"></a>
+<article class="doc-entry" id="v-rfc9557-annotation-is-critical">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-is-critical</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-rfc9557-annotation-is-critical" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L289" title="View source at line 289">Source</a></span></div>
+</article>
 
-## `rfc9557-annotation-is-critical`
+<article class="doc-entry" id="v-rfc9557-annotation-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-rfc9557-annotation-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L281" title="View source at line 281">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-annotation-is-critical</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Annotation</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-rfc9557-annotation-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-annotation-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-rfc9557-annotation-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L285" title="View source at line 285">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-726663393535372d616e6e6f746174696f6e2d6b6579"></a>
-
-## `rfc9557-annotation-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-annotation-key</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Annotation</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-726663393535372d616e6e6f746174696f6e2d76616c7565"></a>
-
-## `rfc9557-annotation-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-annotation-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Annotation</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-726663393535372d6572726f722d706f736974696f6e"></a>
-
-## `rfc9557-error-position`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-error-position</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-rfc9557-error-position">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-rfc9557-error-position" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L234" title="View source at line 234">Source</a></span></div>
+<div class="doc-body">
 
 The byte position of a parse refusal (for `Rfc9557DateTime`, the
 inner error's); `None` for the three resolution refusals.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 234
+</div>
+</article>
 
-<a id="value-726663393535372d76616c69642d7a6f6e652d6e616d65"></a>
-
-## `rfc9557-valid-zone-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-valid-zone-name</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-rfc9557-valid-zone-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-valid-zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-rfc9557-valid-zone-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L621" title="View source at line 621">Source</a></span></div>
+<div class="doc-body">
 
 Whether a string is a `zone-name` of the grammar (what the printer
 writes in the brackets as a name). Every name `tzdb-valid-name`
 accepts whose parts start with a letter, `.` or `_` is one.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 621
+</div>
+</article>
 
-<a id="value-726663393535372d7a6f6e65642d6279746573"></a>
-
-## `rfc9557-zoned-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rfc9557-zoned-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-rfc9557-zoned-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rfc9557-zoned-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-rfc9557-zoned-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L786" title="View source at line 786">Source</a></span></div>
+<div class="doc-body">
 
 `zoned-to-string`'s text as one exactly-sized fresh buffer (what
 `Text.Builder.builder-add-bytes` appends without copying).
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 786
+</div>
+</article>
 
-<a id="value-7a6f6e65642d7265736f6c76652d6461746574696d65"></a>
-
-## `zoned-resolve-datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-resolve-datetime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedTextOffset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span>))))))</code></pre>
+<article class="doc-entry" id="v-zoned-resolve-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-resolve-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code><span class="doc-sig-links"><a href="#v-zoned-resolve-datetime" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L687" title="View source at line 687">Source</a></span></div>
+<div class="doc-body">
 
 The same rules for a civil reading and an offset that came from
 somewhere else (`strptime`'s `%z`, a database column): the header's
 table, with `ZonedTextNoOffset` for a reading with no offset.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 687
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d616e6e6f746174696f6e73"></a>
+<article class="doc-entry" id="v-zoned-text-annotations">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-annotations</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Annotation" title="Text.Time.Rfc9557.Rfc9557Annotation">Rfc9557Annotation</a></code><span class="doc-sig-links"><a href="#v-zoned-text-annotations" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L367" title="View source at line 367">Source</a></span></div>
+</article>
 
-## `zoned-text-annotations`
+<article class="doc-entry" id="v-zoned-text-date">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-zoned-text-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L301" title="View source at line 301">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-annotations</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Annotation</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d64617465"></a>
-
-## `zoned-text-date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-date</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d6461746574696d65"></a>
-
-## `zoned-text-datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-datetime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)</code></pre>
+<article class="doc-entry" id="v-zoned-text-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-zoned-text-datetime" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L317" title="View source at line 317">Source</a></span></div>
+<div class="doc-body">
 
 The civil reading as written (midnight for a date-only text, which
 is NOT how such a text resolves: see the header).
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 317
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d66697865642d7a6f6e65"></a>
-
-## `zoned-text-fixed-zone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-fixed-zone</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>))</code></pre>
+<article class="doc-entry" id="v-zoned-text-fixed-zone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-fixed-zone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zoned-text-fixed-zone" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L358" title="View source at line 358">Source</a></span></div>
+<div class="doc-body">
 
 The zone itself when the annotation is an offset (`zone-fixed`; no
 lookup is needed); `None` when it is a name.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 358
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d69732d646174652d6f6e6c79"></a>
+<article class="doc-entry" id="v-zoned-text-is-date-only">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-is-date-only</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-zoned-text-is-date-only" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L310" title="View source at line 310">Source</a></span></div>
+</article>
 
-## `zoned-text-is-date-only`
+<article class="doc-entry" id="v-zoned-text-is-zulu">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-is-zulu</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-zoned-text-is-zulu" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L335" title="View source at line 335">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-is-date-only</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d69732d7a756c75"></a>
-
-## `zoned-text-is-zulu`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-is-zulu</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d6e756d657269632d6f6666736574"></a>
-
-## `zoned-text-numeric-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-numeric-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
+<article class="doc-entry" id="v-zoned-text-numeric-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-numeric-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-zoned-text-numeric-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L329" title="View source at line 329">Source</a></span></div>
+<div class="doc-body">
 
 The numeric offset, when one was written (`None` for `Z` and for
 no offset).
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 329
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d6f6666736574"></a>
+<article class="doc-entry" id="v-zoned-text-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedTextOffset" title="Text.Time.Rfc9557.ZonedTextOffset">ZonedTextOffset</a></code><span class="doc-sig-links"><a href="#v-zoned-text-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L323" title="View source at line 323">Source</a></span></div>
+</article>
 
-## `zoned-text-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedTextOffset</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d7265736f6c7665"></a>
-
-## `zoned-text-resolve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-resolve</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">OffsetConflict</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span>)))))</code></pre>
+<article class="doc-entry" id="v-zoned-text-resolve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-OffsetConflict" title="Text.Time.Rfc9557.OffsetConflict">OffsetConflict</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code><span class="doc-sig-links"><a href="#v-zoned-text-resolve" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L678" title="View source at line 678">Source</a></span></div>
+<div class="doc-body">
 
 `zone` is the zone the caller looked up for the annotation.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 678
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d7265736f6c76652d64656661756c74"></a>
-
-## `zoned-text-resolve-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-resolve-default</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">Rfc9557Error</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span>)))</code></pre>
+<article class="doc-entry" id="v-zoned-text-resolve-default">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-resolve-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-Rfc9557Error" title="Text.Time.Rfc9557.Rfc9557Error">Rfc9557Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code><span class="doc-sig-links"><a href="#v-zoned-text-resolve-default" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L703" title="View source at line 703">Source</a></span></div>
+<div class="doc-body">
 
 `OffsetReject` and the compatible strategy: Temporal's and Jiff's
 defaults.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 703
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d74696d65"></a>
-
-## `zoned-text-time`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-time</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>))</code></pre>
+<article class="doc-entry" id="v-zoned-text-time">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-zoned-text-time" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L306" title="View source at line 306">Source</a></span></div>
+<div class="doc-body">
 
 `None` for a date-only text.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 306
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d7a6f6e65"></a>
+<article class="doc-entry" id="v-zoned-text-zone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZoneAnnotation" title="Text.Time.Rfc9557.ZoneAnnotation">ZoneAnnotation</a></code><span class="doc-sig-links"><a href="#v-zoned-text-zone" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L341" title="View source at line 341">Source</a></span></div>
+</article>
 
-## `zoned-text-zone`
+<article class="doc-entry" id="v-zoned-text-zone-is-critical">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-is-critical</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-zoned-text-zone-is-critical" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L363" title="View source at line 363">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-zone</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZoneAnnotation</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d7a6f6e652d69732d637269746963616c"></a>
-
-## `zoned-text-zone-is-critical`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-zone-is-critical</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746578742d7a6f6e652d6e616d65"></a>
-
-## `zoned-text-zone-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-zone-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-zoned-text-zone-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zoned-text-zone-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L346" title="View source at line 346">Source</a></span></div>
+<div class="doc-body">
 
 The name to look up; `None` when the annotation is an offset.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 346
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746578742d7a6f6e652d6f6666736574"></a>
+<article class="doc-entry" id="v-zoned-text-zone-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-text-zone-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Rfc9557/#t-ZonedText" title="Text.Time.Rfc9557.ZonedText">ZonedText</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-zoned-text-zone-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L351" title="View source at line 351">Source</a></span></div>
+</article>
 
-## `zoned-text-zone-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-text-zone-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Rfc9557</span>.<span class="tok-constructor">ZonedText</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746f2d72666333333339"></a>
-
-## `zoned-to-rfc3339`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-to-rfc3339</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-zoned-to-rfc3339">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-to-rfc3339</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zoned-to-rfc3339" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L778" title="View source at line 778">Source</a></span></div>
+<div class="doc-body">
 
 The instant as an RFC 3339 timestamp at the zone's offset in force:
 `zoned-to-string` without the annotation
@@ -520,37 +401,28 @@ When the offset in force has seconds (local mean time in old data)
 they are written, which RFC 3339 does not allow; rounding them
 would name a different instant.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 778
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746f2d726663333333392d707265636973696f6e"></a>
+<article class="doc-entry" id="v-zoned-to-rfc3339-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-to-rfc3339-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zoned-to-rfc3339-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L781" title="View source at line 781">Source</a></span></div>
+</article>
 
-## `zoned-to-rfc3339-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-to-rfc3339-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Rfc9557.cinch)
-
-<a id="value-7a6f6e65642d746f2d737472696e67"></a>
-
-## `zoned-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-zoned-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zoned-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L765" title="View source at line 765">Source</a></span></div>
+<div class="doc-body">
 
 The civil reading, the offset in force and the zone annotation
 (header), with the shortest exact fraction.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 765
+</div>
+</article>
 
-<a id="value-7a6f6e65642d746f2d737472696e672d707265636973696f6e"></a>
-
-## `zoned-to-string-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zoned-to-string-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zoned</span>.<span class="tok-constructor">Zoned</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-zoned-to-string-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zoned-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zoned-to-string-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Rfc9557/source/#L769" title="View source at line 769">Source</a></span></div>
+<div class="doc-body">
 
 Exactly `digits` fraction digits, truncating.
 
-[Source](/reference-sources/Text.Time.Rfc9557.cinch) · line 769
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Time/Rfc9557.cinch`. Source SHA-256: `d7827396a4192555b96bbe750ebd54edce0041ad499d7535b231185dd0fc6bb1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

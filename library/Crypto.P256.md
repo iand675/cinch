@@ -2,19 +2,11 @@
 
 Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.P256</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.P256/source/">View source</a><a href="/packages/search/?q=%2BCrypto.P256">Search module</a><a href="/reference-sources/Crypto.P256.cinch" download="Crypto.P256.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.P256`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Crypto.P256.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Crypto.P256](Crypto.P256.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 The NIST P-256 curve (secp256r1): constant-time field, scalar and point arithmetic, keys and ECDH.
 Field elements and scalars are fixed 256-bit values in Montgomery form, held as
@@ -31,304 +23,267 @@ over this module.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (28 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-P256Error">P256Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Error</strong></code></li><li><a class="syn-name" href="#t-P256Point">P256Point</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Point</strong></code></li><li><a class="syn-name" href="#t-P256PrivateKey">P256PrivateKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256PrivateKey</strong></code></li><li><a class="syn-name" href="#t-P256PublicKey">P256PublicKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256PublicKey</strong></code></li><li><a class="syn-name" href="#t-P256Scalar">P256Scalar</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Scalar</strong></code></li><li><a class="syn-name" href="#v-p256-base-mult">p256-base-mult</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-base-mult</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code></li><li><a class="syn-name" href="#v-p256-ecdh">p256-ecdh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-ecdh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-p256-error-message">p256-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-p256-point-add">p256-point-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-point-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code></li><li><a class="syn-name" href="#v-p256-point-is-identity">p256-point-is-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-point-is-identity</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-p256-point-mult">p256-point-mult</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-point-mult</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code></li><li><a class="syn-name" href="#v-p256-point-x-scalar">p256-point-x-scalar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-point-x-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-private-key">p256-private-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a></code></li><li><a class="syn-name" href="#v-p256-private-key-bytes">p256-private-key-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-private-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-p256-private-scalar">p256-private-scalar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-private-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-public-key">p256-public-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a></code></li><li><a class="syn-name" href="#v-p256-public-key-bytes">p256-public-key-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-p256-public-key-compressed">p256-public-key-compressed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-key-compressed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-p256-public-key-coordinates">p256-public-key-coordinates</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-key-coordinates</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-p256-public-key-of">p256-public-key-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-key-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a></code></li><li><a class="syn-name" href="#v-p256-public-point">p256-public-point</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-public-point</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code></li><li><a class="syn-name" href="#v-p256-scalar">p256-scalar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-scalar-add">p256-scalar-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-scalar-bytes">p256-scalar-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-p256-scalar-inverse">p256-scalar-inverse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-inverse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-scalar-is-zero">p256-scalar-is-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-p256-scalar-mul">p256-scalar-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-p256-scalar-reduce">p256-scalar-reduce</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">p256-scalar-reduce</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li></ul>
+</details>
 
-<a id="type-503235364572726f72"></a>
+# Types
 
-## `P256Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">P256Error</span></code></pre>
+<article class="doc-entry" id="t-P256Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Error</strong></code><span class="doc-sig-links"><a href="#t-P256Error" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 A rejected key or scalar.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 35
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-P256InvalidPrivateKey"><code><strong class="tok-constructor">P256InvalidPrivateKey</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a></code></li><li id="k-P256InvalidPublicKey"><code><strong class="tok-constructor">P256InvalidPublicKey</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a></code></li><li id="k-P256InvalidScalar"><code><strong class="tok-constructor">P256InvalidScalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256InvalidPrivateKey</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256InvalidPublicKey</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256InvalidScalar</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span></code></pre>
-
-<a id="type-50323536506f696e74"></a>
-
-## `P256Point`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">P256Point</span></code></pre>
+<article class="doc-entry" id="t-P256Point">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Point</strong></code><span class="doc-sig-links"><a href="#t-P256Point" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L177" title="View source at line 177">Source</a></span></div>
+<div class="doc-body">
 
 The point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 177
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-P256Point"><code><strong class="tok-constructor">P256Point</strong> :: <span class="tok-constructor">Point</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256Point</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Point</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>)</code></pre>
-
-<a id="type-50323536507269766174654b6579"></a>
-
-## `P256PrivateKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">P256PrivateKey</span></code></pre>
+<article class="doc-entry" id="t-P256PrivateKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256PrivateKey</strong></code><span class="doc-sig-links"><a href="#t-P256PrivateKey" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Scalar, then bytes.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 53
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-P256PrivateKey"><code><strong class="tok-constructor">P256PrivateKey</strong> :: <span class="tok-constructor">Sc</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256PrivateKey</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Sc</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span>))</code></pre>
-
-<a id="type-503235365075626c69634b6579"></a>
-
-## `P256PublicKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">P256PublicKey</span></code></pre>
+<article class="doc-entry" id="t-P256PublicKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256PublicKey</strong></code><span class="doc-sig-links"><a href="#t-P256PublicKey" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L58" title="View source at line 58">Source</a></span></div>
+<div class="doc-body">
 
 x, then y.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 58
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-P256PublicKey"><code><strong class="tok-constructor">P256PublicKey</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.P256.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.P256.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256PublicKey</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span>))</code></pre>
-
-<a id="type-503235365363616c6172"></a>
-
-## `P256Scalar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">P256Scalar</span></code></pre>
+<article class="doc-entry" id="t-P256Scalar">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">P256Scalar</strong></code><span class="doc-sig-links"><a href="#t-P256Scalar" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 The Montgomery-form value.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 141
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256Scalar</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Sc</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-P256Scalar"><code><strong class="tok-constructor">P256Scalar</strong> :: <span class="tok-constructor">Sc</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-703235362d626173652d6d756c74"></a>
-
-## `p256-base-mult`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-base-mult</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>)</code></pre>
+<article class="doc-entry" id="v-p256-base-mult">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-base-mult</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code><span class="doc-sig-links"><a href="#v-p256-base-mult" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 s * G.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 184
+</div>
+</article>
 
-<a id="value-703235362d65636468"></a>
-
-## `p256-ecdh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-ecdh</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-p256-ecdh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-ecdh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-p256-ecdh" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 ECDH: the x-coordinate (32 bytes) of the private scalar times the peer's point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 109
+</div>
+</article>
 
-<a id="value-703235362d6572726f722d6d657373616765"></a>
-
-## `p256-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-p256-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-p256-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 44
+</div>
+</article>
 
-<a id="value-703235362d706f696e742d616464"></a>
-
-## `p256-point-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-point-add</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>))</code></pre>
+<article class="doc-entry" id="v-p256-point-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-point-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code><span class="doc-sig-links"><a href="#v-p256-point-add" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-body">
 
 P + Q.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 192
+</div>
+</article>
 
-<a id="value-703235362d706f696e742d69732d6964656e74697479"></a>
-
-## `p256-point-is-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-point-is-identity</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-p256-point-is-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-point-is-identity</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-p256-point-is-identity" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L196" title="View source at line 196">Source</a></span></div>
+<div class="doc-body">
 
 Whether a point is the identity.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 196
+</div>
+</article>
 
-<a id="value-703235362d706f696e742d6d756c74"></a>
-
-## `p256-point-mult`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-point-mult</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>))</code></pre>
+<article class="doc-entry" id="v-p256-point-mult">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-point-mult</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code><span class="doc-sig-links"><a href="#v-p256-point-mult" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 s * P.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 188
+</div>
+</article>
 
-<a id="value-703235362d706f696e742d782d7363616c6172"></a>
-
-## `p256-point-x-scalar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-point-x-scalar</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>))</code></pre>
+<article class="doc-entry" id="v-p256-point-x-scalar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-point-x-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-point-x-scalar" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 The affine x-coordinate reduced modulo n (None for the identity).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 200
+</div>
+</article>
 
-<a id="value-703235362d707269766174652d6b6579"></a>
-
-## `p256-private-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-private-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span>))</code></pre>
+<article class="doc-entry" id="v-p256-private-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a></code><span class="doc-sig-links"><a href="#v-p256-private-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 32-byte big-endian private key in [1, n - 1].
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 61
+</div>
+</article>
 
-<a id="value-703235362d707269766174652d6b65792d6279746573"></a>
-
-## `p256-private-key-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-private-key-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-p256-private-key-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-private-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-p256-private-key-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 The private key's 32 bytes.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 68
+</div>
+</article>
 
-<a id="value-703235362d707269766174652d7363616c6172"></a>
-
-## `p256-private-scalar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-private-scalar</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)</code></pre>
+<article class="doc-entry" id="v-p256-private-scalar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-private-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-private-scalar" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 The private key's scalar.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 72
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d6b6579"></a>
-
-## `p256-public-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span>))</code></pre>
+<article class="doc-entry" id="v-p256-public-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a></code><span class="doc-sig-links"><a href="#v-p256-public-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 Parse a SEC 1 public key: 0x04 || x || y (65 bytes) or 0x02/0x03 || x (33 bytes); the point must be on the curve.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 83
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d6b65792d6279746573"></a>
-
-## `p256-public-key-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-key-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-p256-public-key-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-p256-public-key-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 The uncompressed encoding (65 bytes).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 96
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d6b65792d636f6d70726573736564"></a>
-
-## `p256-public-key-compressed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-key-compressed</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-p256-public-key-compressed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-key-compressed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-p256-public-key-compressed" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-body">
 
 The compressed encoding (33 bytes).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 100
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d6b65792d636f6f7264696e61746573"></a>
-
-## `p256-public-key-coordinates`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-key-coordinates</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-p256-public-key-coordinates">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-key-coordinates</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-p256-public-key-coordinates" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 The affine coordinates as 32-byte big-endian values.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 105
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d6b65792d6f66"></a>
-
-## `p256-public-key-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-key-of</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span>)</code></pre>
+<article class="doc-entry" id="v-p256-public-key-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-key-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a></code><span class="doc-sig-links"><a href="#v-p256-public-key-of" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 The public key d * G.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 76
+</div>
+</article>
 
-<a id="value-703235362d7075626c69632d706f696e74"></a>
-
-## `p256-public-point`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-public-point</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>)</code></pre>
+<article class="doc-entry" id="v-p256-public-point">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-public-point</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Point" title="Crypto.P256.P256Point">P256Point</a></code><span class="doc-sig-links"><a href="#v-p256-public-point" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 A public key's point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 180
+</div>
+</article>
 
-<a id="value-703235362d7363616c6172"></a>
-
-## `p256-scalar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>))</code></pre>
+<article class="doc-entry" id="v-p256-scalar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Error" title="Crypto.P256.P256Error">P256Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-scalar" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 32-byte big-endian scalar below n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 144
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d616464"></a>
-
-## `p256-scalar-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-add</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>))</code></pre>
+<article class="doc-entry" id="v-p256-scalar-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-add" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Sum modulo n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 167
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d6279746573"></a>
-
-## `p256-scalar-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-p256-scalar-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L155" title="View source at line 155">Source</a></span></div>
+<div class="doc-body">
 
 The scalar's 32-byte big-endian encoding.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 155
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d696e7665727365"></a>
-
-## `p256-scalar-inverse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-inverse</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)</code></pre>
+<article class="doc-entry" id="v-p256-scalar-inverse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-inverse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-inverse" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L171" title="View source at line 171">Source</a></span></div>
+<div class="doc-body">
 
 Inverse modulo n (zero maps to zero).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 171
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d69732d7a65726f"></a>
-
-## `p256-scalar-is-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-is-zero</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-p256-scalar-is-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-is-zero" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 Whether the scalar is zero.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 159
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d6d756c"></a>
-
-## `p256-scalar-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-mul</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>))</code></pre>
+<article class="doc-entry" id="v-p256-scalar-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-mul" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 Product modulo n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 163
+</div>
+</article>
 
-<a id="value-703235362d7363616c61722d726564756365"></a>
-
-## `p256-scalar-reduce`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">p256-scalar-reduce</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)</code></pre>
+<article class="doc-entry" id="v-p256-scalar-reduce">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">p256-scalar-reduce</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-p256-scalar-reduce" title="Permalink">#</a><a href="/packages/stdlib/Crypto.P256/source/#L149" title="View source at line 149">Source</a></span></div>
+<div class="doc-body">
 
 Interpret up to the first 32 bytes as a big-endian integer and reduce it modulo n (shorter inputs are left-padded).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 149
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/P256.cinch`. Source SHA-256: `6587ebc2b98dc040e635544f5b181ff4dae6479692077d8a32a795c58b9baf5f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

@@ -7,14 +7,20 @@
 // scripts/record-examples.py captured from the real compiler for this file.
 import { tokenize } from '../lib/highlight';
 import recordings from '../data/examples/recordings.json';
-interface Props { file: string; source: string; }
-const { file, source } = Astro.props;
+interface Props { file: string; source: string; stopBefore?: string; }
+const { file, source, stopBefore } = Astro.props;
 const recording = (recordings as Record<string, { command: string; stdout: string; stderr: string; exit: number }>)[file];
 if (!recording) throw new Error(`No recording for ${file}: run scripts/record-examples.py`);
-// Show the module from its first comment, outdented one level.
+// Show the module from its first comment, outdented one level, optionally stopping before the CLI harness.
 const lines = source.replace(/\n+$/, '').split('\n');
 const start = lines.findIndex((line) => line.trim().startsWith('--'));
-const shown = lines.slice(start < 0 ? 0 : start).map((line) => line.replace(/^  /, ''));
+const sliced = lines.slice(start < 0 ? 0 : start);
+const stop = stopBefore ? sliced.findIndex((line) => line.trim().startsWith(stopBefore)) : -1;
+const shown = (stop > 0 ? sliced.slice(0, stop) : sliced)
+  .join('\n')
+  .replace(/\n+$/, '')
+  .split('\n')
+  .map((line) => line.replace(/^  /, ''));
 const kind = (k?: string) => k === 'comment' ? 'code-comment' : k === 'keyword' ? 'code-keyword' : k === 'type' ? 'code-type' : k === 'number' ? 'code-number' : k === 'string' ? 'code-string' : undefined;
 ---
 <div class="code-window runnable" data-runnable={file}>

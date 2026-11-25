@@ -2,19 +2,11 @@
 
 Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Codec</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Codec/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Codec">Search module</a><a href="/reference-sources/Text.Url.Codec.cinch" download="Text.Url.Codec.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Url.Codec`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Url.Error](Text.Url.Error.md).
 
-[Download exact module source](/reference-sources/Text.Url.Codec.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Url.Error](Text.Url.Error.md).
-
-Non-embedded source closure: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Byte-preserving percent escaping for URL components.
 Query components map spaces to plus and decode plus as space. Other contexts
@@ -26,144 +18,119 @@ Checked bulk copies write percent triplets and ordinary runs.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (12 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-UrlEncoding">UrlEncoding</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlEncoding</strong></code></li><li><a class="syn-name" href="#v-url-escape">url-escape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-escaped-length">url-escaped-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-escaped-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-url-path-escape">url-path-escape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-path-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-path-escape-text">url-path-escape-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-path-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-url-path-unescape">url-path-unescape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-path-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-query-escape">url-query-escape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-query-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-query-escape-text">url-query-escape-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-query-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-url-query-unescape">url-query-unescape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-query-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-unescape">url-unescape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-unescape-fragment-hint">url-unescape-fragment-hint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-unescape-fragment-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-unescape-path-hint">url-unescape-path-hint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-unescape-path-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-55726c456e636f64696e67"></a>
+# Types
 
-## `UrlEncoding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UrlEncoding</span></code></pre>
+<article class="doc-entry" id="t-UrlEncoding">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlEncoding</strong></code><span class="doc-sig-links"><a href="#t-UrlEncoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 The independent byte grammar of one URL component.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlPath</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlPathSegment</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlHost</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlZone</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlUserPassword</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlQueryComponent</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlFragment</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UrlPath"><code><strong class="tok-constructor">UrlPath</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlPathSegment"><code><strong class="tok-constructor">UrlPathSegment</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlHost"><code><strong class="tok-constructor">UrlHost</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlZone"><code><strong class="tok-constructor">UrlZone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlUserPassword"><code><strong class="tok-constructor">UrlUserPassword</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlQueryComponent"><code><strong class="tok-constructor">UrlQueryComponent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li><li id="k-UrlFragment"><code><strong class="tok-constructor">UrlFragment</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-75726c2d657363617065"></a>
-
-## `url-escape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-escape</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-escape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L276" title="View source at line 276">Source</a></span></div>
+<div class="doc-body">
 
 Encode one complete component into fresh bytes, preserving no caller aliases.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 276
+</div>
+</article>
 
-<a id="value-75726c2d657363617065642d6c656e677468"></a>
-
-## `url-escaped-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-escaped-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-url-escaped-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escaped-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-escaped-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 Exact percent-encoded byte count; query-space substitution does not change length.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 187
+</div>
+</article>
 
-<a id="value-75726c2d706174682d657363617065"></a>
-
-## `url-path-escape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-path-escape</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-url-path-escape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L476" title="View source at line 476">Source</a></span></div>
+<div class="doc-body">
 
 Escape one arbitrary-byte path segment, including every slash inside the segment.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 476
+</div>
+</article>
 
-<a id="value-75726c2d706174682d6573636170652d74657874"></a>
-
-## `url-path-escape-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-path-escape-text</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-url-path-escape-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-path-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L492" title="View source at line 492">Source</a></span></div>
+<div class="doc-body">
 
 Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 492
+</div>
+</article>
 
-<a id="value-75726c2d706174682d756e657363617065"></a>
-
-## `url-path-unescape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-path-unescape</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-path-unescape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L480" title="View source at line 480">Source</a></span></div>
+<div class="doc-body">
 
 Percent-decode a path component without treating plus as a space.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 480
+</div>
+</article>
 
-<a id="value-75726c2d71756572792d657363617065"></a>
-
-## `url-query-escape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-query-escape</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-url-query-escape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L484" title="View source at line 484">Source</a></span></div>
+<div class="doc-body">
 
 Escape one arbitrary-byte query key or value, using plus for space.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 484
+</div>
+</article>
 
-<a id="value-75726c2d71756572792d6573636170652d74657874"></a>
-
-## `url-query-escape-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-query-escape-text</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-url-query-escape-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-query-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L496" title="View source at line 496">Source</a></span></div>
+<div class="doc-body">
 
 Escape UTF-8 text as an ASCII query component; decoding remains byte based.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 496
+</div>
+</article>
 
-<a id="value-75726c2d71756572792d756e657363617065"></a>
-
-## `url-query-unescape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-query-unescape</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-query-unescape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L488" title="View source at line 488">Source</a></span></div>
+<div class="doc-body">
 
 Decode a query key or value, mapping plus to space and retaining arbitrary decoded bytes.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 488
+</div>
+</article>
 
-<a id="value-75726c2d756e657363617065"></a>
-
-## `url-unescape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-unescape</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-url-unescape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L411" title="View source at line 411">Source</a></span></div>
+<div class="doc-body">
 
 Decode a complete component to fresh arbitrary bytes, or return a precise failure without partial output.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 411
+</div>
+</article>
 
-<a id="value-75726c2d756e6573636170652d667261676d656e742d68696e74"></a>
-
-## `url-unescape-fragment-hint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-unescape-fragment-hint</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-unescape-fragment-hint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-fragment-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-fragment-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L472" title="View source at line 472">Source</a></span></div>
+<div class="doc-body">
 
 Decode a raw fragment hint only when its pchar spellings and percent triplets are valid.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 472
+</div>
+</article>
 
-<a id="value-75726c2d756e6573636170652d706174682d68696e74"></a>
-
-## `url-unescape-path-hint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-unescape-path-hint</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-unescape-path-hint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-path-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-path-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L468" title="View source at line 468">Source</a></span></div>
+<div class="doc-body">
 
 Decode a raw path hint only when its pchar spellings and percent triplets are valid.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 468
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Codec.cinch`. Source SHA-256: `2cb5c643e7890411875c3b745c05eb519be9484bd315bac841a108cf5a8dd5fc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

@@ -2,19 +2,11 @@
 
 Deterministic Ed25519 signatures with constant-time signing and strict verification.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Ed25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Ed25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Ed25519">Search module</a><a href="/reference-sources/Crypto.Ed25519.cinch" download="Crypto.Ed25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.Ed25519`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha512](Text.Sha512.md).
 
-[Download exact module source](/reference-sources/Crypto.Ed25519.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha512](Text.Sha512.md).
-
-Non-embedded source closure: [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Binary](Text.Binary.md), [Text.Sha512](Text.Sha512.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Ed25519 signatures (RFC 8032) with constant-time key handling and signing.
 A private key is a 32-byte seed; signing hashes it with SHA-512 into a
@@ -29,123 +21,111 @@ signatures whose S is not below L, and compares the encoding of
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Ed25519Error">Ed25519Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ed25519Error</strong></code></li><li><a class="syn-name" href="#t-Ed25519PrivateKey">Ed25519PrivateKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ed25519PrivateKey</strong></code></li><li><a class="syn-name" href="#v-ed25519-error-message">ed25519-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519Error" title="Crypto.Ed25519.Ed25519Error">Ed25519Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-ed25519-private-key">ed25519-private-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519Error" title="Crypto.Ed25519.Ed25519Error">Ed25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a></code></li><li><a class="syn-name" href="#v-ed25519-public-key">ed25519-public-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ed25519-public-key-size">ed25519-public-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-public-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ed25519-seed">ed25519-seed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-seed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ed25519-seed-size">ed25519-seed-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-seed-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ed25519-sig-size">ed25519-sig-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-sig-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ed25519-sign">ed25519-sign</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-sign</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ed25519-verify">ed25519-verify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ed25519-verify</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li></ul>
+</details>
 
-<a id="type-456432353531394572726f72"></a>
+# Types
 
-## `Ed25519Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ed25519Error</span></code></pre>
+<article class="doc-entry" id="t-Ed25519Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ed25519Error</strong></code><span class="doc-sig-links"><a href="#t-Ed25519Error" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 A rejected seed.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 39
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidEd25519SeedSize"><code><strong class="tok-constructor">InvalidEd25519SeedSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519Error" title="Crypto.Ed25519.Ed25519Error">Ed25519Error</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidEd25519SeedSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519Error</span>)</code></pre>
-
-<a id="type-45643235353139507269766174654b6579"></a>
-
-## `Ed25519PrivateKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ed25519PrivateKey</span></code></pre>
+<article class="doc-entry" id="t-Ed25519PrivateKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ed25519PrivateKey</strong></code><span class="doc-sig-links"><a href="#t-Ed25519PrivateKey" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 An expanded private key: the seed, the clamped secret scalar bytes, the nonce prefix and the public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 49
+</div>
+</article>
 
 # Values
 
-<a id="value-656432353531392d6572726f722d6d657373616765"></a>
-
-## `ed25519-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519Error</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-ed25519-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519Error" title="Crypto.Ed25519.Ed25519Error">Ed25519Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-ed25519-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
 
 Render an Ed25519 error.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 44
+</div>
+</article>
 
-<a id="value-656432353531392d707269766174652d6b6579"></a>
-
-## `ed25519-private-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-private-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519PrivateKey</span>))</code></pre>
+<article class="doc-entry" id="v-ed25519-private-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519Error" title="Crypto.Ed25519.Ed25519Error">Ed25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a></code><span class="doc-sig-links"><a href="#v-ed25519-private-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 Expand a 32-byte seed into a private key and derive its public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 54
+</div>
+</article>
 
-<a id="value-656432353531392d7075626c69632d6b6579"></a>
-
-## `ed25519-public-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-public-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519PrivateKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-ed25519-public-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ed25519-public-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 The 32-byte public key, in fresh storage.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 67
+</div>
+</article>
 
-<a id="value-656432353531392d7075626c69632d6b65792d73697a65"></a>
-
-## `ed25519-public-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-public-key-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-ed25519-public-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-public-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ed25519-public-key-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 Public key size in bytes, 32.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 31
+</div>
+</article>
 
-<a id="value-656432353531392d73656564"></a>
-
-## `ed25519-seed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-seed</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519PrivateKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-ed25519-seed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-seed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ed25519-seed" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 The seed, in fresh storage.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 63
+</div>
+</article>
 
-<a id="value-656432353531392d736565642d73697a65"></a>
-
-## `ed25519-seed-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-seed-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-ed25519-seed-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-seed-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ed25519-seed-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 Seed size in bytes, 32.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 27
+</div>
+</article>
 
-<a id="value-656432353531392d7369672d73697a65"></a>
-
-## `ed25519-sig-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-sig-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-ed25519-sig-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-sig-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ed25519-sig-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 Signature size in bytes, 64.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 35
+</div>
+</article>
 
-<a id="value-656432353531392d7369676e"></a>
-
-## `ed25519-sign`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-sign</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-ed25519-sign">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-sign</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Ed25519/#t-Ed25519PrivateKey" title="Crypto.Ed25519.Ed25519PrivateKey">Ed25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ed25519-sign" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 Sign a message: R = [r]B for r = SHA-512(prefix || message) mod L, and S = r + k s mod L
 for k = SHA-512(R || public key || message) mod L. Returns the 64-byte signature R || S.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 72
+</div>
+</article>
 
-<a id="value-656432353531392d766572696679"></a>
-
-## `ed25519-verify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-verify</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-ed25519-verify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ed25519-verify</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ed25519-verify" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Ed25519/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 Verify a 64-byte signature of a message under a 32-byte public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 82
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Ed25519.cinch`. Source SHA-256: `56b494fbf2f0d64c7caa0d9b550c39f38829f88fdc6bd154a44e2ba353a836b4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

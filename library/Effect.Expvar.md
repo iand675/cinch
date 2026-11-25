@@ -2,19 +2,11 @@
 
 Region-scoped live metrics registry (Int, Float, String, Map, Func) with deterministic sorted JSON snapshots and /debug/vars HTTP response adapter.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Expvar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Expvar/source/">View source</a><a href="/packages/search/?q=%2BEffect.Expvar">Search module</a><a href="/reference-sources/Effect.Expvar.cinch" download="Effect.Expvar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Expvar`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Text.Http](Text.Http.md), [Text.Json](Text.Json.md).
 
-[Download exact module source](/reference-sources/Effect.Expvar.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Text.Http](Text.Http.md), [Text.Json](Text.Json.md).
-
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Effect.Expvar](Effect.Expvar.md), [Text.Builder](Text.Builder.md), [Text.Cookie](Text.Cookie.md), [Text.Http](Text.Http.md), [Text.Json](Text.Json.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md), [Text.TextProto](Text.TextProto.md), [Text.Url](Text.Url.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Publishable live metrics, structured variable containers, and JSON snapshots for diagnostic HTTP endpoints.
 
@@ -24,494 +16,437 @@ and HTTP responses are deterministic.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (46 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ExpvarError">ExpvarError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarError</strong></code></li><li><a class="syn-name" href="#t-ExpvarFloat">ExpvarFloat</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarFloat</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarFunc">ExpvarFunc</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarFunc</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarInt">ExpvarInt</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarInt</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarMap">ExpvarMap</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarMap</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarRegistry">ExpvarRegistry</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarRegistry</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarString">ExpvarString</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarString</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#t-ExpvarVar">ExpvarVar</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarVar</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#v-expvar-entries">expvar-entries</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-entries</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>)</code></li><li><a class="syn-name" href="#v-expvar-error-message">expvar-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-expvar-float-add">expvar-float-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-float-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-float-set">expvar-float-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-float-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-float-value">expvar-float-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-float-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-expvar-func-value">expvar-func-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-func-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFunc" title="Effect.Expvar.ExpvarFunc">ExpvarFunc</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-expvar-get">expvar-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-http-response">expvar-http-response</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-http-response</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-expvar-int-add">expvar-int-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-int-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-int-set">expvar-int-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-int-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-int-value">expvar-int-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-int-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-expvar-map-add">expvar-map-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-map-add-float">expvar-map-add-float</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-add-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-map-delete">expvar-map-delete</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-delete</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-map-entries">expvar-map-entries</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-entries</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-map-get">expvar-map-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-map-init">expvar-map-init</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-init</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-map-len">expvar-map-len</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-len</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-expvar-map-set">expvar-map-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-map-to-json">expvar-map-to-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-map-to-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-expvar-new-float">expvar-new-float</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-new-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-new-func">expvar-new-func</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-new-func</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-new-int">expvar-new-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-new-int</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-new-map">expvar-new-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-new-map</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-new-string">expvar-new-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-new-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-publish">expvar-publish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-publish-float">expvar-publish-float</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-publish-func">expvar-publish-func</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish-func</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-publish-int">expvar-publish-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish-int</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-publish-map">expvar-publish-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish-map</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-publish-string">expvar-publish-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-publish-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-expvar-registry-new">expvar-registry-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-registry-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-expvar-snapshot-json">expvar-snapshot-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-snapshot-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-expvar-snapshot-string">expvar-snapshot-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-snapshot-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-expvar-string-set">expvar-string-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-string-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-expvar-string-value">expvar-string-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-string-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-expvar-var-string">expvar-var-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-var-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-expvar-var-to-json">expvar-var-to-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expvar-var-to-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li></ul>
+</details>
 
-<a id="type-4578707661724572726f72"></a>
+# Types
 
-## `ExpvarError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarError</span></code></pre>
+<article class="doc-entry" id="t-ExpvarError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarError</strong></code><span class="doc-sig-links"><a href="#t-ExpvarError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 Named errors reported by metric registration operations.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 56
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ExpvarAlreadyPublished"><code><strong class="tok-constructor">ExpvarAlreadyPublished</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Expvar/#instances">Effect.Expvar</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ExpvarAlreadyPublished</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span></code></pre>
-
-<a id="type-457870766172466c6f6174"></a>
-
-## `ExpvarFloat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarFloat</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarFloat">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarFloat</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarFloat" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 A mutable 64-bit floating-point metric variable in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 82
+</div>
+</article>
 
-<a id="type-45787076617246756e63"></a>
-
-## `ExpvarFunc`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarFunc</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarFunc">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarFunc</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarFunc" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-body">
 
 A dynamic metric computed on demand as a JSON value within region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 92
+</div>
+</article>
 
-<a id="type-457870766172496e74"></a>
-
-## `ExpvarInt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarInt</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarInt">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarInt</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarInt" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L77" title="View source at line 77">Source</a></span></div>
+<div class="doc-body">
 
 A mutable 64-bit signed integer metric variable in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 77
+</div>
+</article>
 
-<a id="type-4578707661724d6170"></a>
-
-## `ExpvarMap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarMap</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarMap">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarMap</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarMap" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L175" title="View source at line 175">Source</a></span></div>
+<div class="doc-body">
 
 A mutable string-keyed sub-map of metric variables in region r, kept in sorted key order.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 175
+</div>
+</article>
 
-<a id="type-4578707661725265676973747279"></a>
-
-## `ExpvarRegistry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarRegistry</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarRegistry">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarRegistry</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarRegistry" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L337" title="View source at line 337">Source</a></span></div>
+<div class="doc-body">
 
 An explicit mutable registry of named published metrics in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 337
+</div>
+</article>
 
-<a id="type-457870766172537472696e67"></a>
-
-## `ExpvarString`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarString</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarString">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarString</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarString" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 A mutable UTF-8 string metric variable in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 87
+</div>
+</article>
 
-<a id="type-457870766172566172"></a>
-
-## `ExpvarVar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ExpvarVar</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ExpvarVar">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ExpvarVar</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ExpvarVar" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 A unified published metric variable of any supported metric kind in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 180
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VarInt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VarFloat</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VarString</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarString</span> <span class="tok-variable">r</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VarMap</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VarFunc</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-VarInt"><code><strong class="tok-constructor">VarInt</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li><li id="k-VarFloat"><code><strong class="tok-constructor">VarFloat</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li><li id="k-VarString"><code><strong class="tok-constructor">VarString</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li><li id="k-VarMap"><code><strong class="tok-constructor">VarMap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li><li id="k-VarFunc"><code><strong class="tok-constructor">VarFunc</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6578707661722d656e7472696573"></a>
-
-## `expvar-entries`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-entries</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
+<article class="doc-entry" id="v-expvar-entries">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-entries</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>)</code><span class="doc-sig-links"><a href="#v-expvar-entries" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L441" title="View source at line 441">Source</a></span></div>
+<div class="doc-body">
 
 Traverse all published metrics in sorted key order, evaluating each to its current JSON value.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 441
+</div>
+</article>
 
-<a id="value-6578707661722d6572726f722d6d657373616765"></a>
-
-## `expvar-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-error-message</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-expvar-error-message" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 Render a readable diagnostic message for a metric registry error.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 68
+</div>
+</article>
 
-<a id="value-6578707661722d666c6f61742d616464"></a>
-
-## `expvar-float-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-float-add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">F64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-float-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-float-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-float-add" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 Add a floating-point delta to a float metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 131
+</div>
+</article>
 
-<a id="value-6578707661722d666c6f61742d736574"></a>
-
-## `expvar-float-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-float-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">F64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-float-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-float-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-float-set" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 Replace the current value of a float metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 138
+</div>
+</article>
 
-<a id="value-6578707661722d666c6f61742d76616c7565"></a>
-
-## `expvar-float-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-float-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-float-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-float-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-expvar-float-value" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 Read the current floating-point value of a float metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 126
+</div>
+</article>
 
-<a id="value-6578707661722d66756e632d76616c7565"></a>
-
-## `expvar-func-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-func-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFunc</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-func-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-func-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFunc" title="Effect.Expvar.ExpvarFunc">ExpvarFunc</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-expvar-func-value" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 Evaluate a dynamic metric callback to produce its current JSON representation.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 159
+</div>
+</article>
 
-<a id="value-6578707661722d676574"></a>
-
-## `expvar-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-get" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L383" title="View source at line 383">Source</a></span></div>
+<div class="doc-body">
 
 Retrieve a published metric variable by name from the registry.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 383
+</div>
+</article>
 
-<a id="value-6578707661722d687474702d726573706f6e7365"></a>
-
-## `expvar-http-response`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-http-response</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-http-response">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-http-response</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-expvar-http-response" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L454" title="View source at line 454">Source</a></span></div>
+<div class="doc-body">
 
 Build an HTTP 200 OK JSON response containing the live metric snapshot, ready for /debug/vars handlers.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 454
+</div>
+</article>
 
-<a id="value-6578707661722d696e742d616464"></a>
-
-## `expvar-int-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-int-add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-int-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-int-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-int-add" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Add a signed 64-bit delta (wrapping on overflow) to an integer metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 108
+</div>
+</article>
 
-<a id="value-6578707661722d696e742d736574"></a>
-
-## `expvar-int-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-int-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-int-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-int-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-int-set" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Replace the current value of an integer metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 115
+</div>
+</article>
 
-<a id="value-6578707661722d696e742d76616c7565"></a>
-
-## `expvar-int-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-int-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-int-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-int-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-expvar-int-value" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Read the current 64-bit signed integer value of an integer metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 103
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d616464"></a>
-
-## `expvar-map-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-expvar-map-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-map-add" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L264" title="View source at line 264">Source</a></span></div>
+<div class="doc-body">
 
 Increment an integer metric under key by delta, creating a new integer metric when absent.
 If key currently holds a non-integer metric, the existing entry is left unchanged.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 264
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d6164642d666c6f6174"></a>
-
-## `expvar-map-add-float`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-add-float</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">F64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-expvar-map-add-float">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-add-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-map-add-float" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L275" title="View source at line 275">Source</a></span></div>
+<div class="doc-body">
 
 Increment a floating-point metric under key by delta, creating a new float metric when absent.
 If key currently holds a non-float metric, the existing entry is left unchanged.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 275
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d64656c657465"></a>
-
-## `expvar-map-delete`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-delete</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-map-delete">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-delete</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-map-delete" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L285" title="View source at line 285">Source</a></span></div>
+<div class="doc-body">
 
 Remove key and its associated metric variable from a metric map if present.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 285
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d656e7472696573"></a>
-
-## `expvar-map-entries`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-entries</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-map-entries">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-entries</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-map-entries" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L303" title="View source at line 303">Source</a></span></div>
+<div class="doc-body">
 
 Snapshot all key-variable pairs of a metric map in sorted key order.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 303
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d676574"></a>
-
-## `expvar-map-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-map-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-map-get" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 Look up the metric variable stored under key in a metric map.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 251
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d696e6974"></a>
-
-## `expvar-map-init`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-init</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-map-init">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-init</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-map-init" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L293" title="View source at line 293">Source</a></span></div>
+<div class="doc-body">
 
 Clear all keys from a metric map and return the map handle.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 293
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d6c656e"></a>
-
-## `expvar-map-len`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-len</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-map-len">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-len</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-expvar-map-len" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L299" title="View source at line 299">Source</a></span></div>
+<div class="doc-body">
 
 Return the number of keys currently stored in a metric map.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 299
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d736574"></a>
-
-## `expvar-map-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-expvar-map-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-map-set" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L255" title="View source at line 255">Source</a></span></div>
+<div class="doc-body">
 
 Store or replace a metric variable under key in a metric map.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 255
+</div>
+</article>
 
-<a id="value-6578707661722d6d61702d746f2d6a736f6e"></a>
-
-## `expvar-map-to-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-map-to-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-map-to-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-map-to-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-expvar-map-to-json" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L316" title="View source at line 316">Source</a></span></div>
+<div class="doc-body">
 
 Snapshot a metric map as a sorted JSON object.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 316
+</div>
+</article>
 
-<a id="value-6578707661722d6e65772d666c6f6174"></a>
-
-## `expvar-new-float`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-new-float</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">F64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-new-float">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-new-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-new-float" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 Create a new floating-point metric initialized to the supplied F64 value.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 120
+</div>
+</article>
 
-<a id="value-6578707661722d6e65772d66756e63"></a>
-
-## `expvar-new-func`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-new-func</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-new-func">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-new-func</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-new-func" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 Wrap a dynamic JSON-producing callback as an ExpvarVar.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 198
+</div>
+</article>
 
-<a id="value-6578707661722d6e65772d696e74"></a>
-
-## `expvar-new-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-new-int</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-new-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-new-int</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-new-int" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 Create a new integer metric initialized to the supplied 64-bit value.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 97
+</div>
+</article>
 
-<a id="value-6578707661722d6e65772d6d6170"></a>
-
-## `expvar-new-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-new-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-new-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-new-map</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-new-map" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Create a new empty metric map in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 202
+</div>
+</article>
 
-<a id="value-6578707661722d6e65772d737472696e67"></a>
-
-## `expvar-new-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-new-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarString</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-new-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-new-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-new-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L143" title="View source at line 143">Source</a></span></div>
+<div class="doc-body">
 
 Create a new string metric initialized to the supplied text.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 143
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c697368"></a>
-
-## `expvar-publish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-publish" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L372" title="View source at line 372">Source</a></span></div>
+<div class="doc-body">
 
 Publish a metric variable under name in the registry, rejecting duplicate names.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 372
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c6973682d666c6f6174"></a>
-
-## `expvar-publish-float`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish-float</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarFloat</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish-float">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish-float</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarFloat" title="Effect.Expvar.ExpvarFloat">ExpvarFloat</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-publish-float" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L396" title="View source at line 396">Source</a></span></div>
+<div class="doc-body">
 
 Create a zero-initialized floating-point metric and publish it under name.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 396
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c6973682d66756e63"></a>
-
-## `expvar-publish-func`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish-func</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish-func">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish-func</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-publish-func" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L420" title="View source at line 420">Source</a></span></div>
+<div class="doc-body">
 
 Publish a dynamic JSON-producing callback under name.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 420
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c6973682d696e74"></a>
-
-## `expvar-publish-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish-int</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarInt</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish-int</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarInt" title="Effect.Expvar.ExpvarInt">ExpvarInt</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-publish-int" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L388" title="View source at line 388">Source</a></span></div>
+<div class="doc-body">
 
 Create a zero-initialized integer metric and publish it under name.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 388
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c6973682d6d6170"></a>
-
-## `expvar-publish-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarMap</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish-map</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarMap" title="Effect.Expvar.ExpvarMap">ExpvarMap</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-publish-map" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L412" title="View source at line 412">Source</a></span></div>
+<div class="doc-body">
 
 Create an empty metric map and publish it under name.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 412
+</div>
+</article>
 
-<a id="value-6578707661722d7075626c6973682d737472696e67"></a>
-
-## `expvar-publish-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-publish-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarString</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-expvar-publish-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-publish-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-expvar-publish-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L404" title="View source at line 404">Source</a></span></div>
+<div class="doc-body">
 
 Create an empty string metric and publish it under name.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 404
+</div>
+</article>
 
-<a id="value-6578707661722d72656769737472792d6e6577"></a>
-
-## `expvar-registry-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-registry-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-registry-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-registry-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-expvar-registry-new" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L342" title="View source at line 342">Source</a></span></div>
+<div class="doc-body">
 
 Create a fresh empty metric registry in region r.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 342
+</div>
+</article>
 
-<a id="value-6578707661722d736e617073686f742d6a736f6e"></a>
-
-## `expvar-snapshot-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-snapshot-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-snapshot-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-snapshot-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-expvar-snapshot-json" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L446" title="View source at line 446">Source</a></span></div>
+<div class="doc-body">
 
 Snapshot all published metrics in the registry as a JSON object with sorted keys.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 446
+</div>
+</article>
 
-<a id="value-6578707661722d736e617073686f742d737472696e67"></a>
-
-## `expvar-snapshot-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-snapshot-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarRegistry</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-snapshot-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-snapshot-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarRegistry" title="Effect.Expvar.ExpvarRegistry">ExpvarRegistry</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-expvar-snapshot-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L450" title="View source at line 450">Source</a></span></div>
+<div class="doc-body">
 
 Snapshot all published metrics in the registry as a canonical JSON object string.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 450
+</div>
+</article>
 
-<a id="value-6578707661722d737472696e672d736574"></a>
-
-## `expvar-string-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-string-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarString</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-expvar-string-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-string-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expvar-string-set" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-body">
 
 Replace the current text value of a string metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 154
+</div>
+</article>
 
-<a id="value-6578707661722d737472696e672d76616c7565"></a>
-
-## `expvar-string-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-string-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarString</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-string-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-string-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarString" title="Effect.Expvar.ExpvarString">ExpvarString</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-expvar-string-value" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L149" title="View source at line 149">Source</a></span></div>
+<div class="doc-body">
 
 Read the current text value of a string metric.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 149
+</div>
+</article>
 
-<a id="value-6578707661722d7661722d737472696e67"></a>
-
-## `expvar-var-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-var-string</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-var-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-var-string</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-expvar-var-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L329" title="View source at line 329">Source</a></span></div>
+<div class="doc-body">
 
 Render any metric variable as a canonical JSON string.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 329
+</div>
+</article>
 
-<a id="value-6578707661722d7661722d746f2d6a736f6e"></a>
-
-## `expvar-var-to-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expvar-var-to-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Expvar</span>.<span class="tok-constructor">ExpvarVar</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-expvar-var-to-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expvar-var-to-json</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarVar" title="Effect.Expvar.ExpvarVar">ExpvarVar</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-expvar-var-to-json" title="Permalink">#</a><a href="/packages/stdlib/Effect.Expvar/source/#L320" title="View source at line 320">Source</a></span></div>
+<div class="doc-body">
 
 Snapshot any metric variable as a JSON value.
 
-[Source](/reference-sources/Effect.Expvar.cinch) · line 320
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Effect.Expvar.Eq_ExpvarError` | `Relation.Eq.Eq Effect.Expvar.ExpvarError` | Implicit |
-
-**`Effect.Expvar.Eq_ExpvarError`**: Structural equality for metric registry errors.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Expvar.cinch`. Source SHA-256: `d832b0c207d08127415b03a6267218912885a5a4026351b2f3f4c3ac33ca6147`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_ExpvarError"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Expvar.Eq_ExpvarError</code></span><div class="doc-child-prose">Structural equality for metric registry errors.</div></li>
+</ul>

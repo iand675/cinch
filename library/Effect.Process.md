@@ -2,17 +2,11 @@
 
 One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Process</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Process/source/">View source</a><a href="/packages/search/?q=%2BEffect.Process">Search module</a><a href="/reference-sources/Effect.Process.cinch" download="Effect.Process.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Process`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
 
-[Download exact module source](/reference-sources/Effect.Process.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Process: subprocesses over real pipes (P34, the platform
 layer: the shape that drives `clang` and `lld`), one shot and live.
@@ -93,159 +87,137 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Child">Child</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Child</strong></code></li><li><a class="syn-name" href="#t-Command">Command</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Command</strong></code></li><li><a class="syn-name" href="#t-ProcessError">ProcessError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ProcessError</strong></code></li><li><a class="syn-name" href="#t-Stream">Stream</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Stream</strong></code></li><li><a class="syn-name" href="#v-child-close">child-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-child-close-stdin">child-close-stdin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-close-stdin</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-child-handle">child-handle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-child-read">child-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Stream" title="Effect.Process.Stream">Stream</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-child-wait">child-wait</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-wait</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-child-write-stdin">child-write-stdin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">child-write-stdin</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-command">command</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">command</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a></code></li><li><a class="syn-name" href="#v-command-with-env">command-with-env</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">command-with-env</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a></code></li><li><a class="syn-name" href="#v-process-args">process-args</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">process-args</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-process-run">process-run</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">process-run</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-process-spawn">process-spawn</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">process-spawn</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a></code></li></ul>
+</details>
 
-<a id="type-4368696c64"></a>
+# Types
 
-## `Child`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Child</span></code></pre>
+<article class="doc-entry" id="t-Child">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Child</strong></code><span class="doc-sig-links"><a href="#t-Child" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L310" title="View source at line 310">Source</a></span></div>
+<div class="doc-body">
 
 A live child with three stdio pipes of its own.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 310
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Child"><code><strong class="tok-constructor">Child</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Child</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span>)</code></pre>
-
-<a id="type-436f6d6d616e64"></a>
-
-## `Command`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Command</span></code></pre>
+<article class="doc-entry" id="t-Command">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Command</strong></code><span class="doc-sig-links"><a href="#t-Command" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 A program with its arguments and its environment additions
 (`KEY=VALUE` pairs, added to this process's own environment).
 
-[Source](/reference-sources/Effect.Process.cinch) · line 107
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Command"><code><strong class="tok-constructor">Command</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Command</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span>)))</code></pre>
-
-<a id="type-50726f636573734572726f72"></a>
-
-## `ProcessError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ProcessError</span></code></pre>
+<article class="doc-entry" id="t-ProcessError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ProcessError</strong></code><span class="doc-sig-links"><a href="#t-ProcessError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong before the child's own exit code could exist.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 99
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ProcessNotFound"><code><strong class="tok-constructor">ProcessNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a></code></li><li id="k-ProcessPermissionDenied"><code><strong class="tok-constructor">ProcessPermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a></code></li><li id="k-ProcessInvalidArgument"><code><strong class="tok-constructor">ProcessInvalidArgument</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a></code></li><li id="k-ProcessIoError"><code><strong class="tok-constructor">ProcessIoError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProcessIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span></code></pre>
-
-<a id="type-53747265616d"></a>
-
-## `Stream`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Stream</span></code></pre>
+<article class="doc-entry" id="t-Stream">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Stream</strong></code><span class="doc-sig-links"><a href="#t-Stream" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L314" title="View source at line 314">Source</a></span></div>
+<div class="doc-body">
 
 Which of the child's two output pipes a read takes.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 314
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stdout</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Stream</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stderr</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Stream</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Stdout"><code><strong class="tok-constructor">Stdout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Stream" title="Effect.Process.Stream">Stream</a></code></li><li id="k-Stderr"><code><strong class="tok-constructor">Stderr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Stream" title="Effect.Process.Stream">Stream</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6368696c642d636c6f7365"></a>
-
-## `child-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-close</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-child-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-child-close" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L438" title="View source at line 438">Source</a></span></div>
+<div class="doc-body">
 
 Close the child: a child no wait reaped is killed and reaped
 first, and the handle is gone afterwards (a second close is the
 named error).
 
-[Source](/reference-sources/Effect.Process.cinch) · line 438
+</div>
+</article>
 
-<a id="value-6368696c642d636c6f73652d737464696e"></a>
-
-## `child-close-stdin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-close-stdin</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-child-close-stdin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-close-stdin</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-child-close-stdin" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L406" title="View source at line 406">Source</a></span></div>
+<div class="doc-body">
 
 Close the child's stdin, which is how it sees the end of its
 input: the unit, or the named error.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 406
+</div>
+</article>
 
-<a id="value-6368696c642d68616e646c65"></a>
-
-## `child-handle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-child-handle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-child-handle" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L319" title="View source at line 319">Source</a></span></div>
+<div class="doc-body">
 
 The child's handle word, for the layers above this one.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 319
+</div>
+</article>
 
-<a id="value-6368696c642d72656164"></a>
-
-## `child-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Stream</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-child-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Stream" title="Effect.Process.Stream">Stream</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-child-read" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L415" title="View source at line 415">Source</a></span></div>
+<div class="doc-body">
 
 Read up to `max` bytes of one of the child's output pipes: `Ok` of
 what one platform call produced (empty at that pipe's end), or the
 named error.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 415
+</div>
+</article>
 
-<a id="value-6368696c642d77616974"></a>
-
-## `child-wait`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-wait</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-child-wait">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-wait</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-child-wait" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L429" title="View source at line 429">Source</a></span></div>
+<div class="doc-body">
 
 Wait for the child: its exit code (128 + the signal number for a
 signal death, the shell convention), or the named error.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 429
+</div>
+</article>
 
-<a id="value-6368696c642d77726974652d737464696e"></a>
-
-## `child-write-stdin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">child-write-stdin</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-child-write-stdin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">child-write-stdin</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-child-write-stdin" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L398" title="View source at line 398">Source</a></span></div>
+<div class="doc-body">
 
 Write `bs` to the child's stdin: the byte count, or the named
 error.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 398
+</div>
+</article>
 
-<a id="value-636f6d6d616e64"></a>
-
-## `command`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">command</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span>))</code></pre>
+<article class="doc-entry" id="v-command">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">command</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a></code><span class="doc-sig-links"><a href="#v-command" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 A command without environment additions.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 111
+</div>
+</article>
 
-<a id="value-636f6d6d616e642d776974682d656e76"></a>
-
-## `command-with-env`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">command-with-env</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span>)))</code></pre>
+<article class="doc-entry" id="v-command-with-env">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">command-with-env</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a></code><span class="doc-sig-links"><a href="#v-command-with-env" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 A command with environment additions.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 115
+</div>
+</article>
 
-<a id="value-70726f636573732d61726773"></a>
-
-## `process-args`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-args</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-process-args">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">process-args</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-process-args" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L290" title="View source at line 290">Source</a></span></div>
+<div class="doc-body">
 
 The arguments this process was invoked with, the program name
 (word 0) excluded, decoded as text. An empty command line is
@@ -259,32 +231,27 @@ between the shell's exec and this list.
 an effectful value always takes in this tree (`main :: Unit ->{IO
 r} Int`'s shape): `process-args ()`.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 290
+</div>
+</article>
 
-<a id="value-70726f636573732d72756e"></a>
-
-## `process-run`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-run</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-process-run">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">process-run</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-process-run" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 Run `cmd` with `input` on its stdin: the child's exit code and
 its captured stdout (raw bytes), or the named error.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 180
+</div>
+</article>
 
-<a id="value-70726f636573732d737061776e"></a>
-
-## `process-spawn`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">process-spawn</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Command</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">ProcessError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Process</span>.<span class="tok-constructor">Child</span>)))</code></pre>
+<article class="doc-entry" id="v-process-spawn">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">process-spawn</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Command" title="Effect.Process.Command">Command</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-ProcessError" title="Effect.Process.ProcessError">ProcessError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Process/#t-Child" title="Effect.Process.Child">Child</a></code><span class="doc-sig-links"><a href="#v-process-spawn" title="Permalink">#</a><a href="/packages/stdlib/Effect.Process/source/#L350" title="View source at line 350">Source</a></span></div>
+<div class="doc-body">
 
 Start `cmd` with its three stdio pipes, running in `dir` (`None`
 inherits this process's own directory): the live child, or the
 named error. The child inherits this process's environment plus
 `cmd`'s additions.
 
-[Source](/reference-sources/Effect.Process.cinch) · line 350
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Process.cinch`. Source SHA-256: `57c8c854e61afb03d242709696cda431007cd423220e4e69bbaf112422eaf37b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

@@ -2,19 +2,11 @@
 
 Reading TZif time zone files (RFC 9636) into checked transition tables.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Zone.Tzif</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Zone.Tzif/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Zone.Tzif">Search module</a><a href="/reference-sources/Data.Time.Zone.Tzif.cinch" download="Data.Time.Zone.Tzif.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Time.Zone.Tzif`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Zone.Tzif.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Data.Time.Zone.Tzif](Data.Time.Zone.Tzif.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Zone.Tzif: reading TZif files
 (design/datetime.md, layer L2, lane C; RFC 9636).
@@ -80,57 +72,30 @@ NAMED REFUSALS (each a `TzifError`):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TzifError">TzifError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TzifError</strong></code></li><li><a class="syn-name" href="#v-parse-tzif">parse-tzif</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-tzif</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li></ul>
+</details>
 
-<a id="type-547a69664572726f72"></a>
+# Types
 
-## `TzifError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TzifError</span></code></pre>
+<article class="doc-entry" id="t-TzifError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TzifError</strong></code><span class="doc-sig-links"><a href="#t-TzifError" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Zone.Tzif/source/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Why bytes are not a usable TZif file (the header's list).
 
-[Source](/reference-sources/Data.Time.Zone.Tzif.cinch) · line 87
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifTruncated</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifBadMagic</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifUnsupportedVersion</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifNoLocalTimeTypes</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifTypeIndexOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifUnsortedTransitions</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifBadOffset</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifBadDstFlag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifAbbreviationOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifBadAbbreviation</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifLeapSeconds</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifMalformedFooter</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TzifBadFooter</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TzifTruncated"><code><strong class="tok-constructor">TzifTruncated</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifBadMagic"><code><strong class="tok-constructor">TzifBadMagic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifUnsupportedVersion"><code><strong class="tok-constructor">TzifUnsupportedVersion</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifNoLocalTimeTypes"><code><strong class="tok-constructor">TzifNoLocalTimeTypes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifTypeIndexOutOfRange"><code><strong class="tok-constructor">TzifTypeIndexOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifUnsortedTransitions"><code><strong class="tok-constructor">TzifUnsortedTransitions</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifBadOffset"><code><strong class="tok-constructor">TzifBadOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifBadDstFlag"><code><strong class="tok-constructor">TzifBadDstFlag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifAbbreviationOutOfRange"><code><strong class="tok-constructor">TzifAbbreviationOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifBadAbbreviation"><code><strong class="tok-constructor">TzifBadAbbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifLeapSeconds"><code><strong class="tok-constructor">TzifLeapSeconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifMalformedFooter"><code><strong class="tok-constructor">TzifMalformedFooter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li><li id="k-TzifBadFooter"><code><strong class="tok-constructor">TzifBadFooter</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70617273652d747a6966"></a>
-
-## `parse-tzif`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-tzif</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Tzif</span>.<span class="tok-constructor">TzifError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-tzif">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-tzif</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone.Tzif/#t-TzifError" title="Data.Time.Zone.Tzif.TzifError">TzifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-parse-tzif" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Zone.Tzif/source/#L318" title="View source at line 318">Source</a></span></div>
+<div class="doc-body">
 
 A `TimeZone` named `name` from the bytes of a TZif file (the
 header's format and refusals).
 
-[Source](/reference-sources/Data.Time.Zone.Tzif.cinch) · line 318
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Zone/Tzif.cinch`. Source SHA-256: `553280395cae4717281c2a60e19cd658e5589197362da4b23b9bc8f89f5b649c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

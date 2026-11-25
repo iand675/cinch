@@ -2,17 +2,11 @@
 
 Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.String</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.String/source/">View source</a><a href="/packages/search/?q=%2BData.String">Search module</a><a href="/reference-sources/Data.String.cinch" download="Data.String.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.String`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md), [Prim.Wide](Prim.Wide.md).
 
-[Download exact module source](/reference-sources/Data.String.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md), [Prim.Wide](Prim.Wide.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.String: runtime strings, UTF-8 over Bytes.
 
@@ -45,70 +39,65 @@ instance family (the parked-instance deviation of D159 is over).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (32 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-String">String</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code></li><li><a class="syn-name" href="#v-compare-bytes-from">compare-bytes-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">compare-bytes-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-copy-bytes-into">copy-bytes-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">copy-bytes-into</strong> :: (<span class="tok-variable">arg2</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>), <span class="tok-variable">arg3</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg1</span>)) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-empty-string">empty-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">empty-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-pack">pack</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-byte-index-from">string-byte-index-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-byte-index-from</strong> :: <span class="tok-variable">arg1</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">arg1</span> &lt;= <span class="tok-variable">r</span> &amp;&amp; <span class="tok-variable">r</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>)) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-byte-length">string-byte-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-byte-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-char-at">string-char-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-char-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-string-char-at-from">string-char-at-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-char-at-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-string-clone">string-clone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-compare">string-compare</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-string-concat">string-concat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-concat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-concat-all">string-concat-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-concat-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-from-bytes">string-from-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-join">string-join</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-length">string-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-length-from">string-length-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-length-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-repeat">string-repeat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-repeat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-slice">string-slice</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-to-bytes">string-to-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-string-utf8-first">string-utf8-first</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-utf8-first</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-string-utf8-last">string-utf8-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-utf8-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-unpack">unpack</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unpack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-utf8-at">utf8-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-utf8-char">utf8-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-utf8-cont">utf8-cont</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-cont</strong> :: <span class="tok-variable">arg1</span> + <span class="tok-variable">arg2</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-utf8-encode-into">utf8-encode-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-encode-into</strong> :: <span class="tok-variable">arg1</span> + (<span class="tok-constructor">utf8-encode-width</span> <span class="tok-variable">arg2</span>) &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-utf8-encode-width">utf8-encode-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-encode-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 4 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-utf8-lead-payload">utf8-lead-payload</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-lead-payload</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-utf8-min">utf8-min</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-min</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-utf8-valid-from">utf8-valid-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-valid-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-utf8-width">utf8-width</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">utf8-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-537472696e67"></a>
+# Types
 
-## `String`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="t-String">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code><span class="doc-sig-links"><a href="#t-String" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 The representation constructor: module-private (the immutability
 contract: no API hands out a string's backing). A `StrBuf` wraps a
 buffer that is either fresh (`bytes-new` filled here) or a copy,
 never one a caller retains.
 
-[Source](/reference-sources/Data.String.cinch) · line 72
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-636f6d706172652d62797465732d66726f6d"></a>
-
-## `compare-bytes-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compare-bytes-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-compare-bytes-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">compare-bytes-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-compare-bytes-from" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L453" title="View source at line 453">Source</a></span></div>
+<div class="doc-body">
 
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 453
+</div>
+</article>
 
-<a id="value-636f70792d62797465732d696e746f"></a>
-
-## `copy-bytes-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">copy-bytes-into</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg2</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>), (<span class="tok-variable">arg3</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg1</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg4</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))))</code></pre>
+<article class="doc-entry" id="v-copy-bytes-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">copy-bytes-into</strong> :: (<span class="tok-variable">arg2</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>), <span class="tok-variable">arg3</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg1</span>)) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-copy-bytes-into" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L271" title="View source at line 271">Source</a></span></div>
+<div class="doc-body">
 
 Concatenation (O(n + m) copies). The range copy is the runtime's
 `memmove` (`bytes-copy-range`, with its two range obligations): a
 loop here boxed a `Nat` for every index step.
 
-[Source](/reference-sources/Data.String.cinch) · line 271
+</div>
+</article>
 
-<a id="value-656d7074792d737472696e67"></a>
+<article class="doc-entry" id="v-empty-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">empty-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-empty-string" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L176" title="View source at line 176">Source</a></span></div>
+</article>
 
-## `empty-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">empty-string</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-7061636b"></a>
-
-## `pack`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pack</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-pack">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-pack" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L409" title="View source at line 409">Source</a></span></div>
+<div class="doc-body">
 
 Encode a list of Unicode scalar values into one fresh immutable UTF-8 backing.
 A tail size pass and a checked tail encoding pass keep traversal stack bounded.
 
-[Source](/reference-sources/Data.String.cinch) · line 409
+</div>
+</article>
 
-<a id="value-737472696e672d627974652d696e6465782d66726f6d"></a>
-
-## `string-byte-index-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-byte-index-from</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>))) <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-byte-index-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-byte-index-from</strong> :: <span class="tok-variable">arg1</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">arg1</span> &lt;= <span class="tok-variable">r</span> &amp;&amp; <span class="tok-variable">r</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>)) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-byte-index-from" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L385" title="View source at line 385">Source</a></span></div>
+<div class="doc-body">
 
 Byte offset of code point `n` from offset `i`; the byte length when
 `n` reaches past the end. The offset never moves backwards and never
@@ -116,215 +105,173 @@ passes the end, and the result says so. A sequence whose width runs
 past the end is malformed, as `utf8-at` decides; the step restates
 that end test, so it answers `i` as a malformed sequence does.
 
-[Source](/reference-sources/Data.String.cinch) · line 385
+</div>
+</article>
 
-<a id="value-737472696e672d627974652d6c656e677468"></a>
+<article class="doc-entry" id="v-string-byte-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-byte-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-byte-length" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L179" title="View source at line 179">Source</a></span></div>
+</article>
 
-## `string-byte-length`
+<article class="doc-entry" id="v-string-char-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-char-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-string-char-at" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L231" title="View source at line 231">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-byte-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-737472696e672d636861722d6174"></a>
-
-## `string-char-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>)))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-737472696e672d636861722d61742d66726f6d"></a>
-
-## `string-char-at-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-at-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))))</code></pre>
+<article class="doc-entry" id="v-string-char-at-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-char-at-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-string-char-at-from" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L223" title="View source at line 223">Source</a></span></div>
+<div class="doc-body">
 
 The scalar value at code point index `n`, by scan (O(n)).
 
-[Source](/reference-sources/Data.String.cinch) · line 223
+</div>
+</article>
 
-<a id="value-737472696e672d636c6f6e65"></a>
-
-## `string-clone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-clone</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-clone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-clone" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 Copy a string into independent immutable UTF-8 storage, including empty input.
 The mutable backing remains private and cannot alias any caller-owned byte buffer.
 
-[Source](/reference-sources/Data.String.cinch) · line 91
+</div>
+</article>
 
-<a id="value-737472696e672d636f6d70617265"></a>
-
-## `string-compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-compare</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-string-compare">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-string-compare" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L465" title="View source at line 465">Source</a></span></div>
+<div class="doc-body">
 
 Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 465
+</div>
+</article>
 
-<a id="value-737472696e672d636f6e636174"></a>
+<article class="doc-entry" id="v-string-concat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-concat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-concat" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L274" title="View source at line 274">Source</a></span></div>
+</article>
 
-## `string-concat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-737472696e672d636f6e6361742d616c6c"></a>
-
-## `string-concat-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-concat-all</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-concat-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-concat-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-concat-all" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L286" title="View source at line 286">Source</a></span></div>
+<div class="doc-body">
 
 Concatenate every string in list order into one fresh immutable backing.
 A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
 stack, including lists of empty strings. Concatenation preserves valid UTF-8.
 
-[Source](/reference-sources/Data.String.cinch) · line 286
+</div>
+</article>
 
-<a id="value-737472696e672d66726f6d2d6279746573"></a>
+<article class="doc-entry" id="v-string-from-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L170" title="View source at line 170">Source</a></span></div>
+</article>
 
-## `string-from-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-737472696e672d6a6f696e"></a>
-
-## `string-join`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-join">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-join" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L344" title="View source at line 344">Source</a></span></div>
+<div class="doc-body">
 
 Join valid UTF-8 pieces with separators into one fresh immutable backing.
 Empty pieces contribute adjacent separators; an empty list produces empty text.
 
-[Source](/reference-sources/Data.String.cinch) · line 344
+</div>
+</article>
 
-<a id="value-737472696e672d6c656e677468"></a>
-
-## `string-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-string-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-length" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Count Unicode scalars in sealed-valid UTF-8 using packed leading-byte classification.
 Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
 
-[Source](/reference-sources/Data.String.cinch) · line 215
+</div>
+</article>
 
-<a id="value-737472696e672d6c656e6774682d66726f6d"></a>
-
-## `string-length-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-length-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-length-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-length-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-length-from" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Length in Unicode scalar values (O(n) scan).
 
-[Source](/reference-sources/Data.String.cinch) · line 205
+</div>
+</article>
 
-<a id="value-737472696e672d726570656174"></a>
-
-## `string-repeat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-repeat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-repeat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-repeat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-repeat" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L354" title="View source at line 354">Source</a></span></div>
+<div class="doc-body">
 
 Repeat a string the requested natural count into one fresh immutable backing.
 A complete first copy seeds checked prefix doubling, giving logarithmically
 many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
 
-[Source](/reference-sources/Data.String.cinch) · line 354
+</div>
+</article>
 
-<a id="value-737472696e672d736c696365"></a>
-
-## `string-slice`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-slice</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-string-slice">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-slice" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L397" title="View source at line 397">Source</a></span></div>
+<div class="doc-body">
 
 The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
 takes its `start < end` evidence from the test).
 
-[Source](/reference-sources/Data.String.cinch) · line 397
+</div>
+</article>
 
-<a id="value-737472696e672d746f2d6279746573"></a>
-
-## `string-to-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-to-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-string-to-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-string-to-bytes" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 A copy of the backing (the conversion out copies: the caller may
 mutate its copy freely and the `String` never changes).
 
-[Source](/reference-sources/Data.String.cinch) · line 96
+</div>
+</article>
 
-<a id="value-737472696e672d757466382d6669727374"></a>
-
-## `string-utf8-first`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-utf8-first</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-utf8-first">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-utf8-first</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-string-utf8-first" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Observe the first scalar and its encoded byte width without copying private backing.
 Empty text has no scalar; every present width is between one and four bytes.
 
-[Source](/reference-sources/Data.String.cinch) · line 184
+</div>
+</article>
 
-<a id="value-737472696e672d757466382d6c617374"></a>
-
-## `string-utf8-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-utf8-last</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-utf8-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-utf8-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-string-utf8-last" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 Observe the final scalar and its encoded byte width without scanning or copying the prefix.
 Empty text has no scalar; reverse lookup reads at most four bytes before decoding it.
 
-[Source](/reference-sources/Data.String.cinch) · line 200
+</div>
+</article>
 
-<a id="value-756e7061636b"></a>
+<article class="doc-entry" id="v-unpack">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unpack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unpack" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L438" title="View source at line 438">Source</a></span></div>
+</article>
 
-## `unpack`
+<article class="doc-entry" id="v-utf8-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-utf8-at" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L140" title="View source at line 140">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unpack</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-utf8-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-utf8-char" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L153" title="View source at line 153">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-757466382d6174"></a>
-
-## `utf8-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-757466382d63686172"></a>
-
-## `utf8-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-char</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-757466382d636f6e74"></a>
-
-## `utf8-cont`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-cont</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-variable">arg2</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-utf8-cont">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-cont</strong> :: <span class="tok-variable">arg1</span> + <span class="tok-variable">arg2</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-cont" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-body">
 
 The `k` continuation bytes from `i`: the caller has checked that
 they lie inside the buffer (`i + k <= bytes-len b`), so each read
 is in bounds and the obligation steps with the index.
 
-[Source](/reference-sources/Data.String.cinch) · line 121
+</div>
+</article>
 
-<a id="value-757466382d656e636f64652d696e746f"></a>
-
-## `utf8-encode-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-encode-into</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-variable">utf8-encode-width</span> <span class="tok-variable">arg2</span>)) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-utf8-encode-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-encode-into</strong> :: <span class="tok-variable">arg1</span> + (<span class="tok-constructor">utf8-encode-width</span> <span class="tok-variable">arg2</span>) &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-encode-into" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 Encode one scalar value at `pos` (bytes are raw values; division is
 the `nat-div`/`nat-rem` function family). The caller proves the
@@ -337,83 +284,58 @@ every value its width admits (`cp < 128` in the first branch, `cp /
 2^22` in the last, past which the unmasked lead byte did not fit a
 byte at all).
 
-[Source](/reference-sources/Data.String.cinch) · line 251
+</div>
+</article>
 
-<a id="value-757466382d656e636f64652d7769647468"></a>
+<article class="doc-entry" id="v-utf8-encode-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-encode-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 4 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-encode-width" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L234" title="View source at line 234">Source</a></span></div>
+</article>
 
-## `utf8-encode-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-encode-width</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">4</span> <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-757466382d6c6561642d7061796c6f6164"></a>
-
-## `utf8-lead-payload`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-lead-payload</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-utf8-lead-payload">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-lead-payload</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-lead-payload" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 The lead byte's payload bits: `x - 192`, `x - 224`, `x - 240` for
 the lead byte of a two-, three- and four-byte sequence, written as
 the low bits, which is the same number for every lead byte
 `utf8-width` admits and needs no `x >= 192` evidence.
 
-[Source](/reference-sources/Data.String.cinch) · line 134
+</div>
+</article>
 
-<a id="value-757466382d6d696e"></a>
+<article class="doc-entry" id="v-utf8-min">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-min</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-min" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L111" title="View source at line 111">Source</a></span></div>
+</article>
 
-## `utf8-min`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-min</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.String.cinch)
-
-<a id="value-757466382d76616c69642d66726f6d"></a>
-
-## `utf8-valid-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-valid-from</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-utf8-valid-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-valid-from</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-utf8-valid-from" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-body">
 
 Validate UTF-8 from a byte boundary. Complete ASCII words are checked
 with SWAR; non-ASCII sequences and tails retain scalar validation.
 
-[Source](/reference-sources/Data.String.cinch) · line 161
+</div>
+</article>
 
-<a id="value-757466382d7769647468"></a>
-
-## `utf8-width`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">utf8-width</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-utf8-width">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf8-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-utf8-width" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 UTF-8 decoding rules: a lead byte gives the width; continuation
 bytes are 10xxxxxx; overlong encodings, surrogates, and values above
 0x10FFFF are malformed.
 
-[Source](/reference-sources/Data.String.cinch) · line 102
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.String.Eq_String` | `Relation.Eq.Eq Data.String.String` | Implicit |
-| `Data.String.Hash_String` | `Data.Hash.Hash Data.String.String` | Implicit |
-| `Data.String.Monoid_String` | `Algebra.Monoid.Monoid Data.String.String` | Implicit |
-| `Data.String.Ord_String` | `Relation.Ord.Ord Data.String.String` | Implicit |
-| `Data.String.Semigroup_String` | `Algebra.Semigroup.Semigroup Data.String.String` | Implicit |
-
-**`Data.String.Hash_String`**: The digest of the UTF-8 backing through the `Bytes` instance
-(Data.Bytes owns the byte fold, so the two instances agree by
-construction instead of keeping two copies of one algorithm).
-`string-bytes-raw` reads the backing in place: hashing copies
-nothing.
-**`Data.String.Monoid_String`**: `empty-string` is the identity (moved from Algebra.Monoid); `mconcat`
-overrides the class's balanced fold with the one-pass concatenation.
-**`Data.String.Semigroup_String`**: Strings under concatenation over the UTF-8 Bytes backing (moved
-from Algebra.Semigroup at the prelude split; the instance lives
-with its type).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `9c1f024c81d6e72ec139e27558895cd0a5d0a830a294d3e21e277049d5812628`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Eq_String</code></span></li>
+<li id="i-Hash_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Hash_String</code></span><div class="doc-child-prose">The digest of the UTF-8 backing through the Bytes instance (Data.Bytes owns the byte fold, so the two instances agree by construction instead of keeping two copies of one algorithm).</div></li>
+<li id="i-Monoid_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Monoid_String</code></span><div class="doc-child-prose">empty-string is the identity (moved from Algebra.Monoid); mconcat overrides the class's balanced fold with the one-pass concatenation.</div></li>
+<li id="i-Ord_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Ord_String</code></span></li>
+<li id="i-Semigroup_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Semigroup_String</code></span><div class="doc-child-prose">Strings under concatenation over the UTF-8 Bytes backing (moved from Algebra.Semigroup at the prelude split; the instance lives with its type).</div></li>
+</ul>

@@ -2,19 +2,11 @@
 
 Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Field25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Field25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Field25519">Search module</a><a href="/reference-sources/Crypto.Field25519.cinch" download="Crypto.Field25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.Field25519`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Crypto.Field25519.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Crypto.Field25519](Crypto.Field25519.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Constant-time arithmetic in the field of integers modulo 2^255 - 19, shared by X25519 and Ed25519.
 An element is five 51-bit limbs (little-endian radix 2^51). Each product
@@ -28,212 +20,191 @@ the canonical encoding first.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (20 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Fe">Fe</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Fe</strong></code></li><li><a class="syn-name" href="#v-fe-add">fe-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-equal">fe-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-fe-from-bytes">fe-from-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-from-u64">fe-from-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-from-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-invert">fe-invert</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-invert</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-is-negative">fe-is-negative</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-is-negative</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-fe-is-zero">fe-is-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-fe-limbs">fe-limbs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-limbs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>)</code></li><li><a class="syn-name" href="#v-fe-mul">fe-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-mul-small">fe-mul-small</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-mul-small</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-neg">fe-neg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-one">fe-one</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-one</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-pow22523">fe-pow22523</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-pow22523</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-select">fe-select</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-select</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-square">fe-square</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-square</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-sub">fe-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li><li><a class="syn-name" href="#v-fe-swap">fe-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-swap</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a>)</code></li><li><a class="syn-name" href="#v-fe-to-bytes">fe-to-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-fe-zero">fe-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fe-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li></ul>
+</details>
 
-<a id="type-4665"></a>
+# Types
 
-## `Fe`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Fe</span></code></pre>
+<article class="doc-entry" id="t-Fe">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Fe</strong></code><span class="doc-sig-links"><a href="#t-Fe" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L22" title="View source at line 22">Source</a></span></div>
+<div class="doc-body">
 
 Limbs from least to most significant, radix 2^51.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 22
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fe</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Fe"><code><strong class="tok-constructor">Fe</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-66652d616464"></a>
-
-## `fe-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-add</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))</code></pre>
+<article class="doc-entry" id="v-fe-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-add" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 Sum with an immediate carry.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 56
+</div>
+</article>
 
-<a id="value-66652d657175616c"></a>
-
-## `fe-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-equal</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+<article class="doc-entry" id="v-fe-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-fe-equal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L272" title="View source at line 272">Source</a></span></div>
+<div class="doc-body">
 
 One when the two values are equal modulo p, otherwise zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 272
+</div>
+</article>
 
-<a id="value-66652d66726f6d2d6279746573"></a>
-
-## `fe-from-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-from-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))</code></pre>
+<article class="doc-entry" id="v-fe-from-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 Decode 32 little-endian bytes at an offset, ignoring the top bit. Out-of-range input reads as zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 209
+</div>
+</article>
 
-<a id="value-66652d66726f6d2d753634"></a>
-
-## `fe-from-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-from-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
+<article class="doc-entry" id="v-fe-from-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-from-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-from-u64" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 A small element below 2^51.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 33
+</div>
+</article>
 
-<a id="value-66652d696e76657274"></a>
-
-## `fe-invert`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-invert</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
+<article class="doc-entry" id="v-fe-invert">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-invert</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-invert" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-body">
 
 Multiplicative inverse a^(p - 2) by the fixed addition chain; the inverse of zero is zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 181
+</div>
+</article>
 
-<a id="value-66652d69732d6e65676174697665"></a>
-
-## `fe-is-negative`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-is-negative</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
+<article class="doc-entry" id="v-fe-is-negative">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-is-negative</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-fe-is-negative" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L261" title="View source at line 261">Source</a></span></div>
+<div class="doc-body">
 
 Whether the canonical value is odd (the sign used by point encodings).
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 261
+</div>
+</article>
 
-<a id="value-66652d69732d7a65726f"></a>
-
-## `fe-is-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-is-zero</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
+<article class="doc-entry" id="v-fe-is-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-fe-is-zero" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L265" title="View source at line 265">Source</a></span></div>
+<div class="doc-body">
 
 One when the value is zero modulo p, otherwise zero, computed without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 265
+</div>
+</article>
 
-<a id="value-66652d6c696d6273"></a>
-
-## `fe-limbs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-limbs</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">U64</span>, <span class="tok-constructor">U64</span>, <span class="tok-constructor">U64</span>, <span class="tok-constructor">U64</span>, <span class="tok-constructor">U64</span>))</code></pre>
+<article class="doc-entry" id="v-fe-limbs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-limbs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>)</code><span class="doc-sig-links"><a href="#v-fe-limbs" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 The five limbs, for constant tables and tests.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 37
+</div>
+</article>
 
-<a id="value-66652d6d756c"></a>
-
-## `fe-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-mul</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))</code></pre>
+<article class="doc-entry" id="v-fe-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-mul" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 Product: five 128-bit columns, then one carry chain.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 75
+</div>
+</article>
 
-<a id="value-66652d6d756c2d736d616c6c"></a>
-
-## `fe-mul-small`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-mul-small</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))</code></pre>
+<article class="doc-entry" id="v-fe-mul-small">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-mul-small</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-mul-small" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Multiply by a constant below 2^13 (such as 121665): one carry chain over 128-bit limbs.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 152
+</div>
+</article>
 
-<a id="value-66652d6e6567"></a>
-
-## `fe-neg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-neg</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
+<article class="doc-entry" id="v-fe-neg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-neg" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 Negation.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 71
+</div>
+</article>
 
-<a id="value-66652d6f6e65"></a>
-
-## `fe-one`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-one</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span></code></pre>
+<article class="doc-entry" id="v-fe-one">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-one</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-one" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 One.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 29
+</div>
+</article>
 
-<a id="value-66652d706f773232353233"></a>
-
-## `fe-pow22523`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-pow22523</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
+<article class="doc-entry" id="v-fe-pow22523">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-pow22523</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-pow22523" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L185" title="View source at line 185">Source</a></span></div>
+<div class="doc-body">
 
 a^((p - 5) / 8), used to compute square roots.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 185
+</div>
+</article>
 
-<a id="value-66652d73656c656374"></a>
-
-## `fe-select`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-select</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)))</code></pre>
+<article class="doc-entry" id="v-fe-select">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-select</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-select" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Choose b when the low bit of choice is set and a otherwise, without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 205
+</div>
+</article>
 
-<a id="value-66652d737175617265"></a>
-
-## `fe-square`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-square</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
+<article class="doc-entry" id="v-fe-square">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-square</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-square" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Square using symmetric cross-product doubling (15 wide multiplies instead of 25).
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 87
+</div>
+</article>
 
-<a id="value-66652d737562"></a>
-
-## `fe-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-sub</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))</code></pre>
+<article class="doc-entry" id="v-fe-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-sub" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 Difference, computed as a + 4p - b so no limb underflows, with an immediate carry.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 62
+</div>
+</article>
 
-<a id="value-66652d73776170"></a>
-
-## `fe-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-swap</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>, <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>))))</code></pre>
+<article class="doc-entry" id="v-fe-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-swap</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a>)</code><span class="doc-sig-links"><a href="#v-fe-swap" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L193" title="View source at line 193">Source</a></span></div>
+<div class="doc-body">
 
 Swap two elements when the low bit of choice is set, without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 193
+</div>
+</article>
 
-<a id="value-66652d746f2d6279746573"></a>
-
-## `fe-to-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-to-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-fe-to-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-to-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-fe-to-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L250" title="View source at line 250">Source</a></span></div>
+<div class="doc-body">
 
 Encode the canonical value as 32 little-endian bytes in fresh storage.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 250
+</div>
+</article>
 
-<a id="value-66652d7a65726f"></a>
-
-## `fe-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-zero</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span></code></pre>
+<article class="doc-entry" id="v-fe-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fe-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Field25519/#t-Fe" title="Crypto.Field25519.Fe">Fe</a></code><span class="doc-sig-links"><a href="#v-fe-zero" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Field25519/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 25
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Field25519.cinch`. Source SHA-256: `c7b37219c021c73c1bc924e27660d55f8393b565364b26cd430b2255520547c3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

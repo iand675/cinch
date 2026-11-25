@@ -2,19 +2,11 @@
 
 AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Aes</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Aes/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Aes">Search module</a><a href="/reference-sources/Crypto.Aes.cinch" download="Crypto.Aes.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.Aes`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Crypto.Aes.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Crypto.Aes](Crypto.Aes.md), [Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 AES-128, AES-192 and AES-256 block encryption with hardware instructions and a constant-time portable fallback.
 Keys are expanded once into immutable round-key schedules. On x86-64 the
@@ -29,158 +21,141 @@ a key to Crypto.Cipher's CTR, CBC, OFB, CFB and GCM modes.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-AesKey">AesKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AesKey</strong></code></li><li><a class="syn-name" href="#t-AesKeyError">AesKeyError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AesKeyError</strong></code></li><li><a class="syn-name" href="#c-ArmAes">ArmAes</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmAes</strong></code></li><li><a class="syn-name" href="#v-aes-block-size">aes-block-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-aes-cipher">aes-cipher</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Cipher/#t-BlockCipher" title="Crypto.Cipher.BlockCipher">BlockCipher</a></code></li><li><a class="syn-name" href="#v-aes-decrypt-block">aes-decrypt-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-decrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-aes-decrypt-word">aes-decrypt-word</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-decrypt-word</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-aes-encrypt-block">aes-encrypt-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-encrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-aes-encrypt-word">aes-encrypt-word</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-encrypt-word</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-aes-key">aes-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a></code></li><li><a class="syn-name" href="#v-aes-key-error-message">aes-key-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-key-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-aes-key-hardware">aes-key-hardware</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-key-hardware</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-aes-key-size">aes-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-aes-portable-key">aes-portable-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-portable-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a></code></li></ul>
+</details>
 
-<a id="type-4165734b6579"></a>
+# Types
 
-## `AesKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AesKey</span></code></pre>
+<article class="doc-entry" id="t-AesKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AesKey</strong></code><span class="doc-sig-links"><a href="#t-AesKey" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 An expanded key: key size in bytes, whether hardware rounds are used, and encryption and decryption schedules.
 With hardware rounds the decryption schedule holds the equivalent inverse cipher's keys.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 43
+</div>
+</article>
 
-<a id="type-4165734b65794572726f72"></a>
-
-## `AesKeyError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AesKeyError</span></code></pre>
+<article class="doc-entry" id="t-AesKeyError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AesKeyError</strong></code><span class="doc-sig-links"><a href="#t-AesKeyError" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 A key or block of the wrong length.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 48
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidAesKeySize"><code><strong class="tok-constructor">InvalidAesKeySize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a></code></li><li id="k-InvalidAesBlockSize"><code><strong class="tok-constructor">InvalidAesBlockSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidAesKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span>)</code></pre>
+# Signatures
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidAesBlockSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span>)</code></pre>
-
-# Signatures and methods
-
-<a id="class-41726d416573"></a>
-
-## `ArmAes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ArmAes</span> </code></pre>
+<article class="doc-entry" id="c-ArmAes">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmAes</strong></code><span class="doc-sig-links"><a href="#c-ArmAes" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Target-profile evidence that the ARMv8 AES and PMULL instructions may execute.
 Only profiles that guarantee the cryptography extension should name this capability.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 19
+</div>
+</article>
 
 # Values
 
-<a id="value-6165732d626c6f636b2d73697a65"></a>
-
-## `aes-block-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-block-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-aes-block-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-aes-block-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 AES block size in bytes, always 16.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 29
+</div>
+</article>
 
-<a id="value-6165732d636970686572"></a>
-
-## `aes-cipher`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-cipher</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">BlockCipher</span>)</code></pre>
+<article class="doc-entry" id="v-aes-cipher">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-cipher</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Cipher/#t-BlockCipher" title="Crypto.Cipher.BlockCipher">BlockCipher</a></code><span class="doc-sig-links"><a href="#v-aes-cipher" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-body">
 
 Adapt a key to the generic block-cipher modes.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 203
+</div>
+</article>
 
-<a id="value-6165732d646563727970742d626c6f636b"></a>
-
-## `aes-decrypt-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-decrypt-block</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-aes-decrypt-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-decrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-aes-decrypt-block" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L197" title="View source at line 197">Source</a></span></div>
+<div class="doc-body">
 
 Decrypt exactly sixteen bytes into fresh storage.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 197
+</div>
+</article>
 
-<a id="value-6165732d646563727970742d776f7264"></a>
-
-## `aes-decrypt-word`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-decrypt-word</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-decrypt-word">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-decrypt-word</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-decrypt-word" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L177" title="View source at line 177">Source</a></span></div>
+<div class="doc-body">
 
 Decrypt one canonical block.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 177
+</div>
+</article>
 
-<a id="value-6165732d656e63727970742d626c6f636b"></a>
-
-## `aes-encrypt-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-encrypt-block</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-aes-encrypt-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-encrypt-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-aes-encrypt-block" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Encrypt exactly sixteen bytes into fresh storage.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 191
+</div>
+</article>
 
-<a id="value-6165732d656e63727970742d776f7264"></a>
-
-## `aes-encrypt-word`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-encrypt-word</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-encrypt-word">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-encrypt-word</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-encrypt-word" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 Encrypt one canonical block.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 163
+</div>
+</article>
 
-<a id="value-6165732d6b6579"></a>
-
-## `aes-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span>))</code></pre>
+<article class="doc-entry" id="v-aes-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a></code><span class="doc-sig-links"><a href="#v-aes-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Expand a 16-, 24- or 32-byte key, selecting hardware rounds when the processor supports them.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 61
+</div>
+</article>
 
-<a id="value-6165732d6b65792d6572726f722d6d657373616765"></a>
-
-## `aes-key-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-key-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-aes-key-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-key-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-aes-key-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Render a key or block size error.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 55
+</div>
+</article>
 
-<a id="value-6165732d6b65792d6861726477617265"></a>
-
-## `aes-key-hardware`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-key-hardware</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-aes-key-hardware">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-key-hardware</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-aes-key-hardware" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 Whether this key's rounds run on hardware AES instructions.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 73
+</div>
+</article>
 
-<a id="value-6165732d6b65792d73697a65"></a>
-
-## `aes-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-key-size</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-aes-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-aes-key-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Key size in bytes: 16, 24 or 32.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 69
+</div>
+</article>
 
-<a id="value-6165732d706f727461626c652d6b6579"></a>
-
-## `aes-portable-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-portable-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span>))</code></pre>
+<article class="doc-entry" id="v-aes-portable-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-portable-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKeyError" title="Crypto.Aes.AesKeyError">AesKeyError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Aes/#t-AesKey" title="Crypto.Aes.AesKey">AesKey</a></code><span class="doc-sig-links"><a href="#v-aes-portable-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Aes/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Expand a key that always uses the constant-time portable rounds, whatever the processor supports.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 65
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Aes.cinch`. Source SHA-256: `740a7e211c8c29777bb9306a0ed8bb03af37620f303bd344f3c86eef0338825d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

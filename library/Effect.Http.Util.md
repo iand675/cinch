@@ -2,19 +2,11 @@
 
 HTTP/1.1 wire request/response dumping, strict chunked codecs, hop-by-hop header stripping, and HTTP/HTTPS ReverseProxy forwarding.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Http.Util</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Http.Util/source/">View source</a><a href="/packages/search/?q=%2BEffect.Http.Util">Search module</a><a href="/reference-sources/Effect.Http.Util.cinch" download="Effect.Http.Util.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Http.Util`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.Tls](Crypto.Tls.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Http](Effect.Http.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.Tls](Effect.Tls.md), [Text.Http](Text.Http.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Effect.Http.Util.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Crypto.Tls](Crypto.Tls.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Http](Effect.Http.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.Tls](Effect.Tls.md), [Text.Http](Text.Http.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Crypto.Aes](Crypto.Aes.md), [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.Kdf](Crypto.Kdf.md), [Crypto.P256](Crypto.P256.md), [Crypto.Pkix](Crypto.Pkix.md), [Crypto.Rsa](Crypto.Rsa.md), [Crypto.Tls](Crypto.Tls.md), [Crypto.X25519](Crypto.X25519.md), [Crypto.X509](Crypto.X509.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.CookieJar](Data.CookieJar.md), [Data.IpAddr](Data.IpAddr.md), [Data.NetIp](Data.NetIp.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Http](Effect.Http.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.Http.Util](Effect.Http.Util.md), [Effect.Net](Effect.Net.md), [Effect.Random](Effect.Random.md), [Effect.Stream](Effect.Stream.md), [Effect.Tls](Effect.Tls.md), [Text.Asn1](Text.Asn1.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Binary](Text.Binary.md), [Text.Cookie](Text.Cookie.md), [Text.Digest](Text.Digest.md), [Text.Hex](Text.Hex.md), [Text.Http](Text.Http.md), [Text.Md5](Text.Md5.md), [Text.Pem](Text.Pem.md), [Text.Punycode](Text.Punycode.md), [Text.Sha1](Text.Sha1.md), [Text.Sha256](Text.Sha256.md), [Text.Sha512](Text.Sha512.md), [Text.TextProto](Text.TextProto.md), [Text.Uri](Text.Uri.md), [Text.Url](Text.Url.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 HTTP/1.1 wire diagnostics, strict chunked transfer-encoding helpers, RFC 7230 hop-by-hop
 header filtering, and a configurable HTTP/HTTPS reverse proxy built over Effect.Http,
@@ -29,230 +21,207 @@ plugging directly into `Effect.Http.Server` handlers and `ServeMux`.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (21 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ProxyTarget">ProxyTarget</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ProxyTarget</strong></code></li><li><a class="syn-name" href="#t-ReverseProxy">ReverseProxy</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ReverseProxy</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></li><li><a class="syn-name" href="#v-chunked-decode">chunked-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chunked-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-chunked-encode">chunked-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chunked-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-dump-request">dump-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">dump-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-dump-response">dump-response</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">dump-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-proxy-target-base-path">proxy-target-base-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">proxy-target-base-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-proxy-target-host">proxy-target-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">proxy-target-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-proxy-target-port">proxy-target-port</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">proxy-target-port</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-proxy-target-scheme">proxy-target-scheme</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">proxy-target-scheme</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-reverse-proxy-forward">reverse-proxy-forward</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-forward</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-reverse-proxy-forward-tls">reverse-proxy-forward-tls</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-forward-tls</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-reverse-proxy-handler">reverse-proxy-handler</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-handler</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-single-host">reverse-proxy-single-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-single-host</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-target">reverse-proxy-target</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-target</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a></code></li><li><a class="syn-name" href="#v-reverse-proxy-with-client-ip">reverse-proxy-with-client-ip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-client-ip</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-with-error-handler">reverse-proxy-with-error-handler</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-error-handler</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-with-modify-response">reverse-proxy-with-modify-response</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-modify-response</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-with-rewrite">reverse-proxy-with-rewrite</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-rewrite</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-reverse-proxy-with-tls">reverse-proxy-with-tls</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-tls</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Tls/#t-TlsConfig" title="Crypto.Tls.TlsConfig">TlsConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-strip-hop-by-hop-headers">strip-hop-by-hop-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">strip-hop-by-hop-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li></ul>
+</details>
 
-<a id="type-50726f7879546172676574"></a>
+# Types
 
-## `ProxyTarget`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ProxyTarget</span></code></pre>
+<article class="doc-entry" id="t-ProxyTarget">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ProxyTarget</strong></code><span class="doc-sig-links"><a href="#t-ProxyTarget" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L376" title="View source at line 376">Source</a></span></div>
+<div class="doc-body">
 
 Construct a target from scheme, host, port, and base path.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 376
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ProxyTarget"><code><strong class="tok-constructor">ProxyTarget</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProxyTarget</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span>))))</code></pre>
-
-<a id="type-5265766572736550726f7879"></a>
-
-## `ReverseProxy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ReverseProxy</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code></pre>
+<article class="doc-entry" id="t-ReverseProxy">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ReverseProxy</strong> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>)</code><span class="doc-sig-links"><a href="#t-ReverseProxy" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L398" title="View source at line 398">Source</a></span></div>
+<div class="doc-body">
 
 Proxy configuration: upstream target, optional request rewriter, optional response modifier,
 optional error handler, optional TLS 1.3 configuration, and optional client IP override.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 398
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ReverseProxy</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsConfig</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>))))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ReverseProxy"><code><strong class="tok-constructor">ReverseProxy</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Tls/#t-TlsConfig" title="Crypto.Tls.TlsConfig">TlsConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6368756e6b65642d6465636f6465"></a>
-
-## `chunked-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chunked-decode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-chunked-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chunked-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chunked-decode" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L263" title="View source at line 263">Source</a></span></div>
+<div class="doc-body">
 
 Decode an HTTP/1.1 chunked transfer-encoded payload with strict hex and CRLF validation.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 263
+</div>
+</article>
 
-<a id="value-6368756e6b65642d656e636f6465"></a>
-
-## `chunked-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chunked-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-chunked-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chunked-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chunked-encode" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L226" title="View source at line 226">Source</a></span></div>
+<div class="doc-body">
 
 Encode `payload` into HTTP/1.1 chunked transfer-encoding using chunks of at most `chunk-size` bytes
 (`0` defaults to `4096`).
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 226
+</div>
+</article>
 
-<a id="value-64756d702d72657175657374"></a>
-
-## `dump-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">dump-request</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-dump-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">dump-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-dump-request" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 Render an `HttpWireRequest` in RFC 7230 HTTP/1.1 wire format, including body bytes when `include-body` is `True`.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 179
+</div>
+</article>
 
-<a id="value-64756d702d726573706f6e7365"></a>
-
-## `dump-response`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">dump-response</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-dump-response">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">dump-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-dump-response" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 Render an `HttpWireResponse` in RFC 7230 HTTP/1.1 wire format, including body bytes when `include-body` is `True`.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 201
+</div>
+</article>
 
-<a id="value-70726f78792d7461726765742d626173652d70617468"></a>
-
-## `proxy-target-base-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">proxy-target-base-path</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-proxy-target-base-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">proxy-target-base-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-proxy-target-base-path" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L391" title="View source at line 391">Source</a></span></div>
+<div class="doc-body">
 
 Return the upstream target base path prefix.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 391
+</div>
+</article>
 
-<a id="value-70726f78792d7461726765742d686f7374"></a>
-
-## `proxy-target-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">proxy-target-host</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-proxy-target-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">proxy-target-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-proxy-target-host" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L383" title="View source at line 383">Source</a></span></div>
+<div class="doc-body">
 
 Return the upstream target hostname or IP literal.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 383
+</div>
+</article>
 
-<a id="value-70726f78792d7461726765742d706f7274"></a>
-
-## `proxy-target-port`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">proxy-target-port</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-proxy-target-port">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">proxy-target-port</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-proxy-target-port" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L387" title="View source at line 387">Source</a></span></div>
+<div class="doc-body">
 
 Return the upstream target TCP port.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 387
+</div>
+</article>
 
-<a id="value-70726f78792d7461726765742d736368656d65"></a>
-
-## `proxy-target-scheme`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">proxy-target-scheme</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-proxy-target-scheme">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">proxy-target-scheme</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-proxy-target-scheme" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L379" title="View source at line 379">Source</a></span></div>
+<div class="doc-body">
 
 Return the upstream target scheme (`"http"` or `"https"`).
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 379
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d666f7277617264"></a>
-
-## `reverse-proxy-forward`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-forward</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-forward">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-forward</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-reverse-proxy-forward" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L574" title="View source at line 574">Source</a></span></div>
+<div class="doc-body">
 
 Forward an incoming `HttpWireRequest` to the configured upstream (HTTP or TLS 1.3 HTTPS),
 stripping hop-by-hop headers in both directions, applying rewrite and response-modifier hooks,
 and returning a 502 Bad Gateway (or custom error-handler) response on upstream failure.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 574
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d666f72776172642d746c73"></a>
-
-## `reverse-proxy-forward-tls`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-forward-tls</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-forward-tls">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-forward-tls</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-reverse-proxy-forward-tls" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L578" title="View source at line 578">Source</a></span></div>
+<div class="doc-body">
 
 Forward an incoming `HttpWireRequest` to an HTTP or TLS 1.3 HTTPS upstream target.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 578
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d68616e646c6572"></a>
-
-## `reverse-proxy-handler`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-handler</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-handler">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-handler</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-handler" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L602" title="View source at line 602">Source</a></span></div>
+<div class="doc-body">
 
 Adapt a `ReverseProxy` into an `HttpHandler` that plugs directly into `Effect.Http.Server` and `ServeMux`.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 602
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d73696e676c652d686f7374"></a>
-
-## `reverse-proxy-single-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-single-host</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-single-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-single-host</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-single-host" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L401" title="View source at line 401">Source</a></span></div>
+<div class="doc-body">
 
 Create a single-host `ReverseProxy` forwarding to `scheme://host:port<base-path>`.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 401
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d746172676574"></a>
-
-## `reverse-proxy-target`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-target</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ProxyTarget</span>)</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-target">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-target</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ProxyTarget" title="Effect.Http.Util.ProxyTarget">ProxyTarget</a></code><span class="doc-sig-links"><a href="#v-reverse-proxy-target" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L406" title="View source at line 406">Source</a></span></div>
+<div class="doc-body">
 
 Return the configured `ProxyTarget` of a reverse proxy.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 406
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d776974682d636c69656e742d6970"></a>
-
-## `reverse-proxy-with-client-ip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-with-client-ip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-with-client-ip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-client-ip</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-with-client-ip" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L430" title="View source at line 430">Source</a></span></div>
+<div class="doc-body">
 
 Configure an explicit client IP address appended to `X-Forwarded-For` on forwarded requests.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 430
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d776974682d6572726f722d68616e646c6572"></a>
-
-## `reverse-proxy-with-error-handler`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-with-error-handler</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-with-error-handler">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-error-handler</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-with-error-handler" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L420" title="View source at line 420">Source</a></span></div>
+<div class="doc-body">
 
 Attach a custom error handler mapping an upstream failure diagnostic to an `HttpWireResponse`.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 420
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d776974682d6d6f646966792d726573706f6e7365"></a>
-
-## `reverse-proxy-with-modify-response`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-with-modify-response</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-with-modify-response">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-modify-response</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-with-modify-response" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L415" title="View source at line 415">Source</a></span></div>
+<div class="doc-body">
 
 Attach a response modifier invoked on each upstream response after hop-by-hop stripping.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 415
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d776974682d72657772697465"></a>
-
-## `reverse-proxy-with-rewrite`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-with-rewrite</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-with-rewrite">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-rewrite</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-with-rewrite" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L410" title="View source at line 410">Source</a></span></div>
+<div class="doc-body">
 
 Attach a request rewrite function invoked on each outbound proxy request before forwarding.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 410
+</div>
+</article>
 
-<a id="value-726576657273652d70726f78792d776974682d746c73"></a>
-
-## `reverse-proxy-with-tls`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-proxy-with-tls</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsConfig</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Util</span>.<span class="tok-constructor">ReverseProxy</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-reverse-proxy-with-tls">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-proxy-with-tls</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Tls/#t-TlsConfig" title="Crypto.Tls.TlsConfig">TlsConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Util/#t-ReverseProxy" title="Effect.Http.Util.ReverseProxy">ReverseProxy</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-reverse-proxy-with-tls" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L425" title="View source at line 425">Source</a></span></div>
+<div class="doc-body">
 
 Attach a TLS 1.3 `TlsConfig` used when forwarding to `https` upstream targets.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 425
+</div>
+</article>
 
-<a id="value-73747269702d686f702d62792d686f702d68656164657273"></a>
-
-## `strip-hop-by-hop-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">strip-hop-by-hop-headers</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-strip-hop-by-hop-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">strip-hop-by-hop-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-strip-hop-by-hop-headers" title="Permalink">#</a><a href="/packages/stdlib/Effect.Http.Util/source/#L353" title="View source at line 353">Source</a></span></div>
+<div class="doc-body">
 
 Remove RFC 7230 §6.1 hop-by-hop headers (`Connection`, `Keep-Alive`, `Proxy-Authenticate`,
 `Proxy-Authorization`, `Proxy-Connection`, `Te`, `Trailers`, `Transfer-Encoding`, `Upgrade`)
 plus any additional header field names listed inside `Connection` header values.
 
-[Source](/reference-sources/Effect.Http.Util.cinch) · line 353
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http/Util.cinch`. Source SHA-256: `30551bd754a3e43c4029cbb58cd8fb8f301a3f03ac908446873a69fe67b91db3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

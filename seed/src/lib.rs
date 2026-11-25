@@ -15,6 +15,8 @@ pub mod cinchdoc;
 pub mod coalesce;
 pub mod codegen;
 pub mod coretext;
+pub mod doc_html;
+pub mod doc_search;
 pub mod highlight;
 pub mod core;
 pub mod driver;

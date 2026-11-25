@@ -2,17 +2,11 @@
 
 Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Map</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Map/source/">View source</a><a href="/packages/search/?q=%2BData.Map">Search module</a><a href="/reference-sources/Data.Map.cinch" download="Data.Map.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Map`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.FromMap](Data.FromMap.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Map.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.FromMap](Data.FromMap.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Map: the ordered map.
 
@@ -26,99 +20,86 @@ Module scheme (design/base-library.md): the type's home carries its
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Map">Map</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Map</strong> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-delete">map-delete</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-delete</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-empty">map-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-filter">map-filter</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-filter</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. (<span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-fold">map-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">b</span>. (<span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-map-from-pairs">map-from-pairs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-from-pairs</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-insert">map-insert</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-insert</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-is-empty">map-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-map-keys">map-keys</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-keys</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">k</span></code></li><li><a class="syn-name" href="#v-map-lookup">map-lookup</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-lookup</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-map">map-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">w</span>. (<span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">w</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">w</span></code></li><li><a class="syn-name" href="#v-map-size">map-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-size</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-map-to-list">map-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)</code></li><li><a class="syn-name" href="#v-map-union">map-union</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-union</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-union-with">map-union-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-union-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map-values">map-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-values</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">v</span></code></li></ul>
+</details>
 
-<a id="type-4d6170"></a>
+# Types
 
-## `Map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Map</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Map">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Map</strong> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#t-Map" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 The ordered map: an unbalanced binary search tree over `Ord k`
 (decision D105). `map-insert` keeps the left subtree strictly
 smaller and the right strictly greater, so a repeated key replaces
 the stored value in place.
 
-[Source](/reference-sources/Data.Map.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Tip"><code><strong class="tok-constructor">Tip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li id="k-Bin"><code><strong class="tok-constructor">Bin</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Map/#instances">Data.Map</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d61702d64656c657465"></a>
-
-## `map-delete`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-delete</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
+<article class="doc-entry" id="v-map-delete">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-delete</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-delete" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Removal: the search descends as `map-lookup` does, and the found
 node's subtrees rejoin through `map-glue`. An absent key rebuilds
 the same tree, so no view can tell a delete of an absent key from
 the identity.
 
-[Source](/reference-sources/Data.Map.cinch) · line 61
+</div>
+</article>
 
-<a id="value-6d61702d656d707479"></a>
-
-## `map-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)</code></pre>
+<article class="doc-entry" id="v-map-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 The empty map, as a name (the family's other homes already spell
 theirs `set-empty`/`hash-map-empty`; the bootstrap exposed `Tip`
 only through the data declaration).
 
-[Source](/reference-sources/Data.Map.cinch) · line 54
+</div>
+</article>
 
-<a id="value-6d61702d66696c746572"></a>
-
-## `map-filter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-filter</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
+<article class="doc-entry" id="v-map-filter">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-filter</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. (<span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-filter" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L166" title="View source at line 166">Source</a></span></div>
+<div class="doc-body">
 
 Keep the entries the predicate accepts; a dropped node's children
 rejoin with `map-glue`, so no `Ord` is needed either (Data.Map's
 `filterWithKey`). The predicate sees the KEY as well as the value:
 the entry, not the bare value, is what this module lists.
 
-[Source](/reference-sources/Data.Map.cinch) · line 166
+</div>
+</article>
 
-<a id="value-6d61702d666f6c64"></a>
-
-## `map-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>))) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-map-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">b</span>. (<span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-map-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L177" title="View source at line 177">Source</a></span></div>
+<div class="doc-body">
 
 A RIGHT fold in ascending key order (Data.Map's `foldrWithKey`).
 The right direction is the one that agrees with the view: folding
 with `Cons` rebuilds `map-to-list` exactly, and the empty map is
 the identity. The accumulator's role is the right (second) value.
 
-[Source](/reference-sources/Data.Map.cinch) · line 177
+</div>
+</article>
 
-<a id="value-6d61702d66726f6d2d7061697273"></a>
+<article class="doc-entry" id="v-map-from-pairs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-from-pairs</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-from-pairs" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L45" title="View source at line 45">Source</a></span></div>
+</article>
 
-## `map-from-pairs`
+<article class="doc-entry" id="v-map-insert">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-insert</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-insert" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L29" title="View source at line 29">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-from-pairs</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))</code></pre>
-
-[Source](/reference-sources/Data.Map.cinch)
-
-<a id="value-6d61702d696e73657274"></a>
-
-## `map-insert`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-insert</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Map.cinch)
-
-<a id="value-6d61702d69732d656d707479"></a>
-
-## `map-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-map-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-map-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L150" title="View source at line 150">Source</a></span></div>
+<div class="doc-body">
 
 Named `map-is-empty` because the bare `is-empty` is the list's
 (`List a -> Bool`) and this language has no overloading to share
@@ -126,104 +107,90 @@ one spelling across carriers; the module prefix is how the family
 disambiguates. (`map-null` was the alternative; `null` is the
 `Foldable` class method's name and would suggest that class.)
 
-[Source](/reference-sources/Data.Map.cinch) · line 150
+</div>
+</article>
 
-<a id="value-6d61702d6b657973"></a>
-
-## `map-keys`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-keys</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">k</span>))</code></pre>
+<article class="doc-entry" id="v-map-keys">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-keys</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">k</span></code><span class="doc-sig-links"><a href="#v-map-keys" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 The keys in ascending order.
 
-[Source](/reference-sources/Data.Map.cinch) · line 120
+</div>
+</article>
 
-<a id="value-6d61702d6c6f6f6b7570"></a>
+<article class="doc-entry" id="v-map-lookup">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-lookup</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-lookup" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L37" title="View source at line 37">Source</a></span></div>
+</article>
 
-## `map-lookup`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-lookup</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">v</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Map.cinch)
-
-<a id="value-6d61702d6d6170"></a>
-
-## `map-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">v</span> -&gt; <span class="tok-variable">w</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">w</span>)))</code></pre>
+<article class="doc-entry" id="v-map-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-variable">w</span>. (<span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">w</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">w</span></code><span class="doc-sig-links"><a href="#v-map-map" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-body">
 
 Rewrite the values, leave the keys where they are. The shape is
 preserved, so no `Ord` is needed (Data.Map's `map`).
 
-[Source](/reference-sources/Data.Map.cinch) · line 157
+</div>
+</article>
 
-<a id="value-6d61702d73697a65"></a>
-
-## `map-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-size</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-map-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-size</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-map-size" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The entry count: the O(n) walk (the node carries no size, only the
 key/value pair).
 
-[Source](/reference-sources/Data.Map.cinch) · line 140
+</div>
+</article>
 
-<a id="value-6d61702d746f2d6c697374"></a>
-
-## `map-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)))</code></pre>
+<article class="doc-entry" id="v-map-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)</code><span class="doc-sig-links"><a href="#v-map-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 The entries in ascending key order. The tree IS an ordered search
 tree, so this order is observable and stable: the tests pin it
 against a known construction, and a caller may rely on it.
 
-[Source](/reference-sources/Data.Map.cinch) · line 111
+</div>
+</article>
 
-<a id="value-6d61702d756e696f6e"></a>
-
-## `map-union`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-union</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>)))</code></pre>
+<article class="doc-entry" id="v-map-union">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-union</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-union" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L85" title="View source at line 85">Source</a></span></div>
+<div class="doc-body">
 
 The LEFT map's value wins a shared key (Data.Map's `union`): the
 left map's entries are inserted into the right, and `map-insert`
 replaces the stored value in place. Two n-entry maps cost
 O(n log n).
 
-[Source](/reference-sources/Data.Map.cinch) · line 85
+</div>
+</article>
 
-<a id="value-6d61702d756e696f6e2d77697468"></a>
-
-## `map-union-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-union-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">k</span>) =&gt; ((<span class="tok-variable">v</span> -&gt; (<span class="tok-variable">v</span> -&gt; <span class="tok-variable">v</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
+<article class="doc-entry" id="v-map-union-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-union-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-union-with" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 The union of `map-union` with a shared key combined instead of
 chosen: `f` sees the LEFT value first and the right value second
 (Data.Map's `unionWith`).
 
-[Source](/reference-sources/Data.Map.cinch) · line 91
+</div>
+</article>
 
-<a id="value-6d61702d76616c756573"></a>
-
-## `map-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-values</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">v</span>))</code></pre>
+<article class="doc-entry" id="v-map-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-values</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-map-values" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L130" title="View source at line 130">Source</a></span></div>
+<div class="doc-body">
 
 The values in ascending KEY order (Data.Map's `elems`), never in
 insertion order.
 
-[Source](/reference-sources/Data.Map.cinch) · line 130
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Map.FromMap_Map` | `Data.FromMap.FromMap ((Data.Map.Map k) v) k v` | Implicit |
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Map.cinch`. Source SHA-256: `b7688dd045304cd4a46530683c40f9e15335159ec9a016845d794294e81e538d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-FromMap_Map"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Map.FromMap_Map</code></span></li>
+</ul>

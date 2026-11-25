@@ -2,151 +2,131 @@
 
 Positional byte writers, signed cursor movement and streaming at a base offset.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stream.Offset</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stream.Offset/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stream.Offset">Search module</a><a href="/reference-sources/Effect.Stream.Offset.cinch" download="Effect.Stream.Offset.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Stream.Offset`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md).
 
-[Download exact module source](/reference-sources/Effect.Stream.Offset.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md).
-
-Non-embedded source closure: [Effect.Stream](Effect.Stream.md), [Effect.Stream.Offset](Effect.Stream.Offset.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Positional writers and sequential views beginning at an arbitrary byte offset.
 A positional callback returns its advanced sink even when a write fails.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (12 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ByteWriterAt">ByteWriterAt</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteWriterAt</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#t-OffsetWriter">OffsetWriter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetWriter</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-offset-outer">offset-outer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-outer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-offset-position">offset-position</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-position</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-offset-seek-current">offset-seek-current</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-seek-current</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-offset-seek-start">offset-seek-start</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-seek-start</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-offset-stream-writer">offset-stream-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-stream-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-offset-write">offset-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-offset-write-at">offset-write-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-write-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-offset-writer">offset-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-stream-write-at">stream-write-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">stream-write-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-writer-at">writer-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">writer-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>)) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-427974655772697465724174"></a>
+# Types
 
-## `ByteWriterAt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteWriterAt</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-ByteWriterAt">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteWriterAt</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-ByteWriterAt" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L16" title="View source at line 16">Source</a></span></div>
+<div class="doc-body">
 
 A sink addressed by absolute offset, with explicit continuation state.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 16
+</div>
+</article>
 
-<a id="type-4f6666736574577269746572"></a>
-
-## `OffsetWriter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OffsetWriter</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-OffsetWriter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetWriter</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-OffsetWriter" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 A base offset and relative sequential cursor over a positional sink.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 33
+</div>
+</article>
 
 # Values
 
-<a id="value-6f66667365742d6f75746572"></a>
-
-## `offset-outer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-outer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>), <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-offset-outer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-outer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-offset-outer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Recover the latest sink continuation and its original base offset.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 45
+</div>
+</article>
 
-<a id="value-6f66667365742d706f736974696f6e"></a>
-
-## `offset-position`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-position</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-offset-position">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-position</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-offset-position" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Current position relative to the base.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 41
+</div>
+</article>
 
-<a id="value-6f66667365742d7365656b2d63757272656e74"></a>
-
-## `offset-seek-current`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-seek-current</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-offset-seek-current">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-seek-current</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-offset-seek-current" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Move the cursor by a signed distance. A position before the base returns None.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 53
+</div>
+</article>
 
-<a id="value-6f66667365742d7365656b2d7374617274"></a>
-
-## `offset-seek-start`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-seek-start</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-offset-seek-start">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-seek-start</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-offset-seek-start" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Set an absolute position within the view.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 49
+</div>
+</article>
 
-<a id="value-6f66667365742d73747265616d2d777269746572"></a>
-
-## `offset-stream-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-stream-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-offset-stream-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-stream-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-offset-stream-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 Adapt an offset writer to generic streaming and full-write retry operations.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 73
+</div>
+</article>
 
-<a id="value-6f66667365742d7772697465"></a>
-
-## `offset-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-offset-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-offset-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Advance the cursor by the accepted count. On an error the cursor stays at
 the last confirmed position while the sink continues from its returned state.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 66
+</div>
+</article>
 
-<a id="value-6f66667365742d77726974652d6174"></a>
-
-## `offset-write-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-write-at</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>)))))</code></pre>
+<article class="doc-entry" id="v-offset-write-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-write-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-offset-write-at" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Write at a relative offset, preserving the cursor and retaining the advanced sink.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 59
+</div>
+</article>
 
-<a id="value-6f66667365742d777269746572"></a>
-
-## `offset-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">OffsetWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-offset-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-OffsetWriter" title="Effect.Stream.Offset.OffsetWriter">OffsetWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-offset-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Start a sequential writer at relative position zero.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 37
+</div>
+</article>
 
-<a id="value-73747265616d2d77726974652d6174"></a>
-
-## `stream-write-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stream-write-at</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>)))))</code></pre>
+<article class="doc-entry" id="v-stream-write-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">stream-write-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-stream-write-at" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Submit bytes at an absolute offset. Empty writes preserve the sink, and
 an invalid reported count returns an error together with the advanced sink.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 25
+</div>
+</article>
 
-<a id="value-7772697465722d6174"></a>
-
-## `writer-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">writer-at</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>)))) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">ByteWriterAt</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-writer-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">writer-at</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span>)) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream.Offset/#t-ByteWriterAt" title="Effect.Stream.Offset.ByteWriterAt">ByteWriterAt</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-writer-at" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stream.Offset/source/#L20" title="View source at line 20">Source</a></span></div>
+<div class="doc-body">
 
 Wrap a positional callback reporting the count accepted and the next sink.
 
-[Source](/reference-sources/Effect.Stream.Offset.cinch) · line 20
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stream/Offset.cinch`. Source SHA-256: `1828e5e2f5547face4ed67fdbeeba348c9a52e3679de240a8d79003904c48bbd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

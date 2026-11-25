@@ -19,7 +19,7 @@ const orders = [24, 36, 12, 48, 30];
       <div class="screen-scale mono" aria-hidden="true"><span>ORDER TOTALS</span><span>0 — 5 ORDERS</span></div>
       <div class="contract-result" aria-live="polite" aria-atomic="true">
         <div class="result-heading"><span class="result-lamp" aria-hidden="true"></span><strong data-result-title>Average: 24</strong><span class="mono" data-result-equation>72 / 3 = 24</span></div>
-        <p data-result-description>A NonEmpty list never has length 0, so the division needs no check.</p>
+        <p data-result-description>Because NonEmpty guarantees at least one order, dividing by the count cannot crash and needs no runtime check.</p>
       </div>
     </div>
   </div>
@@ -49,7 +49,7 @@ const orders = [24, 36, 12, 48, 30];
       const description = document.querySelector('[data-result-description]');
       if (title) title.textContent = length ? `Average: ${mean}` : 'No orders';
       if (equation) equation.textContent = length ? `${sum} / ${length} = ${mean}` : '[] is not NonEmpty';
-      if (description) description.textContent = length ? 'A NonEmpty list never has length 0, so the division needs no check.' : 'An empty list is not a NonEmpty Int, so this call does not compile. The caller decides what no orders means before it gets here.';
+      if (description) description.textContent = length ? 'Because NonEmpty guarantees at least one order, dividing by the count cannot crash and needs no runtime check.' : 'An empty list fails to compile here. Handle the "no orders" case once before calling average.';
       steps.forEach(button => button.disabled = Number(button.dataset.lengthStep) < 0 ? length === 0 : length === 5);
     };
     range.addEventListener('input',render);

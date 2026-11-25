@@ -2,19 +2,11 @@
 
 ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Iso</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Iso/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Iso">Search module</a><a href="/reference-sources/Text.Time.Iso.cinch" download="Text.Time.Iso.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Time.Iso`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
 
-[Download exact module source](/reference-sources/Text.Time.Iso.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Text.Time.Iso](Text.Time.Iso.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Time.Iso: ISO 8601 extended format and RFC 3339, printing and
 parsing, for `Date`, `TimeOfDay`, `DateTime` and `Timestamp`.
@@ -97,322 +89,222 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (43 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-IsoError">IsoError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoError</strong></code></li><li><a class="syn-name" href="#t-IsoMode">IsoMode</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoMode</strong></code></li><li><a class="syn-name" href="#t-IsoOffset">IsoOffset</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoOffset</strong></code></li><li><a class="syn-name" href="#t-IsoOffsetForm">IsoOffsetForm</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoOffsetForm</strong></code></li><li><a class="syn-name" href="#v-date-from-string">date-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-date-from-string-lenient">date-from-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-date-to-string">date-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-datetime-from-string">datetime-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-datetime-from-string-lenient">datetime-from-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-datetime-to-string">datetime-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-datetime-to-string-precision">datetime-to-string-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-iso-date-bytes">iso-date-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-date-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-iso-date-length">iso-date-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-date-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-datetime-bytes">iso-datetime-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-datetime-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-iso-error-position">iso-error-position</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-expect-end">iso-expect-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-expect-end</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-iso-fraction-digits">iso-fraction-digits</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-fraction-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-offset-bytes">iso-offset-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-offset-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-iso-offset-form">iso-offset-form</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-offset-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffsetForm" title="Text.Time.Iso.IsoOffsetForm">IsoOffsetForm</a></code></li><li><a class="syn-name" href="#v-iso-offset-in-range">iso-offset-in-range</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-offset-in-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-iso-offset-length">iso-offset-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-offset-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-offset-seconds">iso-offset-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-offset-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-parse-date-at">iso-parse-date-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-parse-date-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-iso-parse-datetime-at">iso-parse-datetime-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-parse-datetime-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-iso-parse-offset-at">iso-parse-offset-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-parse-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-iso-parse-time-at">iso-parse-time-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-parse-time-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-iso-parse-timestamp-at">iso-parse-timestamp-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-parse-timestamp-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-iso-time-bytes">iso-time-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-time-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-iso-time-length">iso-time-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-time-length</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-write-date">iso-write-date</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-write-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-write-offset">iso-write-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-write-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-iso-write-time">iso-write-time</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iso-write-time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-time-from-string">time-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-time-from-string-lenient">time-from-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-time-to-string">time-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-time-to-string-precision">time-to-string-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-timestamp-from-string">timestamp-from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-string-lenient">timestamp-from-string-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-string-with-offset">timestamp-from-string-with-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>)</code></li><li><a class="syn-name" href="#v-timestamp-from-string-with-offset-lenient">timestamp-from-string-with-offset-lenient</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-with-offset-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>)</code></li><li><a class="syn-name" href="#v-timestamp-to-string">timestamp-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-timestamp-to-string-precision">timestamp-to-string-precision</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-timestamp-to-string-with-offset">timestamp-to-string-with-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-49736f4572726f72"></a>
+# Types
 
-## `IsoError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IsoError</span></code></pre>
+<article class="doc-entry" id="t-IsoError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoError</strong></code><span class="doc-sig-links"><a href="#t-IsoError" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 Every refusal, each with the byte position it was detected at.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 124
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-IsoUnexpectedEnd"><code><strong class="tok-constructor">IsoUnexpectedEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoExpectedDigit"><code><strong class="tok-constructor">IsoExpectedDigit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoExpectedDash"><code><strong class="tok-constructor">IsoExpectedDash</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoExpectedColon"><code><strong class="tok-constructor">IsoExpectedColon</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoExpectedTimeSeparator"><code><strong class="tok-constructor">IsoExpectedTimeSeparator</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoMissingTime"><code><strong class="tok-constructor">IsoMissingTime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoUnexpectedTime"><code><strong class="tok-constructor">IsoUnexpectedTime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoTrailingInput"><code><strong class="tok-constructor">IsoTrailingInput</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoNegativeZeroYear"><code><strong class="tok-constructor">IsoNegativeZeroYear</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoYearOutOfRange"><code><strong class="tok-constructor">IsoYearOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoMonthOutOfRange"><code><strong class="tok-constructor">IsoMonthOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoDayOutOfRange"><code><strong class="tok-constructor">IsoDayOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoHourOutOfRange"><code><strong class="tok-constructor">IsoHourOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoMinuteOutOfRange"><code><strong class="tok-constructor">IsoMinuteOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoSecondOutOfRange"><code><strong class="tok-constructor">IsoSecondOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoLeapSecond"><code><strong class="tok-constructor">IsoLeapSecond</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoEmptyFraction"><code><strong class="tok-constructor">IsoEmptyFraction</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoFractionTooLong"><code><strong class="tok-constructor">IsoFractionTooLong</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoMissingOffset"><code><strong class="tok-constructor">IsoMissingOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoExpectedOffset"><code><strong class="tok-constructor">IsoExpectedOffset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoOffsetOutOfRange"><code><strong class="tok-constructor">IsoOffsetOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li><li id="k-IsoTimestampOutOfRange"><code><strong class="tok-constructor">IsoTimestampOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoUnexpectedEnd</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
+<article class="doc-entry" id="t-IsoMode">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoMode</strong></code><span class="doc-sig-links"><a href="#t-IsoMode" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-IsoStrict"><code><strong class="tok-constructor">IsoStrict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a></code></li><li id="k-IsoLenient"><code><strong class="tok-constructor">IsoLenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoExpectedDigit</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoExpectedDash</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoExpectedColon</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoExpectedTimeSeparator</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoMissingTime</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoUnexpectedTime</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoTrailingInput</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoNegativeZeroYear</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoYearOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoMonthOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoDayOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoHourOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoMinuteOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoSecondOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoLeapSecond</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoEmptyFraction</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoFractionTooLong</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoMissingOffset</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoExpectedOffset</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoOffsetOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoTimestampOutOfRange</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span>)</code></pre>
-
-<a id="type-49736f4d6f6465"></a>
-
-## `IsoMode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IsoMode</span></code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoStrict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoLenient</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span></code></pre>
-
-<a id="type-49736f4f6666736574"></a>
-
-## `IsoOffset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IsoOffset</span></code></pre>
+<article class="doc-entry" id="t-IsoOffset">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoOffset</strong></code><span class="doc-sig-links"><a href="#t-IsoOffset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-body">
 
 A parsed offset: seconds east of UTC within +-93599, and its
 spelling. `Z` and `-00:00` both carry 0 seconds.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 204
+</div>
+</article>
 
-<a id="type-49736f4f6666736574466f726d"></a>
-
-## `IsoOffsetForm`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IsoOffsetForm</span></code></pre>
+<article class="doc-entry" id="t-IsoOffsetForm">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IsoOffsetForm</strong></code><span class="doc-sig-links"><a href="#t-IsoOffsetForm" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L197" title="View source at line 197">Source</a></span></div>
+<div class="doc-body">
 
 How an offset was spelled.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 197
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoWrittenZ</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffsetForm</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoWrittenNumeric</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffsetForm</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsoWrittenNegativeZero</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffsetForm</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-IsoWrittenZ"><code><strong class="tok-constructor">IsoWrittenZ</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffsetForm" title="Text.Time.Iso.IsoOffsetForm">IsoOffsetForm</a></code></li><li id="k-IsoWrittenNumeric"><code><strong class="tok-constructor">IsoWrittenNumeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffsetForm" title="Text.Time.Iso.IsoOffsetForm">IsoOffsetForm</a></code></li><li id="k-IsoWrittenNegativeZero"><code><strong class="tok-constructor">IsoWrittenNegativeZero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffsetForm" title="Text.Time.Iso.IsoOffsetForm">IsoOffsetForm</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-646174652d66726f6d2d737472696e67"></a>
-
-## `date-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-date-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L219" title="View source at line 219">Source</a></span></div>
+<div class="doc-body">
 
 Whole-string parsers.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 219
+</div>
+</article>
 
-<a id="value-646174652d66726f6d2d737472696e672d6c656e69656e74"></a>
-
-## `date-from-string-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-from-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-date-from-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-from-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L225" title="View source at line 225">Source</a></span></div>
+<div class="doc-body">
 
 Also accepts the basic format `YYYYMMDD`.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 225
+</div>
+</article>
 
-<a id="value-646174652d746f2d737472696e67"></a>
-
-## `date-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-date-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-date-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L616" title="View source at line 616">Source</a></span></div>
+<div class="doc-body">
 
 Whole-value printers.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 616
+</div>
+</article>
 
-<a id="value-6461746574696d652d66726f6d2d737472696e67"></a>
+<article class="doc-entry" id="v-datetime-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L241" title="View source at line 241">Source</a></span></div>
+</article>
 
-## `datetime-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-6461746574696d652d66726f6d2d737472696e672d6c656e69656e74"></a>
-
-## `datetime-from-string-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-from-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
+<article class="doc-entry" id="v-datetime-from-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime-from-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L248" title="View source at line 248">Source</a></span></div>
+<div class="doc-body">
 
 Also accepts `t` or one space as the separator, the basic date and
 second 60.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 248
+</div>
+</article>
 
-<a id="value-6461746574696d652d746f2d737472696e67"></a>
+<article class="doc-entry" id="v-datetime-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-datetime-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L627" title="View source at line 627">Source</a></span></div>
+</article>
 
-## `datetime-to-string`
+<article class="doc-entry" id="v-datetime-to-string-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-datetime-to-string-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L630" title="View source at line 630">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-6461746574696d652d746f2d737472696e672d707265636973696f6e"></a>
-
-## `datetime-to-string-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-to-string-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d646174652d6279746573"></a>
-
-## `iso-date-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-date-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-iso-date-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-date-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-iso-date-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L702" title="View source at line 702">Source</a></span></div>
+<div class="doc-body">
 
 Piece forms: each answers one exactly-sized fresh buffer, which is
 what `Text.Builder.builder-add-bytes` appends without copying (see
 NAMED REFUSALS for why the builder itself is not imported here).
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 702
+</div>
+</article>
 
-<a id="value-69736f2d646174652d6c656e677468"></a>
-
-## `iso-date-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-date-length</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-iso-date-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-date-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-date-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L561" title="View source at line 561">Source</a></span></div>
+<div class="doc-body">
 
 10 for years 0..=9999 (`YYYY-MM-DD`), 13 otherwise (`+YYYYYY-MM-DD`).
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 561
+</div>
+</article>
 
-<a id="value-69736f2d6461746574696d652d6279746573"></a>
+<article class="doc-entry" id="v-iso-datetime-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-datetime-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-iso-datetime-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L708" title="View source at line 708">Source</a></span></div>
+</article>
 
-## `iso-datetime-bytes`
+<article class="doc-entry" id="v-iso-error-position">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-error-position</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-error-position" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L167" title="View source at line 167">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-datetime-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d6572726f722d706f736974696f6e"></a>
-
-## `iso-error-position`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-error-position</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d6578706563742d656e64"></a>
-
-## `iso-expect-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-expect-end</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-variable">a</span>, <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-iso-expect-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-expect-end</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-iso-expect-end" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L279" title="View source at line 279">Source</a></span></div>
+<div class="doc-body">
 
 The end of the grammar must be the end of the input.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 279
+</div>
+</article>
 
-<a id="value-69736f2d6672616374696f6e2d646967697473"></a>
-
-## `iso-fraction-digits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-fraction-digits</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-iso-fraction-digits">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-fraction-digits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-fraction-digits" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L576" title="View source at line 576">Source</a></span></div>
+<div class="doc-body">
 
 The number of fraction digits the shortest exact rendering needs:
 0 when the subsecond is zero, otherwise 9 less the trailing zeros.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 576
+</div>
+</article>
 
-<a id="value-69736f2d6f66667365742d6279746573"></a>
-
-## `iso-offset-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-offset-bytes</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-iso-offset-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-offset-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-iso-offset-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L712" title="View source at line 712">Source</a></span></div>
+<div class="doc-body">
 
 The numeric offset; the empty buffer for one outside +-93599.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 712
+</div>
+</article>
 
-<a id="value-69736f2d6f66667365742d666f726d"></a>
+<article class="doc-entry" id="v-iso-offset-form">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-offset-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffsetForm" title="Text.Time.Iso.IsoOffsetForm">IsoOffsetForm</a></code><span class="doc-sig-links"><a href="#v-iso-offset-form" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L211" title="View source at line 211">Source</a></span></div>
+</article>
 
-## `iso-offset-form`
+<article class="doc-entry" id="v-iso-offset-in-range">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-offset-in-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-iso-offset-in-range" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L593" title="View source at line 593">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-offset-form</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffsetForm</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d6f66667365742d696e2d72616e6765"></a>
-
-## `iso-offset-in-range`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-offset-in-range</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d6f66667365742d6c656e677468"></a>
-
-## `iso-offset-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-offset-length</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-iso-offset-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-offset-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-offset-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L597" title="View source at line 597">Source</a></span></div>
+<div class="doc-body">
 
 6 (`+HH:MM`), or 9 (`+HH:MM:SS`) when the offset has seconds.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 597
+</div>
+</article>
 
-<a id="value-69736f2d6f66667365742d7365636f6e6473"></a>
+<article class="doc-entry" id="v-iso-offset-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-offset-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-offset-seconds" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L207" title="View source at line 207">Source</a></span></div>
+</article>
 
-## `iso-offset-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-offset-seconds</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d70617273652d646174652d6174"></a>
-
-## `iso-parse-date-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-parse-date-at</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>, <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-iso-parse-date-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-parse-date-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-iso-parse-date-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L305" title="View source at line 305">Source</a></span></div>
+<div class="doc-body">
 
 Parses a date at byte `i`; answers the date and the position after
 it. Does not look at what follows.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 305
+</div>
+</article>
 
-<a id="value-69736f2d70617273652d6461746574696d652d6174"></a>
-
-## `iso-parse-datetime-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-parse-datetime-at</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>, <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-iso-parse-datetime-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-parse-datetime-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-iso-parse-datetime-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L441" title="View source at line 441">Source</a></span></div>
+<div class="doc-body">
 
 The date-time machine: date, st-time-sep, time.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 441
+</div>
+</article>
 
-<a id="value-69736f2d70617273652d6f66667365742d6174"></a>
-
-## `iso-parse-offset-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-parse-offset-at</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span>, <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-iso-parse-offset-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-parse-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-iso-parse-offset-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L472" title="View source at line 472">Source</a></span></div>
+<div class="doc-body">
 
 Parses an offset at byte `i`. At the end of input the error is
 `IsoMissingOffset`; at any other byte that cannot start an offset
 it is `IsoExpectedOffset`.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 472
+</div>
+</article>
 
-<a id="value-69736f2d70617273652d74696d652d6174"></a>
-
-## `iso-parse-time-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-parse-time-at</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>, <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-iso-parse-time-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-parse-time-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-iso-parse-time-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L374" title="View source at line 374">Source</a></span></div>
+<div class="doc-body">
 
 Parses a time at byte `i`; answers the time and the position after
 it. The machine stops at the first byte that cannot continue a
 time, except that a tenth fraction digit is an error rather than a
 stop.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 374
+</div>
+</article>
 
-<a id="value-69736f2d70617273652d74696d657374616d702d6174"></a>
-
-## `iso-parse-timestamp-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-parse-timestamp-at</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span>), <span class="tok-constructor">I64</span>)))))</code></pre>
+<article class="doc-entry" id="v-iso-parse-timestamp-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-parse-timestamp-at</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoMode" title="Text.Time.Iso.IsoMode">IsoMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-iso-parse-timestamp-at" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L536" title="View source at line 536">Source</a></span></div>
+<div class="doc-body">
 
 Parses a date-time and its offset at byte `i`; answers the instant,
 the offset as written and the position after it (where an RFC 9557
@@ -422,163 +314,126 @@ Overflow argument: the civil seconds are within +-3.8e11 and the
 offset within +-93599, so the subtraction does not wrap; the result
 is then range-checked by the `Timestamp` constructor.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 536
+</div>
+</article>
 
-<a id="value-69736f2d74696d652d6279746573"></a>
+<article class="doc-entry" id="v-iso-time-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-time-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-iso-time-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L705" title="View source at line 705">Source</a></span></div>
+</article>
 
-## `iso-time-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-time-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d74696d652d6c656e677468"></a>
-
-## `iso-time-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-time-length</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-iso-time-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-time-length</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-time-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L580" title="View source at line 580">Source</a></span></div>
+<div class="doc-body">
 
 `HH:MM:SS` is 8 bytes; a fraction adds the point and its digits.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 580
+</div>
+</article>
 
-<a id="value-69736f2d77726974652d64617465"></a>
+<article class="doc-entry" id="v-iso-write-date">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-write-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-write-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L566" title="View source at line 566">Source</a></span></div>
+</article>
 
-## `iso-write-date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-write-date</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-69736f2d77726974652d6f6666736574"></a>
-
-## `iso-write-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-write-offset</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-iso-write-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-write-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-write-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L603" title="View source at line 603">Source</a></span></div>
+<div class="doc-body">
 
 Writes a numeric offset. The caller has it within +-93599 (the
 hour field keeps its low two digits otherwise). Offset 0 is
 `+00:00`; `Z` is the timestamp printer's choice, not this one's.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 603
+</div>
+</article>
 
-<a id="value-69736f2d77726974652d74696d65"></a>
-
-## `iso-write-time`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iso-write-time</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">I64</span>))))</code></pre>
+<article class="doc-entry" id="v-iso-write-time">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iso-write-time</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-iso-write-time" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L585" title="View source at line 585">Source</a></span></div>
+<div class="doc-body">
 
 Writes `HH:MM:SS` and, for `digits` above 0, `.` and the first
 `digits` digits of the nine-digit subsecond (truncation).
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 585
+</div>
+</article>
 
-<a id="value-74696d652d66726f6d2d737472696e67"></a>
+<article class="doc-entry" id="v-time-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L230" title="View source at line 230">Source</a></span></div>
+</article>
 
-## `time-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-74696d652d66726f6d2d737472696e672d6c656e69656e74"></a>
-
-## `time-from-string-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-from-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>))</code></pre>
+<article class="doc-entry" id="v-time-from-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-from-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L236" title="View source at line 236">Source</a></span></div>
+<div class="doc-body">
 
 Also reads second 60 as second 59.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 236
+</div>
+</article>
 
-<a id="value-74696d652d746f2d737472696e67"></a>
-
-## `time-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-time-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-time-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L620" title="View source at line 620">Source</a></span></div>
+<div class="doc-body">
 
 `HH:MM:SS` and the shortest exact fraction.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 620
+</div>
+</article>
 
-<a id="value-74696d652d746f2d737472696e672d707265636973696f6e"></a>
-
-## `time-to-string-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-to-string-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-time-to-string-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-time-to-string-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L624" title="View source at line 624">Source</a></span></div>
+<div class="doc-body">
 
 Exactly `digits` fraction digits, truncating.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 624
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d737472696e67"></a>
+<article class="doc-entry" id="v-timestamp-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L253" title="View source at line 253">Source</a></span></div>
+</article>
 
-## `timestamp-from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-74696d657374616d702d66726f6d2d737472696e672d6c656e69656e74"></a>
-
-## `timestamp-from-string-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-string-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-from-string-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-string-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L257" title="View source at line 257">Source</a></span></div>
+<div class="doc-body">
 
 Also accepts `z`, and everything the lenient date-time accepts.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 257
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d737472696e672d776974682d6f6666736574"></a>
-
-## `timestamp-from-string-with-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-string-with-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-from-string-with-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>)</code><span class="doc-sig-links"><a href="#v-timestamp-from-string-with-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 The instant together with the offset as written (the zoned layer
 needs both the seconds and whether it was `Z`).
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 262
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d737472696e672d776974682d6f66667365742d6c656e69656e74"></a>
+<article class="doc-entry" id="v-timestamp-from-string-with-offset-lenient">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-string-with-offset-lenient</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoError" title="Text.Time.Iso.IsoError">IsoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Iso/#t-IsoOffset" title="Text.Time.Iso.IsoOffset">IsoOffset</a>)</code><span class="doc-sig-links"><a href="#v-timestamp-from-string-with-offset-lenient" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L267" title="View source at line 267">Source</a></span></div>
+</article>
 
-## `timestamp-from-string-with-offset-lenient`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-string-with-offset-lenient</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Iso</span>.<span class="tok-constructor">IsoOffset</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-74696d657374616d702d746f2d737472696e67"></a>
-
-## `timestamp-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-timestamp-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L634" title="View source at line 634">Source</a></span></div>
+<div class="doc-body">
 
 The instant in UTC with `Z` and the shortest exact fraction.
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 634
+</div>
+</article>
 
-<a id="value-74696d657374616d702d746f2d737472696e672d707265636973696f6e"></a>
+<article class="doc-entry" id="v-timestamp-to-string-precision">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string-precision</strong> :: (<span class="tok-variable">digits</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-string-precision" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L639" title="View source at line 639">Source</a></span></div>
+</article>
 
-## `timestamp-to-string-precision`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-string-precision</span> :: ((<span class="tok-variable">digits</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Time.Iso.cinch)
-
-<a id="value-74696d657374616d702d746f2d737472696e672d776974682d6f6666736574"></a>
-
-## `timestamp-to-string-with-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-string-with-offset</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-to-string-with-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-string-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-string-with-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Iso/source/#L648" title="View source at line 648">Source</a></span></div>
+<div class="doc-body">
 
 The civil reading of the instant at `off` seconds east of UTC,
 followed by the numeric offset (`+00:00` for 0, never `Z`). `None`
 when the offset is outside +-93599. With seconds in the offset the
 output has `+HH:MM:SS`, which is not RFC 3339 (see the header).
 
-[Source](/reference-sources/Text.Time.Iso.cinch) · line 648
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Time/Iso.cinch`. Source SHA-256: `84701811cacba7dc7bbc9790b539521299d85098ecbfe2cd818fa800f761af00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

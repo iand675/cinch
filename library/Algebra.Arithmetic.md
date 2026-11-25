@@ -2,13 +2,9 @@
 
 Arithmetic operation signatures and their fixities, including NonZero divisors and InRange refinements.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Algebra.Arithmetic</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Algebra.Arithmetic/source/">View source</a><a href="/packages/search/?q=%2BAlgebra.Arithmetic">Search module</a><a href="/reference-sources/Algebra.Arithmetic.cinch" download="Algebra.Arithmetic.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Algebra.Arithmetic`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Algebra.Arithmetic.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Algebra.Arithmetic: the arithmetic operation classes.
 
@@ -26,13 +22,15 @@ Division and remainder are total by construction: the divisor is a
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-InRange">InRange</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">InRange</strong> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (lo &lt;= x &amp;&amp; x &lt;= hi)</code></li><li><a class="syn-name" href="#t-NonZero">NonZero</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonZero</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NonZero n</code></li><li><a class="syn-name" href="#c-Add">Add</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Add</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Add-op-2b">+</a><code class="syn-sig"><strong class="tok-variable">+</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Div">Div</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Div</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Div-op-2f">/</a><code class="syn-sig"><strong class="tok-variable">/</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Mul">Mul</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Mul</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Mul-op-2a">*</a><code class="syn-sig"><strong class="tok-variable">*</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Neg">Neg</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Neg</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Neg-negate">negate</a><code class="syn-sig"><strong class="tok-variable">negate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Rem">Rem</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Rem</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Rem-op-25">%</a><code class="syn-sig"><strong class="tok-variable">%</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Sub">Sub</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Sub</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Sub--">-</a><code class="syn-sig"><strong class="tok-variable">-</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-496e52616e6765"></a>
+# Types
 
-## `InRange`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">InRange</span> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (<span class="tok-variable">lo</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">x</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">x</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">hi</span>)</code></pre>
+<article class="doc-entry" id="t-InRange">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">InRange</strong> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (lo &lt;= x &amp;&amp; x &lt;= hi)</code><span class="doc-sig-links"><a href="#t-InRange" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 A range of a number, the result type of every operation whose
 result lies in known bounds by construction (`u32-to-i64 :: U32 ->
@@ -44,13 +42,12 @@ carries `lo <= x && x <= hi` as a fact, an application in an
 obligation carries it for its term, and where no range is demanded
 the value is its number (`c - 48`, `nat-add c 1`).
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 41
+</div>
+</article>
 
-<a id="type-4e6f6e5a65726f"></a>
-
-## `NonZero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonZero</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NonZero</span> <span class="tok-variable">n</span></code></pre>
+<article class="doc-entry" id="t-NonZero">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonZero</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NonZero n</code><span class="doc-sig-links"><a href="#t-NonZero" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 The divisor type, declared here because the `Div`/`Rem` classes
 and the `Nat`/`Int` homes (checked right after this module) name
@@ -61,79 +58,47 @@ Int`, a machine integer): the carrier is the container, so a
 `NonZero Nat` IS its `Nat` at runtime, and a numeral decides its
 predicate at compile time.
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 30
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NonZero/#instances">Data.NonZero</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NonZero/#instances">Data.NonZero</a></span></li></ul></details>
+</div>
+</article>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-416464"></a>
+<article class="doc-entry" id="c-Add">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Add</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Add" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Add-op-2b"><div class="doc-method-row"><code><strong class="tok-variable">+</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Add-op-2b" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L45">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-## `Add`
+<article class="doc-entry" id="c-Div">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Div</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Div" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Div-op-2f"><div class="doc-method-row"><code><strong class="tok-variable">/</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Div-op-2f" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L69">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Add</span> <span class="tok-variable">a</span></code></pre>
+<article class="doc-entry" id="c-Mul">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Mul</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Mul" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Mul-op-2a"><div class="doc-method-row"><code><strong class="tok-variable">*</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Mul-op-2a" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L51">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
+<article class="doc-entry" id="c-Neg">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Neg</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Neg" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Neg-negate"><div class="doc-method-row"><code><strong class="tok-variable">negate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Neg-negate" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L54">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-4164642e2b"></a>
-
-## `Add.+`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">+</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-446976"></a>
-
-## `Div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Div</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4469762e2f"></a>
-
-## `Div./`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Div</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-4d756c"></a>
-
-## `Mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4d756c2e2a"></a>
-
-## `Mul.*`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">*</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Mul</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-4e6567"></a>
-
-## `Neg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4e65672e6e6567617465"></a>
-
-## `Neg.negate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">negate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Neg</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="class-52656d"></a>
-
-## `Rem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span></code></pre>
+<article class="doc-entry" id="c-Rem">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Rem</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Rem" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Modulo and division for the mathematical types (decision D91).
 The divisor carries its evidence: a `NonZero a`, so no instance
@@ -145,40 +110,25 @@ divisor may be zero is not this operation: `Data.Complex.div`'s
 IEEE quotient stays a named function. Machine integers keep the
 checked family only, per the primitive types specification.
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 65
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Rem-op-25"><div class="doc-method-row"><code><strong class="tok-variable">%</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Rem-op-25" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L66">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-52656d2e25"></a>
-
-## `Rem.%`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">%</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Rem</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-537562"></a>
-
-## `Sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-5375622e2d"></a>
-
-## `Sub.-`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">-</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Sub</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
+<article class="doc-entry" id="c-Sub">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Sub</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Sub" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Sub--"><div class="doc-method-row"><code><strong class="tok-variable">-</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Sub--" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L48">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
 # Operator fixities
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">%</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">*</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">+</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">-</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">/</span></code></pre>
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Arithmetic.cinch`. Source SHA-256: `2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+| Operator | Associativity | Precedence |
+| --- | --- | --- |
+| `%` | `infixl` | `9` |
+| `*` | `infixl` | `9` |
+| `+` | `infixl` | `8` |
+| `-` | `infixl` | `8` |
+| `/` | `infixl` | `9` |

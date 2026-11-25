@@ -2,19 +2,11 @@
 
 Shell-style word splitting/joining; this is data parsing, not execution of a shell command.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Shellwords</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Shellwords/source/">View source</a><a href="/packages/search/?q=%2BText.Shellwords">Search module</a><a href="/reference-sources/Text.Shellwords.cinch" download="Text.Shellwords.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Shellwords`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Scan](Text.Scan.md).
 
-[Download exact module source](/reference-sources/Text.Shellwords.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Scan](Text.Scan.md).
-
-Non-embedded source closure: [Text.Scan](Text.Scan.md), [Text.Shellwords](Text.Shellwords.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Shellwords: Bourne-shell word splitting and argument
 escaping, the Ruby `Shellwords` surface (design/stdlib-parity-ruby.md
@@ -76,58 +68,47 @@ words back is that conversion family, so the home is Text.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ShellwordsError">ShellwordsError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ShellwordsError</strong></code></li><li><a class="syn-name" href="#v-render-shellwords-error">render-shellwords-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-shellwords-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-shellwords-escape">shellwords-escape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">shellwords-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-shellwords-join">shellwords-join</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">shellwords-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-shellwords-split">shellwords-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">shellwords-split</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li></ul>
+</details>
 
-<a id="type-5368656c6c776f7264734572726f72"></a>
+# Types
 
-## `ShellwordsError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ShellwordsError</span></code></pre>
+<article class="doc-entry" id="t-ShellwordsError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ShellwordsError</strong></code><span class="doc-sig-links"><a href="#t-ShellwordsError" title="Permalink">#</a><a href="/packages/stdlib/Text.Shellwords/source/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 Named errors: the two unterminated-quote shapes Ruby reports as one
 `Unmatched quote`; split here so a caller can tell which quote was
 left open.
 
-[Source](/reference-sources/Text.Shellwords.cinch) · line 80
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedSingleQuote</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedDoubleQuote</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UnterminatedSingleQuote"><code><strong class="tok-constructor">UnterminatedSingleQuote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a></code></li><li id="k-UnterminatedDoubleQuote"><code><strong class="tok-constructor">UnterminatedDoubleQuote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-72656e6465722d7368656c6c776f7264732d6572726f72"></a>
+<article class="doc-entry" id="v-render-shellwords-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-shellwords-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-shellwords-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Shellwords/source/#L84" title="View source at line 84">Source</a></span></div>
+</article>
 
-## `render-shellwords-error`
+<article class="doc-entry" id="v-shellwords-escape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">shellwords-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-shellwords-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Shellwords/source/#L193" title="View source at line 193">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-shellwords-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Shellwords.cinch)
-
-<a id="value-7368656c6c776f7264732d657363617065"></a>
-
-## `shellwords-escape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-escape</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Shellwords.cinch)
-
-<a id="value-7368656c6c776f7264732d6a6f696e"></a>
-
-## `shellwords-join`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-join</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-shellwords-join">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">shellwords-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-shellwords-join" title="Permalink">#</a><a href="/packages/stdlib/Text.Shellwords/source/#L218" title="View source at line 218">Source</a></span></div>
+<div class="doc-body">
 
 Escape every element and separate with one space (Ruby's
 `shelljoin`).
 
-[Source](/reference-sources/Text.Shellwords.cinch) · line 218
+</div>
+</article>
 
-<a id="value-7368656c6c776f7264732d73706c6974"></a>
-
-## `shellwords-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shellwords-split</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Shellwords</span>.<span class="tok-constructor">ShellwordsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-shellwords-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">shellwords-split</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Shellwords/#t-ShellwordsError" title="Text.Shellwords.ShellwordsError">ShellwordsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-shellwords-split" title="Permalink">#</a><a href="/packages/stdlib/Text.Shellwords/source/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
 `acc` holds the words emitted so far in reverse; `word` holds the
 current word's scalars in reverse; `started` records whether a word
@@ -135,8 +116,5 @@ is in progress (set by any field scalar, a backslash, or a quote,
 including a quoted empty word, so `''` and `""` survive as empty
 scalars).
 
-[Source](/reference-sources/Text.Shellwords.cinch) · line 98
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Shellwords.cinch`. Source SHA-256: `04b6373930f8b453c532abfa2fa2e52461c7308a62e2c1c00c64eb21411bd5f1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

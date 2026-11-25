@@ -72,22 +72,6 @@ export default defineConfig({
         { label: 'Documentation home', link: '/documentation/' },
         { label: '01 / Language tutorial', items: pagesIn('learn') },
         { label: '02 / Compiler user’s guide', items: pagesIn('reference'), collapsed: true },
-        { label: '03 / Built-in and shipped libraries', items: [
-          { label: 'Library directory', link: '/library/00-index/' },
-          ...['Prelude', 'Algebra', 'Category', 'Relation', 'Function', 'Data', 'Text', 'Effect'].map((family) => ({
-            label: family,
-            collapsed: true,
-            items: pagesIn('library').filter((page) => page.label.split('.')[0] === family),
-          })),
-        ], collapsed: true },
-        { label: '04 / Design archive', collapsed: true, items: [
-          { label: 'Original design overview', link: '/overview/' },
-          { label: 'Specifications', items: pagesIn('specifications'), collapsed: true },
-          { label: 'Original design tutorials', items: pagesIn('tutorials'), collapsed: true },
-          { label: 'Design notes', items: pagesIn('design'), collapsed: true },
-          { label: 'Examples', items: pagesIn('examples'), collapsed: true },
-          { label: 'Background', items: pagesIn('context'), collapsed: true },
-        ] },
       ],
     }),
   ],

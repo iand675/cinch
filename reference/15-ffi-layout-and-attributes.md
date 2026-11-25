@@ -1,23 +1,19 @@
 # Foreign code, representation attributes, and inline primitives
 
-A `foreign` declaration or a `prim` body crosses a trust boundary. The compiler checks the parts it can see: the calling convention, the layouts of the values that cross, the declared effect row, the ownership roles, and (for `prim`) the containment grammar of the inline code. It does not prove the external implementation correct. The artifact manifest states the boundary explicitly, listing LLVM code generation and the runtime as `trusted` and the source-level phases as `checked`.
+A `foreign` declaration or inline `prim` body crosses Cinch's trust boundary. The compiler enforces everything visible at the boundary—calling convention, C-compatible layouts, effect rows, ownership roles, and (for `prim`) inline IR containment—while recording LLVM code generation and the runtime under `lowering.trusted` in the artifact manifest rather than claiming a proof over external code.
 
-# The foreign declaration form
+# Foreign declarations
 
 ```text
 foreign import ccall "symbol" local-name :: Type
 foreign export ccall "symbol" local-name :: Type
 ```
 
-The convention is `ccall` or `component`; any other word is refused by the parser with `expected `ccall` or `component`, found ...`. Only `ccall` is implemented:
+The surface grammar reserves two calling conventions: `ccall` and `component`. Only `ccall` is supported on `foreign` declarations directly; WebAssembly Component Model boundaries are generated through WIT adapters (see [Chapter 19](19-targets-and-components.md)).
 
-```
-cinch: 2:3: only the ccall ABI is supported; the component ABI needs the WIT adapter (P14)
-```
+## Effects at the boundary
 
-A component boundary is entered through a WIT file, whose adapter generates the bindings ([targets and components](19-targets-and-components.md)).
-
-A `foreign` declaration is not pure by default. The result arrow must carry an effect row naming at least one of the foreign vocabulary:
+Foreign imports are never pure by default. The return arrow must declare at least one foreign-boundary effect from `Foreign <Boundary>`, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`, `Reentrant`, or `ThreadAffine`:
 
 <!-- cinch:reject contains="a foreign import must declare its effects" -->
 ```cinch
@@ -28,23 +24,18 @@ module Main where
   main = 0
 ```
 
-```
-cinch: 2:3: a foreign import must declare its effects: the result arrow's row names at least one of `Foreign <boundary>`, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`, `Reentrant`, `ThreadAffine` (foreign function interface specification section 4: an external function is not pure merely because its C signature has no explicit state parameter) (in Pure.cinch)
-```
+The boundary tag after `Foreign` is user-chosen (`Lib`, `Codec`, `Fix`, `Component`, or any domain name) and is tracked through the effect row up to `main :: Unit ->{e} Int`.
 
-The boundary name after `Foreign` is yours to choose (`Lib`, `Codec`, `Fix`, `Component` in the specifications and the prelude; a new name is accepted and recorded). An entry point that performs the call declares the matching row, and the CLI accepts `main :: Unit ->{e} Int` for exactly this purpose; a nullary `main` must be pure.
+## Marshaled types
 
-`Int` and `Nat` are not C integers. Reaching for one is refused by name:
+Only types with a defined C ABI representation may cross a `ccall` boundary:
 
-```
-cinch: 5:3: Int has no C representation: language-native closures, dictionaries, vectors, dependent pairs and proofs have no implicit C representation (foreign function interface specification section 2)
-```
+- **Admitted:** machine scalars (`I8`–`I64`, `U8`–`U64`, `Isize`, `Usize`, `F32`, `F64`), `Unit` (`()`), `Bytes`, `RawPtr t`, `opaque type`, and aggregates annotated with `#[repr(C)]`, `#[repr(packed)]`, or `#[repr(transparent)]`.
+- **Rejected:** arbitrary-precision `Int` and `Nat`, closures, type-class dictionaries, vectors, dependent pairs, erased proofs, unannotated (`uniform-word`) records, and fixed-discriminant `data` types.
 
-Use the machine scalars (`I8`..`I64`, `U8`..`U64`, `Isize`, `Usize`, `F32`, `F64`), `Bytes`, `RawPtr t`, or an `opaque type`.
+## Linking a foreign import
 
-# A binding that links and runs
-
-`cinch build` and `cinch run` link the program against the runtime library, so a symbol the runtime exports resolves without any extra flag. The runtime exports `cinch_clock_wall_ns`, which makes a complete linkable example possible:
+`cinch build` and `cinch run` automatically link the Cinch runtime archive (`libcinchruntime.a`), so runtime symbols such as `cinch_clock_wall_ns` resolve without extra flags:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -55,9 +46,9 @@ module Main where
   main u = if eq-u64 (wall-ns ()) 0 then 1 else 0
 ```
 
-`cinch emit-ir Main.cinch -o Main.ll` shows the declaration the backend wrote and the stub it generated. The symbol is declared with the C signature; the cinch-side unit takes the call's argument word even for a unit argument and forces the result through `freeze` so a hostile callee cannot poison later optimization.
+In `cinch emit-ir`, the compiler emits the external C declaration plus a wrapper unit that passes the result through LLVM `freeze` so uninitialized or poison bits from foreign code cannot corrupt downstream optimization:
 
-```
+```llvm
 declare i64 @"cinch_clock_wall_ns"()
 
 define i64 @"Main.wall-ns"(i64 %p0) #0 {
@@ -68,9 +59,9 @@ entry:
 }
 ```
 
-# Handing a buffer to C
+## Passing byte buffers to C
 
-A C function that takes a `char *` needs an address, and `Bytes` values are counted handles rather than pointers. `bytes-data` is the one conversion: it returns the address of the buffer's payload as a machine word, which is what a foreign declaration's first parameter expects when the callee reads memory.
+`Bytes` values are reference-counted handles, not raw pointers. `bytes-data` extracts the payload's base address as a machine word for C functions expecting `const char *` or `void *`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -87,19 +78,17 @@ module Main where
     in if eq-i64 (c-strlen (bytes-data path)) 8 then 0 else 1
 ```
 
-Three facts make this safe to write:
+Three invariants govern `bytes-data`:
 
-- **The payload does not move.** A buffer's address is fixed when it is made, so an address taken once stays valid while the handle is live. It is the handle, not the address, that the compiler tracks.
-- **`bytes-data` does not release the buffer.** The ownership stays with the caller, which is what keeps the payload alive for the rest of the expression. A pointer that outlives the last use of its handle is a dangling read, and the checker will not invent a reference to save it.
-- **`Bytes` is not a C string.** There is no terminator, and the length is carried beside the buffer, so a C string is a fresh buffer one byte longer with the last byte zeroed, as above.
+- **Pinned payload:** a `Bytes` buffer's payload never moves while the handle is live.
+- **Caller retains ownership:** `bytes-data` does not transfer or extend lifetime; keep the `Bytes` binding live across the foreign call to avoid dangling reads.
+- **Not NUL-terminated:** `Bytes` tracks explicit length, so C strings require allocating `n + 1` bytes and writing a trailing `0`, as shown above.
 
-The address is a word, not a typed pointer, so the type checker cannot tell you what it points at. That is deliberate: the only thing to do with it is pass it to something that already knows, a declaration whose signature you wrote or a `prim` body.
+## Calling OS libraries directly
 
-# The operating system as a library
+Because `ccall` links against the platform C library, OS interfaces can be bound directly in Cinch. The standard library splits low-level filesystem operations into `Prim.Sys.Darwin` (`foreign import ccall` bindings to `libSystem`), `Prim.Sys.Linux` (`prim` bodies issuing native `syscall` instructions), and `Prim.Sys.Portable`, with `Prim.Sys` dispatching between them by compile target.
 
-A `foreign import ccall` whose symbol is a `libSystem` name needs no runtime export and no Rust in the path: the declaration is the binding, and `open`, `read`, `write` and `close` resolve to the C library exactly as `strlen` does. The prelude packages that up as `Prim.Sys.Darwin`, whose wrappers turn a `-1` result into a named error read from the thread's error slot, and as `Prim.Sys.Linux`, whose entries are `prim` bodies that issue `syscall` with the number pinned in the body. The two modules name the same `SysError` constructors, so a module that uses one switches with a single import line.
-
-This program is the whole filesystem round trip on Darwin: `creat` (the fixed argument form of the creating open, since a variadic `open` cannot be declared), a write, `lseek` for the length, a read, and `unlink`.
+On Darwin, a complete file create, write, seek, read, and unlink round trip uses `Prim.Sys.Darwin` directly (using fixed-arity `creat`, since variadic C functions such as `open` cannot be declared via `ccall`):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -145,35 +134,28 @@ module Main where
                                   Ok _ -> 0
 ```
 
-The path reaches C as an address: `sys-cpath` copies the text into a fresh buffer one byte longer and zeroes the last byte, because a `Bytes` value carries a length rather than a terminator. The buffer's handle is live for the whole call, which is what keeps its payload alive.
+# Linking native objects, libraries, and C++
 
-# Linking an object of your own
+To link your own C, C++, or Rust code with a Cinch program, pass compiled objects or static archives with `--native-object` (repeatable), or emit native library outputs directly:
 
-The CLI has no option that supplies an object or library. `--object`, `-l`, and `--lib` are not flags: a word after the entry file that is not one of the documented flags becomes a program argument, so the build succeeds and silently ignores it. The Rust API is the current route (`driver::run_source_objects` and `build_source_objects` link supplied object files, which is how the `ffi` and `llvm_contract` suites call real C fixtures).
+- `cinch build Main.cinch --native-object helper.o --native-object libfoo.a -o prog` links additional native objects into an executable (`cinch run` accepts `--native-object` as well).
+- `cinch build Lib.cinch --shared -o libfoo.so` (or `.dylib`) emits a self-contained native shared library without requiring `main`.
+- `cinch emit-object Lib.cinch -o libfoo.o` emits a closed native object file plus its `.abi.json` manifest.
+- `cinch cxx <bindings.json> --out-dir <dir>` and `cinch cxx build ...` generate C++17 bindings and build native C++ exports or Godot GDExtensions.
 
-A symbol that the linker cannot resolve fails the build, after the program has checked:
+Package-level native link inputs (`link`, `local_link`, `pkg-config`, and `--print-link-plan`) are covered in [Chapter 01](01-using-the-compiler.md#output-linking-and-optimization) and [Chapter 29](29-package-management.md).
 
-```
-$ cinch check Main.cinch
+A `foreign import` is a link-time obligation: `cinch check` validates its Cinch signature and layout, while unresolved symbols fail at link time when `clang` links the final binary:
+
+```text
 $ cinch build Main.cinch -o prog
-cinch: clang failed to link prog.ll: warning: overriding the module target triple with arm64-apple-macosx27.0.0 [-Woverride-module]
-1 warning generated.
-Undefined symbols for architecture arm64:
-  "_docs_no_such_symbol", referenced from:
-      _Main.absent in prog-c275ee.o
-ld: symbol(s) not found for architecture arm64
+cinch: clang failed to link prog.ll: undefined reference to `docs_no_such_symbol'
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 ```
 
-State that dependency in your build instructions. A `foreign import` is a link-time obligation, so a program that reaches one is not standalone.
+# Foreign exports
 
-# Exports
-
-`foreign export` wraps a definition that already exists. It needs the signature first:
-
-```
-cinch: 2:44: a foreign export wraps a defined function: declare `answer :: ...` before exporting it
-```
+`foreign export ccall` exposes an already-declared Cinch function under a C symbol name (the Cinch signature must precede the export):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -187,9 +169,9 @@ module Main where
   main = if answer 41 == 42 then 0 else 1
 ```
 
-The emitted symbol is the C name, with a wrapper that freezes the incoming word:
+The backend emits a C-callable entry point that freezes each incoming machine word before invoking the Cinch unit:
 
-```
+```llvm
 define i64 @"cinch_docs_answer"(i64 %c0) {
 entry:
   %t0 = freeze i64 %c0
@@ -200,13 +182,9 @@ entry:
 
 # Aggregate crossings: `#[byval]` and `#[sret]`
 
-An aggregate needs an explicit layout before it can cross. `#[repr(C)]` is that declaration; a record with no representation attribute is refused with the layout it computed instead:
+An aggregate crossing a C boundary must declare an explicit C-compatible representation (`#[repr(C)]`, `#[repr(packed)]`, or `#[repr(transparent)]`); unannotated `uniform-word` records are rejected.
 
-```
-cinch: 7:3: the recorded layout of Main.Big is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)
-```
-
-The default crossing for an aggregate parameter is a pointer to a call-scoped copy, not a by-value C argument. `#[byval]` and `#[sret]` spell the by-value forms. Both attach to the `foreign` declaration itself, and both are checked against the types they claim:
+By default, an aggregate parameter crosses as a pointer to a call-scoped layout copy, and an aggregate return value is rejected unless marked. `#[byval]` and `#[sret]` attach to `foreign` declarations to request by-value parameter passing and by-value aggregate returns respectively:
 
 <!-- cinch:check -->
 ```cinch
@@ -227,66 +205,41 @@ module Main where
   main u = if sumBig (mkBig 5) == 18 then 0 else 1
 ```
 
-This program checks but cannot link from the CLI, because `sum_big` and `mk_big` have no implementation in this repository. The declarations it emits are the point. On x86-64 Linux or macOS:
+LLVM IR does not automatically lower C struct-by-value rules; Cinch lowers `#[byval]` and `#[sret]` directly according to the active target's C ABI:
 
-```
-%"__sl_layout_0" = type [24 x i8]
-declare void @"mk_big"(ptr sret(%__sl_layout_0) align 8, i64 noundef)
-declare i64 @"sum_big"(ptr byval(%__sl_layout_0) align 8)
-```
-
-On arm64, `sum_big` takes `(ptr nonnull align 8)` instead.
-
-LLVM does not lower a C struct passed by value; clang decides, per target, where the bytes go, and the compiler makes the same decision from the target's C calling convention and the aggregate's scalar fields (`seed/src/cabi.rs`):
-
-| Convention | Parameter | Result |
+| Target ABI | `#[byval]` parameter | `#[sret]` result |
 | --- | --- | --- |
-| System V x86-64 (Linux, macOS) | Up to 16 bytes in registers, one `i64` per integer eightbyte and `double`, `<2 x float>` or `float` per floating-point one; larger, misaligned, or out of registers, a `byval` stack copy | Up to 16 bytes in registers; larger, `sret` |
-| AAPCS64 (arm64 Linux, macOS) | One to four floats or doubles of one width as `[N x float]` or `[N x double]`; otherwise up to 16 bytes as `i64` or `[2 x i64]`, larger as a pointer to the caller's copy | The same registers; larger, `sret` |
-| Microsoft x64 | A 1, 2, 4 or 8-byte struct as an integer of that size; otherwise a pointer to the caller's copy | The same integer; otherwise `sret` |
-| wasm32 | A struct of exactly one scalar as that scalar; otherwise `byval` | The same scalar; otherwise `sret` |
+| **System V x86-64** (Linux, macOS) | Up to 16 bytes in registers (`i64` integer eightbytes; `double`, `<2 x float>`, or `float` FP eightbytes); larger, misaligned, or register-exhausted structs via `byval` stack copy. | Up to 16 bytes in registers; larger via `sret` buffer (`void` LLVM return). |
+| **AAPCS64** (ARM64 Linux, macOS) | HFA of 1–4 `float`/`double` as `[N x float]` / `[N x double]`; otherwise up to 16 bytes as `i64` / `[2 x i64]`, larger as pointer (`ptr nonnull align N`) to caller's copy. | Same register rules; larger via `sret` buffer. |
+| **Microsoft x64** | 1, 2, 4, or 8-byte struct as integer of that width; otherwise pointer to caller's copy. | Same integer rule; larger via `sret` buffer. |
+| **wasm32** | Single-scalar struct as that scalar; otherwise `byval`. | Same scalar rule; larger via `sret` buffer. |
 
-So the 24-byte `Big` above takes a stack copy on x86-64 and a pointer on arm64, and both return it through `sret`, a result buffer with a `void` LLVM result. A struct of two `I64` fields would cross as `(i64, i64)` on x86-64 and `([2 x i64])` on arm64, and return as `{ i64, i64 }` or `[2 x i64]`. An aggregate holding a 16-byte scalar, or crossing by value on a target with no convention here, is refused rather than guessed. Each attribute is also refused where its claim is false:
+For the 24-byte `Big` above, x86-64 emits `ptr byval(%__sl_layout_0) align 8` for `sum_big`, ARM64 emits `ptr nonnull align 8`, and both emit `ptr sret(%__sl_layout_0) align 8` with a `void` return for `mk_big`. Aggregates containing 16-byte scalars or targeting an unsupported C ABI are rejected rather than guessed.
 
-| Claim | Refusal |
-| --- | --- |
-| `#[byval]` with no aggregate parameter | `cinch: 3:3: `#[byval]` spells aggregate parameters crossing by value; this binding marshals no aggregate parameter` |
-| `#[sret]` with a non-aggregate result | `cinch: 9:3: `#[sret]` spells an aggregate result crossing by value; this binding's result is not an aggregate` |
-| An aggregate result with neither | `cinch: 8:3: a foreign result cannot be an aggregate: `Main.Big` follows the platform's by-value struct ABI, which this slice does not guess ... return through an `Out` cell or an `Owned` pointer, or spell the by-value crossing `#[sret]` |
-| Either attribute on a definition | `cinch: 2:3: `#[byval]` and `#[sret]` attach to a `foreign` import or export declaration ...` |
+Invalid placements or mismatches are rejected during checking:
 
-There is no `#[extern]` attribute. A foreign boundary is declared by the `foreign` keyword, and the only attributes that change its ABI are `#[byval]` and `#[sret]`. Any other name must be compiler-known or declared by a macro, and the rejection names both routes:
+- `#[byval]` on a binding with no aggregate parameter.
+- `#[sret]` on a binding whose return type is not an aggregate.
+- An aggregate return value without `#[sret]` (return via an `Out` cell, `Owned` pointer, or add `#[sret]`).
+- Either attribute placed on an ordinary Cinch definition instead of a `foreign` declaration.
 
-```
-cinch: 2:3: unknown attribute `reader-note`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro (`macro name attributes (reader-note) :: ...`)
-```
+# Representation and function attributes
 
-# Representation attributes
+Every attribute outside `#[meta(...)]` must be compiler-owned or declared by a macro (`macro name attributes (...)`); unrecognized names are check errors.
 
-`#[repr(...)]` is the layout vocabulary a boundary reads. It attaches to a type or to a field of a `repr(C)` record. Learn the byte offsets and packing rules from [type layout](24-type-layout.md); the boundary-relevant rejections are these:
+- **Layout (`#[repr(...)]`):** `#[repr(C)]`, `#[repr(packed)]` / `#[repr(packed(N))]`, `#[repr(align(N))]`, `#[repr(transparent)]`, and `#[repr(u8|u16|u32|u64)]` define explicit byte layouts and interface ABI identity. Changing a type's `#[repr]` changes its recorded layout and invalidates dependent interfaces (see [Chapter 17](17-upgrades-and-temporal-contracts.md)). For exact padding, alignment, and rejection rules, see [Chapter 24](24-type-layout.md) and [Chapter 23](23-attributes-and-pragmas.md#repr-every-current-variant).
+- **Function and module hints:**
 
-| Written | Refusal |
-| --- | --- |
-| `#[repr(transparent)]` on two represented fields | `needs exactly one represented field, found 2` |
-| `#[repr(C, align(3))]` | `repr(align(N))` takes a non-zero power of two |
-| `#[repr(C, packed, align(8))]` | `repr(packed)` removes padding and `repr(align(N))` raises alignment; they conflict |
-| `#[repr(Rust)]` | `Rust` is not a representation (expects `C`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`) |
-| `#[repr(C)]` on multi-constructor `data` | use `#[repr(u8\|u16\|u32\|u64)]` for a fixed discriminant |
-
-The layout a type gets is part of its interface. Changing a `#[repr]` changes the recorded layout and the interface identity, which makes dependents built against the old identity stale (see [upgrades](17-upgrades-and-temporal-contracts.md)).
-
-# Function attributes
-
-| Attribute | Placement | Meaning |
+| Attribute | Placement | Effect |
 | --- | --- | --- |
-| `#[inline]`, `#[inline(always)]`, `#[inline(never)]`, `#[noinline]` | function declaration | Inlining hint. One hint per function. Refused on a `foreign` declaration: `` `#[inline]` is a hint on a function declaration `` |
-| `#[cold]` | function declaration | Cold-function hint |
-| `#[unroll(N)]`, `#[unroll(disable)]`, `#[unroll(0)]` | function declaration | Unrolling hint on the function's loop, lowering to `llvm.loop.unroll.count` or `llvm.loop.unroll.disable`. Advisory: it never changes meaning and never unrolls at the Core level. Accepted on a function with no loop, which then emits no loop metadata. A count above `i32::MAX` is refused |
-| `#[weight(n)]`, `#[likely]`, `#[unlikely]` | clause, alternative, guard, `if` | Decision-point weight; one weight per alternative |
-| `#[meta(key = "value")]` | any supported position | Nonsemantic metadata, recorded and otherwise ignored |
-| `#[profile "jpl"]`, `#[deny-warnings]` | module header | Module policy |
+| `#[inline]`, `#[inline(always)]`, `#[inline(never)]`, `#[noinline]` | Function declaration | Inlining hint (at most one per function; refused on `foreign` declarations). `#[inline(never)]` / `#[noinline]` blocks both driver unfolding and Core inlining in addition to emitting LLVM `noinline`. |
+| `#[cold]` | Function declaration or decision branch | Marks the function entry cold or sets branch weight `0`. |
+| `#[unroll(N)]`, `#[unroll(0)]`, `#[unroll(disable)]` | Function declaration | Advisory loop-unrolling hint lowered to `llvm.loop.unroll.count` or `llvm.loop.unroll.disable`. Never alters semantics or unrolls at Core level; accepted on loop-free functions (emits no metadata). Counts above `2147483647` (`i32::MAX`) are rejected. |
+| `#[weight(n)]`, `#[likely]`, `#[unlikely]` | Clause, `case` alternative, guard, `if` | Decision-point branch weights. |
+| `#[meta(...)]` | Any declaration, field, constructor, or branch | Opaque tooling metadata with no semantic or runtime effect. |
+| `#[profile("jpl")]`, `#[deny-warnings]` | Module header | Module-wide safety profile or warning escalation. |
 
-`#[meta]` is the one attribute a program can attach freely, and it does not change behavior:
+`#[meta(...)]` attaches arbitrary non-semantic metadata anywhere an attribute is permitted:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -299,11 +252,11 @@ module Main where
   main = if answer == 1 then 0 else 1
 ```
 
-The complete list of names, arguments, placements, and conflicts is the [attribute index](23-attributes-and-pragmas.md).
+For the full attribute grammar, placement matrix, and safety assertions (`#[no-alloc]`, `#[recursion(...)]`, `#[stack(...)]`, and friends), see [Chapter 23](23-attributes-and-pragmas.md) and [Chapter 22](22-safety-assertions-and-llvm.md).
 
 # Inline primitives
 
-A primitive has an ordinary type and one body per target-IR family. The family names are `llvm`, `wasm`, `asm`, `clr`, and `jvm`; only `llvm` and admitted `asm` have lowering paths today.
+A `prim` declaration pairs an ordinary Cinch type signature with one or more inline target-IR bodies:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -318,35 +271,33 @@ module Main where
   main = if add-word 40 2 == 42 then 0 else 1
 ```
 
-Bodies take clauses after the fragment: `when <atom>` selects a body by the compile target, `justify <term>` records why a representation choice is sound, `uses (name :: type), ...` declares the callee vocabulary the fragment may use, `immarg 0, 1` marks immediate arguments, and a leading `unsafe` on one body marks that body unverified so its declared row is trusted instead of checked.
+The recognized target-IR family names are `llvm`, `wasm`, `asm`, `clr`, and `jvm`. Today, `llvm` and admitted `asm` lower on native targets (and `wasm` on WebAssembly profiles); `clr` and `jvm` are reserved and rejected by name (`the 'clr' target-IR family is reserved`).
+
+Bodies accept trailing clauses:
+
+- `when <atom>` — target-profile predicate selecting when the body applies.
+- `justify <term>` — records soundness evidence for a representation choice.
+- `uses (name :: type), ...` — declares external callee vocabulary the body may invoke.
+- `immarg 0, 1` — marks parameters that must lower as immediate constants.
+- Leading `unsafe` — opts out of containment checking for that body, trusting its declared effect row.
 
 ## Target conditions
 
-A `when` clause is one atom read off the target profile, and every atom is also usable negated, with the atom in parentheses:
+Each `when` clause evaluates one atom against the **compile target profile** (never the build host), and any atom may be negated with `not (<atom>)`:
 
 | Atom | Holds when |
 | --- | --- |
-| `Available <capability>` | the profile's capability evidence names it, which is a `signature` (platform proofs and SIMD specification section 3) |
-| `arch <name>` | the target's architecture is `<name>`: `x86_64`, `aarch64`, `wasm32` |
-| `os <name>` | the target's operating system is `<name>`: `darwin`, `linux`, `windows` |
-| `libc <name>` | the target links `<name>`: `glibc`, `musl`, `libSystem`, `none` |
-| `endian <little\|big>` | the target's byte order is the one named |
-| `word-size <bits>` | the target's `Usize` and `Isize` width is `<bits>`: `32`, `64` |
-| `target <triple>` | the target's whole triple is `<triple>`, the exact-match escape hatch |
+| `Available <capability>` | The target profile carries capability evidence for `<capability>`. |
+| `arch <name>` | Target architecture matches `x86_64`, `aarch64`, or `wasm32`. |
+| `os <name>` | Target operating system matches `darwin`, `linux`, or `windows`. |
+| `libc <name>` | Target C library matches `glibc`, `musl`, `libSystem`, or `none`. |
+| `endian <little\|big>` | Target byte order matches. |
+| `word-size <bits>` | Target `Usize`/`Isize` bit width is `32` or `64`. |
+| `target <triple>` | Full target triple matches verbatim. |
 
-A body may carry several clauses, and they are a conjunction: `when os linux when arch aarch64` holds on Linux on aarch64 and nowhere else. `when not (os windows)` is the negation of `os windows`, so it holds on Darwin and Linux.
+Multiple `when` clauses on one body form a conjunction (`when os linux when arch aarch64`). The exact same condition vocabulary governs conditional imports (`import Mod when ...`) and conditional declarations (`when <atom> <decl>`); see [Chapter 07](07-modules-and-packages.md#conditional-imports-and-declarations).
 
-Every atom reads the compile target profile and never the build host, so a cross compile selects by the artifact's own target.
-
-The same vocabulary and the same conjunction are available in two further positions, both covered in [the module page](07-modules-and-packages.md#conditional-imports-and-declarations): `import Mod when <clause>` (where a false clause makes the import contribute nothing) and `when <atom> <declaration>` (where a false clause removes the name from the interface, the exports and code generation). The atoms mean the same thing in all three positions.
-
-A conditional body wins over the baseline body (no `when`), and a prim whose conditions no body satisfies refuses by name:
-
-```
-cinch: 3:3: no body applies for the target profile `x86_64-unknown-linux-gnu` (`x86_64-unknown-linux-gnu`): the `asm` body's `when os windows` does not hold (`os windows` fails: the target's os is `linux`). A `when` clause is one atom over the compile target: ...
-```
-
-The refusal names the atom that failed and what the target is instead, and a missing capability reads differently from a platform mismatch: the capability account lists the evidence the profile does carry.
+A matching conditional body takes precedence over an unguarded fallback body; if no body matches the active target, checking fails with the failing atom and actual target values:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -365,21 +316,17 @@ module Main where
   main = if pick 1 == 2 then 0 else 1
 ```
 
-Containment parses the fragment before emission and refuses what an inline body may not do:
+## Containment rules
 
-| Fragment | Refusal |
+Non-`unsafe` inline bodies are parsed and validated before code generation to prevent silent escapes from Cinch's safety guarantees:
+
+| Disallowed IR construct | Containment refusal |
 | --- | --- |
-| `%out = call i32 @puts(ptr null)` | `containment (no I/O): `@puts` is I/O (a body performs no I/O)` |
-| `unreachable` | `containment (no fault paths): `unreachable` is a fault path beyond a declared failure mode` |
-| `invoke`, `resume`, `landingpad`, `catchswitch` | `containment (no-unwind): ... may raise or unwind out of the body` |
-| `br`, `switch`, `indirectbr` | `containment (no-escape): ... is a jump` |
+| Direct I/O calls (e.g. `call i32 @puts(...)`) | `containment (no I/O): '@puts' is I/O (a body performs no I/O)` |
+| Fault paths (`unreachable`) | `containment (no fault paths): 'unreachable' is a fault path beyond a declared failure mode` |
+| Unwinding (`invoke`, `resume`, `landingpad`, `catchswitch`) | `containment (no-unwind): ... may raise or unwind out of the body` |
+| Control-flow escape (`br`, `switch`, `indirectbr`) | `containment (no-escape): ... is a jump` |
 
-A reserved family is refused by name rather than half-supported:
+Body selection decisions and their reasons are recorded in `build/<entry>.manifest.json`.
 
-```
-cinch: 3:5: the `clr` target-IR family is reserved: its fragment grammar lands with its backend (primitive operations and inline target IR specification section 3)
-```
-
-A conditional body whose atoms do not hold in the target profile is not selected, and the selection with its reason lands in the manifest. A body's family must also lower through this build's emission path, which today means `llvm` and admitted `asm`; registering a family name is not backend support.
-
-Implementation: `repr.rs` (layout admission), `check_decls.rs` (binding contracts, containment), `codegen.rs` (declarations, stubs, freeze), `interface.rs` (the recorded contract); suites `ffi.rs`, `attributes.rs`, `prim.rs`, `llvm_contract.rs`, `repr_classes.rs`, `safety.rs`. Intended semantics: [foreign function interface specification](../specifications/foreign-function-interface-specification.md) sections 1 to 4, [attribute annotations specification](../specifications/attribute-annotations-specification.md) sections 1 and 4, [inline target IR](../specifications/primitive-operations-and-inline-target-ir-specification.md). Design notes: [LLVM contract attributes](../design/llvm-contract-attributes.md), [runtime object linkage](../design/runtime-object-linkage.md).
+See [attributes and pragmas](23-attributes-and-pragmas.md), [type layout](24-type-layout.md), [safety assertions and LLVM contracts](22-safety-assertions-and-llvm.md), and the [foreign code and targets tutorial](../learn/20-foreign-code-and-targets.md).

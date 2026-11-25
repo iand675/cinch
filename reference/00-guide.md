@@ -1,89 +1,90 @@
 # Cinch compiler user's guide
 
-The language, commands, built-in vocabulary, libraries, and runtime supported by the **Rust compiler**. Use this guide to answer "what does this construct mean?", "what does the compiler require?", and "how do I build or diagnose this program?". For a first introduction, start with the [language tutorial](../learn/00-tutorial.md).
+This manual documents the Cinch language, compiler CLI, type and effect systems, memory model, runtime, and tooling as implemented by the **Rust compiler** (`seed/`). Reach for this guide when you need exact rules, syntax, flags, or diagnostic meanings. For a guided introduction with exercises, start with the [language tutorial](../learn/00-tutorial.md).
 
-# Current and intended behaviour
+# Chapters
 
-<span class="support-tag support-tag--planned">Coming soon</span> identifies specified behaviour that is not implemented yet. **Partial** identifies a supported subset, and **API only** identifies mechanisms without a user-facing CLI workflow. Planned syntax is explained beside its current boundary. [Reference conventions](#reference-conventions) defines the four labels, the example markers, and the diagnostic shape; the [complete support matrix](16-support-and-roadmap.md) covers the language area by area.
+## Toolchain and workflow
+- [01 · Using the compiler](01-using-the-compiler.md) — CLI commands, flags, Core dumps, cross-compilation, artifacts, and environment variables
+- [18 · Artifacts, interfaces, and stores](18-artifacts-and-incremental.md) — `.cinchif` contracts, manifests, package store, and incremental APIs
+- [19 · Targets, platform proofs, SIMD, and Wasm](19-targets-and-components.md) — Target triples, capability proofs, SIMD dispatch, and Wasm/WIT
+- [21 · Editors and diagnostics](21-editors-and-diagnostics.md) — Reading diagnostics by compiler phase and analysis APIs
+- [26 · Interactive programming with the REPL](26-repl.md) — Session commands, TUI, and project reloading
+- [27 · Language server and editor integration](27-language-server.md) — `cinch lsp` protocol support and editor setup
+- [28 · Documentation comments and API search](28-documentation.md) — `-- |` comments, `.cinchdoc`, `cinch doc search`, HTML docs, and doctests
+- [29 · Packages, manifests, and the registry](29-package-management.md) — `.cinchpkg`, lockfiles, vendoring, publishing, and provenance
 
-The Rust implementation is the present authority. This guide does not use the self-hosted bootstrap compiler's remaining gaps to understate Rust support, or use design aspirations to overstate current behaviour.
+## Core language
+- [02 · Lexical structure and layout](02-lexical-structure.md) — Identifiers, literals, comments, operators, and indentation layout
+- [03 · Expressions, bindings, and patterns](03-expressions-and-patterns.md) — Application, `case`, guards, `let`/`letrec`, `where`, records, and lists
+- [04 · Types, kinds, declarations, and inference](04-types-and-kinds.md) — Arrows, universes, quantifiers, ADTs, records, and inference limits
+- [05 · Numbers, primitives, symbols, and text](05-numbers-and-primitives.md) — `Int`/`Nat`, machine scalars, overflow policies, `String`, `Bytes`, and `Sym`
+- [07 · Modules, signatures, instances, and packages](07-modules-and-packages.md) — Module headers, conditional imports, exports, type classes, and coherence
+- [20 · Compiler-provided vocabulary](20-compiler-vocabulary.md) — Built-in types, values, special forms, and reserved namespaces
 
-# Contents
+## Safety, effects, and memory
+- [06 · Refinements, narrowing, and obligations](06-refinements.md) — `refine`, `decide`, branch facts, narrowing, and mutation invalidation
+- [08 · Dependent types, proofs, and erasure](08-dependent-types-and-proofs.md) — Indexed families, `Sigma`, `Prop`, `%0` erasure, `refl`/`congr`, and totality
+- [09 · Effects, handlers, capabilities, and sequencing](09-effects-and-capabilities.md) — Effect rows, `Io r`, `using`/`with`, handlers, and `do` providers
+- [10 · Ownership, regions, and reclamation](10-ownership-and-memory.md) — Multiplicities (`%0`, `%1`, `%aff`, `%many`), `Copy`, borrows, and reference counting
+- [11 · Laziness, memoization, and codata](11-laziness-and-codata.md) — Thunks, `~` memo bindings, `Eval r`, `codata`, `Later`, and `corec`
+- [13 · Structured concurrency and runtime](13-concurrency-and-runtime.md) — Scopes, `spawn`, cancellation, STM, and runtime diagnostics
+- [17 · Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) — `upgrade` migrations, versioned dispatch, and temporal assertions
+- [22 · Safety assertions, must-use, and LLVM contracts](22-safety-assertions-and-llvm.md) — Checked bounds, JPL profile, and LLVM attribute lowering
 
-| Chapter |
-| --- |
-| [Using the Rust compiler](01-using-the-compiler.md) |
-| [Lexical structure and layout](02-lexical-structure.md) |
-| [Expressions, bindings, and patterns](03-expressions-and-patterns.md) |
-| [Types, kinds, declarations, and inference](04-types-and-kinds.md) |
-| [Numbers, machine primitives, symbols, and text](05-numbers-and-primitives.md) |
-| [Refinements, narrowing, and proof obligations](06-refinements.md) |
-| [Modules, signatures, instances, and packages](07-modules-and-packages.md) |
-| [Dependent types, the logical fragment, and evidence](08-dependent-types-and-proofs.md) |
-| [Effects, handlers, capabilities, and sequencing](09-effects-and-capabilities.md) |
-| [Ownership, regions, and memory reclamation](10-ownership-and-memory.md) |
-| [Explicit laziness, memoization, and codata](11-laziness-and-codata.md) |
-| [Rewrites, laws, specialization, and optimizer reports](12-rewrites-and-optimization.md) |
-| [Structured concurrency and runtime operation](13-concurrency-and-runtime.md) |
-| [Staging, quotation, generation, and data imports](14-staging-and-macros.md) |
-| [Foreign code, representation attributes, and inline primitives](15-ffi-layout-and-attributes.md) |
-| [Current support and what is coming soon](16-support-and-roadmap.md) |
-| [Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) |
-| [Artifacts, interfaces, stores, and incremental compilation](18-artifacts-and-incremental.md) |
-| [Target profiles, platform proofs, SIMD, and Wasm](19-targets-and-components.md) |
-| [Compiler-provided vocabulary and special forms](20-compiler-vocabulary.md) |
-| [Editors, analysis APIs, and diagnostics](21-editors-and-diagnostics.md) |
-| [Safety assertions, must-use results, and LLVM contracts](22-safety-assertions-and-llvm.md) |
-| [Attributes and pragmas: the complete reference](23-attributes-and-pragmas.md) |
-| [Type layout and runtime representation](24-type-layout.md) |
-| [Allocators and heap customization](25-allocators.md) |
-| [Interactive programming with the REPL](26-repl.md) |
-| [Language server and editor integration](27-language-server.md) |
-| [Documentation comments and symbol lookup](28-documentation.md) |
-| [Packages, manifests, and the registry](29-package-management.md) |
+## Systems programming and optimization
+- [12 · Rewrites, laws, and optimization](12-rewrites-and-optimization.md) — `rewrite` rules, law justification, fusion, and specialization reports
+- [14 · Staging, quotation, and macros](14-staging-and-macros.md) — Compile-time `stage`, `[|...|]`, macros, and `data` imports
+- [15 · FFI, representation, and inline primitives](15-ffi-layout-and-attributes.md) — `foreign import`/`export`, `#[byval]`/`#[sret]`, and `prim` bodies
+- [23 · Attributes and pragmas](23-attributes-and-pragmas.md) — Complete index of compiler-owned `#[...]` attributes
+- [24 · Type layout and runtime representation](24-type-layout.md) — C layout, alignment, packing, unpacking, and object headers
+- [25 · Allocators and heap tuning](25-allocators.md) — Runtime memory variables, leak checking, heap caps, and planned allocators
 
-# Find a specific operation
+## Status
+- [16 · Current support and roadmap](16-support-and-roadmap.md) — Feature-by-feature status matrix across language, runtime, and tooling
 
-The [library directory](../library/00-index.md) contains the actual embedded and source-distributed APIs, including public types, constructors, class methods, values, fixities, and instances. [Compiler-provided vocabulary](20-compiler-vocabulary.md) covers special forms installed directly by the checker. Site search indexes these pages; the separate package catalogue is generated at build time from a live registry, or from an explicit offline marker.
+# Finding library APIs
+
+Use [**API Search**](/packages/search/) to query standard-library declarations by name or type signature (for example `(a -> b) -> List a -> List b` or `Result e a -> Option a`), or browse the [`stdlib` package](../library/00-index.md). Compiler-installed forms that do not live in a source module are indexed in [compiler vocabulary](20-compiler-vocabulary.md).
 
 # Reference conventions
 
-## Examples
-
-A complete module in a `cinch` fence carries a marker comment on the line immediately before the fence. `website/scripts/verify-doc-examples.py` runs every marked example against the Rust compiler, and the markers below are the whole vocabulary.
-
-| Marker | What it asserts |
-| --- | --- |
-| `<!-- cinch:run exit=0 -->` | The module passes `cinch check`, builds, and the executable exits with that status. Add `stdout="exact text"` to compare standard output as well. The value decodes as a JSON string, so `stdout="38\n"` means `38` followed by a newline and `stdout=""` means no output. |
-| `<!-- cinch:check -->` | The module must pass `cinch check`, with no build and no execution. Use it for a program that is worth checking but cannot link here, such as a `foreign` import whose symbol this repository does not provide. |
-| `<!-- cinch:reject contains="text" -->` | `cinch check` exits 1 and its standard error contains that substring. |
-| `<!-- cinch:project group=NAME file=Main.cinch -->` | One marker per file of a multi-file project, all sharing the group name. `exit=` and `stdout=` describe the whole group and apply to the entry program; put them on the entry file's marker. Both default to exit 0 with no output comparison. |
-
-A `cinch` block with no marker is a fragment. A fragment is not a program: it shows a declaration or expression in the context the surrounding prose names, and it is never a complete module. Fragments never start with `module`. Save an example as `Main.cinch` in its own directory and run the commands from that directory.
-
-Fences tagged `cinch test` are a separate mechanism: they belong to the module documentation pipeline described in [documentation comments](28-documentation.md), which `cinch doc test` executes. They are not guide examples.
-
-Every diagnostic quoted in this guide is copied from real compiler output. Three shapes appear, one per stage that can fail, and each keeps the position information its stage has. Lexical, layout, and parse failures name the file first; checker failures put the position first with the file in a trailing parenthetical; driver, linker, and store failures carry no position and name the path inside the message.
-
-```text
-cinch: Main.cinch: 3:1: expected `where`, found identifier `main`
-cinch: 4:8: type mismatch: expected String, got Int (in Main.cinch)
-cinch: Main.cinch: No such file or directory (os error 2)
-```
-
-A page that quotes several messages therefore shows more than one ordering, and the ordering tells you which stage refused the program. Generated identifiers inside a message are per-compilation: a region or runtime identity such as `r#845`, a metavariable such as `?i550` or `?r895`, and a task or memo placeholder such as `?m2015` are numbered afresh each run, so your message will show the same text with different digits. A `run` invocation can also exit 1 because the program returned that status, so run `check` separately when you need to distinguish a rejected program from a failing one.
-
 ## Support labels
 
-| Label | Meaning |
+A support tag applies to the specific construct beside it, not to an entire chapter:
+
+| Tag | Meaning |
 | --- | --- |
-| <span class="support-tag support-tag--current">Current</span> | The Rust compiler implements it, and the chapter describes the admitted surface and its constraints. |
-| <span class="support-tag support-tag--partial">Partial</span> | Some of the specified feature works; the chapter states the working part and the part that does not. |
-| <span class="support-tag support-tag--api">API only</span> | Reachable through Rust compiler or runtime APIs, with no end-user CLI workflow. |
-| <span class="support-tag support-tag--planned">Coming soon</span> | Intended or selected design direction that is not usable yet. Not a release promise. |
+| <span class="support-tag support-tag--current">Current</span> | Implemented end to end in the Rust compiler. |
+| <span class="support-tag support-tag--partial">Partial</span> | A defined subset works; the chapter states the boundary directly. |
+| <span class="support-tag support-tag--api">API only</span> | Exposed through Rust library APIs or optional build features without a standard CLI command. |
+| <span class="support-tag support-tag--planned">Coming soon</span> | Specified design direction not yet implemented. |
 
-A label applies to the named behaviour, not to the whole page. One chapter can carry a working runtime mechanism beside a planned command-line workflow, and each span marks which is which.
+## Executable examples
 
-## Names and signatures
+Complete modules in `cinch` fences are checked and executed against the Rust compiler by `website/scripts/verify-doc-examples.py` using HTML comment markers immediately before each fence:
 
-`a`, `b`, and `e` in signatures are parameters, not literal type names. `r` commonly denotes a runtime or region identity. A declaration fragment needs its enclosing module and its imports, so its signature alone is not something to paste into a file. A complete runnable example states its expected exit status or output. An implementation-source pointer names the owning file in the repository, and a test-suite pointer names a behaviour suite; neither claims that the whole suite was rerun when the page was written.
+| Marker | Assertion |
+| --- | --- |
+| `<!-- cinch:run exit=N [stdout="..."] -->` | Checks, builds, and runs the program, asserting exit status and optional exact stdout (JSON-encoded string). |
+| `<!-- cinch:check -->` | Passes `cinch check` without linking (used for declarations such as external `foreign` symbols). |
+| `<!-- cinch:reject contains="..." -->` | Fails `cinch check` with exit code 1 and stderr containing the quoted text. |
+| `<!-- cinch:project group=NAME file=FILE -->` | Multi-file project sharing `group`; `exit=` and `stdout=` sit on the entry file. |
+
+Unmarked `cinch` blocks are isolated syntax fragments, not standalone modules. (`cinch test` fences are a separate mechanism for library documentation comments; see [Chapter 28](28-documentation.md).)
+
+## Reading diagnostics
+
+Compiler diagnostics follow three formats depending on which stage rejected the program:
+
+```text
+cinch: Main.cinch: 3:1: expected `where`, found identifier `main`   -- lexer, layout, parser
+cinch: 4:8: type mismatch: expected String, got Int (in Main.cinch) -- checker and later stages
+cinch: Main.cinch: No such file or directory (os error 2)           -- driver, linker, store
+```
+
+Generated placeholder IDs inside diagnostics — regions (`r#845`), metavariables (`?i550`, `?r895`), and memo placeholders (`?m2015`) — are numbered per compilation, so only the text around the digits stays fixed across runs.
+
+## Signature notation
+
+Lowercase letters (`a`, `b`, `e`) in signatures are type or row variables; `r` denotes a runtime or region identity.

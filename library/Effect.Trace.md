@@ -2,19 +2,11 @@
 
 Scoped tracing/span vocabulary and context propagation tied to the runtime identity.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Trace</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Trace/source/">View source</a><a href="/packages/search/?q=%2BEffect.Trace">Search module</a><a href="/reference-sources/Effect.Trace.cinch" download="Effect.Trace.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Trace`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md).
 
-[Download exact module source](/reference-sources/Effect.Trace.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md).
-
-Non-embedded source closure: [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Trace: the `Trace r` scope vocabulary (the P32 observability
 rows): spans as lexical scopes, and the W3C trace context carried by
@@ -52,13 +44,15 @@ header text conversion lives in `Text.Otlp` (the wire formats).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TraceContext">TraceContext</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TraceContext</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-end-marker">end-marker</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">end-marker</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-end-span">end-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">end-span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Trace</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-span">span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Trace</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-span-record">span-record</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-span-scope">span-scope</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-scope</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li></ul>
+</details>
 
-<a id="type-5472616365436f6e74657874"></a>
+# Types
 
-## `TraceContext`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TraceContext</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-TraceContext">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TraceContext</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-TraceContext" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 The W3C trace context of runtime identity `r` (trace context
 recommendation, section 3.2): the traceparent header's fields,
@@ -67,64 +61,49 @@ lowercase-hex trace id, the 16 lowercase-hex parent span id and
 the trace flags (`0`-`255`), all indexed by the identity the
 context propagates through.
 
-[Source](/reference-sources/Effect.Trace.cinch) · line 59
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TraceContext</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TraceContext"><code><strong class="tok-constructor">TraceContext</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-656e642d6d61726b6572"></a>
-
-## `end-marker`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-marker</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-end-marker">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">end-marker</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-end-marker" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 The scope-end marker a collecting handler's `end-span` clause
 conses onto the resumption chain; `span-scope` consumes it. The
 name is the scope being closed (the bracket pair's check).
 
-[Source](/reference-sources/Effect.Trace.cinch) · line 74
+</div>
+</article>
 
-<a id="value-656e642d7370616e"></a>
+<article class="doc-entry" id="v-end-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">end-span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Trace</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-end-span" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/" title="View source">Source</a></span></div>
+</article>
 
-## `end-span`
+<article class="doc-entry" id="v-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Trace</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-span" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/" title="View source">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Trace.cinch)
-
-<a id="value-7370616e"></a>
-
-## `span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Trace</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Trace.cinch)
-
-<a id="value-7370616e2d7265636f7264"></a>
-
-## `span-record`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-record</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
+<article class="doc-entry" id="v-span-record">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-span-record" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 A span record: `{"name": ..., "fields": ..., "children": [...]}`,
 where children are the collected records of the scope (log,
 metric and nested span records).
 
-[Source](/reference-sources/Effect.Trace.cinch) · line 65
+</div>
+</article>
 
-<a id="value-7370616e2d73636f7065"></a>
-
-## `span-scope`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-scope</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))))</code></pre>
+<article class="doc-entry" id="v-span-scope">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-scope</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-span-scope" title="Permalink">#</a><a href="/packages/stdlib/Effect.Trace/source/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 The collecting handler's `span` clause body: wrap `scope` (the
 resumption's records) in the span record, children ending at the
 matching close marker (or the tail when the scope is unclosed).
 
-[Source](/reference-sources/Effect.Trace.cinch) · line 80
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Trace.cinch`. Source SHA-256: `fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

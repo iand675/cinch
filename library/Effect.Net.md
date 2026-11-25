@@ -2,19 +2,11 @@
 
 TCP client sockets, TCP listeners (listen/accept), UDP send, address values, named errors, and runtime effects.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Net</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Net/source/">View source</a><a href="/packages/search/?q=%2BEffect.Net">Search module</a><a href="/reference-sources/Effect.Net.cinch" download="Effect.Net.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Net`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Effect.Net.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-Non-embedded source closure: [Effect.Net](Effect.Net.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Net: TCP sockets and name resolution over the runtime's
 `cinch_net_*` externs (`seed/runtime/src/net.rs`). A `Socket` is
@@ -77,184 +69,160 @@ Named refusals (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Listener">Listener</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Listener</strong></code></li><li><a class="syn-name" href="#t-NetError">NetError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">NetError</strong></code></li><li><a class="syn-name" href="#t-Socket">Socket</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Socket</strong></code></li><li><a class="syn-name" href="#v-listener-handle">listener-handle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">listener-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-net-accept">net-accept</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-accept</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a></code></li><li><a class="syn-name" href="#v-net-close">net-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-net-connect">net-connect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-connect</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a></code></li><li><a class="syn-name" href="#v-net-listen">net-listen</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-listen</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a></code></li><li><a class="syn-name" href="#v-net-listener-addr">net-listener-addr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-listener-addr</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-net-listener-close">net-listener-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-listener-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-net-read">net-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-net-resolve">net-resolve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-resolve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-net-udp-send">net-udp-send</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-udp-send</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-net-write">net-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">net-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-socket-handle">socket-handle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">socket-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li></ul>
+</details>
 
-<a id="type-4c697374656e6572"></a>
+# Types
 
-## `Listener`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Listener</span></code></pre>
+<article class="doc-entry" id="t-Listener">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Listener</strong></code><span class="doc-sig-links"><a href="#t-Listener" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L94" title="View source at line 94">Source</a></span></div>
+<div class="doc-body">
 
 Wrap the runtime listener handle word.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 94
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Listener"><code><strong class="tok-constructor">Listener</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Listener</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span>)</code></pre>
-
-<a id="type-4e65744572726f72"></a>
-
-## `NetError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">NetError</span></code></pre>
+<article class="doc-entry" id="t-NetError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">NetError</strong></code><span class="doc-sig-links"><a href="#t-NetError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong, named. The constructors correspond one for one to
 the platform layer's shared codes.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 75
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-NetNotFound"><code><strong class="tok-constructor">NetNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a></code></li><li id="k-NetPermissionDenied"><code><strong class="tok-constructor">NetPermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a></code></li><li id="k-NetInvalidArgument"><code><strong class="tok-constructor">NetInvalidArgument</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a></code></li><li id="k-NetIoError"><code><strong class="tok-constructor">NetIoError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span></code></pre>
-
-<a id="type-536f636b6574"></a>
-
-## `Socket`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Socket</span></code></pre>
+<article class="doc-entry" id="t-Socket">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Socket</strong></code><span class="doc-sig-links"><a href="#t-Socket" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 An open TCP connection, as the runtime's socket handle word (kept
 as the runtime's `I64`: it only ever goes back to the runtime).
 
-[Source](/reference-sources/Effect.Net.cinch) · line 83
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Socket</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Socket"><code><strong class="tok-constructor">Socket</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6c697374656e65722d68616e646c65"></a>
-
-## `listener-handle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">listener-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-listener-handle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">listener-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-listener-handle" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 Return the underlying runtime handle word of a TCP listener.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 97
+</div>
+</article>
 
-<a id="value-6e65742d616363657074"></a>
-
-## `net-accept`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-accept</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span>))</code></pre>
+<article class="doc-entry" id="v-net-accept">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-accept</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a></code><span class="doc-sig-links"><a href="#v-net-accept" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Accept one incoming TCP connection on `listener`, returning a connected `Socket`.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 144
+</div>
+</article>
 
-<a id="value-6e65742d636c6f7365"></a>
-
-## `net-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-close</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-net-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-net-close" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-body">
 
 Close the socket: the handle is gone afterwards, so every later
 operation on it is `Err NetInvalidArgument`.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 192
+</div>
+</article>
 
-<a id="value-6e65742d636f6e6e656374"></a>
-
-## `net-connect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-connect</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span>)))</code></pre>
+<article class="doc-entry" id="v-net-connect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-connect</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a></code><span class="doc-sig-links"><a href="#v-net-connect" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 Connect to `host` (UTF-8 host text) at `port` (0..=65535) over TCP:
 the open socket, or the named error. The name is resolved by the
 platform resolver. A port past the `I64` range is invalid like any
 other port past 65535.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 127
+</div>
+</article>
 
-<a id="value-6e65742d6c697374656e"></a>
-
-## `net-listen`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listen</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span>)))</code></pre>
+<article class="doc-entry" id="v-net-listen">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-listen</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a></code><span class="doc-sig-links"><a href="#v-net-listen" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Bind a TCP listener on `host` (UTF-8 host text) and `port` (`0` for an
 OS-assigned ephemeral port). Returns the bound `Listener` or a named error.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 136
+</div>
+</article>
 
-<a id="value-6e65742d6c697374656e65722d61646472"></a>
-
-## `net-listener-addr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listener-addr</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-net-listener-addr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-listener-addr</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-net-listener-addr" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 Return the bound local address (`<ip>:<port>`) of `listener` as UTF-8 text.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 151
+</div>
+</article>
 
-<a id="value-6e65742d6c697374656e65722d636c6f7365"></a>
-
-## `net-listener-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listener-close</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-net-listener-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-listener-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Listener" title="Effect.Net.Listener">Listener</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-net-listener-close" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 Close a TCP listener; subsequent operations on it return `Err NetInvalidArgument`.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 160
+</div>
+</article>
 
-<a id="value-6e65742d72656164"></a>
-
-## `net-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-net-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-net-read" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-body">
 
 Read up to `max` bytes of the socket: `Ok` of what one platform
 call produced (empty at the end of the stream), or the named error.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 176
+</div>
+</article>
 
-<a id="value-6e65742d7265736f6c7665"></a>
-
-## `net-resolve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-resolve</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-net-resolve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-resolve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-net-resolve" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Resolve `host` (UTF-8 host text) at `port`: `Ok` of one
 `<ip>:<port>` line per resolved address (each newline terminated,
 an IPv6 address bracketed), or the named error. The empty result is
 an empty buffer: the resolver answered with no address.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 202
+</div>
+</article>
 
-<a id="value-6e65742d7564702d73656e64"></a>
-
-## `net-udp-send`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-udp-send</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-net-udp-send">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-udp-send</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-net-udp-send" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Send one UDP datagram containing `payload` to `(host, port)`.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 167
+</div>
+</article>
 
-<a id="value-6e65742d7772697465"></a>
-
-## `net-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-net-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">net-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-net-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Write `bs` to the socket: the byte count (the whole buffer goes),
 or the named error.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 184
+</div>
+</article>
 
-<a id="value-736f636b65742d68616e646c65"></a>
-
-## `socket-handle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">socket-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-socket-handle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">socket-handle</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Net/#t-Socket" title="Effect.Net.Socket">Socket</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-socket-handle" title="Permalink">#</a><a href="/packages/stdlib/Effect.Net/source/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 The handle word of a socket, for the layers above this one.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 87
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `126fd1f6a1b7172b7cbac70dbb04431c1a43d2f12ff1dd6ddd2c75c9b0637bf4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

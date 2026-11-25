@@ -2,19 +2,11 @@
 
 SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Hex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Hex/source/">View source</a><a href="/packages/search/?q=%2BText.Hex">Search module</a><a href="/reference-sources/Text.Hex.cinch" download="Text.Hex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Hex`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Text.Hex.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Text.Hex](Text.Hex.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Hexadecimal conversion between byte buffers and text.
 Encoding emits two lowercase ASCII characters per byte. Decoding accepts either
@@ -26,163 +18,144 @@ short tails and precise error reporting use the scalar path.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-HexError">HexError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexError</strong></code></li><li><a class="syn-name" href="#v-hex-decode">hex-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hex-decode-append">hex-decode-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code></li><li><a class="syn-name" href="#v-hex-decode-into">hex-decode-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code></li><li><a class="syn-name" href="#v-hex-decode-prefix">hex-decode-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code></li><li><a class="syn-name" href="#v-hex-decoded-length">hex-decoded-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-hex-dump">hex-dump</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dump</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-hex-dump-bytes">hex-dump-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dump-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hex-encode">hex-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-hex-encode-append">hex-encode-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hex-encode-bytes">hex-encode-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hex-encode-into">hex-encode-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-hex-encoded-length">hex-encoded-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-hex-error-message">hex-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4865784572726f72"></a>
+# Types
 
-## `HexError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HexError</span></code></pre>
+<article class="doc-entry" id="t-HexError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexError</strong></code><span class="doc-sig-links"><a href="#t-HexError" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 A hexadecimal input or destination is invalid. Prefix APIs return completed output alongside this error.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OddHexLength</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidHexByte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HexShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-OddHexLength"><code><strong class="tok-constructor">OddHexLength</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a></code></li><li id="k-InvalidHexByte"><code><strong class="tok-constructor">InvalidHexByte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a></code></li><li id="k-HexShortDestination"><code><strong class="tok-constructor">HexShortDestination</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6865782d6465636f6465"></a>
-
-## `hex-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-hex-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hex-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
 Decode text atomically: malformed input returns only an error, without a partial buffer.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 98
+</div>
+</article>
 
-<a id="value-6865782d6465636f64652d617070656e64"></a>
-
-## `hex-decode-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-decode-append</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span>))))</code></pre>
+<article class="doc-entry" id="v-hex-decode-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code><span class="doc-sig-links"><a href="#v-hex-decode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 Append decoded bytes to a copied prefix, retaining completed pairs even if later input is invalid.
 Error offsets refer to the encoded input, independently of the prefix length.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 110
+</div>
+</article>
 
-<a id="value-6865782d6465636f64652d696e746f"></a>
-
-## `hex-decode-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-decode-into</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span>)))))</code></pre>
+<article class="doc-entry" id="v-hex-decode-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code><span class="doc-sig-links"><a href="#v-hex-decode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 Decode into a destination and return completed bytes plus any decoding error.
 A short range returns zero and HexShortDestination before mutation; malformed input
 retains its valid decoded prefix. The source is snapshotted so overlap is safe.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 123
+</div>
+</article>
 
-<a id="value-6865782d6465636f64652d707265666978"></a>
-
-## `hex-decode-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-decode-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span>)))</code></pre>
+<article class="doc-entry" id="v-hex-decode-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a>)</code><span class="doc-sig-links"><a href="#v-hex-decode-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 Decode all complete valid pairs from arbitrary encoded bytes, preserving a prefix on error.
 Invalid byte offsets refer to the original input, including invalid non-UTF-8 bytes.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 105
+</div>
+</article>
 
-<a id="value-6865782d6465636f6465642d6c656e677468"></a>
-
-## `hex-decoded-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-decoded-length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-hex-decoded-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-hex-decoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 The maximum complete decoded byte count for an encoded length: floor(length / 2). This does not validate the input.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 45
+</div>
+</article>
 
-<a id="value-6865782d64756d70"></a>
-
-## `hex-dump`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dump</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-hex-dump">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dump</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-hex-dump" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L298" title="View source at line 298">Source</a></span></div>
+<div class="doc-body">
 
 Render sixteen-byte rows with eight-digit offsets, grouped lowercase hex and printable ASCII.
 Non-printable bytes become dots. Empty input is empty text; no final offset-only row is emitted.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 298
+</div>
+</article>
 
-<a id="value-6865782d64756d702d6279746573"></a>
-
-## `hex-dump-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dump-bytes</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-hex-dump-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dump-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hex-dump-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L306" title="View source at line 306">Source</a></span></div>
+<div class="doc-body">
 
 Render a dump as ASCII bytes starting at an explicit 32-bit line offset.
 Offsets wrap modulo 2^32. A short last row is padded only before its ASCII column.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 306
+</div>
+</article>
 
-<a id="value-6865782d656e636f6465"></a>
-
-## `hex-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-hex-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-hex-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Encode all bytes as lowercase hexadecimal ASCII. Empty input produces empty text; complete blocks use SIMD and the tail is exact.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 55
+</div>
+</article>
 
-<a id="value-6865782d656e636f64652d617070656e64"></a>
-
-## `hex-encode-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encode-append</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-hex-encode-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hex-encode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 Append encoded bytes to a copied prefix. Neither input buffer is mutated or retained by alias.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 70
+</div>
+</article>
 
-<a id="value-6865782d656e636f64652d6279746573"></a>
-
-## `hex-encode-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encode-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-hex-encode-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hex-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-body">
 
 Encode directly to a fresh lowercase ASCII buffer, without a text conversion.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 64
+</div>
+</article>
 
-<a id="value-6865782d656e636f64652d696e746f"></a>
-
-## `hex-encode-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encode-into</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-hex-encode-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-hex-encode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 Encode into a destination starting at an offset and return the written byte count.
 The entire destination range is checked before writing. Source/destination overlap is safe.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 79
+</div>
+</article>
 
-<a id="value-6865782d656e636f6465642d6c656e677468"></a>
-
-## `hex-encoded-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encoded-length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-hex-encoded-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-hex-encoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 The exact encoded character and byte count for a buffer of the given length: twice its length.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 41
+</div>
+</article>
 
-<a id="value-6865782d6572726f722d6d657373616765"></a>
-
-## `hex-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-hex-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Hex/#t-HexError" title="Text.Hex.HexError">HexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-hex-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Hex/source/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Render a diagnostic with original byte positions or the required output capacity.
 
-[Source](/reference-sources/Text.Hex.cinch) · line 34
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Hex.cinch`. Source SHA-256: `9127dcbd91d7407ff90f0c744e7f68e8949901e7ae1b4c50f6b29e6034065f17`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

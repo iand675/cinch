@@ -2,19 +2,11 @@
 
 HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Kdf</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Kdf/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Kdf">Search module</a><a href="/reference-sources/Crypto.Kdf.cinch" download="Crypto.Kdf.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.Kdf`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Text.Digest](Text.Digest.md).
 
-[Download exact module source](/reference-sources/Crypto.Kdf.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Text.Digest](Text.Digest.md).
-
-Non-embedded source closure: [Crypto.Kdf](Crypto.Kdf.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Digest](Text.Digest.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 HKDF (RFC 5869) and PBKDF2 (RFC 8018) over a fixed-width keyed PRF.
 The supplied default is HMAC-SHA-256. Passwords, keys, salt and info are
@@ -22,102 +14,87 @@ arbitrary bytes. Intermediate and returned buffers use ordinary Bytes storage.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-KdfError">KdfError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">KdfError</strong></code></li><li><a class="syn-name" href="#t-KdfPrf">KdfPrf</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">KdfPrf</strong></code></li><li><a class="syn-name" href="#v-hkdf-expand">hkdf-expand</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hkdf-expand</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hkdf-extract">hkdf-extract</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hkdf-extract</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hkdf-key">hkdf-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hkdf-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-kdf-hmac-sha256">kdf-hmac-sha256</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">kdf-hmac-sha256</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a></code></li><li><a class="syn-name" href="#v-kdf-prf">kdf-prf</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">kdf-prf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a></code></li><li><a class="syn-name" href="#v-pbkdf2-key">pbkdf2-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pbkdf2-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-4b64664572726f72"></a>
+# Types
 
-## `KdfError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">KdfError</span></code></pre>
+<article class="doc-entry" id="t-KdfError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">KdfError</strong></code><span class="doc-sig-links"><a href="#t-KdfError" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 Parameter and callback failures. No partially derived key is returned.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 31
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-KdfInvalidLength"><code><strong class="tok-constructor">KdfInvalidLength</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a></code></li><li id="k-KdfInvalidIterations"><code><strong class="tok-constructor">KdfInvalidIterations</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a></code></li><li id="k-KdfShortKey"><code><strong class="tok-constructor">KdfShortKey</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a></code></li><li id="k-KdfDigestSize"><code><strong class="tok-constructor">KdfDigestSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">KdfInvalidLength</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">KdfInvalidIterations</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">KdfShortKey</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">KdfDigestSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span>))</code></pre>
-
-<a id="type-4b6466507266"></a>
-
-## `KdfPrf`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">KdfPrf</span></code></pre>
+<article class="doc-entry" id="t-KdfPrf">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">KdfPrf</strong></code><span class="doc-sig-links"><a href="#t-KdfPrf" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L18" title="View source at line 18">Source</a></span></div>
+<div class="doc-body">
 
 A deterministic keyed function with a nonzero, fixed output width.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 18
+</div>
+</article>
 
 # Values
 
-<a id="value-686b64662d657870616e64"></a>
-
-## `hkdf-expand`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hkdf-expand</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-hkdf-expand">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hkdf-expand</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hkdf-expand" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Expand an extracted key using arbitrary context bytes. Output is limited
 to 255 digest blocks; a zero-byte request returns a fresh empty buffer.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 53
+</div>
+</article>
 
-<a id="value-686b64662d65787472616374"></a>
-
-## `hkdf-extract`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hkdf-extract</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-hkdf-extract">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hkdf-extract</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hkdf-extract" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 Extract a pseudorandom key from secret input material. An empty salt
 selects the RFC default of one digest-width block of zero bytes.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 46
+</div>
+</article>
 
-<a id="value-686b64662d6b6579"></a>
-
-## `hkdf-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hkdf-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span> <span class="tok-constructor">Bytes</span>))))))</code></pre>
+<article class="doc-entry" id="v-hkdf-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hkdf-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hkdf-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Extract then expand. Reject excessive output before invoking the PRF.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 69
+</div>
+</article>
 
-<a id="value-6b64662d686d61632d736861323536"></a>
-
-## `kdf-hmac-sha256`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">kdf-hmac-sha256</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span></code></pre>
+<article class="doc-entry" id="v-kdf-hmac-sha256">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">kdf-hmac-sha256</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a></code><span class="doc-sig-links"><a href="#v-kdf-hmac-sha256" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 The runtime's RFC 2104 HMAC with SHA-256.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 27
+</div>
+</article>
 
-<a id="value-6b64662d707266"></a>
-
-## `kdf-prf`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">kdf-prf</span> :: (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span>)))</code></pre>
+<article class="doc-entry" id="v-kdf-prf">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">kdf-prf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a></code><span class="doc-sig-links"><a href="#v-kdf-prf" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 The callback takes key then message and must return a fresh digest while
 preserving its inputs. A zero output width is rejected at construction.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 23
+</div>
+</article>
 
-<a id="value-70626b6466322d6b6579"></a>
-
-## `pbkdf2-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pbkdf2-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfPrf</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Kdf</span>.<span class="tok-constructor">KdfError</span> <span class="tok-constructor">Bytes</span>))))))</code></pre>
+<article class="doc-entry" id="v-pbkdf2-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pbkdf2-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfPrf" title="Crypto.Kdf.KdfPrf">KdfPrf</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.Kdf/#t-KdfError" title="Crypto.Kdf.KdfError">KdfError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pbkdf2-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.Kdf/source/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 Derive a positive-length key with at least one iteration. At most
 2^32-1 digest blocks can be numbered by PBKDF2's big-endian counter.
 
-[Source](/reference-sources/Crypto.Kdf.cinch) · line 78
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Kdf.cinch`. Source SHA-256: `ee877d5b4b05c5425637d29b05dd35b3012f291e16bb67d159fe820484033291`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

@@ -2,19 +2,11 @@
 
 Stream fault-injection, logging and conformance-testing adapters over Effect.Stream.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Test.Io</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Test.Io/source/">View source</a><a href="/packages/search/?q=%2BEffect.Test.Io">Search module</a><a href="/reference-sources/Effect.Test.Io.cinch" download="Effect.Test.Io.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Test.Io`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md).
 
-[Download exact module source](/reference-sources/Effect.Test.Io.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md).
-
-Non-embedded source closure: [Effect.Stream](Effect.Stream.md), [Effect.Test.Io](Effect.Test.Io.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Stream test adapters and reader verification helpers built over Effect.Stream.
 Wraps ByteReader and ByteWriter values to exercise short reads, single-byte
@@ -23,150 +15,128 @@ truncated writes, and effectful read/write logging without global state.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-IoTestError">IoTestError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IoTestError</strong></code></li><li><a class="syn-name" href="#v-data-err-reader">data-err-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">data-err-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-err-reader">err-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">err-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-err-timeout">err-timeout</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">err-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a></code></li><li><a class="syn-name" href="#v-half-reader">half-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">half-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-io-test-error-message">io-test-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">io-test-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-is-timeout-error">is-timeout-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-timeout-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-one-byte-reader">one-byte-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">one-byte-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-read-logger">read-logger</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">read-logger</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-test-reader">test-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">test-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-timeout-reader">timeout-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timeout-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-truncate-writer">truncate-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">truncate-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-write-logger">write-logger</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">write-logger</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-496f546573744572726f72"></a>
+# Types
 
-## `IoTestError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">IoTestError</span></code></pre>
+<article class="doc-entry" id="t-IoTestError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">IoTestError</strong></code><span class="doc-sig-links"><a href="#t-IoTestError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Named failure reported by test-reader when a reader violates stream invariants.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoTestStreamError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoTestContentMismatch</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoTestShortRead</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoTestExtraData</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoTestZeroReadNonEmpty</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-IoTestStreamError"><code><strong class="tok-constructor">IoTestStreamError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a></code></li><li id="k-IoTestContentMismatch"><code><strong class="tok-constructor">IoTestContentMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a></code></li><li id="k-IoTestShortRead"><code><strong class="tok-constructor">IoTestShortRead</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a></code></li><li id="k-IoTestExtraData"><code><strong class="tok-constructor">IoTestExtraData</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a></code></li><li id="k-IoTestZeroReadNonEmpty"><code><strong class="tok-constructor">IoTestZeroReadNonEmpty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-646174612d6572722d726561646572"></a>
-
-## `data-err-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">data-err-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-data-err-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">data-err-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-data-err-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Buffer ahead so trailing EOF or errors are observed immediately alongside the final data chunk.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 108
+</div>
+</article>
 
-<a id="value-6572722d726561646572"></a>
-
-## `err-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">err-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-err-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">err-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-err-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-body">
 
 Return the supplied stream error on every positive read without producing bytes.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 176
+</div>
+</article>
 
-<a id="value-6572722d74696d656f7574"></a>
-
-## `err-timeout`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">err-timeout</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span></code></pre>
+<article class="doc-entry" id="v-err-timeout">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">err-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a></code><span class="doc-sig-links"><a href="#v-err-timeout" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Sentinel stream error returned by timeout-reader on its second positive read.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 47
+</div>
+</article>
 
-<a id="value-68616c662d726561646572"></a>
-
-## `half-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">half-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-half-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">half-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-half-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L95" title="View source at line 95">Source</a></span></div>
+<div class="doc-body">
 
 Limit every positive read to half the requested length, rounding up so at least one byte is requested.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 95
+</div>
+</article>
 
-<a id="value-696f2d746573742d6572726f722d6d657373616765"></a>
-
-## `io-test-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">io-test-error-message</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-io-test-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">io-test-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-io-test-error-message" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 Render a concise diagnostic for a reader verification failure.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 38
+</div>
+</article>
 
-<a id="value-69732d74696d656f75742d6572726f72"></a>
-
-## `is-timeout-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-timeout-error</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-timeout-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-timeout-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-timeout-error" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Check whether a stream error is the simulated timeout sentinel.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 51
+</div>
+</article>
 
-<a id="value-6f6e652d627974652d726561646572"></a>
-
-## `one-byte-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">one-byte-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-one-byte-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">one-byte-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-one-byte-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 Limit every positive read on the wrapped reader to at most one byte.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 84
+</div>
+</article>
 
-<a id="value-726561642d6c6f67676572"></a>
-
-## `read-logger`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">read-logger</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-read-logger">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">read-logger</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-read-logger" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Wrap a reader and invoke the supplied effectful logger with prefix and observed bytes on every read.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 205
+</div>
+</article>
 
-<a id="value-746573742d726561646572"></a>
-
-## `test-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">test-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Test</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">IoTestError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-test-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">test-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Io/#t-IoTestError" title="Effect.Test.Io.IoTestError">IoTestError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-test-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L236" title="View source at line 236">Source</a></span></div>
+<div class="doc-body">
 
 Verify that a reader yields the expected bytes across zero-length reads, small reads, varied chunk sizes, and repeated EOF reads.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 236
+</div>
+</article>
 
-<a id="value-74696d656f75742d726561646572"></a>
-
-## `timeout-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timeout-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-timeout-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timeout-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-timeout-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 Return err-timeout with no data on the second positive read, then delegate all subsequent reads normally.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 159
+</div>
+</article>
 
-<a id="value-7472756e636174652d777269746572"></a>
-
-## `truncate-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">truncate-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-truncate-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">truncate-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-truncate-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L186" title="View source at line 186">Source</a></span></div>
+<div class="doc-body">
 
 Forward at most limit bytes to the underlying writer, then silently accept subsequent writes.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 186
+</div>
+</article>
 
-<a id="value-77726974652d6c6f67676572"></a>
-
-## `write-logger`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">write-logger</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-write-logger">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">write-logger</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-write-logger" title="Permalink">#</a><a href="/packages/stdlib/Effect.Test.Io/source/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 Wrap a writer and invoke the supplied effectful logger with prefix and accepted bytes on every write.
 
-[Source](/reference-sources/Effect.Test.Io.cinch) · line 220
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Test/Io.cinch`. Source SHA-256: `ebf58f9e727c66bae5e85d626c6b83cdafed7612d23078e631156ec8a0559821`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

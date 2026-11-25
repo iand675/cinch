@@ -2,19 +2,11 @@
 
 Incremental raw DEFLATE streaming readers and writers over Effect.Stream with sync flush and preset dictionaries.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Flate</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Flate/source/">View source</a><a href="/packages/search/?q=%2BEffect.Flate">Search module</a><a href="/reference-sources/Effect.Flate.cinch" download="Effect.Flate.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Flate`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Flate](Text.Flate.md).
 
-[Download exact module source](/reference-sources/Effect.Flate.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Flate](Text.Flate.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Flate](Effect.Flate.md), [Effect.Stream](Effect.Stream.md), [Text.Flate](Text.Flate.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Streaming raw DEFLATE (RFC 1951) readers and writers over Effect.Stream.
 Writers buffer uncompressed input into bounded blocks, support explicit
@@ -25,129 +17,118 @@ preset dictionaries and output byte limits, stopping at the final block.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-FlateWriter">FlateWriter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateWriter</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-flate-finish">flate-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-flate-flush">flate-flush</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-flush</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-flate-reader">flate-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-flate-reader-dict">flate-reader-dict</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-reader-dict</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-flate-reader-limit">flate-reader-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-reader-limit</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-flate-write">flate-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-flate-writer">flate-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-flate-writer-dict">flate-writer-dict</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-writer-dict</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-flate-writer-reset">flate-writer-reset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-writer-reset</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-flate-writer-sink">flate-writer-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flate-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-466c617465577269746572"></a>
+# Types
 
-## `FlateWriter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FlateWriter</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-FlateWriter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FlateWriter</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-FlateWriter" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 Explicitly advanced raw DEFLATE compressing sink with sticky error state
 and explicit flush and finish transitions.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 90
+</div>
+</article>
 
 # Values
 
-<a id="value-666c6174652d66696e697368"></a>
-
-## `flate-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-finish</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-flate-finish" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Compress any remaining buffered input as the final DEFLATE block (BFINAL=1),
 pad to a byte boundary, write it to the sink, and transition to finished state.
 Calling flate-finish on an already finished writer succeeds without writing.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 184
+</div>
+</article>
 
-<a id="value-666c6174652d666c757368"></a>
-
-## `flate-flush`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-flush</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-flush">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-flush</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-flate-flush" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 Compress all pending buffered input as a non-final block and emit an RFC 1951
 byte-aligned sync flush so a reader can immediately decode everything written so far.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 160
+</div>
+</article>
 
-<a id="value-666c6174652d726561646572"></a>
-
-## `flate-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-flate-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-flate-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L211" title="View source at line 211">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE byte stream incrementally without a preset dictionary.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 211
+</div>
+</article>
 
-<a id="value-666c6174652d7265616465722d64696374"></a>
-
-## `flate-reader-dict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-reader-dict</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-reader-dict">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-reader-dict</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-flate-reader-dict" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE byte stream incrementally using a preset dictionary.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 215
+</div>
+</article>
 
-<a id="value-666c6174652d7265616465722d6c696d6974"></a>
-
-## `flate-reader-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-reader-limit</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-reader-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-reader-limit</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-flate-reader-limit" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a raw DEFLATE byte stream incrementally with an explicit output
 byte bound and preset dictionary (up to its last 32 KiB).
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 220
+</div>
+</article>
 
-<a id="value-666c6174652d7772697465"></a>
-
-## `flate-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-flate-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 Buffer input bytes and emit complete non-final DEFLATE blocks whenever the
 pending buffer reaches 32 KiB. Reports accepted input bytes on success.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 131
+</div>
+</article>
 
-<a id="value-666c6174652d777269746572"></a>
-
-## `flate-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-flate-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-flate-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 Create a streaming raw DEFLATE writer at the given compression level.
 Returns FlateBadLevel if the requested level is out of range.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 101
+</div>
+</article>
 
-<a id="value-666c6174652d7772697465722d64696374"></a>
-
-## `flate-writer-dict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-writer-dict</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateError</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>)))))</code></pre>
+<article class="doc-entry" id="v-flate-writer-dict">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-writer-dict</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateCompression" title="Text.Flate.FlateCompression">FlateCompression</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Flate/#t-FlateError" title="Text.Flate.FlateError">FlateError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-flate-writer-dict" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L106" title="View source at line 106">Source</a></span></div>
+<div class="doc-body">
 
 Create a streaming raw DEFLATE writer seeded with a preset dictionary (last 32 KiB).
 Returns FlateBadLevel if the requested level is out of range.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 106
+</div>
+</article>
 
-<a id="value-666c6174652d7772697465722d7265736574"></a>
-
-## `flate-writer-reset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-writer-reset</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-flate-writer-reset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-writer-reset</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-flate-writer-reset" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 Reset a writer to compress a fresh stream into a new sink while preserving
 its validated compression level and initial preset dictionary.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 123
+</div>
+</article>
 
-<a id="value-666c6174652d7772697465722d73696e6b"></a>
-
-## `flate-writer-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flate-writer-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-flate-writer-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flate-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Flate/#t-FlateWriter" title="Effect.Flate.FlateWriter">FlateWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-flate-writer-sink" title="Permalink">#</a><a href="/packages/stdlib/Effect.Flate/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Inspect the advanced underlying sink, including after flush, finish, or failure.
 
-[Source](/reference-sources/Effect.Flate.cinch) · line 115
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Flate.cinch`. Source SHA-256: `a51aa60a0c27c1e9c1045b20c01848ed90b5d7b497e8f6eefb173c7e76432f32`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

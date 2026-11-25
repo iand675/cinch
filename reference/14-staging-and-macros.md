@@ -1,24 +1,30 @@
 # Staging, quotation, generation, and data imports
 
-Staging runs code during compilation and feeds the result into the program. Two mechanisms cross that boundary, and they have separate spellings: declaration macros transform syntax, and typed quotations build `Code a` values that the checker types as ordinary terms. Generated declarations are parsed and checked like handwritten ones. A macro that emits a well-formed template with a wrongly typed body is rejected by the ordinary checker, not by the macro.
+Staging runs compile-time code and splices its results into the program before normal typechecking and code generation. Cinch separates compile-time metaprogramming into three explicit mechanisms:
+
+- **Hygienic declaration macros** (`macro`, `quoteDecls`, `generate`) transform balanced token trees (`Syntax`) into declaration groups (`Declarations`).
+- **Typed quotations** (`[| ... |]`, `$(...)`, `Code a`) construct and compose typed code fragments at compile time or pass them to runtime `eval`.
+- **Compile-time data imports** (`import data`) embed validated external files as typed constants.
+
+Every generated declaration is parsed and checked through the same type, effect, and ownership pipeline as handwritten code. Compile-time and runtime phases are strictly separated: `stage` and `macro` definitions cannot be called from runtime code, and compile-time I/O requires explicit capabilities with reproducible snapshot recording.
 
 # Surface forms
 
 | Form | Meaning |
 | --- | --- |
-| `stage name :: T` | A compile-time definition. It is evaluated during compilation and is not callable from runtime code. |
-| `[\| term \|]` | A quotation. It has type `Code T` where `T` is the term's type. |
-| `$(code)` | A splice inside a quotation. It inserts a `Code T` value where a `T` is expected. |
-| `quoteDecls where { ... }` | A declaration template. Its value has type `Declarations`. |
-| `macro name :: Syntax -> Declarations` | A declaration macro. |
-| `name!(tokens)` | A macro invocation with a balanced token tree; the macro receives it as `Syntax`. |
-| `generate do ...` | A checked generator run at the declaration's position. |
-| `import stage Module` | A staging dependency on another module's generators and quotations. |
-| `import data "file.json" as value` | Compile-time conversion of a data file into a constant. |
+| `stage name :: T` | Compile-time definition; evaluated during compilation and unreachable from runtime code. |
+| `[\| term \|]` | Typed quotation with type `Code T` when `term :: T`. |
+| `$(code)` | Splice inside a quotation or declaration template; inserts `Code T` where `T` is expected. |
+| `quoteDecls where { ... }` | Hygienic declaration template producing `Declarations`. |
+| `macro name :: Syntax -> Declarations` | Declaration macro receiving a balanced token tree as `Syntax`. |
+| `name!(tokens)` | Macro invocation passing balanced tokens to `name`. |
+| `generate do ...` | Compile-time generator block executed at its declaration position. |
+| `import stage Module` | Compile-time staging dependency on another module's macros and `stage` definitions. |
+| `import data "file.ext" as name` | Compile-time conversion of a data file into a constant binding. |
 
-The fragments above are fragments, not programs: `T` and `term` stand for any admitted type and term.
+# Hygienic declaration macros
 
-# A macro that emits a checked declaration
+A declaration macro builds a `quoteDecls` template and returns `Declarations`, which a `generate` block splices into the module via `emit`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -38,11 +44,14 @@ module Main where
   main = if result == 42 then 0 else 1
 ```
 
-`macro addVia arg = quoteDecls where ...` returns the quoted declaration group. `addVia!(x)` passes the token `x` as a `Syntax` value, and `$(arg)` splices it into the template body. `emit` appends the resulting declarations at the `generate` position, so `main` can see `result`.
+Templates enforce lexical hygiene in both directions:
 
-The result is 42, not 42 + 1 and not 1 + 1, which is the hygiene property: the template's `let x = 1` binder is renamed apart from the caller's global `x`, so the spliced `x` still means the caller's 41. A free name in a template resolves at the macro's definition site. In the same file, a template that calls a helper defined next to the macro uses that helper even when the caller defines the same spelling.
+- **No accidental capture of caller names.** The template's local `let x = 1` is renamed apart from the spliced argument `x`, so `$(arg)` still resolves to the caller's top-level `x = 41`, yielding `42`.
+- **Definition-site resolution for free names.** Free identifiers inside a `quoteDecls` body resolve in the macro's defining module, even if the call site shadows the same name.
 
 # Typed quotations and `eval`
+
+Quotations compose `Code a` values at compile time via `stage` functions and may also appear as runtime values evaluated by `eval :: forall a. Code a -> a`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -62,9 +71,11 @@ module Main where
   main = if answer == 22 then (if eval quoted == 42 then 0 else 1) else 2
 ```
 
-`addOne` composes two `Code Int` values at compile time; the generated `answer` is the checked result, 22. `quoted` is a `Code Int` value in the running program and `eval quoted` is the builtin `eval :: forall a. Code a -> a`, which lowers to a call to the runtime evaluator (`cinch_eval` in the emitted IR). `eval` carries no capability and no effect of its own, and it establishes no proof: the value it returns is a runtime computation. A target profile may forbid runtime code generation, in which case `eval` is rejected at check time with `forbids runtime code generation`. The CLI always selects the native profile, which admits `eval`.
+`addOne` runs during compilation and emits `answer = 22` as ordinary checked code. `eval quoted` lowers to the runtime evaluator (`cinch_eval`), carries no effect or capability of its own, and establishes no compile-time proof.
 
-A `stage` definition cannot be called from runtime code:
+A target profile may disallow runtime code generation, in which case `eval` is rejected at check time with `forbids runtime code generation`. All five CLI `--target` triples ([Chapter 01](01-using-the-compiler.md#targets-and-cross-compilation)) enable `eval`; restricted profiles are configured through the compiler's Rust API.
+
+Calling a `stage` or `macro` definition from runtime code is rejected during checking:
 
 <!-- cinch:reject contains="cannot appear in runtime code" -->
 ```cinch
@@ -79,13 +90,17 @@ module Main where
   main = if eval answer == 21 then 0 else 1
 ```
 
-```
+```text
 cinch: 6:12: addOne is a compile-time definition (`stage`/`macro`): it cannot appear in runtime code (in Main.cinch)
 ```
 
-# Constant transport out of the compile-time world
+# Constant transport across stages
 
-Three builtins turn a compile-time value into generated code. Their signatures are `quoteNat :: Nat -> Code Nat`, `quoteInt :: Int -> Code Int`, and `quoteBool :: Bool -> Code Bool`. All three are pure.
+Three pure builtins lift compile-time scalars into `Code` values:
+
+- `quoteNat :: Nat -> Code Nat`
+- `quoteInt :: Int -> Code Int`
+- `quoteBool :: Bool -> Code Bool`
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -112,7 +127,7 @@ module Main where
   main = if delta + nat-to-int size == 993 then (if flag then 0 else 1) else 2
 ```
 
-There is no transport for any other constant. The obvious spelling for a text constant fails by name:
+No other constant transport exists today. Attempting to lift a string with a nonexistent helper fails name resolution:
 
 <!-- cinch:reject contains="unknown name quoteStr" -->
 ```cinch
@@ -129,35 +144,31 @@ module Main where
   main = 0
 ```
 
-```
-cinch: 8:16: unknown name quoteStr
-```
+Values of type `Secret` (produced by `secret :: String ->{StageSecret} Secret`) are compile-time-only credentials. No conversion turns a `Secret` into text or an integer, and the staging evaluator refuses to serialize one (`a secret value must not be embedded in generated source, logs, or snapshots`). The only built-in consumer is `withDatabase`.
 
-A `Secret` cannot reach generated source either. `secret :: String ->{StageSecret} Secret` produces a compile-time-only value, no function converts it to text or an integer, and the compile-time evaluator refuses to stringify one with `a secret value must not be embedded in generated source, logs, or snapshots (modules specification section 10)`. The only consumer in the surface language is `withDatabase`.
+# Compile-time I/O, capabilities, and replay
 
-# Compile-time inputs, capabilities, and replay
+External compile-time inputs are gated behind scoped capabilities introduced by `snapshot`:
 
-Compile-time I/O needs a capability value. The root operation is `snapshot`, which names the capture and hands a callback the `IoCap`:
-
-| Builtin | Type | Effect |
+| Builtin | Type | Staging effect |
 | --- | --- | --- |
-| `snapshot` | `String -> (IoCap ->{e} a) ->{e} a` | none of its own |
-| `withReadFiles` | `IoCap -> (FileReadCap ->{e} a) ->{e} a` | none of its own |
-| `withWriteFiles` | `IoCap -> (FileWriteCap ->{e} a) ->{e} a` | none of its own |
-| `withProcess` | `IoCap -> (ProcCap ->{e} a) ->{e} a` | none of its own |
+| `snapshot` | `String -> (IoCap ->{e} a) ->{e} a` | — |
+| `withReadFiles` | `IoCap -> (FileReadCap ->{e} a) ->{e} a` | — |
+| `withWriteFiles` | `IoCap -> (FileWriteCap ->{e} a) ->{e} a` | — |
+| `withProcess` | `IoCap -> (ProcCap ->{e} a) ->{e} a` | — |
+| `withDatabase` | `IoCap -> Secret -> SchemaRead -> (Database ->{e} a) ->{e} a` | — |
 | `readFile` | `FileReadCap -> String ->{StageFile} String` | `StageFile` |
 | `writeFile` | `FileWriteCap -> String -> String ->{StageFile} Unit` | `StageFile` |
 | `run` | `ProcCap -> String -> List String ->{StageProcess} String` | `StageProcess` |
 | `secret` | `String ->{StageSecret} Secret` | `StageSecret` |
 | `emit` | `Declarations ->{StageEmit} Unit` | `StageEmit` |
-| `withDatabase` | `IoCap -> Secret -> SchemaRead -> (Database ->{e} a) ->{e} a` | none of its own |
-| `ReadSchema` | `SchemaRead` | none |
-| `introspectConsistently` | `Database -> SchemaSnapshot` | none |
-| `CodecGenerator.derive` | `SchemaSnapshot -> Declarations` | none |
-| `strNat`, `natStr`, `strAppend`, `strLen` | text and `Nat` conversions | none |
-| `name-to-sym`, `sym-to-name` | `Name -> Sym` and `Sym -> Name` | none |
+| `ReadSchema` | `SchemaRead` | — |
+| `introspectConsistently` | `Database -> SchemaSnapshot` | — |
+| `CodecGenerator.derive` | `SchemaSnapshot -> Declarations` | — |
+| `strNat`, `natStr`, `strAppend`, `strLen` | Compile-time string and `Nat` utilities | — |
+| `name-to-sym`, `sym-to-name` | `Name -> Sym`, `Sym -> Name` | — |
 
-The following project reads a file during compilation and emits the parsed number as a constant. Save `input.txt` containing `42` beside `Main.cinch`.
+This project reads `input.txt` at compile time and emits the parsed integer as `answer`:
 
 <!-- cinch:project group=14-staging-and-macros-refresh file=Main.cinch exit=0 -->
 ```cinch
@@ -178,7 +189,7 @@ module Main where
 42
 ```
 
-A subprocess capture works the same way and needs no second file:
+Subprocess output is captured with `withProcess` and `run`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -194,44 +205,29 @@ module Main where
   main = if size == 3 then 0 else 1
 ```
 
-`CINCH_STAGE_MODE` selects how inputs are obtained. `refresh` executes the external work and records it, `replay` uses recorded inputs, and `live` performs the current read. An absent or unrecognized value selects `refresh`.
+## Snapshot modes (`CINCH_STAGE_MODE`)
 
-```
-$ CINCH_STAGE_MODE=refresh cinch run Main.cinch
-$ cat build/Main.stage.snap
-file	inputs	input.txt	3157674352912849835	recorded	42\n
-$ rm input.txt
-$ CINCH_STAGE_MODE=replay cinch run Main.cinch
-$ echo $?
-0
-```
+| Mode | Behavior |
+| --- | --- |
+| `refresh` (default) | Executes compile-time I/O and writes captured outputs to `build/<entry>.stage.snap`. Unrecognized values fall back to `refresh`. |
+| `replay` | Reads captured inputs strictly from `build/<entry>.stage.snap` without touching external files or processes. Fails if an input is missing (`replay mode: no captured input for the file ...`). |
+| `live` | Executes compile-time I/O live without relying on recorded snapshots. |
 
-The snapshot file is tab separated: kind, snapshot name, input name, content hash, recording state, and the captured content. The build also records the capture in `build/Main.manifest.json`, in its `staging` section.
-
-```json
-{
-  "compiler": "0.1.0",
-  "generated": { "Main": ["answer"] },
-  "inputs": [
-    { "hash": "3157674352912849835", "kind": "file", "live": false,
-      "name": "input.txt", "snapshot": "inputs" }
-  ],
-  "mode": "refresh"
-}
+```sh
+CINCH_STAGE_MODE=refresh cinch run Main.cinch
+cat build/Main.stage.snap
+# file	inputs	input.txt	3157674352912849835	recorded	42\n
+rm input.txt
+CINCH_STAGE_MODE=replay cinch run Main.cinch   # exits 0 from recorded snapshot
 ```
 
-Replay with no recorded input is a named failure, not a silent re-read:
+Each line in `build/<entry>.stage.snap` is tab-separated: `kind`, `snapshot`, `input`, `hash`, `state`, and captured content. `build/<entry>.manifest.json` records the same captures under `staging` (including `mode`, `generated` declarations per module, and hashed `inputs`).
 
-```
-$ CINCH_STAGE_MODE=replay cinch run Main.cinch
-cinch: replay mode: no captured input for the file `input.txt` in snapshot `inputs` (run a refresh build to record it)
-```
-
-`CINCH_SCHEMA_TOOL` names the subprocess that `withDatabase` runs for schema introspection. The value of the secret is handed to the tool and never recorded: the manifest names the environment variable, not the credential. `introspectConsistently` rejects a document whose table names collide with `inconsistent schema` and the colliding name, a column type outside `INTEGER`, `REAL`, `BOOLEAN` and `TEXT` with `unsupported column type`, and `CodecGenerator.derive` reports that its encoders cover `INTEGER` and `BOOLEAN`.
+For database schema introspection, `CINCH_SCHEMA_TOOL` names the subprocess invoked by `withDatabase`. The credential value is passed to the tool and never persisted: the manifest records only the environment variable name. `introspectConsistently` rejects duplicate table names (`inconsistent schema`) and column types outside `INTEGER`, `REAL`, `BOOLEAN`, and `TEXT` (`unsupported column type`); `CodecGenerator.derive` currently generates encoders for `INTEGER` and `BOOLEAN`.
 
 # Expansion provenance
 
-A generated body that fails a check reports the template location and the call site, so the error points into the macro and at its use.
+When generated code fails checking, diagnostics report both the macro template location and the expansion site:
 
 <!-- cinch:project group=14-staging-and-macros-provenance file=Macros.cinch -->
 ```cinch
@@ -257,13 +253,13 @@ module Main where
   main = 0
 ```
 
-```
+```text
 cinch: Macros.cinch:8:14 (in expansion of macro `bad` called at 4:3): type mismatch: expected Bool, got Int (in Main.cinch)
 ```
 
 # Stage dependencies
 
-`import stage Module` adds a scheduling dependency. A genuine cycle is refused with the cycle printed, naming the generator block and the stage definition it needs.
+`import stage Module` establishes a compile-time evaluation dependency. Cyclic dependencies between `stage` definitions and `generate` blocks are rejected with the full cycle trace:
 
 <!-- cinch:reject contains="stage dependency cycle" -->
 ```cinch
@@ -281,13 +277,19 @@ module Main where
   main = 0
 ```
 
-```
+```text
 cinch: stage dependency cycle: generate block in Main (at 5:3) -> stage definition `f` in Main -> generate block in Main (at 5:3)
 ```
 
 # Data imports
 
-`import data "file.ext" as name` converts a file at compile time and binds the result as a constant. The converters are keyed by extension: `json` produces a `Json` value unless the binding carries a declared type, `txt` produces a `String`, and `bytes` produces a `Bytes`. A declared type must be monomorphic, and a `json` import decodes into scalars, `String`, `List`, `Option`, and records by field name.
+`import data "file.ext" as name` converts an external file at compile time and binds it as a constant. Built-in converters are selected by filename extension:
+
+| Extension | Default type | Typed decoding |
+| --- | --- | --- |
+| `json` | `Json` | When a monomorphic type signature is declared for `name`, decodes scalars, `String`, `List`, `Option`, and records by field name. |
+| `txt` | `String` | — |
+| `bytes` | `Bytes` | — |
 
 <!-- cinch:project group=14-staging-and-macros-import file=Main.cinch exit=0 -->
 ```cinch
@@ -305,25 +307,10 @@ module Main where
 7
 ```
 
-The manifest records the file, the converter, and the content hash:
+Each data import is recorded in `build/<entry>.manifest.json` with its module, binding name, file path, converter, and content hash. An unrecognized extension fails with `no converter for ...: the built-in converters are keyed by extension (json, txt, bytes)`.
 
-```json
-{
-  "bindings": [
-    { "converter": "json", "file": "n.json", "hash": "12638132224974231446",
-      "module": "Main", "name": "value" }
-  ]
-}
-```
+# Current limits
 
-An unknown extension is a build error naming the built-ins:
+<span class="support-tag support-tag--planned">Coming soon</span> **Cross-stage lifting beyond primitive scalars.** Only `quoteNat`, `quoteInt`, and `quoteBool` currently transport compile-time values into `Code`. Lifting `String`, `Bytes`, records, and higher-order values with explicit serialization and provenance rules is planned.
 
-```
-cinch: 2:15: no converter for `bogus`: the built-in converters are keyed by extension (`json`, `txt`, `bytes`) (in Bad.cinch)
-```
-
-# What is not available
-
-<span class="support-tag support-tag--planned">Coming soon</span> **staged values beyond the constant family.** The intended language allows a wider set of values to cross from compile time to runtime, with declared transport and metadata rules rather than a generic cast (`modules-and-compilation-specification` section 9). Only `quoteNat`, `quoteInt` and `quoteBool` exist today, so a text, byte string, record, or function value cannot be lifted; `quoteStr` is not a name and the rejection above is what you get. Extending the family is a specification change: a new transport needs its own serialization, identity, and provenance rules.
-
-Implementation: `driver.rs` (stage mode, snapshot files), `check_decls.rs` (stage builtins, capability refinements, macro expansion), `check_code.rs` (quotation typing), `provenance.rs`; suites `staging.rs`, `surface.rs`, `arrays.rs`. Intended semantics: [modules and compilation specification](../specifications/modules-and-compilation-specification.md) sections 7 to 11 and [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md). Tutorial: [compile-time code](../learn/18-staging-and-macros.md).
+For a guided walkthrough, see the [compile-time code tutorial](../learn/18-staging-and-macros.md).

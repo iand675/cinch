@@ -2,17 +2,11 @@
 
 Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Wide</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Wide/source/">View source</a><a href="/packages/search/?q=%2BData.Wide">Search module</a><a href="/reference-sources/Data.Wide.cinch" download="Data.Wide.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Wide`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Bits](Algebra.Bits.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Prim.Wide](Prim.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.Wide.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Bits](Algebra.Bits.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Prim.Wide](Prim.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Wide: the wide scalar types `I128` and `U128` and their
 operations (design/wide-scalars.md).
@@ -44,836 +38,463 @@ other numeric type and with `Int` and `Nat`, and the `Eq`, `Ord`,
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (296 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-ArmAes">ArmAes</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmAes</strong></code></li><li><a class="syn-name" href="#v-aes-dec-last">aes-dec-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-dec-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-aes-dec-round">aes-dec-round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-dec-round</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-aes-enc-last">aes-enc-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-enc-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-aes-enc-round">aes-enc-round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">aes-enc-round</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-bit-and-i128">bit-and-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-and-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-bit-and-u128">bit-and-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-and-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-bit-not-i128">bit-not-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-not-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-bit-not-u128">bit-not-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-not-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-bit-or-i128">bit-or-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-or-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-bit-or-u128">bit-or-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-or-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-bit-xor-i128">bit-xor-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-xor-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-bit-xor-u128">bit-xor-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bit-xor-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-add-i128">checked-add-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-add-u128">checked-add-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-div-i128">checked-div-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-div-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-div-u128">checked-div-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-div-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-f32-to-i128">checked-f32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-f32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-f32-to-u128">checked-f32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-f32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-f64-to-i128">checked-f64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-f64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-f64-to-u128">checked-f64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-f64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-i128">checked-i128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-i16">checked-i128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-i32">checked-i128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-i64">checked-i128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-i8">checked-i128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-isize">checked-i128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-u128">checked-i128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-u16">checked-i128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-u32">checked-i128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-u64">checked-i128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-u8">checked-i128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-checked-i128-to-usize">checked-i128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-checked-i16-to-i128">checked-i16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-i16-to-u128">checked-i16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-i32-to-i128">checked-i32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-i32-to-u128">checked-i32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-i64-to-i128">checked-i64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-i64-to-u128">checked-i64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-i8-to-i128">checked-i8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-i8-to-u128">checked-i8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-int-to-i128">checked-int-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-int-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-int-to-u128">checked-int-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-int-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-isize-to-i128">checked-isize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-isize-to-u128">checked-isize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-mul-i128">checked-mul-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-mul-u128">checked-mul-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-nat-to-i128">checked-nat-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-nat-to-u128">checked-nat-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-neg-i128">checked-neg-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-neg-u128">checked-neg-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-rem-i128">checked-rem-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-rem-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-rem-u128">checked-rem-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-rem-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-shl-i128">checked-shl-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-shl-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-shl-u128">checked-shl-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-shl-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-shr-i128">checked-shr-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-shr-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-shr-u128">checked-shr-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-shr-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-sub-i128">checked-sub-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-sub-u128">checked-sub-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-i128">checked-u128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-i16">checked-u128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-i32">checked-u128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-i64">checked-u128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-i8">checked-u128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-isize">checked-u128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-u128">checked-u128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-u16">checked-u128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-u32">checked-u128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-u64">checked-u128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-u8">checked-u128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-checked-u128-to-usize">checked-u128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-checked-u16-to-i128">checked-u16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-u16-to-u128">checked-u16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-u32-to-i128">checked-u32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-u32-to-u128">checked-u32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-u64-to-i128">checked-u64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-u64-to-u128">checked-u64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-u8-to-i128">checked-u8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-u8-to-u128">checked-u8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-checked-usize-to-i128">checked-usize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-checked-usize-to-u128">checked-usize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-clmul-u64">clmul-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">clmul-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-count-ones-i128">count-ones-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">count-ones-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-count-ones-u128">count-ones-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">count-ones-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-cpu-has-aes">cpu-has-aes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cpu-has-aes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-cpu-has-clmul">cpu-has-clmul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cpu-has-clmul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-div-u128">div-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">div-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-eq-i128">eq-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">eq-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-eq-u128">eq-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">eq-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ge-i128">ge-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ge-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ge-u128">ge-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ge-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-gt-i128">gt-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gt-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-gt-u128">gt-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gt-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-i128-to-f32">i128-to-f32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i128-to-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code></li><li><a class="syn-name" href="#v-i128-to-f64">i128-to-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i128-to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-i128-to-i128">i128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-i16-to-i128">i16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-i32-to-i128">i32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-i64-to-i128">i64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-i8-to-i128">i8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-int-from-i128">int-from-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">int-from-i128</strong> :: (<span class="tok-variable">a0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">a0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-int-from-u128">int-from-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">int-from-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-int-to-i128">int-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">int-to-i128</strong> :: (- 170141183460469231731687303715884105728 &lt;= <span class="tok-variable">arg0</span>, <span class="tok-variable">arg0</span> &lt;= 170141183460469231731687303715884105727) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-isize-to-i128">isize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-le-i128">le-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">le-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-le-u128">le-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">le-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-leading-zeros-i128">leading-zeros-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">leading-zeros-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-leading-zeros-u128">leading-zeros-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">leading-zeros-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-lt-i128">lt-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-lt-u128">lt-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-max-bound-i128">max-bound-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-bound-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-max-bound-u128">max-bound-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-bound-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-min-bound-i128">min-bound-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">min-bound-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-min-bound-u128">min-bound-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">min-bound-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-nat-from-u128">nat-from-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-from-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-to-u128">nat-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-to-u128</strong> :: <span class="tok-variable">arg0</span> &lt;= 340282366920938463463374607431768211455 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-ne-i128">ne-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ne-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ne-u128">ne-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ne-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-rem-u128">rem-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rem-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-reverse-bits-i128">reverse-bits-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-bits-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-reverse-bits-u128">reverse-bits-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse-bits-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-rotate-left-i128">rotate-left-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rotate-left-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-rotate-left-u128">rotate-left-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rotate-left-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-rotate-right-i128">rotate-right-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rotate-right-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-rotate-right-u128">rotate-right-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rotate-right-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-add-i128">saturating-add-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-add-u128">saturating-add-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-f32-to-i128">saturating-f32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-f32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-f32-to-u128">saturating-f32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-f32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-f64-to-i128">saturating-f64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-f64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-f64-to-u128">saturating-f64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-f64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-i128">saturating-i128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-i16">saturating-i128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-i32">saturating-i128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-i64">saturating-i128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-i8">saturating-i128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-isize">saturating-i128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-u128">saturating-i128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-u16">saturating-i128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-u32">saturating-i128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-u64">saturating-i128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-u8">saturating-i128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-saturating-i128-to-usize">saturating-i128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-saturating-i16-to-i128">saturating-i16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-i16-to-u128">saturating-i16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-i32-to-i128">saturating-i32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-i32-to-u128">saturating-i32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-i64-to-i128">saturating-i64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-i64-to-u128">saturating-i64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-i8-to-i128">saturating-i8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-i8-to-u128">saturating-i8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-isize-to-i128">saturating-isize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-isize-to-u128">saturating-isize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-mul-i128">saturating-mul-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-mul-u128">saturating-mul-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-neg-i128">saturating-neg-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-neg-u128">saturating-neg-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-sub-i128">saturating-sub-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-sub-u128">saturating-sub-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-i128">saturating-u128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-i16">saturating-u128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-i32">saturating-u128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-i64">saturating-u128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-i8">saturating-u128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-isize">saturating-u128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-u128">saturating-u128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-u16">saturating-u128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-u32">saturating-u128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-u64">saturating-u128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-u8">saturating-u128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-saturating-u128-to-usize">saturating-u128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-saturating-u16-to-i128">saturating-u16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-u16-to-u128">saturating-u16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-u32-to-i128">saturating-u32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-u32-to-u128">saturating-u32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-u64-to-i128">saturating-u64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-u64-to-u128">saturating-u64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-u8-to-i128">saturating-u8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-u8-to-u128">saturating-u8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-saturating-usize-to-i128">saturating-usize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-saturating-usize-to-u128">saturating-usize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-bitselect">simd-bitselect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-bitselect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i16x8-ashr">simd-i16x8-ashr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-ashr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i16x8-cmplt">simd-i16x8-cmplt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i16x8-smax">simd-i16x8-smax</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-smax</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i16x8-smin">simd-i16x8-smin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-smin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i32x4-ashr">simd-i32x4-ashr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-ashr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i32x4-smax">simd-i32x4-smax</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-smax</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-i32x4-smin">simd-i32x4-smin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-smin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-add">simd-u16x8-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-cmpeq">simd-u16x8-cmpeq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-cmplt">simd-u16x8-cmplt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-mul">simd-u16x8-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-shl">simd-u16x8-shl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-shr">simd-u16x8-shr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-splat">simd-u16x8-splat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u16x8-sub">simd-u16x8-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-add">simd-u32x4-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-cmpeq">simd-u32x4-cmpeq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-cmplt">simd-u32x4-cmplt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-mul">simd-u32x4-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-pack">simd-u32x4-pack</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-rotl">simd-u32x4-rotl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-rotl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-rotr">simd-u32x4-rotr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-rotr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-shl">simd-u32x4-shl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-shr">simd-u32x4-shr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-splat">simd-u32x4-splat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u32x4-sub">simd-u32x4-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-add">simd-u64x2-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-pack">simd-u64x2-pack</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-rotl">simd-u64x2-rotl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-rotl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-rotr">simd-u64x2-rotr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-rotr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-shl">simd-u64x2-shl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-shr">simd-u64x2-shr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-splat">simd-u64x2-splat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u64x2-sub">simd-u64x2-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-add">simd-u8x16-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-cmpeq">simd-u8x16-cmpeq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-cmpgt">simd-u8x16-cmpgt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmpgt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-cmplt">simd-u8x16-cmplt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-movemask">simd-u8x16-movemask</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-movemask</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-splat">simd-u8x16-splat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-simd-u8x16-sub">simd-u8x16-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-swap-bytes-i128">swap-bytes-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">swap-bytes-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-swap-bytes-u128">swap-bytes-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">swap-bytes-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-trailing-zeros-i128">trailing-zeros-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">trailing-zeros-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-trailing-zeros-u128">trailing-zeros-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">trailing-zeros-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-u128-to-f32">u128-to-f32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u128-to-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code></li><li><a class="syn-name" href="#v-u128-to-f64">u128-to-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u128-to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-u128-to-u128">u128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-u16-to-i128">u16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-u16-to-u128">u16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-u32-to-i128">u32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-u32-to-u128">u32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-u64-to-i128">u64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-u64-to-u128">u64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-u8-to-i128">u8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-u8-to-u128">u8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-usize-to-i128">usize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-usize-to-u128">usize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-add-i128">wrapping-add-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-add-u128">wrapping-add-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-i128">wrapping-i128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-i16">wrapping-i128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-i32">wrapping-i128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-i64">wrapping-i128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-i8">wrapping-i128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-isize">wrapping-i128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-u128">wrapping-i128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-u16">wrapping-i128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-u32">wrapping-i128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-u64">wrapping-i128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-u8">wrapping-i128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-wrapping-i128-to-usize">wrapping-i128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-wrapping-i16-to-i128">wrapping-i16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-i16-to-u128">wrapping-i16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-i32-to-i128">wrapping-i32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-i32-to-u128">wrapping-i32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-i64-to-i128">wrapping-i64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-i64-to-u128">wrapping-i64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-i8-to-i128">wrapping-i8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-i8-to-u128">wrapping-i8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-isize-to-i128">wrapping-isize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-isize-to-u128">wrapping-isize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-mul-i128">wrapping-mul-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-mul-u128">wrapping-mul-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-neg-i128">wrapping-neg-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-neg-u128">wrapping-neg-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-shl-i128">wrapping-shl-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-shl-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-shl-u128">wrapping-shl-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-shl-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-shr-i128">wrapping-shr-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-shr-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-shr-u128">wrapping-shr-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-shr-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-sub-i128">wrapping-sub-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-sub-u128">wrapping-sub-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-i128">wrapping-u128-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-i16">wrapping-u128-to-i16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-i32">wrapping-u128-to-i32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-i64">wrapping-u128-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-i8">wrapping-u128-to-i8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-isize">wrapping-u128-to-isize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-u128">wrapping-u128-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-u16">wrapping-u128-to-u16</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-u32">wrapping-u128-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-u64">wrapping-u128-to-u64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-u8">wrapping-u128-to-u8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-wrapping-u128-to-usize">wrapping-u128-to-usize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li><li><a class="syn-name" href="#v-wrapping-u16-to-i128">wrapping-u16-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-u16-to-u128">wrapping-u16-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-u32-to-i128">wrapping-u32-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-u32-to-u128">wrapping-u32-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-u64-to-i128">wrapping-u64-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-u64-to-u128">wrapping-u64-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-u8-to-i128">wrapping-u8-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-u8-to-u128">wrapping-u8-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li><li><a class="syn-name" href="#v-wrapping-usize-to-i128">wrapping-usize-to-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-wrapping-usize-to-u128">wrapping-usize-to-u128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">wrapping-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-41726d416573"></a>
-
-## `ArmAes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ArmAes</span> </code></pre>
+<article class="doc-entry" id="c-ArmAes">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmAes</strong></code><span class="doc-sig-links"><a href="#c-ArmAes" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Target-profile evidence that the ARMv8 AES and PMULL instructions may execute.
 Only profiles that guarantee the cryptography extension should name this capability.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 19
+</div>
+</article>
 
 # Values
 
-<a id="value-6165732d6465632d6c617374"></a>
-
-## `aes-dec-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-dec-last</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-dec-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-dec-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-dec-last" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L559" title="View source at line 559">Source</a></span></div>
+<div class="doc-body">
 
 Final hardware AES equivalent-inverse decryption round (InvShiftRows, InvSubBytes, AddRoundKey); callers must guard with cpu-has-aes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 559
+</div>
+</article>
 
-<a id="value-6165732d6465632d726f756e64"></a>
-
-## `aes-dec-round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-dec-round</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-dec-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-dec-round</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-dec-round" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L538" title="View source at line 538">Source</a></span></div>
+<div class="doc-body">
 
 One hardware AES equivalent-inverse decryption round (InvShiftRows, InvSubBytes, InvMixColumns, AddRoundKey); callers must guard with cpu-has-aes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 538
+</div>
+</article>
 
-<a id="value-6165732d656e632d6c617374"></a>
-
-## `aes-enc-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-enc-last</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-enc-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-enc-last</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-enc-last" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L517" title="View source at line 517">Source</a></span></div>
+<div class="doc-body">
 
 Final hardware AES encryption round (SubBytes, ShiftRows, AddRoundKey); callers must guard with cpu-has-aes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 517
+</div>
+</article>
 
-<a id="value-6165732d656e632d726f756e64"></a>
-
-## `aes-enc-round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-enc-round</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-aes-enc-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">aes-enc-round</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-aes-enc-round" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L496" title="View source at line 496">Source</a></span></div>
+<div class="doc-body">
 
 One hardware AES encryption round (SubBytes, ShiftRows, MixColumns, AddRoundKey); callers must guard with cpu-has-aes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 496
+</div>
+</article>
 
-<a id="value-6269742d616e642d69313238"></a>
+<article class="doc-entry" id="v-bit-and-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-and-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-bit-and-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L129" title="View source at line 129">Source</a></span></div>
+</article>
 
-## `bit-and-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d616e642d75313238"></a>
-
-## `bit-and-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-bit-and-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-and-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-bit-and-u128" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L24" title="View source at line 24">Source</a></span></div>
+<div class="doc-body">
 
 Bitwise AND over two U128 values.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 24
-
-<a id="value-6269742d6e6f742d69313238"></a>
-
-## `bit-not-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d6e6f742d75313238"></a>
-
-## `bit-not-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d6f722d69313238"></a>
-
-## `bit-or-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d6f722d75313238"></a>
-
-## `bit-or-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d786f722d69313238"></a>
-
-## `bit-xor-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6269742d786f722d75313238"></a>
-
-## `bit-xor-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6164642d69313238"></a>
-
-## `checked-add-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6164642d75313238"></a>
-
-## `checked-add-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-add-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6469762d69313238"></a>
-
-## `checked-div-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6469762d75313238"></a>
-
-## `checked-div-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6633322d746f2d69313238"></a>
-
-## `checked-f32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-i128</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6633322d746f2d75313238"></a>
-
-## `checked-f32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f32-to-u128</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6636342d746f2d69313238"></a>
-
-## `checked-f64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-i128</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6636342d746f2d75313238"></a>
-
-## `checked-f64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-f64-to-u128</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d69313238"></a>
-
-## `checked-i128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d693136"></a>
-
-## `checked-i128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-i16</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d693332"></a>
-
-## `checked-i128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-i32</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d693634"></a>
-
-## `checked-i128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-i64</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d6938"></a>
-
-## `checked-i128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-i8</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d6973697a65"></a>
-
-## `checked-i128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-isize</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d75313238"></a>
-
-## `checked-i128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-u128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d753136"></a>
-
-## `checked-i128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-u16</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d753332"></a>
-
-## `checked-i128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-u32</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d753634"></a>
-
-## `checked-i128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-u64</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d7538"></a>
-
-## `checked-i128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-u8</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d693132382d746f2d7573697a65"></a>
-
-## `checked-i128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i128-to-usize</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6931362d746f2d69313238"></a>
-
-## `checked-i16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-i128</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6931362d746f2d75313238"></a>
-
-## `checked-i16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i16-to-u128</span> :: (<span class="tok-constructor">I16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6933322d746f2d69313238"></a>
-
-## `checked-i32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-i128</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6933322d746f2d75313238"></a>
-
-## `checked-i32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i32-to-u128</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6936342d746f2d69313238"></a>
-
-## `checked-i64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-i128</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6936342d746f2d75313238"></a>
-
-## `checked-i64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i64-to-u128</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d69382d746f2d69313238"></a>
-
-## `checked-i8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-i128</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d69382d746f2d75313238"></a>
-
-## `checked-i8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-i8-to-u128</span> :: (<span class="tok-constructor">I8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d696e742d746f2d69313238"></a>
-
-## `checked-int-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-int-to-i128</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d696e742d746f2d75313238"></a>
-
-## `checked-int-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-int-to-u128</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6973697a652d746f2d69313238"></a>
-
-## `checked-isize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-i128</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6973697a652d746f2d75313238"></a>
-
-## `checked-isize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-isize-to-u128</span> :: (<span class="tok-constructor">Isize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6d756c2d69313238"></a>
-
-## `checked-mul-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6d756c2d75313238"></a>
-
-## `checked-mul-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-mul-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6e61742d746f2d69313238"></a>
-
-## `checked-nat-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-to-i128</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6e61742d746f2d75313238"></a>
-
-## `checked-nat-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-to-u128</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6e65672d69313238"></a>
-
-## `checked-neg-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d6e65672d75313238"></a>
-
-## `checked-neg-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-neg-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d72656d2d69313238"></a>
-
-## `checked-rem-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d72656d2d75313238"></a>
-
-## `checked-rem-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d73686c2d69313238"></a>
-
-## `checked-shl-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d73686c2d75313238"></a>
-
-## `checked-shl-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shl-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7368722d69313238"></a>
-
-## `checked-shr-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7368722d75313238"></a>
-
-## `checked-shr-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-shr-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7375622d69313238"></a>
-
-## `checked-sub-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7375622d75313238"></a>
-
-## `checked-sub-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d69313238"></a>
-
-## `checked-u128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-i128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d693136"></a>
-
-## `checked-u128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-i16</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d693332"></a>
-
-## `checked-u128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-i32</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d693634"></a>
-
-## `checked-u128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-i64</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d6938"></a>
-
-## `checked-u128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-i8</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d6973697a65"></a>
-
-## `checked-u128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-isize</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Isize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d75313238"></a>
-
-## `checked-u128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d753136"></a>
-
-## `checked-u128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-u16</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d753332"></a>
-
-## `checked-u128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-u32</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d753634"></a>
-
-## `checked-u128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-u64</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d7538"></a>
-
-## `checked-u128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-u8</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d753132382d746f2d7573697a65"></a>
-
-## `checked-u128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u128-to-usize</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Usize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7531362d746f2d69313238"></a>
-
-## `checked-u16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-i128</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7531362d746f2d75313238"></a>
-
-## `checked-u16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u16-to-u128</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7533322d746f2d69313238"></a>
-
-## `checked-u32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-i128</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7533322d746f2d75313238"></a>
-
-## `checked-u32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u32-to-u128</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7536342d746f2d69313238"></a>
-
-## `checked-u64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-i128</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7536342d746f2d75313238"></a>
-
-## `checked-u64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u64-to-u128</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d75382d746f2d69313238"></a>
-
-## `checked-u8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-i128</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d75382d746f2d75313238"></a>
-
-## `checked-u8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-u8-to-u128</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7573697a652d746f2d69313238"></a>
-
-## `checked-usize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-i128</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636865636b65642d7573697a652d746f2d75313238"></a>
-
-## `checked-usize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-usize-to-u128</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636c6d756c2d753634"></a>
-
-## `clmul-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clmul-u64</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+</div>
+</article>
+
+<article class="doc-entry" id="v-bit-not-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-not-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-bit-not-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L144" title="View source at line 144">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-bit-not-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-not-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-bit-not-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L342" title="View source at line 342">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-bit-or-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-or-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-bit-or-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L134" title="View source at line 134">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-bit-or-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-or-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-bit-or-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L332" title="View source at line 332">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-bit-xor-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-xor-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-bit-xor-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L139" title="View source at line 139">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-bit-xor-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bit-xor-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-bit-xor-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L337" title="View source at line 337">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-add-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-add-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L239" title="View source at line 239">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-add-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-add-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L437" title="View source at line 437">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-div-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-div-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-div-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L249" title="View source at line 249">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-div-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-div-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-div-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L447" title="View source at line 447">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-f32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-f32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-f32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L897" title="View source at line 897">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-f32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-f32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-f32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L901" title="View source at line 901">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-f64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-f64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-f64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L893" title="View source at line 893">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-f64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-f64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-f64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L895" title="View source at line 895">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L467" title="View source at line 467">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L686" title="View source at line 686">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L704" title="View source at line 704">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L722" title="View source at line 722">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L668" title="View source at line 668">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L815" title="View source at line 815">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L473" title="View source at line 473">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L758" title="View source at line 758">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L776" title="View source at line 776">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L794" title="View source at line 794">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L740" title="View source at line 740">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-checked-i128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L809" title="View source at line 809">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-i16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L511" title="View source at line 511">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-i16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L519" title="View source at line 519">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-i32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L528" title="View source at line 528">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-i32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L536" title="View source at line 536">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-i64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L545" title="View source at line 545">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-i64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L553" title="View source at line 553">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-i8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L494" title="View source at line 494">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-i8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-i8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L502" title="View source at line 502">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-int-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-int-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-int-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L920" title="View source at line 920">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-int-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-int-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-int-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L929" title="View source at line 929">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-isize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-isize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L651" title="View source at line 651">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-isize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-isize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L657" title="View source at line 657">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-mul-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-mul-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L243" title="View source at line 243">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-mul-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-mul-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L441" title="View source at line 441">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-nat-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-nat-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L932" title="View source at line 932">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-nat-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-nat-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L923" title="View source at line 923">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-neg-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-neg-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L245" title="View source at line 245">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-neg-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-neg-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L443" title="View source at line 443">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-rem-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-rem-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-rem-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L251" title="View source at line 251">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-rem-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-rem-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-rem-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L449" title="View source at line 449">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-shl-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-shl-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-shl-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L253" title="View source at line 253">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-shl-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-shl-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-shl-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L451" title="View source at line 451">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-shr-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-shr-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-shr-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L255" title="View source at line 255">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-shr-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-shr-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-shr-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L453" title="View source at line 453">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-sub-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-sub-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L241" title="View source at line 241">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-sub-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-sub-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L439" title="View source at line 439">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L485" title="View source at line 485">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L695" title="View source at line 695">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L713" title="View source at line 713">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L731" title="View source at line 731">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L677" title="View source at line 677">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L827" title="View source at line 827">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L479" title="View source at line 479">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L767" title="View source at line 767">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L785" title="View source at line 785">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L803" title="View source at line 803">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L749" title="View source at line 749">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-checked-u128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L821" title="View source at line 821">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-u16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L583" title="View source at line 583">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-u16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L589" title="View source at line 589">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-u32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L602" title="View source at line 602">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-u32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L608" title="View source at line 608">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-u64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L621" title="View source at line 621">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-u64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L627" title="View source at line 627">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-u8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L564" title="View source at line 564">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-u8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-u8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L570" title="View source at line 570">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-usize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-checked-usize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L635" title="View source at line 635">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-checked-usize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-checked-usize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L643" title="View source at line 643">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-clmul-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">clmul-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-clmul-u64" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L580" title="View source at line 580">Source</a></span></div>
+<div class="doc-body">
 
 64x64-bit hardware carry-less multiplication into U128; callers must guard with cpu-has-clmul.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 580
+</div>
+</article>
 
-<a id="value-636f756e742d6f6e65732d69313238"></a>
+<article class="doc-entry" id="v-count-ones-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">count-ones-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-count-ones-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L175" title="View source at line 175">Source</a></span></div>
+</article>
 
-## `count-ones-i128`
+<article class="doc-entry" id="v-count-ones-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">count-ones-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-count-ones-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L373" title="View source at line 373">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-636f756e742d6f6e65732d75313238"></a>
-
-## `count-ones-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6370752d6861732d616573"></a>
-
-## `cpu-has-aes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cpu-has-aes</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-cpu-has-aes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cpu-has-aes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-cpu-has-aes" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L600" title="View source at line 600">Source</a></span></div>
+<div class="doc-body">
 
 Report non-zero when hardware AES round instructions may execute on the target processor.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 600
+</div>
+</article>
 
-<a id="value-6370752d6861732d636c6d756c"></a>
-
-## `cpu-has-clmul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cpu-has-clmul</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-cpu-has-clmul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cpu-has-clmul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-cpu-has-clmul" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L615" title="View source at line 615">Source</a></span></div>
+<div class="doc-body">
 
 Report non-zero when hardware carry-less multiplication instructions may execute on the target processor.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 615
+</div>
+</article>
 
-<a id="value-6469762d75313238"></a>
+<article class="doc-entry" id="v-div-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">div-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-div-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L322" title="View source at line 322">Source</a></span></div>
+</article>
 
-## `div-u128`
+<article class="doc-entry" id="v-eq-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">eq-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-eq-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L203" title="View source at line 203">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-eq-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">eq-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-eq-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L401" title="View source at line 401">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
+<article class="doc-entry" id="v-ge-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ge-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ge-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L233" title="View source at line 233">Source</a></span></div>
+</article>
 
-<a id="value-65712d69313238"></a>
+<article class="doc-entry" id="v-ge-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ge-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ge-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L431" title="View source at line 431">Source</a></span></div>
+</article>
 
-## `eq-i128`
+<article class="doc-entry" id="v-gt-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gt-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-gt-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L227" title="View source at line 227">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-gt-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gt-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-gt-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L425" title="View source at line 425">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
+<article class="doc-entry" id="v-i128-to-f32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i128-to-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-i128-to-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L831" title="View source at line 831">Source</a></span></div>
+</article>
 
-<a id="value-65712d75313238"></a>
+<article class="doc-entry" id="v-i128-to-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i128-to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-i128-to-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L836" title="View source at line 836">Source</a></span></div>
+</article>
 
-## `eq-u128`
+<article class="doc-entry" id="v-i128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-i128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L465" title="View source at line 465">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-i16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-i16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L506" title="View source at line 506">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
+<article class="doc-entry" id="v-i32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-i32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L523" title="View source at line 523">Source</a></span></div>
+</article>
 
-<a id="value-67652d69313238"></a>
+<article class="doc-entry" id="v-i64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-i64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L540" title="View source at line 540">Source</a></span></div>
+</article>
 
-## `ge-i128`
+<article class="doc-entry" id="v-i8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-i8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L489" title="View source at line 489">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-67652d75313238"></a>
-
-## `ge-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-67742d69313238"></a>
-
-## `gt-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-67742d75313238"></a>
-
-## `gt-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-693132382d746f2d663332"></a>
-
-## `i128-to-f32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i128-to-f32</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-693132382d746f2d663634"></a>
-
-## `i128-to-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i128-to-f64</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-693132382d746f2d69313238"></a>
-
-## `i128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i128-to-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6931362d746f2d69313238"></a>
-
-## `i16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i16-to-i128</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6933322d746f2d69313238"></a>
-
-## `i32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i32-to-i128</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6936342d746f2d69313238"></a>
-
-## `i64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i64-to-i128</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-69382d746f2d69313238"></a>
-
-## `i8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">i8-to-i128</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-696e742d66726f6d2d69313238"></a>
-
-## `int-from-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-from-i128</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">I128</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>) <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-int-from-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">int-from-i128</strong> :: (<span class="tok-variable">a0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">a0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-int-from-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L915" title="View source at line 915">Source</a></span></div>
+<div class="doc-body">
 
 The mathematical types. Every `I128` is an `Int` and every `U128` a
 `Nat`, keeping the value; the other direction states the range it
@@ -885,1679 +506,1025 @@ A wide scalar has no solver sort (its range is past the solver's
 `checked` form, supplies `int-to-i128`'s range. The runtime carries
 the 128-bit value across with the C ABI's `__int128`.
 
-[Source](/reference-sources/Data.Wide.cinch) · line 915
+</div>
+</article>
 
-<a id="value-696e742d66726f6d2d75313238"></a>
+<article class="doc-entry" id="v-int-from-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">int-from-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-int-from-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L926" title="View source at line 926">Source</a></span></div>
+</article>
 
-## `int-from-u128`
+<article class="doc-entry" id="v-int-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">int-to-i128</strong> :: (- 170141183460469231731687303715884105728 &lt;= <span class="tok-variable">arg0</span>, <span class="tok-variable">arg0</span> &lt;= 170141183460469231731687303715884105727) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-int-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L916" title="View source at line 916">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-from-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-isize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-isize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L649" title="View source at line 649">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
+<article class="doc-entry" id="v-le-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">le-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-le-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L221" title="View source at line 221">Source</a></span></div>
+</article>
 
-<a id="value-696e742d746f2d69313238"></a>
+<article class="doc-entry" id="v-le-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">le-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-le-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L419" title="View source at line 419">Source</a></span></div>
+</article>
 
-## `int-to-i128`
+<article class="doc-entry" id="v-leading-zeros-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">leading-zeros-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-leading-zeros-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L181" title="View source at line 181">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-to-i128</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">-170141183460469231731687303715884105728</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>, <span class="tok-variable">arg0</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">170141183460469231731687303715884105727</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Int</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">I128</span>)</code></pre>
+<article class="doc-entry" id="v-leading-zeros-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">leading-zeros-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-leading-zeros-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L379" title="View source at line 379">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
+<article class="doc-entry" id="v-lt-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-lt-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L215" title="View source at line 215">Source</a></span></div>
+</article>
 
-<a id="value-6973697a652d746f2d69313238"></a>
+<article class="doc-entry" id="v-lt-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-lt-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L413" title="View source at line 413">Source</a></span></div>
+</article>
 
-## `isize-to-i128`
+<article class="doc-entry" id="v-max-bound-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-bound-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-max-bound-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L54" title="View source at line 54">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">isize-to-i128</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
+<article class="doc-entry" id="v-max-bound-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-bound-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-max-bound-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L261" title="View source at line 261">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c652d69313238"></a>
-
-## `le-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c652d75313238"></a>
-
-## `le-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c656164696e672d7a65726f732d69313238"></a>
-
-## `leading-zeros-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c656164696e672d7a65726f732d75313238"></a>
-
-## `leading-zeros-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c742d69313238"></a>
-
-## `lt-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6c742d75313238"></a>
-
-## `lt-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6d61782d626f756e642d69313238"></a>
-
-## `max-bound-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-i128</span> :: <span class="tok-constructor">I128</span></code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6d61782d626f756e642d75313238"></a>
-
-## `max-bound-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-bound-u128</span> :: <span class="tok-constructor">U128</span></code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6d696e2d626f756e642d69313238"></a>
-
-## `min-bound-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-i128</span> :: <span class="tok-constructor">I128</span></code></pre>
+<article class="doc-entry" id="v-min-bound-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-bound-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-min-bound-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L52" title="View source at line 52">Source</a></span></div>
+<div class="doc-body">
 
 I128 (128 bits).
 
-[Source](/reference-sources/Data.Wide.cinch) · line 52
+</div>
+</article>
 
-<a id="value-6d696e2d626f756e642d75313238"></a>
-
-## `min-bound-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-bound-u128</span> :: <span class="tok-constructor">U128</span></code></pre>
+<article class="doc-entry" id="v-min-bound-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-bound-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-min-bound-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L259" title="View source at line 259">Source</a></span></div>
+<div class="doc-body">
 
 U128 (128 bits).
 
-[Source](/reference-sources/Data.Wide.cinch) · line 259
-
-<a id="value-6e61742d66726f6d2d75313238"></a>
-
-## `nat-from-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-from-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6e61742d746f2d75313238"></a>
-
-## `nat-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-u128</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg0</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">340282366920938463463374607431768211455</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6e652d69313238"></a>
-
-## `ne-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-6e652d75313238"></a>
-
-## `ne-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-72656d2d75313238"></a>
-
-## `rem-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726576657273652d626974732d69313238"></a>
-
-## `reverse-bits-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726576657273652d626974732d75313238"></a>
-
-## `reverse-bits-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse-bits-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726f746174652d6c6566742d69313238"></a>
-
-## `rotate-left-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726f746174652d6c6566742d75313238"></a>
-
-## `rotate-left-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726f746174652d72696768742d69313238"></a>
-
-## `rotate-right-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-726f746174652d72696768742d75313238"></a>
-
-## `rotate-right-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6164642d69313238"></a>
-
-## `saturating-add-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6164642d75313238"></a>
-
-## `saturating-add-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-add-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6633322d746f2d69313238"></a>
-
-## `saturating-f32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-i128</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6633322d746f2d75313238"></a>
-
-## `saturating-f32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f32-to-u128</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6636342d746f2d69313238"></a>
-
-## `saturating-f64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-i128</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6636342d746f2d75313238"></a>
-
-## `saturating-f64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-f64-to-u128</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d69313238"></a>
-
-## `saturating-i128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d693136"></a>
-
-## `saturating-i128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-i16</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d693332"></a>
-
-## `saturating-i128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-i32</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d693634"></a>
-
-## `saturating-i128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-i64</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d6938"></a>
-
-## `saturating-i128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-i8</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d6973697a65"></a>
-
-## `saturating-i128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-isize</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d75313238"></a>
-
-## `saturating-i128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-u128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d753136"></a>
-
-## `saturating-i128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-u16</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d753332"></a>
-
-## `saturating-i128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-u32</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d753634"></a>
-
-## `saturating-i128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-u64</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d7538"></a>
-
-## `saturating-i128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-u8</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d693132382d746f2d7573697a65"></a>
-
-## `saturating-i128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i128-to-usize</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6931362d746f2d69313238"></a>
-
-## `saturating-i16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-i128</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6931362d746f2d75313238"></a>
-
-## `saturating-i16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i16-to-u128</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6933322d746f2d69313238"></a>
-
-## `saturating-i32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-i128</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6933322d746f2d75313238"></a>
-
-## `saturating-i32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i32-to-u128</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6936342d746f2d69313238"></a>
-
-## `saturating-i64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-i128</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6936342d746f2d75313238"></a>
-
-## `saturating-i64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i64-to-u128</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d69382d746f2d69313238"></a>
-
-## `saturating-i8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-i128</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d69382d746f2d75313238"></a>
-
-## `saturating-i8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-i8-to-u128</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6973697a652d746f2d69313238"></a>
-
-## `saturating-isize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-i128</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6973697a652d746f2d75313238"></a>
-
-## `saturating-isize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-isize-to-u128</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6d756c2d69313238"></a>
-
-## `saturating-mul-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6d756c2d75313238"></a>
-
-## `saturating-mul-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-mul-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6e65672d69313238"></a>
-
-## `saturating-neg-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d6e65672d75313238"></a>
-
-## `saturating-neg-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-neg-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7375622d69313238"></a>
-
-## `saturating-sub-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7375622d75313238"></a>
-
-## `saturating-sub-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d69313238"></a>
-
-## `saturating-u128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-i128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d693136"></a>
-
-## `saturating-u128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-i16</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d693332"></a>
-
-## `saturating-u128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-i32</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d693634"></a>
-
-## `saturating-u128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-i64</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d6938"></a>
-
-## `saturating-u128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-i8</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d6973697a65"></a>
-
-## `saturating-u128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-isize</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d75313238"></a>
-
-## `saturating-u128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d753136"></a>
-
-## `saturating-u128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-u16</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d753332"></a>
-
-## `saturating-u128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-u32</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d753634"></a>
-
-## `saturating-u128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-u64</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d7538"></a>
-
-## `saturating-u128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-u8</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d753132382d746f2d7573697a65"></a>
-
-## `saturating-u128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u128-to-usize</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7531362d746f2d69313238"></a>
-
-## `saturating-u16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-i128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7531362d746f2d75313238"></a>
-
-## `saturating-u16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u16-to-u128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7533322d746f2d69313238"></a>
-
-## `saturating-u32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-i128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7533322d746f2d75313238"></a>
-
-## `saturating-u32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u32-to-u128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7536342d746f2d69313238"></a>
-
-## `saturating-u64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-i128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7536342d746f2d75313238"></a>
-
-## `saturating-u64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u64-to-u128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d75382d746f2d69313238"></a>
-
-## `saturating-u8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-i128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d75382d746f2d75313238"></a>
-
-## `saturating-u8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-u8-to-u128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7573697a652d746f2d69313238"></a>
-
-## `saturating-usize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-i128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73617475726174696e672d7573697a652d746f2d75313238"></a>
-
-## `saturating-usize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-73696d642d62697473656c656374"></a>
-
-## `simd-bitselect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-bitselect</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)))</code></pre>
+</div>
+</article>
+
+<article class="doc-entry" id="v-nat-from-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-from-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-from-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L917" title="View source at line 917">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-nat-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-to-u128</strong> :: <span class="tok-variable">arg0</span> &lt;= 340282366920938463463374607431768211455 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-nat-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L918" title="View source at line 918">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-ne-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ne-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ne-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L209" title="View source at line 209">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-ne-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ne-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ne-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L407" title="View source at line 407">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-rem-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rem-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-rem-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L327" title="View source at line 327">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-reverse-bits-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-bits-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-reverse-bits-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L193" title="View source at line 193">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-reverse-bits-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse-bits-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-reverse-bits-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L391" title="View source at line 391">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-rotate-left-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rotate-left-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-rotate-left-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L163" title="View source at line 163">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-rotate-left-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rotate-left-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-rotate-left-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L361" title="View source at line 361">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-rotate-right-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rotate-right-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-rotate-right-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L169" title="View source at line 169">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-rotate-right-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rotate-right-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-rotate-right-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L367" title="View source at line 367">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-add-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-add-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L76" title="View source at line 76">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-add-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-add-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L283" title="View source at line 283">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-f32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-f32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-f32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L899" title="View source at line 899">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-f32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-f32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-f32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L903" title="View source at line 903">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-f64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-f64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-f64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L859" title="View source at line 859">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-f64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-f64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-f64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L880" title="View source at line 880">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L469" title="View source at line 469">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L688" title="View source at line 688">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L706" title="View source at line 706">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L724" title="View source at line 724">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L670" title="View source at line 670">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L817" title="View source at line 817">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L475" title="View source at line 475">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L760" title="View source at line 760">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L778" title="View source at line 778">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L796" title="View source at line 796">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L742" title="View source at line 742">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-saturating-i128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L811" title="View source at line 811">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-i16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L513" title="View source at line 513">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-i16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L521" title="View source at line 521">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-i32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L530" title="View source at line 530">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-i32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L538" title="View source at line 538">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-i64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L547" title="View source at line 547">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-i64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L555" title="View source at line 555">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-i8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L496" title="View source at line 496">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-i8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-i8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L504" title="View source at line 504">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-isize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-isize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L653" title="View source at line 653">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-isize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-isize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L659" title="View source at line 659">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-mul-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-mul-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L86" title="View source at line 86">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-mul-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-mul-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L293" title="View source at line 293">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-neg-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-neg-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L247" title="View source at line 247">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-neg-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-neg-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L445" title="View source at line 445">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-sub-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-sub-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L81" title="View source at line 81">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-sub-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-sub-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L288" title="View source at line 288">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L487" title="View source at line 487">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L697" title="View source at line 697">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L715" title="View source at line 715">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L733" title="View source at line 733">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L679" title="View source at line 679">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L829" title="View source at line 829">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L481" title="View source at line 481">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L769" title="View source at line 769">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L787" title="View source at line 787">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L805" title="View source at line 805">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L751" title="View source at line 751">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-saturating-u128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L823" title="View source at line 823">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-u16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L585" title="View source at line 585">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-u16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L591" title="View source at line 591">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-u32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L604" title="View source at line 604">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-u32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L610" title="View source at line 610">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-u64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L623" title="View source at line 623">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-u64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L629" title="View source at line 629">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-u8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L566" title="View source at line 566">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-u8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-u8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L572" title="View source at line 572">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-usize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-saturating-usize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L637" title="View source at line 637">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-saturating-usize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-saturating-usize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L645" title="View source at line 645">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-simd-bitselect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-bitselect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-bitselect" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 Bitwise select across 128 bits: (mask & when-one) | (~mask & when-zero).
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 31
+</div>
+</article>
 
-<a id="value-73696d642d69313678382d61736872"></a>
-
-## `simd-i16x8-ashr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-ashr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i16x8-ashr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-ashr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i16x8-ashr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise arithmetic right shift (masked modulo 16) on 8 signed I16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 178
+</div>
+</article>
 
-<a id="value-73696d642d69313678382d636d706c74"></a>
-
-## `simd-i16x8-cmplt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i16x8-cmplt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i16x8-cmplt" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise signed less-than mask on 8 I16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 213
+</div>
+</article>
 
-<a id="value-73696d642d69313678382d736d6178"></a>
-
-## `simd-i16x8-smax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-smax</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i16x8-smax">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-smax</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i16x8-smax" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L234" title="View source at line 234">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise signed maximum on 8 I16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 234
+</div>
+</article>
 
-<a id="value-73696d642d69313678382d736d696e"></a>
-
-## `simd-i16x8-smin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-smin</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i16x8-smin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i16x8-smin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i16x8-smin" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L224" title="View source at line 224">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise signed minimum on 8 I16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 224
+</div>
+</article>
 
-<a id="value-73696d642d69333278342d61736872"></a>
-
-## `simd-i32x4-ashr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-ashr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i32x4-ashr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-ashr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i32x4-ashr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L307" title="View source at line 307">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise arithmetic right shift (masked modulo 32) on 4 signed I32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 307
+</div>
+</article>
 
-<a id="value-73696d642d69333278342d736d6178"></a>
-
-## `simd-i32x4-smax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-smax</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i32x4-smax">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-smax</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i32x4-smax" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L351" title="View source at line 351">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise signed maximum on 4 I32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 351
+</div>
+</article>
 
-<a id="value-73696d642d69333278342d736d696e"></a>
-
-## `simd-i32x4-smin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-smin</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-i32x4-smin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-i32x4-smin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-i32x4-smin" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L341" title="View source at line 341">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise signed minimum on 4 I32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 341
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d616464"></a>
-
-## `simd-u16x8-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-add" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping addition on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 122
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d636d706571"></a>
-
-## `simd-u16x8-cmpeq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-cmpeq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-cmpeq" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise equality mask on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 191
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d636d706c74"></a>
-
-## `simd-u16x8-cmplt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-cmplt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-cmplt" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise unsigned less-than mask on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 202
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d6d756c"></a>
-
-## `simd-u16x8-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-mul</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-mul" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping multiplication on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 142
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d73686c"></a>
-
-## `simd-u16x8-shl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-shl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-shl" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise left shift (masked modulo 16) on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 152
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d736872"></a>
-
-## `simd-u16x8-shr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-shr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-shr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise logical right shift (masked modulo 16) on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 165
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d73706c6174"></a>
-
-## `simd-u16x8-splat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-splat</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-splat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-splat" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-body">
 
 Broadcast one U16 into all 8 16-bit lanes of a U128.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 113
+</div>
+</article>
 
-<a id="value-73696d642d75313678382d737562"></a>
-
-## `simd-u16x8-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u16x8-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u16x8-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u16x8-sub" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping subtraction on 8 U16 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 132
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d616464"></a>
-
-## `simd-u32x4-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-add" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L253" title="View source at line 253">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping addition on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 253
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d636d706571"></a>
-
-## `simd-u32x4-cmpeq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-cmpeq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-cmpeq" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L361" title="View source at line 361">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise equality mask on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 361
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d636d706c74"></a>
-
-## `simd-u32x4-cmplt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-cmplt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-cmplt" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L372" title="View source at line 372">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise unsigned less-than mask on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 372
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d6d756c"></a>
-
-## `simd-u32x4-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-mul</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-mul" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L273" title="View source at line 273">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping multiplication on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 273
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d7061636b"></a>
-
-## `simd-u32x4-pack`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-pack</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-pack">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-pack" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L383" title="View source at line 383">Source</a></span></div>
+<div class="doc-body">
 
 Pack four U32 lanes into a U128 with lane 0 in the least-significant 32 bits.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 383
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d726f746c"></a>
-
-## `simd-u32x4-rotl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-rotl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-rotl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-rotl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-rotl" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L319" title="View source at line 319">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise left rotation on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 319
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d726f7472"></a>
-
-## `simd-u32x4-rotr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-rotr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-rotr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-rotr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-rotr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L330" title="View source at line 330">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise right rotation on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 330
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d73686c"></a>
-
-## `simd-u32x4-shl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-shl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-shl" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L283" title="View source at line 283">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise left shift (masked modulo 32) on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 283
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d736872"></a>
-
-## `simd-u32x4-shr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-shr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-shr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L295" title="View source at line 295">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise logical right shift (masked modulo 32) on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 295
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d73706c6174"></a>
-
-## `simd-u32x4-splat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-splat</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-splat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-splat" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L244" title="View source at line 244">Source</a></span></div>
+<div class="doc-body">
 
 Broadcast one U32 into all 4 32-bit lanes of a U128.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 244
+</div>
+</article>
 
-<a id="value-73696d642d75333278342d737562"></a>
-
-## `simd-u32x4-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u32x4-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u32x4-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u32x4-sub" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L263" title="View source at line 263">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping subtraction on 4 U32 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 263
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d616464"></a>
-
-## `simd-u64x2-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-add" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L411" title="View source at line 411">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping addition on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 411
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d7061636b"></a>
-
-## `simd-u64x2-pack`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-pack</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-pack">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-pack</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-pack" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L481" title="View source at line 481">Source</a></span></div>
+<div class="doc-body">
 
 Pack two U64 lanes into a U128 with lane 0 in the least-significant 64 bits.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 481
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d726f746c"></a>
-
-## `simd-u64x2-rotl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-rotl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-rotl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-rotl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-rotl" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L457" title="View source at line 457">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise left rotation on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 457
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d726f7472"></a>
-
-## `simd-u64x2-rotr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-rotr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-rotr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-rotr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-rotr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L469" title="View source at line 469">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise right rotation on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 469
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d73686c"></a>
-
-## `simd-u64x2-shl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-shl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-shl</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-shl" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L431" title="View source at line 431">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise left shift (masked modulo 64) on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 431
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d736872"></a>
-
-## `simd-u64x2-shr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-shr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-shr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-shr" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L444" title="View source at line 444">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise logical right shift (masked modulo 64) on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 444
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d73706c6174"></a>
-
-## `simd-u64x2-splat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-splat</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-splat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-splat" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L402" title="View source at line 402">Source</a></span></div>
+<div class="doc-body">
 
 Broadcast one U64 into both 64-bit lanes of a U128.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 402
+</div>
+</article>
 
-<a id="value-73696d642d75363478322d737562"></a>
-
-## `simd-u64x2-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u64x2-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u64x2-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u64x2-sub" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L421" title="View source at line 421">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping subtraction on 2 U64 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 421
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d616464"></a>
-
-## `simd-u8x16-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-add" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping addition on 16 U8 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 50
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d636d706571"></a>
-
-## `simd-u8x16-cmpeq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-cmpeq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmpeq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-cmpeq" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise equality mask (0xFF per matching lane, 0x00 otherwise) on 16 U8 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 70
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d636d706774"></a>
-
-## `simd-u8x16-cmpgt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmpgt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-cmpgt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmpgt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-cmpgt" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise unsigned greater-than mask on 16 U8 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 92
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d636d706c74"></a>
-
-## `simd-u8x16-cmplt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-cmplt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-cmplt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-cmplt" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise unsigned less-than mask on 16 U8 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 81
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d6d6f76656d61736b"></a>
-
-## `simd-u8x16-movemask`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-movemask</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-movemask">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-movemask</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-movemask" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Extract the sign bit of each of the 16 byte lanes into the low 16 bits of a U32.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 103
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d73706c6174"></a>
-
-## `simd-u8x16-splat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-splat</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-splat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-splat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-splat" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Broadcast one U8 into all 16 byte lanes of a U128.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 41
+</div>
+</article>
 
-<a id="value-73696d642d75387831362d737562"></a>
-
-## `simd-u8x16-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+<article class="doc-entry" id="v-simd-u8x16-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">simd-u8x16-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-simd-u8x16-sub" title="Permalink">#</a><a href="/packages/stdlib/Prim.Wide/source/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-body">
 
 Lane-wise wrapping subtraction on 16 U8 lanes.
 
-[Source](/reference-sources/Prim.Wide.cinch) · line 60
-
-<a id="value-737761702d62797465732d69313238"></a>
-
-## `swap-bytes-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-737761702d62797465732d75313238"></a>
-
-## `swap-bytes-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap-bytes-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-747261696c696e672d7a65726f732d69313238"></a>
-
-## `trailing-zeros-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-747261696c696e672d7a65726f732d75313238"></a>
-
-## `trailing-zeros-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-753132382d746f2d663332"></a>
-
-## `u128-to-f32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u128-to-f32</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-753132382d746f2d663634"></a>
-
-## `u128-to-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u128-to-f64</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-753132382d746f2d75313238"></a>
-
-## `u128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u128-to-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7531362d746f2d69313238"></a>
-
-## `u16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-i128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7531362d746f2d75313238"></a>
-
-## `u16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u16-to-u128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7533322d746f2d69313238"></a>
-
-## `u32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-i128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7533322d746f2d75313238"></a>
-
-## `u32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-u128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7536342d746f2d69313238"></a>
-
-## `u64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-i128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7536342d746f2d75313238"></a>
-
-## `u64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u64-to-u128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-75382d746f2d69313238"></a>
-
-## `u8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-i128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-75382d746f2d75313238"></a>
-
-## `u8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u8-to-u128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7573697a652d746f2d69313238"></a>
-
-## `usize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-i128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7573697a652d746f2d75313238"></a>
-
-## `usize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">usize-to-u128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6164642d69313238"></a>
-
-## `wrapping-add-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6164642d75313238"></a>
-
-## `wrapping-add-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-add-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d69313238"></a>
-
-## `wrapping-i128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d693136"></a>
-
-## `wrapping-i128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-i16</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d693332"></a>
-
-## `wrapping-i128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-i32</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d693634"></a>
-
-## `wrapping-i128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-i64</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d6938"></a>
-
-## `wrapping-i128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-i8</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d6973697a65"></a>
-
-## `wrapping-i128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-isize</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d75313238"></a>
-
-## `wrapping-i128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-u128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+</div>
+</article>
+
+<article class="doc-entry" id="v-swap-bytes-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">swap-bytes-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-swap-bytes-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L198" title="View source at line 198">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-swap-bytes-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">swap-bytes-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-swap-bytes-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L396" title="View source at line 396">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-trailing-zeros-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">trailing-zeros-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-trailing-zeros-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L187" title="View source at line 187">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-trailing-zeros-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">trailing-zeros-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-trailing-zeros-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L385" title="View source at line 385">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u128-to-f32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u128-to-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-u128-to-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L841" title="View source at line 841">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u128-to-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u128-to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-u128-to-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L846" title="View source at line 846">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-u128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L477" title="View source at line 477">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-u16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L581" title="View source at line 581">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-u16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L576" title="View source at line 576">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-u32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L600" title="View source at line 600">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-u32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L595" title="View source at line 595">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-u64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L619" title="View source at line 619">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-u64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L614" title="View source at line 614">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-u8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L562" title="View source at line 562">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-u8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-u8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L557" title="View source at line 557">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-usize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-usize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L633" title="View source at line 633">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-usize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-usize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L641" title="View source at line 641">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-add-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-add-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-add-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L56" title="View source at line 56">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-add-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-add-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-add-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L263" title="View source at line 263">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L471" title="View source at line 471">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L681" title="View source at line 681">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L699" title="View source at line 699">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L717" title="View source at line 717">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L663" title="View source at line 663">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L813" title="View source at line 813">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L457" title="View source at line 457">Source</a></span></div>
+<div class="doc-body">
 
 Conversions with every numeric type.
 
-[Source](/reference-sources/Data.Wide.cinch) · line 457
-
-<a id="value-7772617070696e672d693132382d746f2d753136"></a>
-
-## `wrapping-i128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-u16</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d753332"></a>
-
-## `wrapping-i128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-u32</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d753634"></a>
-
-## `wrapping-i128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-u64</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d7538"></a>
-
-## `wrapping-i128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-u8</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d693132382d746f2d7573697a65"></a>
-
-## `wrapping-i128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i128-to-usize</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6931362d746f2d69313238"></a>
-
-## `wrapping-i16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-i128</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6931362d746f2d75313238"></a>
-
-## `wrapping-i16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i16-to-u128</span> :: (<span class="tok-constructor">I16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6933322d746f2d69313238"></a>
-
-## `wrapping-i32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-i128</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6933322d746f2d75313238"></a>
-
-## `wrapping-i32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i32-to-u128</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6936342d746f2d69313238"></a>
-
-## `wrapping-i64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-i128</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6936342d746f2d75313238"></a>
-
-## `wrapping-i64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i64-to-u128</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d69382d746f2d69313238"></a>
-
-## `wrapping-i8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-i128</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d69382d746f2d75313238"></a>
-
-## `wrapping-i8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-i8-to-u128</span> :: (<span class="tok-constructor">I8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6973697a652d746f2d69313238"></a>
-
-## `wrapping-isize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-i128</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6973697a652d746f2d75313238"></a>
-
-## `wrapping-isize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-isize-to-u128</span> :: (<span class="tok-constructor">Isize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6d756c2d69313238"></a>
-
-## `wrapping-mul-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6d756c2d75313238"></a>
-
-## `wrapping-mul-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-mul-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6e65672d69313238"></a>
-
-## `wrapping-neg-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d6e65672d75313238"></a>
-
-## `wrapping-neg-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-neg-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d73686c2d69313238"></a>
-
-## `wrapping-shl-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d73686c2d75313238"></a>
-
-## `wrapping-shl-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shl-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7368722d69313238"></a>
-
-## `wrapping-shr-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7368722d75313238"></a>
-
-## `wrapping-shr-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-shr-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7375622d69313238"></a>
-
-## `wrapping-sub-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7375622d75313238"></a>
-
-## `wrapping-sub-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-sub-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d69313238"></a>
-
-## `wrapping-u128-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-i128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d693136"></a>
-
-## `wrapping-u128-to-i16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-i16</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d693332"></a>
-
-## `wrapping-u128-to-i32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-i32</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d693634"></a>
-
-## `wrapping-u128-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-i64</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d6938"></a>
-
-## `wrapping-u128-to-i8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-i8</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">I8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d6973697a65"></a>
-
-## `wrapping-u128-to-isize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-isize</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Isize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d75313238"></a>
-
-## `wrapping-u128-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d753136"></a>
-
-## `wrapping-u128-to-u16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-u16</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d753332"></a>
-
-## `wrapping-u128-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-u32</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d753634"></a>
-
-## `wrapping-u128-to-u64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-u64</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d7538"></a>
-
-## `wrapping-u128-to-u8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-u8</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U8</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d753132382d746f2d7573697a65"></a>
-
-## `wrapping-u128-to-usize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u128-to-usize</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Usize</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7531362d746f2d69313238"></a>
-
-## `wrapping-u16-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-i128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7531362d746f2d75313238"></a>
-
-## `wrapping-u16-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u16-to-u128</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7533322d746f2d69313238"></a>
-
-## `wrapping-u32-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-i128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7533322d746f2d75313238"></a>
-
-## `wrapping-u32-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u32-to-u128</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7536342d746f2d69313238"></a>
-
-## `wrapping-u64-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-i128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7536342d746f2d75313238"></a>
-
-## `wrapping-u64-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u64-to-u128</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d75382d746f2d69313238"></a>
-
-## `wrapping-u8-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-i128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d75382d746f2d75313238"></a>
-
-## `wrapping-u8-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-u8-to-u128</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7573697a652d746f2d69313238"></a>
-
-## `wrapping-usize-to-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-i128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
-
-<a id="value-7772617070696e672d7573697a652d746f2d75313238"></a>
-
-## `wrapping-usize-to-u128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">wrapping-usize-to-u128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
-
-[Source](/reference-sources/Data.Wide.cinch)
+</div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L753" title="View source at line 753">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L771" title="View source at line 771">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L789" title="View source at line 789">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L735" title="View source at line 735">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-wrapping-i128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L807" title="View source at line 807">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L515" title="View source at line 515">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L517" title="View source at line 517">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L532" title="View source at line 532">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L534" title="View source at line 534">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L549" title="View source at line 549">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L551" title="View source at line 551">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L498" title="View source at line 498">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-i8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-i8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-i8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L500" title="View source at line 500">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-isize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-isize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-isize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L655" title="View source at line 655">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-isize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-isize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-isize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L661" title="View source at line 661">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-mul-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-mul-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-mul-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L66" title="View source at line 66">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-mul-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-mul-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-mul-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L273" title="View source at line 273">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-neg-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-neg-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-neg-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L71" title="View source at line 71">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-neg-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-neg-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-neg-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L278" title="View source at line 278">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-shl-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-shl-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-shl-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L149" title="View source at line 149">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-shl-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-shl-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-shl-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L347" title="View source at line 347">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-shr-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-shr-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-shr-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L156" title="View source at line 156">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-shr-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-shr-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-shr-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L354" title="View source at line 354">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-sub-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-sub-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-sub-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L61" title="View source at line 61">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-sub-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-sub-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-sub-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L268" title="View source at line 268">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L461" title="View source at line 461">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-i16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-i16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L690" title="View source at line 690">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-i32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-i32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L708" title="View source at line 708">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-i64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L726" title="View source at line 726">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-i8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-i8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-i8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L672" title="View source at line 672">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-isize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-isize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-isize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L825" title="View source at line 825">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L483" title="View source at line 483">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-u16">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u16</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-u16" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L762" title="View source at line 762">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L780" title="View source at line 780">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-u64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-u64" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L798" title="View source at line 798">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-u8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-u8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-u8" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L744" title="View source at line 744">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u128-to-usize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u128-to-usize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-wrapping-u128-to-usize" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L819" title="View source at line 819">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u16-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u16-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u16-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L587" title="View source at line 587">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u16-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u16-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u16-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L593" title="View source at line 593">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u32-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u32-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u32-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L606" title="View source at line 606">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u32-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u32-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u32-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L612" title="View source at line 612">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u64-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u64-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u64-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L625" title="View source at line 625">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u64-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u64-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u64-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L631" title="View source at line 631">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u8-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u8-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u8-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L568" title="View source at line 568">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-u8-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-u8-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-u8-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L574" title="View source at line 574">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-usize-to-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-usize-to-i128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-wrapping-usize-to-i128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L639" title="View source at line 639">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-wrapping-usize-to-u128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">wrapping-usize-to-u128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code><span class="doc-sig-links"><a href="#v-wrapping-usize-to-u128" title="Permalink">#</a><a href="/packages/stdlib/Data.Wide/source/#L647" title="View source at line 647">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Wide.Bits_I128` | `Algebra.Bits.Bits I128` | Implicit |
-| `Data.Wide.Bits_U128` | `Algebra.Bits.Bits U128` | Implicit |
-| `Data.Wide.Eq_I128` | `Relation.Eq.Eq I128` | Implicit |
-| `Data.Wide.Eq_U128` | `Relation.Eq.Eq U128` | Implicit |
-| `Data.Wide.Ord_I128` | `Relation.Ord.Ord I128` | Implicit |
-| `Data.Wide.Ord_U128` | `Relation.Ord.Ord U128` | Implicit |
-| `Data.Wide.Show_I128` | `Text.Show.Show I128` | Implicit |
-| `Data.Wide.Show_U128` | `Text.Show.Show U128` | Implicit |
-
-**`Data.Wide.Bits_I128`**: The `Bits` instances, with the modulo-width shift and mask rules of
-`Data.Machine`'s.
-**`Data.Wide.Eq_I128`**: The order instances: signed order on `I128`, unsigned on `U128`
-(primitive types specification section 8).
-**`Data.Wide.Show_I128`**: `Show` is the decimal of the value, through `Int`.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Wide.cinch`. Source SHA-256: `53bf486efc9f780532a0a152ebfe06f072242a9c984f5becd4bb1bb9ad34f2fa`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Bits_I128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Bits_I128</code></span><div class="doc-child-prose">The Bits instances, with the modulo-width shift and mask rules of Data.Machine's.</div></li>
+<li id="i-Bits_U128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Bits_U128</code></span></li>
+<li id="i-Eq_I128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Eq_I128</code></span><div class="doc-child-prose">The order instances: signed order on I128, unsigned on U128 (primitive types specification section 8).</div></li>
+<li id="i-Eq_U128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Eq_U128</code></span></li>
+<li id="i-Ord_I128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Ord_I128</code></span></li>
+<li id="i-Ord_U128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Ord_U128</code></span></li>
+<li id="i-Show_I128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Show_I128</code></span><div class="doc-child-prose">Show is the decimal of the value, through Int.</div></li>
+<li id="i-Show_U128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Show_U128</code></span></li>
+</ul>

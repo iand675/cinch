@@ -8,17 +8,17 @@ const REPO_ROOT = path.dirname(SITE_ROOT);
 
 /**
  * Directories of the documentation set, relative to the repository root.
- * Every Markdown file in them becomes a page and the route is its path without
- * the extension; the overview is served at /overview/.
+ * Only the tutorial and compiler user's guide are served via Starlight;
+ * standard library API docs are published under `/packages/stdlib/`.
  */
-const DOC_DIRS = ['', 'learn', 'reference', 'library', 'specifications', 'tutorials', 'design', 'examples', 'context'];
+const DOC_DIRS = ['', 'learn', 'reference'];
 
 type PageSource = {
   /** Path used to resolve links between pages, relative to the repository root. */
   relPath: string;
   /** Absolute path of the Markdown file. */
   file: string;
-  /** Route id: the path without its extension, including `overview` for the design overview. */
+  /** Route id: the path without its extension. */
   id: string;
 };
 
@@ -55,8 +55,8 @@ async function collectSources(): Promise<PageSource[]> {
 
   for (const dir of DOC_DIRS) {
     for (const name of await markdownFiles(REPO_ROOT, dir)) {
-      // The repository root also holds README.md; only the overview is a page.
-      if (dir === '' && !['overview.md', 'documentation.md'].includes(name)) continue;
+      // Only documentation.md from the repository root is published as a page.
+      if (dir === '' && name !== 'documentation.md') continue;
       const relPath = dir === '' ? name : `${dir}/${name}`;
       sources.push({
         relPath,
@@ -116,8 +116,9 @@ function parsePage(raw: string, relPath: string): { meta: PageMeta; body: string
 /**
  * Prepare a page body for the site.
  *
- * Sibling Markdown links become site routes; links that already point at a URL,
- * an anchor, or anything that is not a documentation page are left untouched.
+ * Sibling Markdown links become site routes; links to `library/*.md` route to
+ * `/packages/stdlib/`; links that already point at a URL, an anchor, or
+ * anything outside the documentation set are left untouched.
  * Every heading is demoted one level, because the documents use `#` for
  * numbered sections while the site renders the page title as the only `h1`.
  * Fenced code blocks are skipped so their contents never change.
@@ -173,6 +174,13 @@ function transformBody(
 
           const resolved = path.posix.normalize(path.posix.join(dir, pathPart));
           const asMarkdown = resolved.endsWith('.md') ? resolved : `${resolved}.md`;
+          if (asMarkdown === 'library/00-index.md') {
+            return `${open}/packages/stdlib/${hash}${close}`;
+          }
+          if (asMarkdown.startsWith('library/') && asMarkdown.endsWith('.md')) {
+            const modName = asMarkdown.slice('library/'.length, -3);
+            return `${open}/packages/stdlib/${modName}/${hash}${close}`;
+          }
           if (knownPages.has(asMarkdown)) {
             return `${open}${routeFor(asMarkdown)}${hash}${close}`;
           }
@@ -193,6 +201,12 @@ export function safelangDocs(): Loader {
     name: 'safelang-docs',
     async load({ store, logger, watcher, parseData, renderMarkdown, generateDigest }) {
       const sources = await collectSources();
+      const currentIds = new Set(sources.map((source) => source.id));
+      for (const existingId of store.keys()) {
+        if (!currentIds.has(existingId)) {
+          store.delete(existingId);
+        }
+      }
       const knownPages = new Set(sources.map((source) => source.relPath));
       // Rendered HTML contains Expressive Code's token colours and hashed asset
       // URLs. A content-only digest would retain stale HTML after a theme/config

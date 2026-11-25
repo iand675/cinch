@@ -2,19 +2,11 @@
 
 Exact signed elapsed-time durations with nanosecond precision and checked arithmetic.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Duration">Search module</a><a href="/reference-sources/Data.Time.Duration.cinch" download="Data.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Time.Duration`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Duration.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.Time.Duration](Data.Time.Duration.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Duration: an exact signed length of elapsed time
 (design/datetime.md, layer L0 "machine time", lane A).
@@ -93,86 +85,76 @@ the `Eq`/`Ord` instances live with `Duration` here.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (43 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Duration">Duration</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Duration</strong></code></li><li><a class="syn-name" href="#v-duration-abs">duration-abs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-abs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-checked-add">duration-checked-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-checked-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-checked-mul">duration-checked-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-checked-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-checked-sub">duration-checked-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-cmp">duration-cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-duration-div">duration-div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-div</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-div-floor">duration-div-floor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-div-floor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-hours">duration-from-hours</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-i128-nanos">duration-from-i128-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-i128-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-micros">duration-from-micros</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-millis">duration-from-millis</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-minutes">duration-from-minutes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-nanos">duration-from-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-seconds">duration-from-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-from-seconds-and-nanos">duration-from-seconds-and-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-from-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-is-negative">duration-is-negative</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-is-negative</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-duration-is-positive">duration-is-positive</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-is-positive</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-duration-is-zero">duration-is-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-duration-max-of">duration-max-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-max-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-min-of">duration-min-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-min-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-neg">duration-neg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-saturating-add">duration-saturating-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-saturating-from-i128-nanos">duration-saturating-from-i128-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-from-i128-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-saturating-mul">duration-saturating-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-saturating-sub">duration-saturating-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-hours">duration-saturating-to-hours</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-micros">duration-saturating-to-micros</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-millis">duration-saturating-to-millis</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-minutes">duration-saturating-to-minutes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-nanos">duration-saturating-to-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-saturating-to-seconds">duration-saturating-to-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-subsec-nanos">duration-subsec-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-subsec-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> - 999999999 999999999 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-hours">duration-to-hours</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-micros">duration-to-micros</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-millis">duration-to-millis</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-minutes">duration-to-minutes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-nanos">duration-to-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-to-seconds">duration-to-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-to-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-duration-total-nanos">duration-total-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-total-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-duration-zero">duration-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">duration-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-max-duration">max-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-min-duration">min-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">min-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li></ul>
+</details>
 
-<a id="type-4475726174696f6e"></a>
+# Types
 
-## `Duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Duration</span></code></pre>
+<article class="doc-entry" id="t-Duration">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Duration</strong></code><span class="doc-sig-links"><a href="#t-Duration" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 The nanosecond count. Not exported (the range invariant above).
 The constructor's name differs from the type's on purpose:
 `export Duration` exports the type AND a constructor of the same
 name, so a constructor called `Duration` would be public.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 110
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6475726174696f6e2d616273"></a>
-
-## `duration-abs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-duration-abs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-abs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-abs" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L297" title="View source at line 297">Source</a></span></div>
+<div class="doc-body">
 
 Total, by the same argument.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 297
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d636865636b65642d616464"></a>
+<article class="doc-entry" id="v-duration-checked-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-checked-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-checked-add" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L300" title="View source at line 300">Source</a></span></div>
+</article>
 
-## `duration-checked-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-checked-add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d636865636b65642d6d756c"></a>
-
-## `duration-checked-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-checked-mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)))</code></pre>
+<article class="doc-entry" id="v-duration-checked-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-checked-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-checked-mul" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L317" title="View source at line 317">Source</a></span></div>
+<div class="doc-body">
 
 The duration `k` times over.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 317
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d636865636b65642d737562"></a>
+<article class="doc-entry" id="v-duration-checked-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-checked-sub" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L305" title="View source at line 305">Source</a></span></div>
+</article>
 
-## `duration-checked-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-checked-sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d636d70"></a>
-
-## `duration-cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-duration-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-duration-cmp" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L349" title="View source at line 349">Source</a></span></div>
+<div class="doc-body">
 
 Order.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 349
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d646976"></a>
-
-## `duration-div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-div</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-div" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L328" title="View source at line 328">Source</a></span></div>
+<div class="doc-body">
 
 One `k`th of the duration, truncated toward zero. Total: the
 divisor is not zero by its type and the quotient's magnitude never
 exceeds the dividend's.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 328
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d6469762d666c6f6f72"></a>
-
-## `duration-div-floor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-div-floor</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-div-floor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-div-floor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-div-floor" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L336" title="View source at line 336">Source</a></span></div>
+<div class="doc-body">
 
 One `k`th of the duration, rounded toward negative infinity: the
 truncated quotient, less one when the division is inexact and the
@@ -180,224 +162,148 @@ exact quotient is negative (remainder and divisor of opposite
 signs). The decrement cannot leave the range: an inexact division
 has `|k| >= 2`, so the quotient's magnitude is at most 2^126.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 336
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d66726f6d2d686f757273"></a>
+<article class="doc-entry" id="v-duration-from-hours">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-hours" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L192" title="View source at line 192">Source</a></span></div>
+</article>
 
-## `duration-from-hours`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-hours</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d693132382d6e616e6f73"></a>
-
-## `duration-from-i128-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-i128-nanos</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-from-i128-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-i128-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-i128-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-body">
 
 A raw nanosecond count: `None` for `I128`'s minimum only.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 204
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d66726f6d2d6d6963726f73"></a>
+<article class="doc-entry" id="v-duration-from-micros">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-micros" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L180" title="View source at line 180">Source</a></span></div>
+</article>
 
-## `duration-from-micros`
+<article class="doc-entry" id="v-duration-from-millis">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-millis" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L183" title="View source at line 183">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-micros</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-duration-from-minutes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-minutes" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L189" title="View source at line 189">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d6d696c6c6973"></a>
-
-## `duration-from-millis`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-millis</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d6d696e75746573"></a>
-
-## `duration-from-minutes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-minutes</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d6e616e6f73"></a>
-
-## `duration-from-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-nanos</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-duration-from-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L177" title="View source at line 177">Source</a></span></div>
+<div class="doc-body">
 
 The unit constructors are total: every `I64` count of every unit
 is in the range (the header's RANGE argument).
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 177
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d66726f6d2d7365636f6e6473"></a>
+<article class="doc-entry" id="v-duration-from-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-seconds" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L186" title="View source at line 186">Source</a></span></div>
+</article>
 
-## `duration-from-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-seconds</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d66726f6d2d7365636f6e64732d616e642d6e616e6f73"></a>
-
-## `duration-from-seconds-and-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-from-seconds-and-nanos</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-from-seconds-and-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-from-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-from-seconds-and-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 `secs` seconds plus `nanos` nanoseconds, any signs (the two parts
 are added, so `(-1, 999999999)` is -1 ns). Total: the seconds term
 is below 2^93 and the nanosecond term below 2^63, so the wrapping
 sum is exact.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 199
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d69732d6e65676174697665"></a>
+<article class="doc-entry" id="v-duration-is-negative">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-is-negative</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-duration-is-negative" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L281" title="View source at line 281">Source</a></span></div>
+</article>
 
-## `duration-is-negative`
+<article class="doc-entry" id="v-duration-is-positive">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-is-positive</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-duration-is-positive" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L284" title="View source at line 284">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-is-negative</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-duration-is-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-is-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-duration-is-zero" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L278" title="View source at line 278">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d69732d706f736974697665"></a>
-
-## `duration-is-positive`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-is-positive</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d69732d7a65726f"></a>
-
-## `duration-is-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-is-zero</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d6d61782d6f66"></a>
-
-## `duration-max-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-max-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-max-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-max-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-max-of" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L360" title="View source at line 360">Source</a></span></div>
+<div class="doc-body">
 
 The longer (more positive) of two durations.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 360
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d6d696e2d6f66"></a>
-
-## `duration-min-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-min-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-min-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-min-of</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-min-of" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L356" title="View source at line 356">Source</a></span></div>
+<div class="doc-body">
 
 The shorter (more negative) of two durations.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 356
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d6e6567"></a>
-
-## `duration-neg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-duration-neg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-neg" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L293" title="View source at line 293">Source</a></span></div>
+<div class="doc-body">
 
 Total: the range is symmetric, so the wrapping negation is exact
 and stays in the range.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 293
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d73617475726174696e672d616464"></a>
+<article class="doc-entry" id="v-duration-saturating-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-add" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L310" title="View source at line 310">Source</a></span></div>
+</article>
 
-## `duration-saturating-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d66726f6d2d693132382d6e616e6f73"></a>
-
-## `duration-saturating-from-i128-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-from-i128-nanos</span> :: (<span class="tok-constructor">I128</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-duration-saturating-from-i128-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-from-i128-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-from-i128-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L208" title="View source at line 208">Source</a></span></div>
+<div class="doc-body">
 
 The same, with the minimum clamped to `min-duration`.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 208
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d73617475726174696e672d6d756c"></a>
+<article class="doc-entry" id="v-duration-saturating-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-mul" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L322" title="View source at line 322">Source</a></span></div>
+</article>
 
-## `duration-saturating-mul`
+<article class="doc-entry" id="v-duration-saturating-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-sub" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L313" title="View source at line 313">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-saturating-to-hours">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-hours" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L275" title="View source at line 275">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Duration.cinch)
+<article class="doc-entry" id="v-duration-saturating-to-micros">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-micros" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L263" title="View source at line 263">Source</a></span></div>
+</article>
 
-<a id="value-6475726174696f6e2d73617475726174696e672d737562"></a>
+<article class="doc-entry" id="v-duration-saturating-to-millis">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-millis" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L266" title="View source at line 266">Source</a></span></div>
+</article>
 
-## `duration-saturating-sub`
+<article class="doc-entry" id="v-duration-saturating-to-minutes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-minutes" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L272" title="View source at line 272">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-duration-saturating-to-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L260" title="View source at line 260">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Duration.cinch)
+<article class="doc-entry" id="v-duration-saturating-to-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-saturating-to-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-saturating-to-seconds" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L269" title="View source at line 269">Source</a></span></div>
+</article>
 
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d686f757273"></a>
-
-## `duration-saturating-to-hours`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-hours</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d6d6963726f73"></a>
-
-## `duration-saturating-to-micros`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-micros</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d6d696c6c6973"></a>
-
-## `duration-saturating-to-millis`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-millis</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d6d696e75746573"></a>
-
-## `duration-saturating-to-minutes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-minutes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d6e616e6f73"></a>
-
-## `duration-saturating-to-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d73617475726174696e672d746f2d7365636f6e6473"></a>
-
-## `duration-saturating-to-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-saturating-to-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d7375627365632d6e616e6f73"></a>
-
-## `duration-subsec-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-subsec-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">-999999999</span> <span class="tok-number">999999999</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-duration-subsec-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-subsec-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> - 999999999 999999999 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-subsec-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L225" title="View source at line 225">Source</a></span></div>
+<div class="doc-body">
 
 The part below one second, with the duration's sign:
 `-999999999..=999999999`, and zero or the sign of the duration.
@@ -406,113 +312,85 @@ wrapping narrowing is exact; the guard restates the bound for the
 checker (a wide scalar has no solver sort) and its `else` arm is
 unreachable.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 225
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d746f2d686f757273"></a>
+<article class="doc-entry" id="v-duration-to-hours">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-hours</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-hours" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L257" title="View source at line 257">Source</a></span></div>
+</article>
 
-## `duration-to-hours`
+<article class="doc-entry" id="v-duration-to-micros">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-micros</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-micros" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L243" title="View source at line 243">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-hours</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-duration-to-millis">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-millis</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-millis" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L246" title="View source at line 246">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Duration.cinch)
+<article class="doc-entry" id="v-duration-to-minutes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-minutes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-minutes" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L254" title="View source at line 254">Source</a></span></div>
+</article>
 
-<a id="value-6475726174696f6e2d746f2d6d6963726f73"></a>
-
-## `duration-to-micros`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-micros</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d746f2d6d696c6c6973"></a>
-
-## `duration-to-millis`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-millis</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d746f2d6d696e75746573"></a>
-
-## `duration-to-minutes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-minutes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Duration.cinch)
-
-<a id="value-6475726174696f6e2d746f2d6e616e6f73"></a>
-
-## `duration-to-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-duration-to-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L240" title="View source at line 240">Source</a></span></div>
+<div class="doc-body">
 
 `None` outside `I64` (about 292 years of nanoseconds).
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 240
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d746f2d7365636f6e6473"></a>
-
-## `duration-to-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-to-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-duration-to-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-to-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-duration-to-seconds" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 The whole seconds (truncated toward zero; pair with
 `duration-subsec-nanos`).
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 251
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d746f74616c2d6e616e6f73"></a>
-
-## `duration-total-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-total-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
+<article class="doc-entry" id="v-duration-total-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-total-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-duration-total-nanos" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L216" title="View source at line 216">Source</a></span></div>
+<div class="doc-body">
 
 The whole count, exactly.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 216
+</div>
+</article>
 
-<a id="value-6475726174696f6e2d7a65726f"></a>
-
-## `duration-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">duration-zero</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span></code></pre>
+<article class="doc-entry" id="v-duration-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">duration-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-duration-zero" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 Bounds and construction.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 164
+</div>
+</article>
 
-<a id="value-6d61782d6475726174696f6e"></a>
-
-## `max-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-duration</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span></code></pre>
+<article class="doc-entry" id="v-max-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-max-duration" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-body">
 
 2^127 - 1 nanoseconds.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 172
+</div>
+</article>
 
-<a id="value-6d696e2d6475726174696f6e"></a>
-
-## `min-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-duration</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span></code></pre>
+<article class="doc-entry" id="v-min-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-duration</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-min-duration" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Duration/source/#L168" title="View source at line 168">Source</a></span></div>
+<div class="doc-body">
 
 -(2^127 - 1) nanoseconds.
 
-[Source](/reference-sources/Data.Time.Duration.cinch) · line 168
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.Duration.Eq_Duration` | `Relation.Eq.Eq Data.Time.Duration.Duration` | Implicit |
-| `Data.Time.Duration.Ord_Duration` | `Relation.Ord.Ord Data.Time.Duration.Duration` | Implicit |
-
-**`Data.Time.Duration.Eq_Duration`**: Instances (the class spellings of the integer order; instances
-live with their type per design/base-library.md).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Duration.cinch`. Source SHA-256: `65b41d25ea1aafb71542227a9456ccb996d696089b1af1993ff90ba80fd506cc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_Duration"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Duration.Eq_Duration</code></span><div class="doc-child-prose">Instances (the class spellings of the integer order; instances live with their type per design/base-library.md).</div></li>
+<li id="i-Ord_Duration"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Duration.Ord_Duration</code></span></li>
+</ul>

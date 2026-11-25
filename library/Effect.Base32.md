@@ -2,19 +2,11 @@
 
 Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Base32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Base32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Base32">Search module</a><a href="/reference-sources/Effect.Base32.cinch" download="Effect.Base32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Base32`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
 
-[Download exact module source](/reference-sources/Effect.Base32.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
-
-Non-embedded source closure: [Effect.Base32](Effect.Base32.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Configurable Base32 encoding writers and strict decoding byte readers.
 Writers retain at most four input bytes until explicitly finished. Readers
@@ -24,72 +16,66 @@ Neither adapter closes or flushes a borrowed source or sink.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Base32Writer">Base32Writer</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Writer</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-base32-finish">base32-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-base32-reader">base32-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-base32-write">base32-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-base32-writer">base32-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-base32-writer-sink">base32-writer-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-426173653332577269746572"></a>
+# Types
 
-## `Base32Writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Writer</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Base32Writer">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Writer</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-Base32Writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 An explicitly advanced encoding continuation with its owned tail and underlying sink.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 19
+</div>
+</article>
 
 # Values
 
-<a id="value-6261736533322d66696e697368"></a>
-
-## `base32-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-finish</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Writer</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-base32-finish" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Emit the final short quantum and configured padding, returning the advanced sink on either outcome.
 This finalizes the adapter's encoding only; the borrowed sink is not closed or flushed.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 47
+</div>
+</article>
 
-<a id="value-6261736533322d726561646572"></a>
-
-## `base32-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-base32-reader" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 Begin strict configurable decoding. Zero reads preserve both source and decoder state.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 71
+</div>
+</article>
 
-<a id="value-6261736533322d7772697465"></a>
-
-## `base32-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Writer</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Writer</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-base32-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-base32-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Accept a chunk, retrying short output writes and copying the unfinished input fringe.
 Success reports the complete input byte count. Failure returns a sticky advanced handle.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 37
+</div>
+</article>
 
-<a id="value-6261736533322d777269746572"></a>
-
-## `base32-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Writer</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-base32-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Begin a configurable encoding. Finish explicitly before observing complete output.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 26
+</div>
+</article>
 
-<a id="value-6261736533322d7772697465722d73696e6b"></a>
-
-## `base32-writer-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-writer-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Writer</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-base32-writer-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Base32/#t-Base32Writer" title="Effect.Base32.Base32Writer">Base32Writer</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-base32-writer-sink" title="Permalink">#</a><a href="/packages/stdlib/Effect.Base32/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Inspect the advanced output handle, including after an unsuccessful encoded write.
 
-[Source](/reference-sources/Effect.Base32.cinch) · line 30
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Base32.cinch`. Source SHA-256: `38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

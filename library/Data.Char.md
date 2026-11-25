@@ -2,17 +2,11 @@
 
 Unicode scalar values and checked character/code conversions, with range information for safe use.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Char</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Char/source/">View source</a><a href="/packages/search/?q=%2BData.Char">Search module</a><a href="/reference-sources/Data.Char.cinch" download="Data.Char.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Char`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md).
 
-[Download exact module source](/reference-sources/Data.Char.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Char: Unicode scalar values.
 
@@ -25,115 +19,88 @@ instance family (the parked-instance deviation of D159 is over).
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis"><summary>Synopsis (21 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-char-code">char-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">char-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 1114111 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-char-from-code">char-from-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">char-from-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-char-to-u32">char-to-u32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">char-to-u32</strong> :: (<span class="tok-variable">a0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (0 &lt;= <span class="tok-variable">r</span> &amp;&amp; <span class="tok-variable">r</span> &lt;= 1114111 &amp;&amp; <span class="tok-variable">r</span> == <span class="tok-variable">a0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-digit-value">digit-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digit-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-eq-char">eq-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">eq-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ge-char">ge-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ge-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-gt-char">gt-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gt-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-hex-digit-value">hex-digit-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-digit-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-is-ascii-alpha">is-ascii-alpha</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-alpha</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-alpha-numeric">is-ascii-alpha-numeric</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-alpha-numeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-digit">is-ascii-digit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-digit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-hex-digit">is-ascii-hex-digit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-hex-digit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-lower">is-ascii-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-lower</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-space">is-ascii-space</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-space</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-ascii-upper">is-ascii-upper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-ascii-upper</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-le-char">le-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">le-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-lt-char">lt-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ne-char">ne-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ne-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-to-lower-ascii">to-lower-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-lower-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-to-upper-ascii">to-upper-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-upper-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-u32-to-char">u32-to-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">u32-to-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-636861722d636f6465"></a>
-
-## `char-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-code</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">1114111</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-char-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">char-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 1114111 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-char-code" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 The scalar value as a `Nat`: the conversion the text and data
 homes all spelled out by hand before this was its home. A scalar
 value is at most 0x10FFFF, and the result says so.
 
-[Source](/reference-sources/Data.Char.cinch) · line 61
+</div>
+</article>
 
-<a id="value-636861722d66726f6d2d636f6465"></a>
-
-## `char-from-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-from-code</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-char-from-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">char-from-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-char-from-code" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 The inverse, partial exactly as `u32-to-char` is: a value outside
 the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
 range test comes first, so a value past `U32` is `None` rather than
 a wrapped scalar.
 
-[Source](/reference-sources/Data.Char.cinch) · line 68
+</div>
+</article>
 
-<a id="value-636861722d746f2d753332"></a>
-
-## `char-to-u32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Char</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-char-to-u32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">char-to-u32</strong> :: (<span class="tok-variable">a0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (0 &lt;= <span class="tok-variable">r</span> &amp;&amp; <span class="tok-variable">r</span> &lt;= 1114111 &amp;&amp; <span class="tok-variable">r</span> == <span class="tok-variable">a0</span>) <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-char-to-u32" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Primitive types specification, section 6: Char values are Unicode
 scalar values, in code point order. `u32-to-char` rejects surrogates
 and values above 0x10FFFF.
 
-[Source](/reference-sources/Data.Char.cinch) · line 26
+</div>
+</article>
 
-<a id="value-64696769742d76616c7565"></a>
-
-## `digit-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-digit-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digit-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-digit-value" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
 
 `Some 0..9` for the ASCII digits, `None` otherwise (the caller
 has already decided what a non-digit means).
 
-[Source](/reference-sources/Data.Char.cinch) · line 86
+</div>
+</article>
 
-<a id="value-65712d63686172"></a>
+<article class="doc-entry" id="v-eq-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">eq-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-eq-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L40" title="View source at line 40">Source</a></span></div>
+</article>
 
-## `eq-char`
+<article class="doc-entry" id="v-ge-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ge-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ge-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L55" title="View source at line 55">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-gt-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gt-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-gt-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L52" title="View source at line 52">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-67652d63686172"></a>
-
-## `ge-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ge-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-67742d63686172"></a>
-
-## `gt-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gt-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-6865782d64696769742d76616c7565"></a>
-
-## `hex-digit-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-digit-value</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-hex-digit-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-digit-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-hex-digit-value" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-body">
 
 `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
 
-[Source](/reference-sources/Data.Char.cinch) · line 92
+</div>
+</article>
 
-<a id="value-69732d61736369692d616c706861"></a>
+<article class="doc-entry" id="v-is-ascii-alpha">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-alpha</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-alpha" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L126" title="View source at line 126">Source</a></span></div>
+</article>
 
-## `is-ascii-alpha`
+<article class="doc-entry" id="v-is-ascii-alpha-numeric">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-alpha-numeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-alpha-numeric" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L129" title="View source at line 129">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-alpha</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-69732d61736369692d616c7068612d6e756d65726963"></a>
-
-## `is-ascii-alpha-numeric`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-alpha-numeric</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-69732d61736369692d6469676974"></a>
-
-## `is-ascii-digit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-digit</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-ascii-digit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-digit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-digit" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 The ASCII digit and hex-digit test/value pairs. Every text and
 data home that parses numeric text had written its own (under
@@ -142,83 +109,56 @@ their one home. The names say ASCII because that is the whole
 class they accept: there is no Unicode digit or decimal-digit
 database here, and none is claimed.
 
-[Source](/reference-sources/Data.Char.cinch) · line 79
+</div>
+</article>
 
-<a id="value-69732d61736369692d6865782d6469676974"></a>
+<article class="doc-entry" id="v-is-ascii-hex-digit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-hex-digit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-hex-digit" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L100" title="View source at line 100">Source</a></span></div>
+</article>
 
-## `is-ascii-hex-digit`
+<article class="doc-entry" id="v-is-ascii-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-lower</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-lower" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L121" title="View source at line 121">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-hex-digit</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-69732d61736369692d6c6f776572"></a>
-
-## `is-ascii-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-lower</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-69732d61736369692d7370616365"></a>
-
-## `is-ascii-space`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-space</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-ascii-space">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-space</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-space" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L135" title="View source at line 135">Source</a></span></div>
+<div class="doc-body">
 
 ASCII whitespace: space, tab, LF, VT, FF, CR (the ASCII subset of
 base's `isSpace`; the other three controls are the whitespace
 classes that exist outside ASCII).
 
-[Source](/reference-sources/Data.Char.cinch) · line 135
+</div>
+</article>
 
-<a id="value-69732d61736369692d7570706572"></a>
-
-## `is-ascii-upper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-ascii-upper</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-ascii-upper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-ascii-upper</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-ascii-upper" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
 
-[Source](/reference-sources/Data.Char.cinch) · line 116
+</div>
+</article>
 
-<a id="value-6c652d63686172"></a>
+<article class="doc-entry" id="v-le-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">le-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-le-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L49" title="View source at line 49">Source</a></span></div>
+</article>
 
-## `le-char`
+<article class="doc-entry" id="v-lt-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-lt-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L46" title="View source at line 46">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">le-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-ne-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ne-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ne-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L43" title="View source at line 43">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Char.cinch)
+<article class="doc-entry" id="v-to-lower-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-lower-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-to-lower-ascii" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L152" title="View source at line 152">Source</a></span></div>
+</article>
 
-<a id="value-6c742d63686172"></a>
-
-## `lt-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-6e652d63686172"></a>
-
-## `ne-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-char</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-746f2d6c6f7765722d6173636969"></a>
-
-## `to-lower-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-lower-ascii</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
-
-<a id="value-746f2d75707065722d6173636969"></a>
-
-## `to-upper-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-upper-ascii</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
+<article class="doc-entry" id="v-to-upper-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-upper-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-to-upper-ascii" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L145" title="View source at line 145">Source</a></span></div>
+<div class="doc-body">
 
 The ASCII case fold. A scalar outside the affected range is
 returned unchanged, which is the documented behaviour for every
@@ -226,28 +166,19 @@ non-ASCII scalar and every non-letter. `char-from-code` cannot
 fail on a code an upper/lower test just admitted, so the `None`
 arm returns the input unchanged (never a magic placeholder).
 
-[Source](/reference-sources/Data.Char.cinch) · line 145
+</div>
+</article>
 
-<a id="value-7533322d746f2d63686172"></a>
-
-## `u32-to-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">u32-to-char</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Char</span>))</code></pre>
-
-[Source](/reference-sources/Data.Char.cinch)
+<article class="doc-entry" id="v-u32-to-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">u32-to-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-u32-to-char" title="Permalink">#</a><a href="/packages/stdlib/Data.Char/source/#L36" title="View source at line 36">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Char.Eq_Char` | `Relation.Eq.Eq Char` | Implicit |
-| `Data.Char.Hash_Char` | `Data.Hash.Hash Char` | Implicit |
-| `Data.Char.Ord_Char` | `Relation.Ord.Ord Char` | Implicit |
-
-**`Data.Char.Hash_Char`**: The scalar value is the digest (instances live with their type).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Char.cinch`. Source SHA-256: `e76e912936c0dda403bbaf37720dd969c8264c9f9af1e794f648c967e68a5d8b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Char.Eq_Char</code></span></li>
+<li id="i-Hash_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Char.Hash_Char</code></span><div class="doc-child-prose">The scalar value is the digest (instances live with their type).</div></li>
+<li id="i-Ord_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Char.Ord_Char</code></span></li>
+</ul>

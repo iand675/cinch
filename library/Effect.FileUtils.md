@@ -2,19 +2,11 @@
 
 Convenience filesystem operations built on the lower-level filesystem API.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.FileUtils</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.FileUtils/source/">View source</a><a href="/packages/search/?q=%2BEffect.FileUtils">Search module</a><a href="/reference-sources/Effect.FileUtils.cinch" download="Effect.FileUtils.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.FileUtils`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Fs](Effect.Fs.md), [Effect.Random](Effect.Random.md).
 
-[Download exact module source](/reference-sources/Effect.FileUtils.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Fs](Effect.Fs.md), [Effect.Random](Effect.Random.md).
-
-Non-embedded source closure: [Effect.FileUtils](Effect.FileUtils.md), [Effect.Random](Effect.Random.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.FileUtils: the mutating filesystem operations (P40, the Ruby
 `FileUtils` port named in design/stdlib-parity-ruby.md's OS-utilities
@@ -68,38 +60,28 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-FileUtilsError">FileUtilsError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileUtilsError</strong></code></li><li><a class="syn-name" href="#v-cp">cp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cp</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-mkdir-p">mkdir-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mkdir-p</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-mv">mv</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mv</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-rm">rm</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rm</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-rm-r">rm-r</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rm-r</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-temp-dir">temp-dir</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">temp-dir</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code></li><li><a class="syn-name" href="#v-temp-file">temp-file</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">temp-file</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code></li><li><a class="syn-name" href="#v-touch">touch</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">touch</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-46696c655574696c734572726f72"></a>
+# Types
 
-## `FileUtilsError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FileUtilsError</span></code></pre>
+<article class="doc-entry" id="t-FileUtilsError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileUtilsError</strong></code><span class="doc-sig-links"><a href="#t-FileUtilsError" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong, named (the shared platform codes `Effect.Fs` maps
 its `FsError` from, in this home's vocabulary).
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 66
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsAlreadyExists</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIsADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsNotADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileUtilsIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FileUtilsNotFound"><code><strong class="tok-constructor">FileUtilsNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li><li id="k-FileUtilsAlreadyExists"><code><strong class="tok-constructor">FileUtilsAlreadyExists</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li><li id="k-FileUtilsIsADirectory"><code><strong class="tok-constructor">FileUtilsIsADirectory</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li><li id="k-FileUtilsNotADirectory"><code><strong class="tok-constructor">FileUtilsNotADirectory</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li><li id="k-FileUtilsPermissionDenied"><code><strong class="tok-constructor">FileUtilsPermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li><li id="k-FileUtilsIoError"><code><strong class="tok-constructor">FileUtilsIoError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6370"></a>
-
-## `cp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cp</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-cp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cp</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-cp" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-body">
 
 `cp src dst`: copy a regular file's bytes from `src` to `dst`
 (read plus write). A directory `src` is `FileUtilsIsADirectory`,
@@ -108,25 +90,23 @@ is not a directory is `FileUtilsNotADirectory`. The write is
 `fs-write`: it creates or truncates `dst` and is NOT atomic (the
 atomic replacement is write-then-`fs-rename`, which `mv` uses).
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 142
+</div>
+</article>
 
-<a id="value-6d6b6469722d70"></a>
-
-## `mkdir-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mkdir-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-mkdir-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mkdir-p</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-mkdir-p" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 `mkdir-p p`: create `p` and every missing parent, like `mkdir -p`.
 An existing directory is success (idempotent); a non-directory at
 `p` is `FileUtilsAlreadyExists`.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 111
+</div>
+</article>
 
-<a id="value-6d76"></a>
-
-## `mv`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mv</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-mv">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mv</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-mv" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-body">
 
 `mv src dst`: move `src` to `dst` with `fs-rename`, the POSIX
 atomic rename. It is used rather than copy-then-remove because it
@@ -135,13 +115,12 @@ state, never a partial) and it preserves the object's identity; the
 price is the OS's own rule that a rename cannot cross a filesystem
 (that failure surfaces as `FileUtilsIoError`).
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 161
+</div>
+</article>
 
-<a id="value-726d"></a>
-
-## `rm`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-rm">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rm</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-rm" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-body">
 
 `rm p`: remove what `p` names WITHOUT recursion: a regular file,
 a symlink (the link itself, never its target: the intrinsic
@@ -150,26 +129,24 @@ directory. A non-empty directory is the OS's refusal
 (`FileUtilsIoError`; `rm-r` is the recursive form) and a missing
 path is `FileUtilsNotFound`.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 122
+</div>
+</article>
 
-<a id="value-726d2d72"></a>
-
-## `rm-r`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rm-r</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-rm-r">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rm-r</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-rm-r" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 `rm-r p`: remove what `p` names recursively: a file, a symlink, or
 a whole directory subtree. A symlink is removed as the LINK (the
 runtime resolves it through `symlink_metadata` and its recursive
 walk does not follow links), so the target is never touched.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 131
+</div>
+</article>
 
-<a id="value-74656d702d646972"></a>
-
-## `temp-dir`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-dir</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>))</code></pre>
+<article class="doc-entry" id="v-temp-dir">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">temp-dir</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code><span class="doc-sig-links"><a href="#v-temp-dir" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 `temp-dir u`: create (and name) a fresh directory under the
 platform temp directory. The name carries the 128-bit nonce and the
@@ -177,13 +154,12 @@ directory is created with a bare `mkdir` (no parents), so a name
 the OS already knows is reported as `FileUtilsAlreadyExists`
 rather than reused.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 205
+</div>
+</article>
 
-<a id="value-74656d702d66696c65"></a>
-
-## `temp-file`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">temp-file</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>))</code></pre>
+<article class="doc-entry" id="v-temp-file">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">temp-file</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code><span class="doc-sig-links"><a href="#v-temp-file" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L227" title="View source at line 227">Source</a></span></div>
+<div class="doc-body">
 
 `temp-file u`: create (and name) a fresh EMPTY file under the
 platform temp directory. UNIQUENESS: the same 128-bit nonce; the
@@ -196,21 +172,17 @@ check and the create are not one atomic step; the entropy, not the
 check, is what makes a collision negligible, and the refusal is
 named rather than guessed away by a retry loop.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 227
+</div>
+</article>
 
-<a id="value-746f756368"></a>
-
-## `touch`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">touch</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">FileUtils</span>.<span class="tok-constructor">FileUtilsError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-touch">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">touch</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.FileUtils/#t-FileUtilsError" title="Effect.FileUtils.FileUtilsError">FileUtilsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-touch" title="Permalink">#</a><a href="/packages/stdlib/Effect.FileUtils/source/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 `touch p`: create `p` as an empty file when it does not exist and
 leave an existing file's contents unchanged (the cheap touch; it
 does NOT bump a timestamp, see the refusals). The create is
 `fs-write` of no bytes, so a missing parent is reported.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 170
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/FileUtils.cinch`. Source SHA-256: `26ce540b8755def036a6804f9b2da0db29d81d73bee40ac122c89a5b8ead1d00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

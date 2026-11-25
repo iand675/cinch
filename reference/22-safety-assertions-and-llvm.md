@@ -1,12 +1,15 @@
 # Safety assertions, must-use results, and LLVM contracts
 
-A safety assertion is a claim you write on a definition that the checker then has to verify. A verified claim becomes a contract fact: it is recorded in the interface, hashed into the interface identity, and restated in the emitted LLVM where LLVM has the vocabulary for it. A claim the checker cannot verify is a compile error naming the attribute, the rule and the site, never a comment that everyone trusts.
+A **safety assertion** is a machine-checked property attached to a definition or module. Unlike an optimization hint (such as `#[inline]` or `#[unroll(4)]`), a safety assertion must be proved by the compiler:
 
-[Attributes and pragmas](23-attributes-and-pragmas.md) covers the rest of the `#[...]` vocabulary (hints, metadata, layout, foreign crossing). [Type layout](24-type-layout.md) covers the representation these attributes talk about. [Refinements](06-refinements.md) covers the evidence a `decide` check produces, which is what `#[assert-min]` counts.
+- If the check succeeds, the verified claim becomes a **contract fact**: it is recorded in the module's interface (and hashed into `iface_hash`), reported in `build/<Entry>.manifest.json`, and translated into LLVM IR attributes wherever LLVM can express it.
+- If the check fails, compilation fails with a diagnostic naming the attribute, the rule violated, and the offending site.
 
-# Where an assertion may appear
+For complete attribute grammar, attachment positions, argument validation, and duplicate/conflict rules, see [Chapter 23](23-attributes-and-pragmas.md). For memory representation attributes (`#[repr]`, `#[unpack]`), see [Chapter 24](24-type-layout.md). For `decide` and refinement evidence, see [Chapter 06](06-refinements.md).
 
-A safety assertion goes immediately before the signature of a definition, one attribute per line, with its argument in parentheses. In a module body, that reads:
+# Writing safety assertions
+
+Per-definition assertions sit immediately before a function signature or top-level equation; `#[profile("jpl")]` and module-wide `#[deny-warnings]` sit before the `module` header:
 
 ```cinch
 #[recursion("none")]
@@ -14,59 +17,50 @@ A safety assertion goes immediately before the signature of a definition, one at
 identity-word :: U32 -> U32
 ```
 
-`#[profile("jpl")]` goes on a module header, before `module`. The parenthesized spelling is the only accepted one: the space form that the specification and the diagnostic text use, `#[recursion "none"]`, is refused with `unterminated attribute`. Read every message the checker prints with that difference in mind.
+In source code, arguments are written in parentheses (`#[recursion("none")]`) or with a compact `=` (`#[recursion="none"]`). Note that compiler diagnostics display the specification's space-separated spelling (`#[recursion "none"]`), which is not accepted source syntax.
 
-# What each assertion verifies
+# Verification semantics
 
-The report's `attribute` column is the string the manifest records, which is not always the source spelling.
+Each safety assertion runs a dedicated static analysis over the definition (see [Chapter 23](23-attributes-and-pragmas.md#safety-assertions) for the full table of spellings and argument forms):
 
-| Source attribute | What the checker verifies | Report row and result |
-| --- | --- | --- |
-| `#[recursion("none")]` | no recursive call in the definition or its group | `recursion=none`: `verified (no recursive calls)` |
-| `#[recursion("tail")]` | every self or mutual call is in tail position | `recursion=tail`: `verified (D104 tail marks)` |
-| `#[recursion("bounded(xs)")]` | a depth bound, proved structurally when the argument is a structural descent | `recursion=bounded(xs)`: `structural (depth <= xs: the size of the decreasing argument)` |
-| `#[recursion("bounded(3)")]` | a numeric depth bound, proved by a structural descent, a literal counter ladder, or the call graph, and the result says which | `recursion=bounded(3)`: `call-graph (the literal counter ladder: depth <= 3)` |
-| `#[stack("constant")]` | the admitted non-growing-stack discipline, which implies tail or non-recursive | `stack=constant`: `verified` |
-| `#[stack("bounded(2)")]` | a bound on stack growth, with the method reported | `stack=bounded(2)`: `call-graph (no recursive calls; depth 0)` |
-| `#[no-alloc]` | no allocation site, and no call that violates the contract, in the body | `no-alloc`: `verified (0 allocation site(s) in the body)` |
-| `#[alloc("once")]` | at most one allocation site runs per call | `alloc=once`: `verified (1 allocation site(s) run per call)` |
-| `#[max-complexity(2)]` | cyclomatic complexity, counted as branches plus one | `complexity<=2`: `verified (cyclomatic complexity 2 <= 2)` |
-| `#[max-lines(2)]` | source lines the definition spans | `lines<=2`: `verified (1 source line(s) <= 2)` |
-| `#[assert-min(2)]` | at least two runtime `decide` or assert checks in the body; proof obligations do not count | `assert-min=2`: `verified (2 runtime \`decide\` check(s) >= 2)` |
-| `#[checked-params]` | every parameter is validated before its first use | `checked-params`: `verified (every parameter validated before first use)` |
-| `#[no-macros]` | no macro expansion in the definition's provenance | `no-macros`: `verified (no macro expansion inside the definition)` |
-| `#[no-raw-ptr]` | no raw pointer or opaque type in the signature, and no foreign pointer operation in the body | `no-raw-ptr`: `verified (no raw pointer or opaque type in the signature, no foreign pointer operation in the body)` |
-| `#[deny-warnings]` | warnings in scope are compile errors | `deny-warnings`: `verified (warnings in scope are compile errors)` |
+- **Recursion and stack bounds (`#[recursion("none"|"tail"|"bounded(b)")]`, `#[stack("constant"|"bounded(b)")]`):**
+  - `"none"` verifies that the definition participates in no self- or mutual-recursion cycle.
+  - `"tail"` (and `#[stack("constant")]`) verifies that every self or mutual recursive call is in tail position (or absent).
+  - `"bounded(b)"` requires a verified bound—either a structural descent on a named argument or size index, or a numeric depth bound proved by a literal counter ladder / call-graph analysis. Bounds that cannot be established are always refused, never trusted; for example, `#[recursion("bounded(3)")]` is rejected on a function whose only established bound is structural in an argument of unknown size, or on a mutual-recursion cycle with no proved depth bound.
+- **Allocation bounds (`#[no-alloc]`, `#[alloc("once")]`):**
+  The checker tracks every allocation site by kind: data-constructor allocation, local function / lambda closure, memo thunk, `Mut` cell, string literal, `Bytes` buffer, and foreign aggregate. `#[no-alloc]` forbids all of them (and calls to definitions that violate the contract); `#[alloc("once")]` permits at most one allocation site per call and forbids allocation inside closures.
+- **Structural metrics (`#[max-complexity(n)]`, `#[max-lines(n)]`):**
+  Cyclomatic complexity is measured as decision branches plus one; line count is the checked body's source line span.
+- **Defensive runtime checks (`#[assert-min(n)]`, `#[checked-params]`):**
+  `#[assert-min(n)]` counts runtime `decide` checks in the body—compile-time-folded proof obligations (such as `decide (2 < 5)`) do not count. `#[checked-params]` requires every parameter to be validated by a refutable `case` match or runtime `decide` before its first use.
+- **Hygiene, pointers, and warnings (`#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]`):**
+  `#[no-macros]` rejects any AST node carrying macro-expansion provenance; `#[no-raw-ptr]` forbids raw pointers and opaque types in the signature and foreign pointer operations in the body; `#[deny-warnings]` promotes in-scope warnings to errors.
 
-The allocation analysis classifies construction sites by kind: constructor allocation, a local function (a closure), a lambda, a thunk, `Mut`, strings, `Bytes` and foreign aggregates. A violation names the kind and the site.
+## Manifest safety report
 
-A bound is a claim the checker must establish, not a number it trusts. `#[recursion("bounded(3)")]` on a definition whose only descent is on an argument of unknown size is refused, and the refusal names the bound the proof actually gives: the established bound is structural (depth <= n: the size of the decreasing argument), which does not bound the depth by 3 (bounds that cannot be established are refused, never trusted; decision D113).
-
-# The report
-
-`cinch check` writes `build/<Module>.manifest.json`. Its `safety` object holds one row per verified assertion, plus the profile summary:
+`cinch check` records every verified assertion—and the method that proved it—under the `safety` key of `build/<Entry>.manifest.json`:
 
 ```json
 {
- "assertions": [
-  {
-   "attribute": "recursion=none",
-   "definition": "Main.identity-word",
-   "result": "verified (no recursive calls)"
-  },
-  {
-   "attribute": "no-alloc",
-   "definition": "Main.identity-word",
-   "result": "verified (0 allocation site(s) in the body)"
-  }
- ],
- "jpl": null
+  "assertions": [
+    {
+      "attribute": "recursion=none",
+      "definition": "Main.identity-word",
+      "result": "verified (no recursive calls)"
+    },
+    {
+      "attribute": "no-alloc",
+      "definition": "Main.identity-word",
+      "result": "verified (0 allocation site(s) in the body)"
+    }
+  ],
+  "jpl": null
 }
 ```
 
-A definition that carries hints but no assertion has an empty list here, which is how you tell a hint from a verified fact: `#[inline(always)]` leaves `"assertions": []`.
+Hints such as `#[inline(always)]` or `#[unroll(4)]` never appear in `safety.assertions`, making verified facts unambiguously distinguishable from advisory hints.
 
-# A definition with assertions, and the IR it emits
+## Example: verified assertions and emitted LLVM attributes
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -80,34 +74,31 @@ module Main where
   main = if identity-word 42 == 42 then 0 else 1
 ```
 
-`cinch emit-ir Main.cinch -o main.ll` emits this definition and this attribute group:
+Running `cinch emit-ir Main.cinch -o main.ll` emits:
 
-```text
+```llvm
 define range(i64 0, 4294967296) i64 @"Main.identity-word"(i64 noundef %p0) #1 {
-```
-
-```text
+...
 attributes #1 = { "probe-stack"="inline-asm" memory(none) nofree speculatable willreturn }
 ```
 
-Which part comes from which analysis is decidable, because each claim is added only when its own analysis holds:
+Each LLVM attribute corresponds strictly to an established analysis fact:
 
-| Source | Attribute group on `Main.identity-word` |
+| Source annotations on `identity-word` | Emitted LLVM attribute group |
 | --- | --- |
-| no attribute | `{ "probe-stack"="inline-asm" memory(none) speculatable }` |
+| None | `{ "probe-stack"="inline-asm" memory(none) speculatable }` |
 | `#[no-alloc]` | `{ "probe-stack"="inline-asm" memory(none) nofree speculatable }` |
 | `#[recursion("none")]` | `{ "probe-stack"="inline-asm" memory(none) speculatable willreturn }` |
-| both, as above | `{ "probe-stack"="inline-asm" memory(none) nofree speculatable willreturn }` |
+| `#[recursion("none")]` + `#[no-alloc]` | `{ "probe-stack"="inline-asm" memory(none) nofree speculatable willreturn }` |
 
-`memory(none)` and `speculatable` come from the empty effect row. `nofree` restates `#[no-alloc]`, and `willreturn` restates the totality proof; neither is guessed for a definition without the corresponding fact. `range(i64 0, 4294967296)` and `noundef` come from the parameter's type, not from any attribute: `U32` is a scalar word with a known width. `U8` states `range(i64 0, 256)`. A boxed `Int` parameter states neither, because the word spans the whole `i64` space:
+- `memory(none)` and `speculatable` come from the empty effect row.
+- `nofree` restates `#[no-alloc]`.
+- `willreturn` restates the totality/termination proof.
+- `range(i64 0, 4294967296)` and `noundef` come from the `U32` scalar type (`U8` emits `range(i64 0, 256)`; a boxed `Int` spans all `i64` bit patterns and emits neither).
 
-```text
-define i64 @"Main.idInt"(i64 %p0) #4 {
-```
+## Violation diagnostics
 
-# A violation names the attribute, the rule, and the site
-
-Allocation is the common case. `Cons` is an allocation site, and the message names the constructor:
+A violated assertion names the attribute, the rule, and the offending construct:
 
 <!-- cinch:reject contains="`#[no-alloc]` on Main.cons1 asserts the no-allocation rule (JPL rule 3): the constructor `Cons` is constructed here" -->
 ```cinch
@@ -120,8 +111,6 @@ module Main where
   main = 0
 ```
 
-A recursion claim names the call that breaks it, and prints the specification's space form of the attribute rather than the source's parenthesized form:
-
 <!-- cinch:reject contains="`#[recursion \"none\"]` on Main.loopy asserts the no-recursion rule (JPL rule 1): the recursive call at this site" -->
 ```cinch
 module Main where
@@ -133,11 +122,11 @@ module Main where
   main = loopy 2
 ```
 
-`#[alloc("once")]` names the second site with `is constructed here as well`, and a construction under a closure with `is constructed under a closure here`. `#[max-complexity(2)]` reports the measured number against the claim.
+Similarly, `#[alloc("once")]` identifies any second allocation site (`is constructed here as well`) or allocation inside a closure (`is constructed under a closure here`), and `#[max-complexity]` / `#[max-lines]` report the measured figure against the declared cap.
 
 # Must-use `Result` values
 
-`Result` is not a value you may silently drop. A wildcard binding is not an acknowledgment:
+`Result` values are must-use: binding one to `_` without handling or explicitly discarding it is a compile error:
 
 <!-- cinch:reject contains="discarding a `Result`-typed expression without `ignore`" -->
 ```cinch
@@ -149,7 +138,7 @@ module Main where
   main = let _ = attempt 1 in 0
 ```
 
-Handle the outcome with `case`, or discard it deliberately with `ignore`. `ignore` records the decision; it does not convert a failure into a success, and it establishes no proof about the operation.
+Either match both outcomes with `case`, or acknowledge the discard explicitly with `ignore` (which returns `Unit` without pretending the operation succeeded):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -169,11 +158,22 @@ module Main where
   main = if settled 5 == 5 && discarded == 7 then 0 else 1
 ```
 
-This is separate from the linearity of task handles, which is an ownership rule rather than a value-discard rule.
+Must-use checking is independent of linear ownership (such as `Task` handles, which must be consumed exactly once regardless of `ignore`).
 
 # The JPL profile
 
-`#[profile("jpl")]` on a module makes the full set mandatory for every definition in it: bounded or absent recursion, no allocation, complexity at most 10, at most 60 source lines, at least two runtime checks, no macros, no raw pointers, and warnings as errors. The rule numbers come from the profile, so an individual attribute can be stricter but never looser.
+Attaching `#[profile("jpl")]` to a module header enforces a strict baseline across every definition in the module:
+
+| Rule | Module-wide requirement |
+| --- | --- |
+| Recursion | Non-recursive, tail-recursive, or statically bounded (`recursion`/`stack` proof required for recursive definitions). |
+| Allocation | No heap allocation unless the definition explicitly asserts `#[alloc("once")]` (initialization pattern). |
+| Complexity & size | Cyclomatic complexity at most `10`; body at most `60` source lines. |
+| Runtime checks | At least `2` runtime `decide` checks in each exported definition (compile-time folded checks do not count). |
+| Macros & pointers | No macro expansion provenance, no raw pointers or opaque types in signatures, and no foreign pointer operations. |
+| Warnings | All in-scope warnings are errors. |
+
+Individual definitions may add **stricter** assertions (for example `#[max-complexity(4)]`), but never looser ones (`#[max-complexity(12)]` is rejected). `#[checked-params]` remains opt-in per definition. There is no CLI flag for profiles; `#[profile("jpl")]` on the module header is the sole activation mechanism.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -195,22 +195,11 @@ module Main where
       No _ -> 3
 ```
 
-The manifest shows what the profile demanded and what it found, one row per rule and definition. These are the rows for `Main.classify`:
+In `build/Main.manifest.json`, the profile reports one row per rule for every definition (for `Main.classify`: `jpl recursion`, `jpl complexity<=10`, `jpl lines<=60`, `jpl assert-min=2`, `jpl alloc=none`, `jpl no-macros`, `jpl no-raw-ptr`, and `jpl deny-warnings`, each with its measured value).
 
-| Attribute | Result |
-| --- | --- |
-| `jpl recursion` | `verified (no recursive calls)` |
-| `jpl complexity<=10` | `verified (cyclomatic complexity 3)` |
-| `jpl lines<=60` | `verified (5 source lines)` |
-| `jpl assert-min=2` | `verified (2 runtime \`decide\` checks)` |
-| `jpl alloc=none` | `verified (0 allocation site(s))` |
-| `jpl no-macros` | `verified (no macro expansion inside the definition)` |
-| `jpl no-raw-ptr` | `verified (no raw pointer or opaque type in the signature, no foreign pointer operation in the body)` |
-| `jpl deny-warnings` | `verified (warnings in scope are compile errors)` |
+A definition that falls short of any rule fails compilation—for example, omitting runtime `decide` checks:
 
-Falling short is an error that names the rule number and the measurement. A function with no runtime `decide` cannot satisfy the runtime-check rule, and a comparison of two literals does not count, because it was decided at compile time:
-
-<!-- cinch:reject contains="the `jpl` profile mandates 2 runtime checks on exported functions (decision D114)" -->
+<!-- cinch:reject contains="the `jpl` profile mandates 2 runtime checks on exported functions" -->
 ```cinch
 #[profile("jpl")]
 module Main where
@@ -221,29 +210,27 @@ module Main where
   main = 0
 ```
 
-This profile is a compiler profile inspired by the published rule set. It does not certify a product against any external standard, does not prove foreign C code correct, and has no CLI switch of its own: the attribute is the only way to select it.
+`#[profile("jpl")]` is a compiler-enforced discipline inspired by NASA/JPL's Power of 10 rules; it does not certify compliance with external safety standards and does not verify foreign C code.
 
-# What the analyses contribute to emitted IR
+# LLVM IR contract lowering
 
-Beyond the assertion restatements above, the backend translates other established analyses into LLVM's vocabulary. Every row is checked in both directions by the IR suite: the attribute appears where the analysis proves the fact and is absent where it does not.
+Beyond explicit safety assertions, the backend lowers verified compiler analyses into LLVM attributes and metadata whenever the analysis proves the underlying property (and omits them whenever it does not):
 
-| Established fact | Emitted form |
+| Verified compiler fact | Emitted LLVM IR form |
 | --- | --- |
 | Empty effect row, no foreign calls | `memory(none)`, `speculatable` |
-| An `Io`-headed or mutating definition | `memory(read)` or `memory(readwrite)` instead |
+| `Io`-bearing or mutating definition | `memory(read)` or `memory(readwrite)` |
 | `#[no-alloc]` | `nofree` |
-| A totality proof | `willreturn` |
-| A non-escaping borrow | `nocapture`, as in `declare void @"fix_borrow"(ptr nocapture nonnull)` (LLVM 21 and newer read it as `captures(none)`) |
-| A scalars-only signature | `noundef` on each scalar parameter |
-| A bounded return type (`U8`, `U32`, a `Fin` index) | `range(...)` on the define, and `!range` metadata where a call's result range is statable |
-| `#[checked-params]` and boundary facts | `llvm.assume` with `align`, `nonnull`, `dereferenceable` or `range` operand bundles |
-| A read from an untrusted buffer, pointer or foreign input | `freeze` before a branch or comparison |
-| A fault exit | `noreturn` and a dead successor |
-| A foreign aggregate boundary | The target's C convention: register pieces, `byval`, a pointer to the caller's copy, or `sret` |
-| A `prim` immediate parameter, an `asm` fragment | `immarg`, and `llvm.sideeffect` for the assembly |
+| Totality / termination proof | `willreturn` |
+| Non-escaping borrow parameter | `nocapture` (upgraded to `captures(none)` by LLVM 21+) |
+| Scalar-only parameter | `noundef` |
+| Bounded return type (`U8`, `U32`, `Fin`) | `range(...)` on `define` and `!range` metadata on calls where statable |
+| `#[checked-params]` and boundary facts | `llvm.assume` with `align`, `nonnull`, `dereferenceable`, or `range` operand bundles |
+| Read from untrusted buffer, pointer, or foreign input | `freeze` prior to branching or comparison |
+| Fault exit | `noreturn` with unreachable/dead successor |
+| Foreign aggregate crossing (`#[byval]`, `#[sret]`) | Target C ABI lowering: register pieces, `byval(<layout>)`, caller-copy pointer, or `sret(<layout>)` |
+| `prim` `immarg` parameter / inline `asm` | `immarg` parameter attribute; `llvm.sideeffect` for inline assembly |
 
-These names describe emitted IR. They are not source attributes: writing `#[nonnull]` on a Cinch definition does not exist and does not prove anything. Fast-math flags are not a default permission to reassociate IEEE arithmetic, and a reserved or opaque primitive body keeps its explicit trust and containment status rather than becoming proved by its own annotation.
+These LLVM names are backend outputs derived from checked invariants—they are **not** Cinch source attributes (writing `#[nonnull]` or `#[willreturn]` in source is an unknown-attribute error). Fast-math reassociation is never enabled by default, and `unsafe prim` bodies retain their explicit trust boundary rather than inheriting unproved guarantees.
 
-- <span class="support-tag support-tag--planned">Coming soon</span> **Broader primitive semantic proofs and solver coverage.** The [verified primitives](../design/verified-primitives.md) and [proof automation](../design/proof-automation.md) designs describe the intended work. The annotations emitted today are translations of analyses that already hold; they are not those future proofs.
-
-Implementation: `seed/src/check_decls.rs` (assertions and their analyses), `check_terms.rs` (must-use and the runtime-check count), `core.rs` (contract facts), `codegen.rs` (the IR restatements). Suites: `safety.rs`, `llvm_contract.rs`, `attributes.rs`, `tail_calls.rs`.
+<span class="support-tag support-tag--planned">Coming soon</span> **Broader primitive semantic proofs and solver coverage.** Planned verification of primitive bodies and expanded automated proof discharge will continue to require independently checkable evidence.

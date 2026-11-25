@@ -2,19 +2,11 @@
 
 Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Bzip2</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Bzip2/source/">View source</a><a href="/packages/search/?q=%2BText.Bzip2">Search module</a><a href="/reference-sources/Text.Bzip2.cinch" download="Text.Bzip2.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Bzip2`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Bzip2.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Text.Bzip2](Text.Bzip2.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Bzip2 decompression: concatenated streams of Burrows-Wheeler blocks with Huffman and move-to-front coding.
 A block passes through its stages in order. Symbols are read with canonical
@@ -33,48 +25,38 @@ are rejected; streams that follow the first are decoded in turn.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Bzip2Error">Bzip2Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Bzip2Error</strong></code></li><li><a class="syn-name" href="#v-bzip2-decompress">bzip2-decompress</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bzip2-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-bzip2-error-message">bzip2-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bzip2-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-427a6970324572726f72"></a>
+# Types
 
-## `Bzip2Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Bzip2Error</span></code></pre>
+<article class="doc-entry" id="t-Bzip2Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Bzip2Error</strong></code><span class="doc-sig-links"><a href="#t-Bzip2Error" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 A malformed or corrupted bzip2 stream.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 28
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bzip2BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bzip2BadBlock</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bzip2Truncated</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bzip2ChecksumMismatch</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Bzip2BadHeader"><code><strong class="tok-constructor">Bzip2BadHeader</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a></code></li><li id="k-Bzip2BadBlock"><code><strong class="tok-constructor">Bzip2BadBlock</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a></code></li><li id="k-Bzip2Truncated"><code><strong class="tok-constructor">Bzip2Truncated</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a></code></li><li id="k-Bzip2ChecksumMismatch"><code><strong class="tok-constructor">Bzip2ChecksumMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-627a6970322d6465636f6d7072657373"></a>
-
-## `bzip2-decompress`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bzip2-decompress</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-bzip2-decompress">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bzip2-decompress" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 Decompress a complete input of one or more concatenated streams.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 105
+</div>
+</article>
 
-<a id="value-627a6970322d6572726f722d6d657373616765"></a>
-
-## `bzip2-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bzip2-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-bzip2-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-bzip2-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 Render a bzip2 error.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 39
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Bzip2.cinch`. Source SHA-256: `a96b5dda7eb2a3a2c45d3593622db4390f97dc0042c40c32704c7756bd480de3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

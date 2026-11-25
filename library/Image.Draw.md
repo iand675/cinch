@@ -2,19 +2,11 @@
 
 Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Draw</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Draw/source/">View source</a><a href="/packages/search/?q=%2BImage.Draw">Search module</a><a href="/reference-sources/Image.Draw.cinch" download="Image.Draw.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Image.Draw`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
 
-[Download exact module source](/reference-sources/Image.Draw.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Draw](Image.Draw.md), [Image.Raster](Image.Raster.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Image compositing: Porter-Duff Src and Over, with optional masks and uniform sources, and Floyd-Steinberg dithering.
 Drawing fills a rectangle of the destination from a source starting at a
@@ -31,87 +23,76 @@ pixel's quantization error to its neighbours (7/16 right, 3/16, 5/16 and
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (7 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-DrawOp">DrawOp</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DrawOp</strong></code></li><li><a class="syn-name" href="#t-DrawRect">DrawRect</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DrawRect</strong></code></li><li><a class="syn-name" href="#v-draw">draw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">draw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-draw-floyd-steinberg">draw-floyd-steinberg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">draw-floyd-steinberg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-draw-mask">draw-mask</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">draw-mask</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-draw-rect">draw-rect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">draw-rect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a></code></li><li><a class="syn-name" href="#v-draw-uniform">draw-uniform</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">draw-uniform</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li></ul>
+</details>
 
-<a id="type-447261774f70"></a>
+# Types
 
-## `DrawOp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DrawOp</span></code></pre>
+<article class="doc-entry" id="t-DrawOp">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DrawOp</strong></code><span class="doc-sig-links"><a href="#t-DrawOp" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 How source pixels combine with the destination.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 27
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DrawOver"><code><strong class="tok-constructor">DrawOver</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a></code></li><li id="k-DrawSrc"><code><strong class="tok-constructor">DrawSrc</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DrawOver</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DrawSrc</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span></code></pre>
-
-<a id="type-4472617752656374"></a>
-
-## `DrawRect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DrawRect</span></code></pre>
+<article class="doc-entry" id="t-DrawRect">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DrawRect</strong></code><span class="doc-sig-links"><a href="#t-DrawRect" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 Corners in the order listed above.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 36
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DrawRect</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DrawRect"><code><strong class="tok-constructor">DrawRect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-64726177"></a>
-
-## `draw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">draw</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; ((<span class="tok-constructor">Int</span>, <span class="tok-constructor">Int</span>) -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>)))))</code></pre>
+<article class="doc-entry" id="v-draw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">draw</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-draw" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Draw the source onto the destination within the rectangle, source point sp aligned with its corner.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 50
+</div>
+</article>
 
-<a id="value-647261772d666c6f79642d737465696e62657267"></a>
-
-## `draw-floyd-steinberg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">draw-floyd-steinberg</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; ((<span class="tok-constructor">Int</span>, <span class="tok-constructor">Int</span>) -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>))))</code></pre>
+<article class="doc-entry" id="v-draw-floyd-steinberg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">draw-floyd-steinberg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-draw-floyd-steinberg" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L318" title="View source at line 318">Source</a></span></div>
+<div class="doc-body">
 
 Draw a source onto an indexed raster with Floyd-Steinberg error diffusion (Src compositing). Other rasters are
 returned unchanged.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 318
+</div>
+</article>
 
-<a id="value-647261772d6d61736b"></a>
-
-## `draw-mask`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">draw-mask</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; ((<span class="tok-constructor">Int</span>, <span class="tok-constructor">Int</span>) -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; ((<span class="tok-constructor">Int</span>, <span class="tok-constructor">Int</span>) -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>)))))))</code></pre>
+<article class="doc-entry" id="v-draw-mask">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">draw-mask</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-draw-mask" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 Draw through a mask: the mask's alpha at point mp onward scales the source.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 54
+</div>
+</article>
 
-<a id="value-647261772d72656374"></a>
-
-## `draw-rect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">draw-rect</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span>))))</code></pre>
+<article class="doc-entry" id="v-draw-rect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">draw-rect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a></code><span class="doc-sig-links"><a href="#v-draw-rect" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 Make a rectangle from its corners.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 39
+</div>
+</article>
 
-<a id="value-647261772d756e69666f726d"></a>
-
-## `draw-uniform`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">draw-uniform</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span> -&gt; ((<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>))))</code></pre>
+<article class="doc-entry" id="v-draw-uniform">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">draw-uniform</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawRect" title="Image.Draw.DrawRect">DrawRect</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Draw/#t-DrawOp" title="Image.Draw.DrawOp">DrawOp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-draw-uniform" title="Permalink">#</a><a href="/packages/stdlib/Image.Draw/source/#L58" title="View source at line 58">Source</a></span></div>
+<div class="doc-body">
 
 Draw one non-premultiplied 8-bit color (red, green, blue, alpha) over the rectangle.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 58
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Draw.cinch`. Source SHA-256: `815418a8361b6fec8f7809d64e582123c122c5bf70d49dcac5e2af847f2b03f6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

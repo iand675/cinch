@@ -1,21 +1,21 @@
 # Target profiles, platform proofs, SIMD, and Wasm
 
-A target profile states what an artifact may assume: the triple, the word width, the endianness, the vector shape, the capability set, and whether runtime code generation is admitted. The profile is an input to checking, not a hint to the backend, so a fact that depends on the target is checked against the target. Every artifact records the profile it was built under.
+A target profile declares what a compiled artifact may assume about its execution environment: target triple, word width, byte order, vector shape, supplied and required capabilities, artifact format, and whether runtime `eval` is admitted. The profile is an input to typechecking—not merely a backend flag—so width bounds, conditional `prim` bodies, and capability obligations are verified against the target before any IR is emitted. Every build records its target profile in `build/<Entry>.manifest.json`.
 
-# Profiles and artifact shapes
+# Target profiles and artifact shapes
 
-| Field | Meaning |
+| Field | Role |
 | --- | --- |
-| `triple` | The target triple. `Usize` and `Isize` widths, the `when` atoms of a `prim` body, and package conditions all key on it. |
-| `word_size` | Pointer and word width in bits. |
-| `endian` | `little` or `big`. |
-| `vector_shape` | The admitted SIMD shape. |
-| `features`, `required` | Capabilities the profile supplies, and capabilities the deployment contract must supply. |
-| `allow_eval` | Whether `eval` of a typed quote is admitted. |
-| `artifact` | The artifact shape: `native`, `core-wasm`, `browser`, `wasi-component`, `wasi-0.2-compat`. |
-| `fuel`, `measure` | Driving bounds for specialization. |
+| `triple` | Target triple governing `Usize`/`Isize` widths, `prim` `when` conditions, and package manifest conditions. |
+| `word_size` | Pointer and machine-word width in bits (`32` or `64`). |
+| `endian` | Byte order (`little` or `big`). |
+| `vector_shape` | Admitted SIMD vector shape (for example `fixed(8)`). |
+| `features`, `required` | Capabilities supplied by the target profile, and capabilities the deployment contract must satisfy. |
+| `allow_eval` | Whether runtime `eval` of a typed quotation is permitted. |
+| `artifact` | Output shape: `native`, `core-wasm`, `browser`, `wasi-component`, or `wasi-0.2-compat`. |
+| `fuel`, `measure` | Specialization driving bounds. |
 
-The artifact shape is visible in every build. A native build of a trivial program records:
+Every build records both its `target` profile and its `wasm` lowering summary in `build/<Entry>.manifest.json`. A host native build records:
 
 ```json
 {
@@ -23,7 +23,7 @@ The artifact shape is visible in every build. A native build of a trivial progra
     "admission": "the deployment contract must satisfy the recorded feature assumptions",
     "conditions": [],
     "endian": "little",
-    "features": [ "u32.wrappingAdd" ],
+    "features": ["u32.wrappingAdd"],
     "profile": "native64",
     "vector_shape": "fixed(8)",
     "word_size": 64
@@ -31,18 +31,16 @@ The artifact shape is visible in every build. A native build of a trivial progra
   "wasm": {
     "adapters": [],
     "artifact": "native",
-    "available": [ "u32.wrappingAdd" ],
+    "available": ["u32.wrappingAdd"],
     "canonical_abi": "none",
-    "lowerings": [ "tasks:os-thread" ],
+    "lowerings": ["tasks:os-thread"],
     "required": [],
-    "selected": { "features": [ "u32.wrappingAdd" ], "profile": "native64" }
+    "selected": {"features": ["u32.wrappingAdd"], "profile": "native64"}
   }
 }
 ```
 
-`"artifact": "native"` and `"canonical_abi": "none"` are the honest summary of a host build. A Wasm build changes both.
-
-The program those records come from is the smallest complete program, and building it is how you inspect your own host's profile:
+Compiling a minimal program lets you inspect the manifest for any target profile:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -51,64 +49,67 @@ module Main where
   main = 0
 ```
 
-# The CLI builds for the target `--target` names
+# Target triples and cross-compilation
 
-`--target <triple>` selects the profile, and every mode reads it: `check`, `emit-ir`, `emit-object`, `build`, and `run`. Five triples are accepted.
+Pass `--target <triple>` to `check`, `emit-ir`, `emit-object`, `build`, or `run` to select one of the five supported triples:
 
-| Triple | `arch` | `os` | `libc` | `build` links with |
+| Triple | `arch` | `os` | `libc` | Link pipeline |
 | --- | --- | --- | --- | --- |
-| `aarch64-apple-darwin` | `aarch64` | `darwin` | `libSystem` | clang's driver |
-| `x86_64-apple-darwin` | `x86_64` | `darwin` | `libSystem` | clang's driver |
-| `x86_64-unknown-linux-gnu` | `x86_64` | `linux` | `glibc` | clang's driver |
-| `aarch64-unknown-linux-gnu` | `aarch64` | `linux` | `glibc` | clang's driver |
+| `aarch64-apple-darwin` | `aarch64` | `darwin` | `libSystem` | `clang` driver |
+| `x86_64-apple-darwin` | `x86_64` | `darwin` | `libSystem` | `clang` driver |
+| `x86_64-unknown-linux-gnu` | `x86_64` | `linux` | `glibc` | `clang` driver |
+| `aarch64-unknown-linux-gnu` | `aarch64` | `linux` | `glibc` | `clang` driver |
 | `wasm32-unknown-unknown` | `wasm32` | `unknown` | `none` | `clang -c` then `wasm-ld` |
 
-`check` and `emit-ir` work for every one of them on any host, because the module header, the type widths, and `when arch` body selection read the target rather than the host. The emitted module states the target's `target triple` and `target datalayout`, so `cinch emit-ir --target aarch64-unknown-linux-gnu Main.cinch` on a Mac produces a Linux module.
+`check`, `emit-ir`, and `emit-object` support all five triples from any host. Type widths, `when` branch selection, and the emitted LLVM `target triple` and `target datalayout` are derived exclusively from `--target`.
 
-A `build` for a target other than the host links the cinch runtime built for that target, which `--runtime-archive` names. The one exception is `wasm32-unknown-unknown`, whose archive this tree builds itself: the runtime crate compiles for that target with no C toolchain under it, so `cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm` needs no flag once the Rust target is installed.
+Because the target profile governs typechecking, width-dependent errors fire before code generation. Under `--target wasm32-unknown-unknown`, `Usize` is 32 bits wide, so a 64-bit literal is rejected during `check`:
 
-The freestanding target links differently, and the difference is the target's, not a flag's. clang's driver finishes every link by finding the C runtime, and `wasm32-unknown-unknown` has no `crt1.o` and no `-lc`, so the driver assembles the module with `clang -c` and the target's own linker (`wasm-ld --no-entry --export-all`) links it against the runtime archive. Two tools are therefore needed beyond a native toolchain, and both are named when absent:
-
-- clang 19 or newer. The emitted IR carries `range(...)` attributes on the units whose result is a known small integer, and older LLVM rejects them with `expected type`; the wasi-sdk's clang 18 is one such. Every other attribute is spelled so clang 19 through current LLVM reads it: a borrowed pointer is `nocapture`, which LLVM 21 onwards upgrades to `captures(none)` as it parses, rather than `captures(none)` itself, which 19 rejects. `CINCH_CLANG` names the compiler, and a refusal states the version it found and the version it needs.
-- `wasm-ld`. It is found the way clang's driver finds it: the toolchain's own copy when `clang -print-prog-name=wasm-ld` answers a path, and otherwise on `PATH`. `CINCH_WASM_LD` names one directly, and on a nix system that is usually the only route: the linker lives in the store rather than on `PATH`, and Apple clang answers `-print-prog-name=wasm-ld` with nothing, so neither search reaches it. Set the variable to the store path a `llvm-binutils` derivation provides:
-
-```sh
-CINCH_WASM_LD=/nix/store/<hash>-llvm-binutils-21.1.8/bin/wasm-ld \
-  cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm
-```
-
-`nix-shell -p llvmPackages.bintools --run 'which wasm-ld'` prints the path to use. With all three routes absent, the refusal names `CINCH_WASM_LD` and that example shape, so the next build does not have to search `/nix/store`.
-
-`run` executes the result on the host that can carry it. A native target runs its executable directly. `wasm32-unknown-unknown` runs its module under Node, which loads the module, calls the exported `main`, and exits with what it returned, so a program's exit code means the same thing under both. Node is named in the refusal when it is absent, and `CINCH_NODE` names a different one. A freestanding module has no command line, so `run` refuses program arguments for that target rather than dropping them. Every other foreign target still refuses to `run` here, because the host cannot start its binary.
-
-`TargetProfile::wasm32` narrows `Usize` to 32 bits, so a literal that fits the host is refused for the Wasm profile:
-
-```sh
-cinch check --target wasm32-unknown-unknown Main.cinch
+```text
+$ cinch check --target wasm32-unknown-unknown Main.cinch
 cinch: 3:7: integer literal 4294967296 is out of range for Usize (in Main.cinch)
 ```
 
-That refusal is the profile's, not the backend's: it happens in checking, before any IR exists.
+## Linking cross-compiled binaries and Wasm modules
 
-The `wasm_target` suite builds each program in the matrix this section describes, links it, and runs it under Node, so the artifact and its answer are both asserted rather than the IR text alone.
+- **Foreign native targets:** `cinch build` requires a prebuilt `libcinchruntime.a` for the target architecture, passed via `--runtime-archive <path>`. The driver verifies the archive's validity and architecture before linking.
+- **Freestanding WebAssembly (`wasm32-unknown-unknown`):** The runtime crate compiles for `wasm32-unknown-unknown` directly with Cargo (no C cross-toolchain required once the Rust `wasm32-unknown-unknown` target is installed), so `--runtime-archive` is not needed. Because freestanding Wasm has no `crt1.o` or `-lc`, the driver assembles the LLVM module with `clang -c` and links it against the runtime archive with `wasm-ld --no-entry --export-all`.
 
-# Platform proof obligations
+Building `wasm32-unknown-unknown` requires two tools on the host:
 
-A capability the artifact requires and the profile cannot supply is refused at artifact admission:
+1. **`clang` 19 or newer** (overridable via `CINCH_CLANG`). Emitted IR uses `range(...)` return attributes (rejected by LLVM 18 and older) and `nocapture` on borrowed pointers (accepted by LLVM 19 and automatically upgraded by LLVM 21+).
+2. **`wasm-ld`** (overridable via `CINCH_WASM_LD`). The driver resolves `wasm-ld` first from `CINCH_WASM_LD`, then via `clang -print-prog-name=wasm-ld`, and finally on `PATH`. On Nix systems where `wasm-ld` is not on the default `PATH`, locate it from `llvmPackages.bintools`:
 
+```sh
+CINCH_WASM_LD="$(nix-shell -p llvmPackages.bintools --run 'which wasm-ld')" \
+  cinch build --target wasm32-unknown-unknown Main.cinch -o prog.wasm
 ```
+
+## Running target artifacts
+
+`cinch run` executes targets the host can run:
+
+- **Host native target:** executes the linked binary directly.
+- **`wasm32-unknown-unknown`:** invokes Node.js (overridable via `CINCH_NODE`) to instantiate the module, call the exported `main`, and return its exit code. Because a freestanding Wasm module has no command line, passing program arguments to `cinch run --target wasm32-unknown-unknown` is refused rather than silently dropped.
+- **Other foreign native targets:** refused, because the host cannot execute the resulting binary.
+
+# Platform proof obligations and trust boundary
+
+A capability required by an artifact that the selected target profile does not supply is refused at artifact admission, before any output is emitted:
+
+```text
 cinch: missing required capability: <name>
 ```
 
-The refusal happens when the artifact is produced, not when the capability is first used, so a build cannot silently emit instructions whose precondition the deployment does not meet. Capability requirements come from a profile's `required` list, from a selected `target rewrite`, and from component adapters (`wasm.component-model` is added for a WIT adapter on a Wasm artifact).
+Capability requirements originate from the profile's `required` list, selected `target rewrite` rules, and component adapters (for example `wasm.component-model` for WIT adapters on Wasm artifacts).
 
-A `prim` body can be conditioned on a capability, and the condition names a `signature`, not an arbitrary string:
+A `prim` body conditioned on a capability via `when Available <Cap>` must name a declared capability `signature`, not an arbitrary type or string:
 
-```
+```text
 cinch: 6:12: unknown capability `U32`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)
 ```
 
-The trust boundary is recorded per artifact. The manifest separates the phases whose results were checked from the phases that are trusted:
+Every build manifest also records the exact boundary between passes whose invariants were mechanically checked and components that belong to the trusted computing base:
 
 ```json
 {
@@ -119,15 +120,15 @@ The trust boundary is recorded per artifact. The manifest separates the phases w
     "decision-point weights",
     "contract identity"
   ],
-  "trusted": [ "LLVM code generation", "the runtime and its instruction model" ]
+  "trusted": ["LLVM code generation", "the runtime and its instruction model"]
 }
 ```
 
-# The SIMD surface
+# SIMD surface
 
-`Data.Target` is the current SIMD surface. The vector shape, the capability, its evidence, and the dispatched intrinsic are ordinary declarations:
+`Data.Target` defines the capability-gated SIMD surface as ordinary declarations:
 
-```text
+```cinch
 data AVX2_256 where
   AVX2_256Tag :: AVX2_256
 
@@ -147,17 +148,15 @@ signature SumProofs where
                  -> Eq (scalar-sum-wrap32 xs) (simd-sum-wrap32 vectors xs)
 ```
 
-These are fragments of a module you have to import; they are not a program.
+Under the current backend, `simd-sum-wrap32` lowers to the equivalent scalar loop and `detect-vec-u32` returns `None`, so runtime `case` dispatch always takes the scalar fallback. The optimizer preserves the dispatch boundary rather than folding it away, keeping the scalar fallback and instruction-equivalence proof obligation (`SumProofs.scalar-to-simd`) explicit in the checked program and manifest.
 
-Two honesty points about the current lowering. `simd-sum-wrap32` calls the equivalent scalar loop, so the intrinsic computes the right sum with one lane at a time; the SIMD instruction selection is not implemented. `detect-vec-u32` returns `None` unconditionally, so `case` dispatch conservatively takes the scalar path and no runtime feature detection happens. Both facts are deliberate and recorded: the manifest names the selected lowering (`"lowerings": ["tasks:os-thread"]` on a host build), the optimizer is specified never to fold the dispatch boundary, and the platform specification describes the missing pieces as proof obligations ([platform proofs and SIMD specification](../specifications/platform-proofs-and-simd-specification.md) sections 3 to 8). A scalar fallback is not a shortcut that hides an absent proof; it is the case the proof must cover.
+<span class="support-tag support-tag--planned">Coming soon</span> **Vector instruction selection and runtime feature dispatch.** The capability evidence types and equivalence obligations are checked today; hardware vector instruction emission and CPUID/feature probing are planned.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **vector code generation.** The scalar/SIMD pair is stated and its instruction law is a named obligation, but no backend emits vector instructions for it, and no dispatch selects a vector path.
+# Library object artifacts
 
-# Object artifacts
+`cinch emit-object` compiles a library module (one without `main`) into a relocatable host or cross-target object file alongside its `.ll` IR and `.abi.json` manifest:
 
-`cinch emit-object` compiles a library and writes one object file. It needs a library program, meaning a program with no entry point:
-
-```
+```sh
 $ cinch emit-object Lib.cinch -o Lib.o
 $ file Lib.o
 Lib.o: Mach-O 64-bit object arm64
@@ -167,70 +166,87 @@ $ nm -g Lib.o | grep 'Lib\.double'
 00000000001a0768 T _Lib.double.object-closure
 ```
 
-Every unit of the program is exported under its qualified name, with its apply stub and its closure, which is why the symbols repeat. `file` and `nm` are the verification commands: the object is a real host object, and the units named in the interface are the symbols it defines.
+Each exported unit defines its qualified worker symbol, its curried apply stub (`.app`), and its closure descriptor (`.object-closure`).
 
-A program with a process entry is refused:
+- Passing a program with a `main` entry point to `emit-object` is refused:
+  `cinch: object emission requires a library program without a process entry`
+- Passing a non-empty `--object-roots <roots.json>` outside `emit-object` is refused:
+  `cinch: explicit object roots require emit-object mode`
 
+See [Chapter 18](18-artifacts-and-incremental.md) for the roots schema and ABI manifest fields.
+
+# WIT interfaces and WebAssembly components
+
+A `.wit` file defines a WebAssembly Component Model boundary. The driver discovers `*.wit` files in the directory of the entry file **only when the entry path includes a directory component**:
+
+```sh
+cinch check Main.cinch     # bare filename: no .wit discovery
+cinch check ./Main.cinch   # discovers sibling *.wit files beside Main.cinch
 ```
-cinch: object emission requires a library program without a process entry
-```
 
-`--object-roots <roots.json>` supplies the concrete library variants a consumer demands, and the flag is refused in any other mode with `explicit object roots require emit-object mode`.
+Syntax errors in discovered `.wit` files report their own path and position (for example `cinch: ./broken.wit: 1:17: WIT: unexpected character '!'`).
 
-# WIT input and component artifacts
+## Canonical ABI lowering and `Raw` bindings
 
-A `.wit` file is the input for a component boundary. The toolchain discovers `*.wit` files **in the directory of the entry file**, and only when the entry is given with a directory component:
-
-```
-$ cinch check Main.cinch     # no .wit discovery: the parent of a bare name is empty
-$ cinch check ./Main.cinch   # discovers codec.wit beside the entry
-```
-
-An invalid file is then reported with its own path and position, for example `cinch: ./broken.wit: 1:17: WIT: unexpected character '!'`. Pass `./` (or an absolute path) if you want the adapters installed.
-
-The adapter generates the canonical table, records it in the manifest, and installs one raw binding per WIT function under the `Raw` module. For an interface with one record method and two stream methods:
+For each discovered WIT interface, the compiler computes the canonical-ABI lowering table, records it in the build manifest with `"canonical_abi": "wasi-0.3"`, and installs one qualified binding per WIT function under the `Raw` module:
 
 ```json
 {
   "adapters": [
-    { "core_params": [ "i32", "i32", "i32", "i32" ], "core_results": [],
-      "export": false, "module": "Raw", "name": "decode",
+    {
+      "core_params": ["i32", "i32", "i32", "i32"],
+      "core_results": [],
+      "export": false,
+      "module": "Raw",
+      "name": "decode",
       "package": "example:feed@0.1.0",
-      "ret_area": { "align": 4, "cases": 2, "size": 16 },
-      "symbol": "example:feed@0.1.0/feeder#decode" },
-    { "core_params": [], "core_results": [ "i32" ], "export": false,
-      "module": "Raw", "name": "feed",
+      "ret_area": {"align": 4, "cases": 2, "size": 16},
+      "symbol": "example:feed@0.1.0/feeder#decode"
+    },
+    {
+      "core_params": [],
+      "core_results": ["i32"],
+      "export": false,
+      "module": "Raw",
+      "name": "feed",
       "package": "example:feed@0.1.0",
-      "symbol": "example:feed@0.1.0/feeder#feed" }
+      "symbol": "example:feed@0.1.0/feeder#feed"
+    }
   ],
   "canonical_abi": "wasi-0.3"
 }
 ```
 
-The manifest also sets `"canonical_abi": "wasi-0.3"` once an adapter is present. A `list<u8>` parameter flattens to `(i32, i32)`, and a two-case `result` crosses through the return area, which is why `decode` takes four core parameters and returns nothing.
+In the example above, `list<u8>` flattens to `(i32, i32)` and a two-case `result` crosses through the return area (`ret_area`), giving `decode` four core parameters and no direct core result. Unsupported canonical shapes (such as more than 16 flattened parameters requiring parameter-area marshalling) are rejected with a specific gap diagnostic.
 
-Emitting that glue requires a Wasm artifact profile. The host profile refuses, and the refusal names the target the glue is written for:
+Emitting canonical-ABI adapter glue requires a Wasm target profile; emitting under a native host profile is refused:
 
-```
+```text
 cinch: the canonical ABI glue for example:feed@0.1.0/feeder#decode is defined for the wasm32 target (WebAssembly and WASI specification section 4); emit under a Wasm artifact profile
 ```
 
-`--target wasm32-unknown-unknown` is how the CLI selects a Wasm profile, so a program with a `.wit` file beside it now builds: the adapter's core module links into the freestanding module like any other unit. What is still absent is the component wrapping, so the artifact is a core module that exports the adapter's core signature, not a `.wasm` component. Parsing WIT and building an adapter is also not a promise of component-model interoperability: an adapter records a lowering for the types it admits, and a shape it cannot marshal is reported as a named gap (`more than 16 flattened parameters (the parameter area crossing is not marshalled yet)` is the current example).
+With `--target wasm32-unknown-unknown`, the adapter links into the resulting freestanding core `.wasm` module.
 
-WASI streams map to external handles, not to the language's codata `Stream`. The generated vocabulary declares `WasiStream a`, `WasiFuture a`, and `StreamError`, and the three observations are foreign imports with divergence:
+## WASI streams and futures
 
-| Binding | Type | Row |
+WASI streams and futures are modeled as external handles—not productive codata `Stream` values. When a WIT adapter uses streams or futures, the generated vocabulary (`Prelude.Generated`) declares `WasiStream a`, `WasiFuture a`, `StreamError`, and `BoundaryError`, and installs three foreign operations with effect row `{Foreign Component, Diverge}`:
+
+| Binding | Type | Effect row |
 | --- | --- | --- |
-| `wasiStreamRead` | `WasiStream a -> Result StreamError (Option a)` | `Foreign Component, Diverge` |
-| `wasiStreamWrite` | `WasiStream a -> a -> Result StreamError Unit` | `Foreign Component, Diverge` |
-| `wasiFutureWait` | `WasiFuture a -> a` | `Foreign Component, Diverge` |
+| `wasiStreamRead` | `WasiStream a -> Result StreamError (Option a)` | `{Foreign Component, Diverge}` |
+| `wasiStreamWrite` | `WasiStream a -> a -> Result StreamError Unit` | `{Foreign Component, Diverge}` |
+| `wasiFutureWait` | `WasiFuture a -> a` | `{Foreign Component, Diverge}` |
 
-They carry no productive `Stream a` guarantee: end of stream, scheduling, and decode failure are observable outcomes you handle.
+End-of-stream, scheduling, and decode errors are therefore explicit values the caller handles rather than hidden runtime faults.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **component emission and execution.** There is no component artifact on disk and no CLI path that produces one. The core module a `.wit` project builds under `--target wasm32-unknown-unknown` is linked by `wasm-ld` like any other freestanding module, but nothing wraps it as a component. The WIT parser, the canonical-ABI planner, and the adapter vocabulary exist and are exercised; the packaging and instantiation workflow is specified in the [WebAssembly and WASI specification](../specifications/webassembly-and-wasi-specification.md) sections 2 and 8 to 10, and its illustrative API is design material.
+<span class="support-tag support-tag--planned">Coming soon</span> **Component-model wrapping and execution.** The WIT parser, canonical-ABI planner, and core-module adapter emission work under `--target wasm32-unknown-unknown`, producing a core `.wasm` module linked by `wasm-ld`. Component packaging (`.wasm` component binary emission and component instantiation) is planned.
 
-# Additional backend families
+# Target-IR backend families
 
-`prim` bodies are per family. `llvm` and admitted `asm` lower today; the `clr` and `jvm` families are reserved and refused by name when used, and the `wasm` family is available to a Wasm profile. A family name in syntax is not backend support. See [inline primitives](15-ffi-layout-and-attributes.md).
+Inline `prim` declarations dispatch by target-IR family name:
 
-Implementation: `core.rs` (`TargetProfile`, `ArtifactProfile`), `codegen.rs` (`emit_for`, reserved symbols), `driver.rs` (manifest `target`/`wasm` sections, artifact admission, `.wit` discovery), `interface.rs` (canonical tables, vocabulary), `arrays.rs` and `arrays_codegen.rs` (the `Vec` surface SIMD owns); suites `wasm.rs`, `wasm_target.rs`, `optimizer.rs`, `prim.rs`, `arrays.rs`. Prelude: `Data.Target`.
+- `llvm` and admitted `asm` lower on native targets.
+- `wasm` is available under Wasm target profiles.
+- `clr` and `jvm` are reserved family names and are rejected if selected during lowering.
+
+See [Chapter 15](15-ffi-layout-and-attributes.md) for `prim` body syntax, `when` predicates, and `unsafe` trust boundaries.

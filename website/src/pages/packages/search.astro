@@ -1,0 +1,423 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+---
+<PlatformLayout
+  title="API Search"
+  description="Search Cinch's stdlib package by symbol name, type signature, module, or kind."
+  section="search"
+  sample={false}
+>
+  <section class="platform-banner catalogue-banner hoogle-banner">
+    <div class="platform-eyebrow mono">
+      <span>PACKAGES / STDLIB API INDEX</span>
+      <span class="sample-badge" id="hoogle-index-badge">CHECKED INTERFACES</span>
+    </div>
+    <h1>API Search.</h1>
+    <p>Search by name or type signature across every checked module in <code>stdlib</code>.<br />Follow any type in a signature straight to its definition or source line.</p>
+    <form class="catalogue-search" role="search" action="/packages/search/" id="hoogle-form">
+      <label for="hoogle-input" class="mono">NAME, TYPE SIGNATURE, +MODULE, OR IS:KIND (PRESS / TO FOCUS)</label>
+      <div>
+        <span aria-hidden="true">⌕</span>
+        <input
+          id="hoogle-input"
+          name="q"
+          type="search"
+          placeholder="Try (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="reset" aria-label="Clear search">×</button>
+      </div>
+    </form>
+    <div class="hoogle-examples mono" aria-label="Example searches">
+      <span>EXAMPLES</span>
+      <button type="button" data-example="(a -> b) -> List a -> List b">(a -&gt; b) -&gt; List a -&gt; List b</button>
+      <button type="button" data-example="Result e a -> Option a">Result e a -&gt; Option a</button>
+      <button type="button" data-example="Ord a => List a -> List a">Ord a =&gt; List a -&gt; List a</button>
+      <button type="button" data-example="Bytes -> Result">Bytes -&gt; Result</button>
+      <button type="button" data-example="+Data.Map">+Data.Map</button>
+      <button type="button" data-example="is:class">is:class</button>
+    </div>
+    <div class="catalogue-counts mono" id="hoogle-counts">
+      <span data-count-modules>Loading index…</span>
+      <span data-count-entries></span>
+      <a href="/packages/stdlib/" class="hoogle-dir-link">Browse stdlib modules ↗</a>
+      <a href="/packages/" class="hoogle-dir-link">All packages ↗</a>
+    </div>
+  </section>
+
+  <section class="platform-content catalogue-content hoogle-content">
+    <div class="catalogue-toolbar">
+      <div class="catalogue-kinds" role="group" aria-label="Declaration kind">
+        <button type="button" data-kind="all" aria-pressed="true">All</button>
+        <button type="button" data-kind="value" aria-pressed="false">Values</button>
+        <button type="button" data-kind="type" aria-pressed="false">Types</button>
+        <button type="button" data-kind="constructor" aria-pressed="false">Constructors</button>
+        <button type="button" data-kind="signature" aria-pressed="false">Signatures</button>
+        <button type="button" data-kind="method" aria-pressed="false">Methods</button>
+        <button type="button" data-kind="instance" aria-pressed="false">Instances</button>
+      </div>
+    </div>
+
+    <p class="results-count mono" aria-live="polite" id="hoogle-status">Enter a name, type signature, or filter above.</p>
+
+    <div class="hoogle-results" id="hoogle-results"></div>
+
+    <div class="empty-results" id="hoogle-empty" hidden>
+      <h2>No matching declarations.</h2>
+      <p>Try generalizing a type variable (<code>a</code> instead of a concrete type), dropping a module prefix, or broadening the kind filter.</p>
+      <button type="button" id="hoogle-reset-filters">Clear search and filters</button>
+    </div>
+
+    <aside class="preview-note hoogle-guide">
+      <span class="mono">QUERY SYNTAX</span>
+      <div>
+        <p>
+          <strong>Type search:</strong> <code>(a -&gt; b) -&gt; List a -&gt; List b</code> matches alpha-renamed type variables, polymorphic generalizations, and reordered arguments.
+          <strong>Constraints &amp; effects:</strong> <code>Ord a =&gt; List a -&gt; List a</code> or <code>-&gt;{'{'}IO r{'}'}</code>.
+          <strong>Scope:</strong> <code>+Data.List</code> includes a module prefix, <code>-Crypto</code> excludes one, <code>is:type</code>/<code>is:class</code>/<code>is:value</code> filters by kind, and <code>name :: Type</code> matches both.
+        </p>
+      </div>
+    </aside>
+  </section>
+</PlatformLayout>
+
+<style is:global>
+  .hoogle-examples {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.65rem;
+    margin-top: 1.15rem;
+    font-size: var(--label);
+    color: #9e9b86;
+  }
+  .hoogle-examples button {
+    border: 1px solid #595e49;
+    border-radius: 3px 14px 14px 3px;
+    background: #23281e;
+    color: #e4d8ba;
+    padding: 0.32rem 0.7rem;
+    font: 0.75rem 'IBM Plex Mono', monospace;
+    cursor: pointer;
+  }
+  .hoogle-examples button:hover {
+    border-color: #d69256;
+    color: #fff2d6;
+  }
+  .hoogle-dir-link {
+    color: #efad78;
+    text-decoration: none;
+  }
+  .hoogle-dir-link:hover {
+    text-decoration: underline;
+  }
+  .hoogle-results {
+    display: grid;
+  }
+  .hoogle-hit {
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr) auto;
+    gap: 1.5rem;
+    align-items: start;
+    padding: 1.45rem 0;
+    border-bottom: 1px solid var(--platform-rule);
+  }
+  .hoogle-hit-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: var(--label);
+    text-transform: uppercase;
+    color: var(--platform-accent);
+    padding-top: 0.25rem;
+  }
+  .hoogle-hit-meta span {
+    display: block;
+    color: var(--platform-muted);
+    margin-top: 0.4rem;
+    font-size: 0.68rem;
+  }
+  .hoogle-hit-sig {
+    margin: 0;
+    padding: 0.7rem 1rem;
+    background: var(--platform-panel);
+    border: 1px solid var(--platform-rule);
+    border-left: 3px solid var(--platform-accent);
+    border-radius: 3px 14px 3px 3px;
+    font: 0.85rem/1.58 'IBM Plex Mono', monospace;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .hoogle-hit-sig a.hit-name {
+    font-weight: 700;
+    color: var(--platform-ink);
+    text-decoration: none;
+  }
+  .hoogle-hit-sig a.hit-name:hover {
+    color: var(--platform-accent);
+    text-decoration: underline;
+  }
+  .hoogle-hit-sig a.doc-type-link {
+    color: var(--platform-olive);
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+  }
+  .hoogle-hit-sig a.doc-type-link:hover {
+    color: var(--platform-accent);
+    border-bottom-style: solid;
+  }
+  .hoogle-hit-desc {
+    margin: 0.72rem 0 0;
+    color: var(--platform-muted);
+    font-size: 0.94rem;
+    line-height: 1.65;
+    max-width: 74ch;
+  }
+  .hoogle-hit-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.45rem;
+    font: 0.75rem 'IBM Plex Mono', monospace;
+    white-space: nowrap;
+  }
+  .hoogle-hit-actions a {
+    color: var(--platform-accent);
+    text-decoration: none;
+  }
+  .hoogle-hit-actions a:hover {
+    text-decoration: underline;
+  }
+  .hoogle-hit-actions .hit-source {
+    color: var(--platform-muted);
+    font-size: 0.72rem;
+  }
+  .hoogle-more {
+    margin-top: 1.5rem;
+    padding: 0.7rem 1.2rem;
+    border: 1px solid var(--platform-rule);
+    border-radius: 3px 20px 3px 3px;
+    background: var(--platform-panel);
+    color: var(--platform-ink);
+    font: 0.8rem 'IBM Plex Mono', monospace;
+    cursor: pointer;
+  }
+  .hoogle-more:hover {
+    border-color: var(--platform-accent);
+  }
+  @media (max-width: 760px) {
+    .hoogle-hit {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+    .hoogle-hit-actions {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+</style>
+
+<script>
+  import { kindLabel, runHoogleSearch, type SearchIndexPayload, type SearchHit } from '../../lib/hoogle-search';
+
+  const input = document.getElementById('hoogle-input') as HTMLInputElement;
+  const form = document.getElementById('hoogle-form') as HTMLFormElement;
+  const statusEl = document.getElementById('hoogle-status') as HTMLElement;
+  const resultsEl = document.getElementById('hoogle-results') as HTMLElement;
+  const emptyEl = document.getElementById('hoogle-empty') as HTMLElement;
+  const kindButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-kind][type="button"]')];
+  const exampleButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-example]')];
+  const countModsEl = document.querySelector<HTMLElement>('[data-count-modules]')!;
+  const countEntriesEl = document.querySelector<HTMLElement>('[data-count-entries]')!;
+
+  let payload: SearchIndexPayload | null = null;
+  let activeKind = 'all';
+  let displayLimit = 60;
+  let currentHits: SearchHit[] = [];
+
+  function escHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  }
+
+  function renderSignatureHtml(entry: SearchHit['entry'], typeLinks: Record<string, string>): string {
+    const modHref = `/packages/stdlib/${encodeURIComponent(entry.m)}/#${encodeURIComponent(entry.h)}`;
+    const sig = entry.s || entry.n;
+
+    let prefixHtml = '';
+    let rest = sig;
+    const colonIdx = sig.indexOf('::');
+    if (colonIdx > 0) {
+      const lhs = sig.slice(0, colonIdx).trim();
+      if (lhs && !lhs.includes(' ') && !lhs.startsWith('forall') && !lhs.startsWith('using')) {
+        prefixHtml = `<a class="hit-name" href="${modHref}">${escHtml(lhs)}</a> :: `;
+        rest = sig.slice(colonIdx + 2).trim();
+      }
+    } else if (/^(data|record|codata|type|signature)\s+/.test(sig)) {
+      const m = /^(data|record|codata|type|signature)\s+(\S+)(.*)$/.exec(sig);
+      if (m) {
+        prefixHtml = `${escHtml(m[1]!)} <a class="hit-name" href="${modHref}">${escHtml(m[2]!)}</a>`;
+        rest = m[3] ?? '';
+      }
+    }
+
+    const linkedRest = rest.replace(/\b[A-Z][A-Za-z0-9_']*(?:\.[A-Z][A-Za-z0-9_']*)*\b/g, (tok) => {
+      const short = tok.includes('.') ? tok.slice(tok.lastIndexOf('.') + 1) : tok;
+      const href = typeLinks[tok] ?? typeLinks[short];
+      if (href) {
+        return `<a class="doc-type-link" href="${escHtml(href)}" title="${escHtml(tok)}">${escHtml(short)}</a>`;
+      }
+      return escHtml(tok);
+    });
+
+    if (!prefixHtml) {
+      return `<a class="hit-name" href="${modHref}">${escHtml(entry.n)}</a> — ${linkedRest}`;
+    }
+    return `${prefixHtml}${linkedRest}`;
+  }
+
+  function renderHits(): void {
+    if (!payload) return;
+    const typeLinks = payload.typeLinks ?? {};
+    const shown = currentHits.slice(0, displayLimit);
+
+    resultsEl.innerHTML = shown
+      .map(({ entry }) => {
+        const modHref = `/packages/stdlib/${encodeURIComponent(entry.m)}/`;
+        const entryHref = `${modHref}#${encodeURIComponent(entry.h)}`;
+        const srcMod = entry.sm || entry.m;
+        const srcHref = `/packages/stdlib/${encodeURIComponent(srcMod)}/source/${entry.l > 0 ? `#L${entry.l}` : ''}`;
+        const sigHtml = renderSignatureHtml(entry, typeLinks);
+        return `
+          <article class="hoogle-hit">
+            <div class="hoogle-hit-meta">
+              ${escHtml(kindLabel(entry.k))}
+              <span>CINCH/STDLIB</span>
+            </div>
+            <div>
+              <pre class="hoogle-hit-sig"><code>${sigHtml}</code></pre>
+              ${entry.d ? `<p class="hoogle-hit-desc">${escHtml(entry.d)}</p>` : ''}
+            </div>
+            <div class="hoogle-hit-actions">
+              <a href="${modHref}">${escHtml(entry.m)}</a>
+              <a class="hit-source" href="${entryHref}">Details</a>
+              <a class="hit-source" href="${srcHref}">Source${entry.l > 0 ? `:${entry.l}` : ''} ↗</a>
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+
+    if (currentHits.length > displayLimit) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hoogle-more';
+      btn.textContent = `Show more (${currentHits.length - displayLimit} remaining)`;
+      btn.addEventListener('click', () => {
+        displayLimit += 80;
+        renderHits();
+      });
+      resultsEl.appendChild(btn);
+    }
+  }
+
+  function syncUrl(): void {
+    const url = new URL(location.href);
+    url.search = '';
+    if (input.value.trim()) url.searchParams.set('q', input.value.trim());
+    if (activeKind !== 'all') url.searchParams.set('kind', activeKind);
+    history.replaceState(null, '', url);
+  }
+
+  function update(): void {
+    kindButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === activeKind)));
+    syncUrl();
+
+    if (!payload) return;
+    const raw = input.value.trim();
+
+    if (!raw && activeKind === 'all') {
+      currentHits = [];
+      resultsEl.innerHTML = '';
+      emptyEl.hidden = true;
+      statusEl.textContent = `Ready — ${payload.entries.length.toLocaleString()} indexed declarations across ${payload.moduleCount} stdlib modules. Type a name or signature above.`;
+      return;
+    }
+
+    displayLimit = 60;
+    currentHits = runHoogleSearch(payload.entries, raw, { kind: activeKind });
+    emptyEl.hidden = currentHits.length > 0;
+
+    if (currentHits.length === 0) {
+      resultsEl.innerHTML = '';
+      statusEl.textContent = '0 matches';
+      return;
+    }
+
+    const modeHint = currentHits[0]?.mode === 'type' ? ' (type signature match)' : currentHits[0]?.mode === 'combined' ? ' (name + type match)' : '';
+    statusEl.textContent = `${currentHits.length.toLocaleString()} match${currentHits.length === 1 ? '' : 'es'}${modeHint}`;
+    renderHits();
+  }
+
+  function readUrl(): void {
+    const params = new URLSearchParams(location.search);
+    input.value = params.get('q') ?? '';
+    const k = params.get('kind') ?? 'all';
+    activeKind = kindButtons.some((b) => b.dataset.kind === k) ? k : 'all';
+    update();
+  }
+
+  input.addEventListener('input', update);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    update();
+  });
+  form.addEventListener('reset', () => {
+    input.value = '';
+    update();
+    input.focus();
+  });
+  kindButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      activeKind = btn.dataset.kind ?? 'all';
+      update();
+    }),
+  );
+  exampleButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      input.value = btn.dataset.example ?? '';
+      activeKind = 'all';
+      update();
+      input.focus();
+    }),
+  );
+  document.getElementById('hoogle-reset-filters')?.addEventListener('click', () => {
+    input.value = '';
+    activeKind = 'all';
+    update();
+    input.focus();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
+  window.addEventListener('popstate', readUrl);
+
+  async function init(): Promise<void> {
+    try {
+      const res = await fetch('/stdlib-search-index.json');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      payload = (await res.json()) as SearchIndexPayload;
+      countModsEl.textContent = `${payload.moduleCount} STDLIB MODULES`;
+      countEntriesEl.textContent = `${payload.entries.length.toLocaleString()} DECLARATIONS`;
+      readUrl();
+    } catch (err) {
+      statusEl.textContent = `Could not load stdlib search index (${err instanceof Error ? err.message : String(err)}).`;
+    }
+  }
+
+  init();
+</script>

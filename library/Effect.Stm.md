@@ -2,17 +2,11 @@
 
 Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm">Search module</a><a href="/reference-sources/Effect.Stm.cinch" download="Effect.Stm.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Stm`. Selected exports may already be in Prelude.
+**Dependencies:** [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Effect.Stm.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Stm: software transactional memory.
 
@@ -125,26 +119,28 @@ transactions. The class instances for `STM` live here with the type.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (19 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-STM">STM</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">STM</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-StmSequencing">StmSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">StmSequencing</strong></code></li><li><a class="syn-name" href="#v-atomically">atomically</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atomically</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-atomically-or-cancel">atomically-or-cancel</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atomically-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-check">check</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">check</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-or-else">or-else</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">or-else</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-retry">retry</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">retry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-stm-bind">stm-bind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">stm-bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-stm-map">stm-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">stm-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-stm-pure">stm-pure</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">stm-pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-stm-then">stm-then</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">stm-then</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-tvar-modify">tvar-modify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-modify</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-tvar-new">tvar-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tvar-new-io">tvar-new-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tvar-read">tvar-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tvar-read-io">tvar-read-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-read-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tvar-state">tvar-state</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-state</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>)) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-tvar-swap">tvar-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tvar-write">tvar-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tvar-write</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-53544d"></a>
+# Types
 
-## `STM`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">STM</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-STM">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">STM</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-STM" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L402" title="View source at line 402">Source</a></span></div>
+<div class="doc-body">
 
 A transaction: a function from an attempt to its outcome. The row
 says the function reads shared cells; it writes none before commit.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 402
+<details class="doc-instances"><summary>Instances (4)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li></ul></details>
+</div>
+</article>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-53746d53657175656e63696e67"></a>
-
-## `StmSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">StmSequencing</span> </code></pre>
+<article class="doc-entry" id="c-StmSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">StmSequencing</strong></code><span class="doc-sig-links"><a href="#c-StmSequencing" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L865" title="View source at line 865">Source</a></span></div>
+<div class="doc-body">
 
 The `do` provider (decision D22: `do` picks its provider lexically,
 from a `using` binder with a provider head). A definition that
@@ -162,27 +158,26 @@ is the transaction that runs them in order. The block's
 continuations run once per attempt, so what a statement captures is
 used any number of times: a `%1` value cannot cross a `<-`.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 865
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#c-StmSequencing" title="Effect.Stm.StmSequencing">StmSequencing</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Stm/#instances">Effect.Stm</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-61746f6d6963616c6c79"></a>
-
-## `atomically`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">STM</span>} <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-atomically">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atomically</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-atomically" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L716" title="View source at line 716">Source</a></span></div>
+<div class="doc-body">
 
 Run a transaction: its reads and writes take effect together, at one
 instant, or the transaction runs again. Returns when an attempt
 commits, which `retry` and contention can postpone without bound.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 716
+</div>
+</article>
 
-<a id="value-61746f6d6963616c6c792d6f722d63616e63656c"></a>
-
-## `atomically-or-cancel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">STM</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-atomically-or-cancel">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atomically-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-atomically-or-cancel" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L738" title="View source at line 738">Source</a></span></div>
+<div class="doc-body">
 
 `atomically` for a task that must stay cancellable while it waits:
 `None` when the task's cancellation was requested while the
@@ -190,174 +185,141 @@ transaction was waiting in `retry`, with nothing committed. A
 request does not interrupt an attempt that is running, and a
 transaction that never waits never observes it.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 738
+</div>
+</article>
 
-<a id="value-636865636b"></a>
-
-## `check`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">check</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-check">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">check</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-check" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L788" title="View source at line 788">Source</a></span></div>
+<div class="doc-body">
 
 Wait until the condition holds: `retry` when it does not.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 788
+</div>
+</article>
 
-<a id="value-6f722d656c7365"></a>
-
-## `or-else`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-or-else">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">or-else</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-or-else" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L779" title="View source at line 779">Source</a></span></div>
+<div class="doc-body">
 
 `first`, unless it would wait: then its writes are discarded and
 `second` runs in its place. If both would wait, the transaction
 waits on what either of them read.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 779
+</div>
+</article>
 
-<a id="value-7265747279"></a>
-
-## `retry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">retry</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-retry">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">retry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-retry" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L773" title="View source at line 773">Source</a></span></div>
+<div class="doc-body">
 
 Abandon the attempt and run the whole transaction again once a
 variable it has read changes. Inside `or-else`, give way to the
 alternative instead.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 773
+</div>
+</article>
 
-<a id="value-73746d2d62696e64"></a>
-
-## `stm-bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stm-bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-stm-bind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">stm-bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-stm-bind" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L751" title="View source at line 751">Source</a></span></div>
+<div class="doc-body">
 
 `m`, then the transaction `k` makes of its result, as one
 transaction.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 751
+</div>
+</article>
 
-<a id="value-73746d2d6d6170"></a>
+<article class="doc-entry" id="v-stm-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">stm-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-stm-map" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L757" title="View source at line 757">Source</a></span></div>
+</article>
 
-## `stm-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stm-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.cinch)
-
-<a id="value-73746d2d70757265"></a>
-
-## `stm-pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stm-pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-stm-pure">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">stm-pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-stm-pure" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L746" title="View source at line 746">Source</a></span></div>
+<div class="doc-body">
 
 The transaction that does nothing and answers `x`.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 746
+</div>
+</article>
 
-<a id="value-73746d2d7468656e"></a>
-
-## `stm-then`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">stm-then</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-stm-then">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">stm-then</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-stm-then" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L764" title="View source at line 764">Source</a></span></div>
+<div class="doc-body">
 
 `m`, then `n`, keeping `n`'s result.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 764
+</div>
+</article>
 
-<a id="value-747661722d6d6f64696679"></a>
+<article class="doc-entry" id="v-tvar-modify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-modify</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tvar-modify" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L803" title="View source at line 803">Source</a></span></div>
+</article>
 
-## `tvar-modify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-modify</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.cinch)
-
-<a id="value-747661722d6e6577"></a>
-
-## `tvar-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tvar-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tvar-new" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L794" title="View source at line 794">Source</a></span></div>
+<div class="doc-body">
 
 A new variable holding `x`. Until the transaction commits (and
 stores it somewhere another task can reach) the variable is private
 to the attempt that made it.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 794
+</div>
+</article>
 
-<a id="value-747661722d6e65772d696f"></a>
-
-## `tvar-new-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tvar-new-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tvar-new-io" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L816" title="View source at line 816">Source</a></span></div>
+<div class="doc-body">
 
 A new variable, made outside any transaction.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 816
+</div>
+</article>
 
-<a id="value-747661722d72656164"></a>
+<article class="doc-entry" id="v-tvar-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tvar-read" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L797" title="View source at line 797">Source</a></span></div>
+</article>
 
-## `tvar-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.cinch)
-
-<a id="value-747661722d726561642d696f"></a>
-
-## `tvar-read-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-read-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-tvar-read-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-read-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tvar-read-io" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L822" title="View source at line 822">Source</a></span></div>
+<div class="doc-body">
 
 The variable's committed value at some instant during the call,
 outside any transaction. Two such reads are two instants: use a
 transaction to read variables consistently with one another.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 822
+</div>
+</article>
 
-<a id="value-747661722d7374617465"></a>
-
-## `tvar-state`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-state</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-tvar-state">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-state</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>)) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-tvar-state" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L811" title="View source at line 811">Source</a></span></div>
+<div class="doc-body">
 
 Apply a state transition: `f` answers a result and the next value.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 811
+</div>
+</article>
 
-<a id="value-747661722d73776170"></a>
-
-## `tvar-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tvar-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tvar-swap" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L807" title="View source at line 807">Source</a></span></div>
+<div class="doc-body">
 
 Store `x` and answer the value it replaced.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 807
+</div>
+</article>
 
-<a id="value-747661722d7772697465"></a>
-
-## `tvar-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.cinch)
+<article class="doc-entry" id="v-tvar-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tvar-write</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="TVar">TVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tvar-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm/source/#L800" title="View source at line 800">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Effect.Stm.Alternative_STM` | `Category.Alternative.Alternative Effect.Stm.STM` | Implicit |
-| `Effect.Stm.Applicative_STM` | `Category.Applicative.Applicative Effect.Stm.STM` | Implicit |
-| `Effect.Stm.Functor_STM` | `Category.Functor.Functor Effect.Stm.STM` | Implicit |
-| `Effect.Stm.Monad_STM` | `Category.Monad.Monad Effect.Stm.STM` | Implicit |
-| `Effect.Stm.SeqStm` | `Effect.Stm.StmSequencing` | Implicit |
-
-**`Effect.Stm.Functor_STM`**: The class instances (design/base-library.md: instances live with
-their type). `empty` is `retry` and `<|>` is `or-else`.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `7315b4b2d387caea54d31009aed98c275140e084990d68a3295656dcf0d873ed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Alternative_STM"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.Alternative_STM</code></span></li>
+<li id="i-Applicative_STM"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.Applicative_STM</code></span></li>
+<li id="i-Functor_STM"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.Functor_STM</code></span><div class="doc-child-prose">The class instances (design/base-library.md: instances live with their type).</div></li>
+<li id="i-Monad_STM"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.Monad_STM</code></span></li>
+<li id="i-SeqStm"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#c-StmSequencing" title="Effect.Stm.StmSequencing">StmSequencing</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.SeqStm</code></span></li>
+</ul>

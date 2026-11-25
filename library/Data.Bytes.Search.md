@@ -2,19 +2,11 @@
 
 Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Bytes.Search</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.Search/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.Search">Search module</a><a href="/reference-sources/Data.Bytes.Search.cinch" download="Data.Bytes.Search.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Bytes.Search`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.Search.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Data.Bytes.Search](Data.Bytes.Search.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Exact raw-byte searching with bounded machine loops and portable 16-byte SIMD classification.
 Complete sixteen-byte blocks use portable Data.Wide vector comparisons and bitmasks.
@@ -24,52 +16,44 @@ is compared exactly.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (4 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-bytes-contains-byte">bytes-contains-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-contains-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-bytes-count-byte">bytes-count-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-count-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-index-byte">bytes-index-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-last-index-byte">bytes-last-index-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-last-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-62797465732d636f6e7461696e732d62797465"></a>
-
-## `bytes-contains-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-contains-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-contains-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-contains-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-bytes-contains-byte" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Search/source/#L137" title="View source at line 137">Source</a></span></div>
+<div class="doc-body">
 
 Test whether any exact byte value occurs, including zero and high-bit byte values.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 137
+</div>
+</article>
 
-<a id="value-62797465732d636f756e742d62797465"></a>
-
-## `bytes-count-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-count-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-count-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-count-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-count-byte" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Search/source/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 Count every exact matching byte using sixteen-lane SIMD masks and a bounded scalar fringe.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 141
+</div>
+</article>
 
-<a id="value-62797465732d696e6465782d62797465"></a>
-
-## `bytes-index-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-index-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-index-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-index-byte" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Search/source/#L129" title="View source at line 129">Source</a></span></div>
+<div class="doc-body">
 
 Find the first exact byte value, returning no offset when the input contains no match.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 129
+</div>
+</article>
 
-<a id="value-62797465732d6c6173742d696e6465782d62797465"></a>
-
-## `bytes-last-index-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-last-index-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-last-index-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-last-index-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-last-index-byte" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Search/source/#L133" title="View source at line 133">Source</a></span></div>
+<div class="doc-body">
 
 Find the last exact byte value without decoding or changing the input.
 
-[Source](/reference-sources/Data.Bytes.Search.cinch) · line 133
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Search.cinch`. Source SHA-256: `0502a7ab77d6e29e74a82b35e091512fb3a3d736bc4c18a2ba701a67bb7501e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

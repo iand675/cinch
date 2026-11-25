@@ -2,19 +2,11 @@
 
 Operating-system entropy seed generation for Data.MapHash.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.MapHash</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.MapHash/source/">View source</a><a href="/packages/search/?q=%2BEffect.MapHash">Search module</a><a href="/reference-sources/Effect.MapHash.cinch" download="Effect.MapHash.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.MapHash`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.MapHash](Data.MapHash.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md), [Effect.Random](Effect.Random.md).
 
-[Download exact module source](/reference-sources/Effect.MapHash.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.MapHash](Data.MapHash.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md), [Effect.Random](Effect.Random.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.MapHash](Data.MapHash.md), [Effect.MapHash](Effect.MapHash.md), [Effect.Random](Effect.Random.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Operating-system entropy seeding for Data.MapHash.
 
@@ -24,22 +16,17 @@ creation remains pure and deterministic.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (1 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-maphash-make-seed">maphash-make-seed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">maphash-make-seed</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#t-MapSeed" title="Data.MapHash.MapSeed">MapSeed</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-6d6170686173682d6d616b652d73656564"></a>
-
-## `maphash-make-seed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">maphash-make-seed</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">MapHash</span>.<span class="tok-constructor">MapSeed</span>)</code></pre>
+<article class="doc-entry" id="v-maphash-make-seed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">maphash-make-seed</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#t-MapSeed" title="Data.MapHash.MapSeed">MapSeed</a></code><span class="doc-sig-links"><a href="#v-maphash-make-seed" title="Permalink">#</a><a href="/packages/stdlib/Effect.MapHash/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 Draw 128 bits of operating-system entropy to produce an independent MapSeed.
 
-[Source](/reference-sources/Effect.MapHash.cinch) · line 23
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/MapHash.cinch`. Source SHA-256: `dc8db6edade2291894ffc8ffa2bb2a9cffad3dba14d2fa13ae076285fe1c378d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

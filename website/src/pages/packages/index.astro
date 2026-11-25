@@ -5,30 +5,32 @@ const catalogue=await loadCatalogue();
 const packages=catalogue.packages;
 const modules=packages.flatMap(p=>p.modules.map(m=>({package:p,module:m})));
 const symbols=modules.flatMap(({package:p,module:m})=>m.declarations.map(d=>({package:p,module:m,declaration:d})));
+const totalDeclarations=packages.reduce((acc,p)=>acc+(p.declarationCount??p.modules.reduce((mAcc,m)=>mAcc+m.declarations.length,0)),0);
 const categories=[...new Set(packages.map(p=>p.category))].sort();
 ---
-<PlatformLayout title="Packages" description="Browse Cinch libraries, modules, and API documentation." section="packages" sample={catalogue.offline}>
+<PlatformLayout title="Packages" description="Browse Cinch libraries, stdlib modules, and API documentation." section="packages" sample={false}>
   <section class="platform-banner catalogue-banner">
-    <div class="platform-eyebrow mono"><span>LIBRARY INDEX</span><span class="sample-badge">{catalogue.offline?'OFFLINE':catalogue.fallback?'CACHED DATA':'REGISTRY DATA'}</span></div>
-    <h1>Packages.</h1><p>Find a release. Read its modules.<br />Follow the source into the registry.</p>
+    <div class="platform-eyebrow mono"><span>LIBRARY INDEX</span><span class="sample-badge">{catalogue.offline?'STDLIB ONLY':catalogue.fallback?'STDLIB + CACHED REGISTRY':'STDLIB + REGISTRY'}</span></div>
+    <h1>Packages.</h1><p>Browse <code>stdlib</code> and registry releases.<br />Read checked interfaces, search by type signature, and inspect source.</p>
     <form class="catalogue-search" role="search" action="/packages/">
-      <label for="package-search" class="mono">SEARCH PACKAGES, MODULES, OR PATHS</label>
-      <div><span aria-hidden="true">⌕</span><input id="package-search" name="q" type="search" placeholder="Try json, Data.List, or map" autocomplete="off" /><button type="reset" aria-label="Clear search">×</button></div>
+      <label for="package-search" class="mono">SEARCH PACKAGES OR MODULES · <a href="/packages/search/" style="color:#efad78;text-decoration:none">OR SEARCH BY TYPE SIGNATURE (HOOGLE) ↗</a></label>
+      <div><span aria-hidden="true">⌕</span><input id="package-search" name="q" type="search" placeholder="Try stdlib, Data.Result, Crypto.Aes, or json" autocomplete="off" /><button type="reset" aria-label="Clear search">×</button></div>
     </form>
-    <div class="catalogue-counts mono"><span>{packages.length} {packages.length===1?'PACKAGE':'PACKAGES'}</span><span>{modules.length} {modules.length===1?'MODULE':'MODULES'}</span><span>{symbols.length} {symbols.length===1?'DECLARATION':'DECLARATIONS'}</span></div>
+    <div class="catalogue-counts mono"><span>{packages.length} {packages.length===1?'PACKAGE':'PACKAGES'}</span><span>{modules.length} {modules.length===1?'MODULE':'MODULES'}</span><span>{totalDeclarations.toLocaleString('en-US')} {totalDeclarations===1?'DECLARATION':'DECLARATIONS'}</span><a href="/packages/search/" style="color:#efad78;text-decoration:none">Hoogle API Search ↗</a></div>
   </section>
   <section class="platform-content catalogue-content">
-    <div class="catalogue-toolbar"><div class="catalogue-kinds" aria-label="Result type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="package" aria-pressed="false">Packages</button><button type="button" data-kind="module" aria-pressed="false">Modules</button>{symbols.length>0&&<button type="button" data-kind="symbol" aria-pressed="false">API</button>}</div><label class="category-filter">Category <select id="package-category"><option value="">All categories</option>{categories.map(c=><option>{c}</option>)}</select></label></div>
+    <div class="catalogue-toolbar"><div class="catalogue-kinds" aria-label="Result type"><button type="button" data-kind="all" aria-pressed="true">All</button><button type="button" data-kind="package" aria-pressed="false">Packages</button><button type="button" data-kind="module" aria-pressed="false">Modules</button>{symbols.length>0&&<button type="button" data-kind="symbol" aria-pressed="false">API</button>}<a href="/packages/search/" style="align-self:center;margin-left:.6rem;font:.78rem 'IBM Plex Mono',monospace;color:var(--platform-accent);text-decoration:none">Search signatures ↗</a></div><label class="category-filter">Category <select id="package-category"><option value="">All categories</option>{categories.map(c=><option>{c}</option>)}</select></label></div>
     <p class="results-count mono" aria-live="polite" data-results-count>{packages.length} {packages.length===1?'package':'packages'}</p>
+    <p class="results-count mono" data-hoogle-hint hidden></p>
     <div class="catalogue-results">
-      {packages.map(p=><article class="catalogue-result package-result" data-result data-kind="package" data-category={p.category} data-search={`${p.name} ${p.synopsis} ${p.category} ${p.namespace}`.toLowerCase()}><div class="result-category mono">{p.category}<span>PACKAGE</span></div><div><h2><a href={packageUrl(p)}>{p.name}</a><span class="version-tag mono">{p.version}</span></h2><p>{p.synopsis}</p><div class="result-meta mono"><span>{p.modules.length} {p.modules.length===1?'module':'modules'}</span><span>{p.license}</span><span>{p.maintainer}</span></div></div><a class="result-open" href={packageUrl(p)} aria-label={`Browse ${p.name}`}>↗</a></article>)}
-      {modules.map(({package:p,module:m})=><article class="catalogue-result" data-result data-kind="module" data-category={p.category} data-search={`${m.name} ${m.path} ${p.name} ${m.description}`.toLowerCase()} hidden><div class="result-category mono">MODULE<span>{p.name}</span></div><div><h2><a href={moduleUrl(p,m)}>{m.name}</a></h2><p>{m.description || m.path || 'Published module'}</p></div><a class="result-open" href={moduleUrl(p,m)} aria-label={`Read ${m.name}`}>↗</a></article>)}
+      {packages.map(p=><article class="catalogue-result package-result" data-result data-kind="package" data-category={p.category} data-search={`${p.name} ${p.synopsis} ${p.category} ${p.namespace}`.toLowerCase()}><div class="result-category mono">{p.category}<span>{p.sourceKind==='stdlib'?'BUNDLED':'PACKAGE'}</span></div><div><h2><a href={packageUrl(p)}>{p.name}</a><span class="version-tag mono">{p.version}</span></h2><p>{p.synopsis}</p><div class="result-meta mono"><span>{p.modules.length} {p.modules.length===1?'module':'modules'}</span>{p.declarationCount&&<span>{p.declarationCount.toLocaleString('en-US')} declarations</span>}<span>{p.license}</span><span>{p.maintainer}</span></div></div><a class="result-open" href={packageUrl(p)} aria-label={`Browse ${p.name}`}>↗</a></article>)}
+      {modules.map(({package:p,module:m})=><article class="catalogue-result" data-result data-kind="module" data-category={p.category} data-search={`${m.name} ${m.path} ${p.name} ${m.description} ${m.family??''}`.toLowerCase()} hidden><div class="result-category mono">MODULE<span>{p.name}</span></div><div><h2><a href={moduleUrl(p,m)}>{m.name}</a></h2><p>{m.description || m.path || 'Published module'}</p></div><a class="result-open" href={moduleUrl(p,m)} aria-label={`Read ${m.name}`}>↗</a></article>)}
       {symbols.map(({package:p,module:m,declaration:d})=><article class="catalogue-result" data-result data-kind="symbol" data-category={p.category} data-search={`${d.name} ${d.signature} ${d.description} ${p.name} ${m.name}`.toLowerCase()} hidden><div class="result-category mono">{d.kind}<span>{p.name}</span></div><div><h2><a href={symbolUrl(p,m,d)}>{d.name}</a><span class="symbol-module mono">{m.name}</span></h2><pre class="search-signature"><code>{d.signature}</code></pre><p>{d.description}</p></div><a class="result-open" href={symbolUrl(p,m,d)} aria-label={`Read ${m.name}.${d.name}`}>↗</a></article>)}
     </div>
-    <div class="empty-results" data-empty hidden><h2>No matching entries.</h2><p>Try a shorter name, a module path, or another category.</p><button type="button" data-clear-filters>Clear filters</button></div>
-    {catalogue.offline&&<div class="empty-results" data-offline><h2>Offline catalogue.</h2><p>This build ran with <code>CINCH_CATALOGUE_OFFLINE=1</code>, so no registry releases were read. Set <code>CINCH_CATALOGUE_REGISTRY</code> and rebuild to publish the live catalogue.</p></div>}
-    {catalogue.fallback&&<div class="empty-results" data-fallback><h2>Cached catalogue.</h2><p>{catalogue.warning ?? 'The live registry was unavailable, so this build used the last cached catalogue.'}</p></div>}
-    <aside class="preview-note"><span class="mono">{catalogue.offline?'OFFLINE BUILD':catalogue.fallback?'CACHED BUILD':'REGISTRY CATALOGUE'}</span>{catalogue.offline?<p>No package data is shown because the offline flag was set. The site remains static and does not fall back to sample libraries.</p>:catalogue.fallback?<p>The live registry was unavailable when this site was built, so the catalogue is the last cached snapshot{catalogue.snapshotBuiltAt?` from ${catalogue.snapshotBuiltAt}`:''}. The snapshot is refreshed by a live build. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>:<p>Generated at build time from <code>{catalogue.registry}</code> on {catalogue.builtAt}. The pages list the public releases that registry returned. Declaration signatures are not part of a registry release, so module pages show the manifest path, package identity, dependencies, and published source instead of invented APIs. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>}</aside>
+    <div class="empty-results" data-empty hidden><h2>No matching packages or modules.</h2><p>Looking for a function or type signature? Try <a href="/packages/search/" data-empty-hoogle>Hoogle API Search ↗</a>.</p><button type="button" data-clear-filters>Clear filters</button></div>
+    {catalogue.offline&&<div class="empty-results" data-offline><h2>Offline catalogue.</h2><p>This build ran with <code>CINCH_CATALOGUE_OFFLINE=1</code>, so only the bundled <code>stdlib</code> package is listed. Set <code>CINCH_CATALOGUE_REGISTRY</code> and rebuild to include external registry releases.</p></div>}
+    {catalogue.fallback&&<div class="empty-results" data-fallback><h2>Cached catalogue.</h2><p>{catalogue.warning ?? 'The live registry was unavailable, so this build includes stdlib plus the last cached registry snapshot.'}</p></div>}
+    <aside class="preview-note"><span class="mono">{catalogue.offline?'OFFLINE BUILD':catalogue.fallback?'CACHED BUILD':'REGISTRY CATALOGUE'}</span>{catalogue.offline?<p>External registry releases were skipped because the offline flag was set; the bundled <a href="/packages/stdlib/">stdlib</a> package and <a href="/packages/search/">API Search</a> remain available. <a href="/packages/index.json">Catalogue data ↗</a></p>:catalogue.fallback?<p>Includes the bundled <a href="/packages/stdlib/">stdlib</a> package alongside the last cached registry snapshot{catalogue.snapshotBuiltAt?` from ${catalogue.snapshotBuiltAt}`:''}. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>:<p>Includes the bundled <a href="/packages/stdlib/">stdlib</a> package alongside public releases from <code>{catalogue.registry}</code> built on {catalogue.builtAt}. <a href="/packages/index.json">Catalogue data ↗</a> · <a href="/packages/install/">Install a release</a></p>}</aside>
   </section>
 </PlatformLayout>
 <script>
@@ -36,9 +38,12 @@ const input=document.querySelector<HTMLInputElement>('#package-search')!;
 const category=document.querySelector<HTMLSelectElement>('#package-category')!;
 const rows=[...document.querySelectorAll<HTMLElement>('[data-result]')];
 const buttons=[...document.querySelectorAll<HTMLButtonElement>('[data-kind][type="button"]')];
+const hoogleHint=document.querySelector<HTMLElement>('[data-hoogle-hint]')!;
+const emptyHoogle=document.querySelector<HTMLAnchorElement>('[data-empty-hoogle]')!;
 let kind='all';
 function update(){
- const terms=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+ const raw=input.value.trim();
+ const terms=raw.toLowerCase().split(/\s+/).filter(Boolean);
  let count=0;
  rows.forEach(row=>{
    const matches=terms.every(t=>(row.dataset.search??'').includes(t));
@@ -48,13 +53,22 @@ function update(){
  });
  buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.kind===kind)));
  document.querySelector('[data-results-count]')!.textContent=`${count} ${kind==='package'||(!terms.length&&kind==='all')?'package'+(count===1?'':'s'):'result'+(count===1?'':'s')}`;
- (document.querySelector('[data-empty]') as HTMLElement).hidden=count>0||Boolean(document.querySelector('[data-offline]'));
- const url=new URL(location.href);url.search='';if(input.value.trim())url.searchParams.set('q',input.value.trim());if(kind!=='all')url.searchParams.set('kind',kind);if(category.value)url.searchParams.set('category',category.value);history.replaceState(null,'',url);
+ if(raw){
+   const href=`/packages/search/?q=${encodeURIComponent(raw)}`;
+   hoogleHint.hidden=false;
+   hoogleHint.innerHTML=`Searching declarations for <code>${raw.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]!))}</code>? <a href="${href}">Open in Hoogle API Search ↗</a>`;
+   emptyHoogle.href=href;
+ } else {
+   hoogleHint.hidden=true;
+   emptyHoogle.href='/packages/search/';
+ }
+ (document.querySelector('[data-empty]') as HTMLElement).hidden=count>0||Boolean(document.querySelector('[data-offline]')&&!raw);
+ const url=new URL(location.href);url.search='';if(raw)url.searchParams.set('q',raw);if(kind!=='all')url.searchParams.set('kind',kind);if(category.value)url.searchParams.set('category',category.value);history.replaceState(null,'',url);
 }
 function readUrl(){const query=new URL(location.href).searchParams;input.value=query.get('q')??'';kind=['package','module','symbol'].includes(query.get('kind')??'')?query.get('kind')!:'all';category.value=query.get('category')??'';update();}
 input.addEventListener('input',update);category.addEventListener('change',update);
 buttons.forEach(button=>button.addEventListener('click',()=>{kind=button.dataset.kind!;update();}));
-document.querySelector('form')!.addEventListener('submit',e=>{e.preventDefault();update();});
+document.querySelector('form')!.addEventListener('submit',e=>{e.preventDefault();if(input.value.includes('->')||input.value.includes('=>')||input.value.includes('::')){location.assign(`/packages/search/?q=${encodeURIComponent(input.value.trim())}`);return;}update();});
 document.querySelector('form')!.addEventListener('reset',()=>{input.value='';update();});
 document.querySelector('[data-clear-filters]')!.addEventListener('click',()=>{input.value='';category.value='';kind='all';update();input.focus();});
 window.addEventListener('popstate',readUrl);readUrl();

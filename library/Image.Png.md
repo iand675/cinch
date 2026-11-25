@@ -2,19 +2,11 @@
 
 PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Png</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Png/source/">View source</a><a href="/packages/search/?q=%2BImage.Png">Search module</a><a href="/reference-sources/Image.Png.cinch" download="Image.Png.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Image.Png`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
 
-[Download exact module source](/reference-sources/Image.Png.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
-
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Png](Image.Png.md), [Image.Raster](Image.Raster.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Flate](Text.Flate.md), [Text.Zlib](Text.Zlib.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 PNG images: decode every color type, bit depth and interlace method into rasters, and encode rasters.
 Decoding verifies the signature and every chunk CRC, joins the IDAT stream
@@ -30,73 +22,57 @@ of absolute signed residuals.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-PngError">PngError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PngError</strong></code></li><li><a class="syn-name" href="#v-png-config">png-config</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">png-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-PixelFormat" title="Image.Raster.PixelFormat">PixelFormat</a>)</code></li><li><a class="syn-name" href="#v-png-decode">png-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">png-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code></li><li><a class="syn-name" href="#v-png-encode">png-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">png-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-png-error-message">png-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">png-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-506e674572726f72"></a>
+# Types
 
-## `PngError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PngError</span></code></pre>
+<article class="doc-entry" id="t-PngError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PngError</strong></code><span class="doc-sig-links"><a href="#t-PngError" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 A malformed or unsupported PNG file.
 
-[Source](/reference-sources/Image.Png.cinch) · line 31
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadSignature</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadChunk</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadCrc</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadHeader</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngMissingData</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadData</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PngBadSignature"><code><strong class="tok-constructor">PngBadSignature</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li><li id="k-PngBadChunk"><code><strong class="tok-constructor">PngBadChunk</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li><li id="k-PngBadCrc"><code><strong class="tok-constructor">PngBadCrc</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li><li id="k-PngBadHeader"><code><strong class="tok-constructor">PngBadHeader</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li><li id="k-PngMissingData"><code><strong class="tok-constructor">PngMissingData</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li><li id="k-PngBadData"><code><strong class="tok-constructor">PngBadData</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-706e672d636f6e666967"></a>
-
-## `png-config`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">png-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Nat</span>, <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">PixelFormat</span>)))</code></pre>
+<article class="doc-entry" id="v-png-config">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-PixelFormat" title="Image.Raster.PixelFormat">PixelFormat</a>)</code><span class="doc-sig-links"><a href="#v-png-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Read only the header: width, height and the raster format decoding would produce, without inflating
 image data. Transparency is taken into account when a tRNS chunk precedes the first IDAT.
 
-[Source](/reference-sources/Image.Png.cinch) · line 103
+</div>
+</article>
 
-<a id="value-706e672d6465636f6465"></a>
-
-## `png-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">png-decode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span>))</code></pre>
+<article class="doc-entry" id="v-png-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-png-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 Decode a complete PNG file.
 
-[Source](/reference-sources/Image.Png.cinch) · line 91
+</div>
+</article>
 
-<a id="value-706e672d656e636f6465"></a>
-
-## `png-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">png-encode</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-png-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-png-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L461" title="View source at line 461">Source</a></span></div>
+<div class="doc-body">
 
 Encode a raster as a non-interlaced PNG.
 
-[Source](/reference-sources/Image.Png.cinch) · line 461
+</div>
+</article>
 
-<a id="value-706e672d6572726f722d6d657373616765"></a>
-
-## `png-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">png-error-message</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-png-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-png-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 Render a PNG error.
 
-[Source](/reference-sources/Image.Png.cinch) · line 46
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Png.cinch`. Source SHA-256: `4365df5473eb069b7c08d3151d5603c6e5475295e52f25e140c1a41d50af4e1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

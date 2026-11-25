@@ -2,19 +2,11 @@
 
 Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.X25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.X25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.X25519">Search module</a><a href="/reference-sources/Crypto.X25519.cinch" download="Crypto.X25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.X25519`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Crypto.X25519.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-Non-embedded source closure: [Crypto.Field25519](Crypto.Field25519.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 X25519 Diffie-Hellman key agreement (RFC 7748) in constant time.
 A private key is 32 secret bytes, clamped as the function requires; the
@@ -27,116 +19,101 @@ a cryptographic random source such as Effect.Random.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (10 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-X25519Error">X25519Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">X25519Error</strong></code></li><li><a class="syn-name" href="#t-X25519PrivateKey">X25519PrivateKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">X25519PrivateKey</strong></code></li><li><a class="syn-name" href="#v-x25519">x25519</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-x25519-base">x25519-base</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-base</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-x25519-error-message">x25519-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-x25519-key-size">x25519-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-x25519-private-bytes">x25519-private-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-private-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-x25519-private-key">x25519-private-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a></code></li><li><a class="syn-name" href="#v-x25519-public-key">x25519-public-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-x25519-shared">x25519-shared</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">x25519-shared</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-5832353531394572726f72"></a>
+# Types
 
-## `X25519Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">X25519Error</span></code></pre>
+<article class="doc-entry" id="t-X25519Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">X25519Error</strong></code><span class="doc-sig-links"><a href="#t-X25519Error" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 A rejected key or a degenerate shared secret.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 27
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidX25519KeySize"><code><strong class="tok-constructor">InvalidX25519KeySize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a></code></li><li id="k-InvalidX25519PeerSize"><code><strong class="tok-constructor">InvalidX25519PeerSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a></code></li><li id="k-LowOrderPeer"><code><strong class="tok-constructor">LowOrderPeer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidX25519KeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidX25519PeerSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LowOrderPeer</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span></code></pre>
-
-<a id="type-583235353139507269766174654b6579"></a>
-
-## `X25519PrivateKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">X25519PrivateKey</span></code></pre>
+<article class="doc-entry" id="t-X25519PrivateKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">X25519PrivateKey</strong></code><span class="doc-sig-links"><a href="#t-X25519PrivateKey" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 A private key: its 32 secret bytes (copied) and the derived public key.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 43
+</div>
+</article>
 
 # Values
 
-<a id="value-783235353139"></a>
-
-## `x25519`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-x25519">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-x25519" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 The raw function X25519(scalar, u) with clamping, rejecting an all-zero result.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 67
+</div>
+</article>
 
-<a id="value-7832353531392d62617365"></a>
-
-## `x25519-base`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-base</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-x25519-base">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-base</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-x25519-base" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 X25519(scalar, 9): the public key for a private scalar.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 76
+</div>
+</article>
 
-<a id="value-7832353531392d6572726f722d6d657373616765"></a>
-
-## `x25519-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-x25519-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-x25519-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 Render an X25519 error.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 36
+</div>
+</article>
 
-<a id="value-7832353531392d6b65792d73697a65"></a>
-
-## `x25519-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-key-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-x25519-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-x25519-key-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 Key, scalar and coordinate size in bytes, always 32.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 23
+</div>
+</article>
 
-<a id="value-7832353531392d707269766174652d6279746573"></a>
-
-## `x25519-private-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-private-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519PrivateKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-x25519-private-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-private-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-x25519-private-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 The private key's secret bytes, in fresh storage.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 55
+</div>
+</article>
 
-<a id="value-7832353531392d707269766174652d6b6579"></a>
-
-## `x25519-private-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-private-key</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519PrivateKey</span>))</code></pre>
+<article class="doc-entry" id="v-x25519-private-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-private-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a></code><span class="doc-sig-links"><a href="#v-x25519-private-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 Accept 32 secret bytes as a private key and derive its public key.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 48
+</div>
+</article>
 
-<a id="value-7832353531392d7075626c69632d6b6579"></a>
-
-## `x25519-public-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-public-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519PrivateKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-x25519-public-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-public-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-x25519-public-key" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 The 32-byte public key, in fresh storage.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 59
+</div>
+</article>
 
-<a id="value-7832353531392d736861726564"></a>
-
-## `x25519-shared`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-shared</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519Error</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-x25519-shared">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">x25519-shared</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519PrivateKey" title="Crypto.X25519.X25519PrivateKey">X25519PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.X25519/#t-X25519Error" title="Crypto.X25519.X25519Error">X25519Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-x25519-shared" title="Permalink">#</a><a href="/packages/stdlib/Crypto.X25519/source/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 The shared secret with a peer's 32-byte public key; low-order peers are rejected.
 
-[Source](/reference-sources/Crypto.X25519.cinch) · line 63
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/X25519.cinch`. Source SHA-256: `84f0ecaa26c3903f7cc622b5552258f3fd3736112d773307ed8ccd3e73958ca3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

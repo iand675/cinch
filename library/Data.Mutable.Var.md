@@ -2,15 +2,9 @@
 
 A single mutable cell, written in place; not synchronized (TVar is the shared cell).
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Var</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Var/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Var">Search module</a><a href="/reference-sources/Data.Mutable.Var.cinch" download="Data.Mutable.Var.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Mutable.Var`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Data.Mutable.Var.cinch) · [How library modules are loaded](00-index.md)
-
-Non-embedded source closure: [Data.Mutable.Var](Data.Mutable.Var.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.Var: the single mutable cell (Haskell's `IORef`/`STRef`,
 OCaml's `ref`).
@@ -26,60 +20,39 @@ written before the cell is returned.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Var">Var</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Var</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-var-modify">var-modify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">var-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-var-new">var-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">var-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-var-read">var-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">var-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-var-swap">var-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">var-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-var-write">var-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">var-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-566172"></a>
+# Types
 
-## `Var`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Var</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Var.cinch)
+<article class="doc-entry" id="t-Var">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Var</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Var" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L21" title="View source at line 21">Source</a></span></div>
+</article>
 
 # Values
 
-<a id="value-7661722d6d6f64696679"></a>
+<article class="doc-entry" id="v-var-modify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-var-modify" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L46" title="View source at line 46">Source</a></span></div>
+</article>
 
-## `var-modify`
+<article class="doc-entry" id="v-var-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-var-new" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L28" title="View source at line 28">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">var-modify</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Var</span>.<span class="tok-constructor">Var</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-var-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-var-read" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L34" title="View source at line 34">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.Var.cinch)
-
-<a id="value-7661722d6e6577"></a>
-
-## `var-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">var-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Var</span>.<span class="tok-constructor">Var</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Var.cinch)
-
-<a id="value-7661722d72656164"></a>
-
-## `var-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">var-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Var</span>.<span class="tok-constructor">Var</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Var.cinch)
-
-<a id="value-7661722d73776170"></a>
-
-## `var-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">var-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Var</span>.<span class="tok-constructor">Var</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-var-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-var-swap" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 Store `x` and return the value it replaced.
 
-[Source](/reference-sources/Data.Mutable.Var.cinch) · line 54
+</div>
+</article>
 
-<a id="value-7661722d7772697465"></a>
-
-## `var-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">var-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Var</span>.<span class="tok-constructor">Var</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Var.cinch)
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Var.cinch`. Source SHA-256: `1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<article class="doc-entry" id="v-var-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-var-write" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L40" title="View source at line 40">Source</a></span></div>
+</article>

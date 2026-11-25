@@ -2,19 +2,11 @@
 
 ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.ChaCha20Poly1305</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ChaCha20Poly1305">Search module</a><a href="/reference-sources/Crypto.ChaCha20Poly1305.cinch" download="Crypto.ChaCha20Poly1305.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.ChaCha20Poly1305`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.ConstantTime](Crypto.ConstantTime.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 ChaCha20 and XChaCha20 stream encryption, the Poly1305 one-time authenticator, and the
 ChaCha20-Poly1305 and XChaCha20-Poly1305 authenticated ciphers (RFC 8439 and the extended-nonce
@@ -29,170 +21,148 @@ compared in constant time and nothing is decrypted before the tag verifies. Ever
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ChaChaError">ChaChaError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ChaChaError</strong></code></li><li><a class="syn-name" href="#v-chacha-error-message">chacha-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-chacha-key-size">chacha-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-chacha-nonce-size">chacha-nonce-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha-nonce-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-chacha20-xor">chacha20-xor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha20-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-chacha20poly1305-open">chacha20poly1305-open</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha20poly1305-open</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-chacha20poly1305-seal">chacha20poly1305-seal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chacha20poly1305-seal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hchacha20">hchacha20</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hchacha20</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-poly1305-mac">poly1305-mac</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">poly1305-mac</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-poly1305-tag-size">poly1305-tag-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">poly1305-tag-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-poly1305-verify">poly1305-verify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">poly1305-verify</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-xchacha-nonce-size">xchacha-nonce-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xchacha-nonce-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-xchacha20-xor">xchacha20-xor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xchacha20-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xchacha20poly1305-open">xchacha20poly1305-open</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xchacha20poly1305-open</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xchacha20poly1305-seal">xchacha20poly1305-seal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xchacha20poly1305-seal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-4368614368614572726f72"></a>
+# Types
 
-## `ChaChaError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ChaChaError</span></code></pre>
+<article class="doc-entry" id="t-ChaChaError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ChaChaError</strong></code><span class="doc-sig-links"><a href="#t-ChaChaError" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 Why a ChaCha20 or Poly1305 operation was refused.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 28
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ChaChaKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ChaChaNonceSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ChaChaTooLarge</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ChaChaAuthentication</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ChaChaKeySize"><code><strong class="tok-constructor">ChaChaKeySize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a></code></li><li id="k-ChaChaNonceSize"><code><strong class="tok-constructor">ChaChaNonceSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a></code></li><li id="k-ChaChaTooLarge"><code><strong class="tok-constructor">ChaChaTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a></code></li><li id="k-ChaChaAuthentication"><code><strong class="tok-constructor">ChaChaAuthentication</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6368616368612d6572726f722d6d657373616765"></a>
-
-## `chacha-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-chacha-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-chacha-error-message" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 A readable description of an error.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 39
+</div>
+</article>
 
-<a id="value-6368616368612d6b65792d73697a65"></a>
-
-## `chacha-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha-key-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-chacha-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-chacha-key-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Key bytes.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 47
+</div>
+</article>
 
-<a id="value-6368616368612d6e6f6e63652d73697a65"></a>
-
-## `chacha-nonce-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha-nonce-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-chacha-nonce-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha-nonce-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-chacha-nonce-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 ChaCha20 and ChaCha20-Poly1305 nonce bytes.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 51
+</div>
+</article>
 
-<a id="value-63686163686132302d786f72"></a>
-
-## `chacha20-xor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha20-xor</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-chacha20-xor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha20-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chacha20-xor" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 XOR a message with the ChaCha20 keystream for a 32-byte key and 12-byte nonce, starting at a block counter.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 134
+</div>
+</article>
 
-<a id="value-6368616368613230706f6c79313330352d6f70656e"></a>
-
-## `chacha20poly1305-open`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha20poly1305-open</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-chacha20poly1305-open">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha20poly1305-open</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chacha20poly1305-open" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L566" title="View source at line 566">Source</a></span></div>
+<div class="doc-body">
 
 Verify and decrypt a sealed message; nothing is decrypted unless the tag verifies.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 566
+</div>
+</article>
 
-<a id="value-6368616368613230706f6c79313330352d7365616c"></a>
-
-## `chacha20poly1305-seal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chacha20poly1305-seal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-chacha20poly1305-seal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha20poly1305-seal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chacha20poly1305-seal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L549" title="View source at line 549">Source</a></span></div>
+<div class="doc-body">
 
 Encrypt and authenticate: the ciphertext followed by the sixteen-byte tag.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 549
+</div>
+</article>
 
-<a id="value-686368616368613230"></a>
-
-## `hchacha20`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hchacha20</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-hchacha20">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hchacha20</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hchacha20" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 HChaCha20 of a 32-byte key and the first 16 bytes of a nonce: rows 0 and 3 of the state after twenty
 rounds without the final addition, as a 32-byte subkey.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 251
+</div>
+</article>
 
-<a id="value-706f6c79313330352d6d6163"></a>
-
-## `poly1305-mac`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">poly1305-mac</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-poly1305-mac">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">poly1305-mac</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-poly1305-mac" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L312" title="View source at line 312">Source</a></span></div>
+<div class="doc-body">
 
 The Poly1305 tag of a message under a 32-byte one-time key.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 312
+</div>
+</article>
 
-<a id="value-706f6c79313330352d7461672d73697a65"></a>
-
-## `poly1305-tag-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">poly1305-tag-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-poly1305-tag-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">poly1305-tag-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-poly1305-tag-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Poly1305 tag bytes.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 59
+</div>
+</article>
 
-<a id="value-706f6c79313330352d766572696679"></a>
-
-## `poly1305-verify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">poly1305-verify</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-poly1305-verify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">poly1305-verify</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-poly1305-verify" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L318" title="View source at line 318">Source</a></span></div>
+<div class="doc-body">
 
 Whether a tag authenticates a message under a one-time key, compared in constant time.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 318
+</div>
+</article>
 
-<a id="value-786368616368612d6e6f6e63652d73697a65"></a>
-
-## `xchacha-nonce-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xchacha-nonce-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-xchacha-nonce-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xchacha-nonce-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-xchacha-nonce-size" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 XChaCha20 and XChaCha20-Poly1305 nonce bytes.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 55
+</div>
+</article>
 
-<a id="value-7863686163686132302d786f72"></a>
-
-## `xchacha20-xor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xchacha20-xor</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-xchacha20-xor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xchacha20-xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xchacha20-xor" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L297" title="View source at line 297">Source</a></span></div>
+<div class="doc-body">
 
 XOR with the XChaCha20 keystream of a 32-byte key and 24-byte nonce: ChaCha20 under the HChaCha20 subkey of
 the first sixteen nonce bytes, with four zero bytes and the last eight nonce bytes as its nonce.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 297
+</div>
+</article>
 
-<a id="value-786368616368613230706f6c79313330352d6f70656e"></a>
-
-## `xchacha20poly1305-open`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xchacha20poly1305-open</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-xchacha20poly1305-open">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xchacha20poly1305-open</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xchacha20poly1305-open" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L589" title="View source at line 589">Source</a></span></div>
+<div class="doc-body">
 
 XChaCha20-Poly1305 opening with a 24-byte nonce.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 589
+</div>
+</article>
 
-<a id="value-786368616368613230706f6c79313330352d7365616c"></a>
-
-## `xchacha20poly1305-seal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xchacha20poly1305-seal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ChaCha20Poly1305</span>.<span class="tok-constructor">ChaChaError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-xchacha20poly1305-seal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xchacha20poly1305-seal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ChaCha20Poly1305/#t-ChaChaError" title="Crypto.ChaCha20Poly1305.ChaChaError">ChaChaError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xchacha20poly1305-seal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/#L582" title="View source at line 582">Source</a></span></div>
+<div class="doc-body">
 
 XChaCha20-Poly1305 sealing with a 24-byte nonce.
 
-[Source](/reference-sources/Crypto.ChaCha20Poly1305.cinch) · line 582
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/ChaCha20Poly1305.cinch`. Source SHA-256: `134e40672a3dc0e225a2221d4dab7e708c90ff75549b0f048266be9b5c58c870`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

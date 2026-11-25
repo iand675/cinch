@@ -2,19 +2,11 @@
 
 Pure HTTP/1.1 wire parsing/rendering, chunked transfer coding, status texts, canonical headers, forms and Go 1.22 ServeMux pattern routing.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Http</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Http/source/">View source</a><a href="/packages/search/?q=%2BText.Http">Search module</a><a href="/reference-sources/Text.Http.cinch" download="Text.Http.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Http`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Cookie](Text.Cookie.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Url](Text.Url.md).
 
-[Download exact module source](/reference-sources/Text.Http.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Cookie](Text.Cookie.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Url](Text.Url.md).
-
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Cookie](Text.Cookie.md), [Text.Http](Text.Http.md), [Text.TextProto](Text.TextProto.md), [Text.Url](Text.Url.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Pure HTTP/1.1 protocol framing, status codes, canonical headers, request/response models and ServeMux routing.
 Provides standard HTTP status codes and reason phrases, canonical MIME header operations built on
@@ -25,1948 +17,1707 @@ redirects and 405 Allow generation.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (187 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-HttpHeader">HttpHeader</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpHeader</strong></code></li><li><a class="syn-name" href="#t-HttpProtoError">HttpProtoError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpProtoError</strong></code></li><li><a class="syn-name" href="#t-HttpVersion">HttpVersion</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpVersion</strong></code></li><li><a class="syn-name" href="#t-HttpWireRequest">HttpWireRequest</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpWireRequest</strong></code></li><li><a class="syn-name" href="#t-HttpWireResponse">HttpWireResponse</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpWireResponse</strong></code></li><li><a class="syn-name" href="#t-MuxMatch">MuxMatch</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxMatch</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-MuxPattern">MuxPattern</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxPattern</strong></code></li><li><a class="syn-name" href="#t-MuxSegment">MuxSegment</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxSegment</strong></code></li><li><a class="syn-name" href="#t-PatternRelation">PatternRelation</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PatternRelation</strong></code></li><li><a class="syn-name" href="#t-ServeMux">ServeMux</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ServeMux</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-http-canonical-header-key">http-canonical-header-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-canonical-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-chunk-decode">http-chunk-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-chunk-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-chunk-encode">http-chunk-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-chunk-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-clean-path">http-clean-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-clean-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-header-add">http-header-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-clone">http-header-clone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-del">http-header-del</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-del</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-empty">http-header-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-entries">http-header-entries</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-entries</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-http-header-from-mime">http-header-from-mime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-from-mime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-from-pairs">http-header-from-pairs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-from-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-get">http-header-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-header-keys">http-header-keys</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-keys</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-header-render">http-header-render</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-render</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-header-set">http-header-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-header-to-mime">http-header-to-mime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-to-mime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a></code></li><li><a class="syn-name" href="#v-http-header-to-pairs">http-header-to-pairs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-to-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-http-header-values">http-header-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-new-request">http-new-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-new-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-http-parse-request">http-parse-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-parse-request-limit">http-parse-request-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-request-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-parse-response">http-parse-response</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-parse-response-for">http-parse-response-for</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-response-for</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-parse-response-limit">http-parse-response-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-response-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-http-parse-version">http-parse-version</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-parse-version</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code></li><li><a class="syn-name" href="#v-http-proto-error-message">http-proto-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-proto-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-render-request">http-render-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-render-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-render-request-chunked">http-render-request-chunked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-render-request-chunked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-render-response">http-render-response</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-render-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-render-response-chunked">http-render-response-chunked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-render-response-chunked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-render-response-for">http-render-response-for</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-render-response-for</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-response-bytes">http-response-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-response-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-http-response-error">http-response-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-response-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-http-response-new">http-response-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-response-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-http-response-redirect">http-response-redirect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-response-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-http-response-text">http-response-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-response-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-http-set-cookie">http-set-cookie</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-set-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-http-status-text">http-status-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-status-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-version-major">http-version-major</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-version-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-http-version-minor">http-version-minor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-version-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-http-version-string">http-version-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-version-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http10">http10</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code></li><li><a class="syn-name" href="#v-http11">http11</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http11</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code></li><li><a class="syn-name" href="#v-method-connect">method-connect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-connect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-delete">method-delete</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-delete</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-get">method-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-head">method-head</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-head</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-options">method-options</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-options</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-patch">method-patch</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-patch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-post">method-post</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-post</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-put">method-put</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-put</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-method-trace">method-trace</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">method-trace</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-mux-allow-header">mux-allow-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-allow-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-mux-empty">mux-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mux-handle">mux-handle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-handle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-mux-handler">mux-handler</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-handler</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mux-match">mux-match</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-match</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mux-parse-pattern">mux-parse-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-parse-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a></code></li><li><a class="syn-name" href="#v-mux-pattern-compare">mux-pattern-compare</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-pattern-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li><li><a class="syn-name" href="#v-mux-pattern-host">mux-pattern-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-pattern-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-mux-pattern-method">mux-pattern-method</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-pattern-method</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-mux-pattern-string">mux-pattern-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mux-pattern-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-add-cookie">req-add-cookie</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-add-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-add-header">req-add-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-body">req-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-req-close">req-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-close</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-req-content-length">req-content-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-content-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-req-cookie">req-cookie</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-req-cookies">req-cookies</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-cookies</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-req-form-value">req-form-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-form-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-header">req-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-header-values">req-header-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-headers">req-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-req-host">req-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-method">req-method</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-method</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-parse-form">req-parse-form</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-parse-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code></li><li><a class="syn-name" href="#v-req-path">req-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-path-value">req-path-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-path-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-path-values">req-path-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-path-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-req-post-form">req-post-form</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-post-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code></li><li><a class="syn-name" href="#v-req-proto">req-proto</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-proto</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-proto-major">req-proto-major</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-proto-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-req-proto-minor">req-proto-minor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-proto-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-req-query">req-query</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code></li><li><a class="syn-name" href="#v-req-query-param">req-query-param</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-query-param</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-raw-path">req-raw-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-raw-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-raw-query">req-raw-query</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-raw-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-remote-addr">req-remote-addr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-remote-addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-request-uri">req-request-uri</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-request-uri</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-req-trailers">req-trailers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-req-with-body">req-with-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-header">req-with-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-headers">req-with-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-host">req-with-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-path-values">req-with-path-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-path-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-proto">req-with-proto</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-proto</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-req-with-remote-addr">req-with-remote-addr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">req-with-remote-addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-resp-add-cookie">resp-add-cookie</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-add-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-add-header">resp-add-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-body">resp-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-resp-cookies">resp-cookies</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-cookies</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-resp-header">resp-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-resp-header-values">resp-header-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-resp-headers">resp-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-resp-proto-major">resp-proto-major</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-proto-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-resp-proto-minor">resp-proto-minor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-proto-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-resp-reason">resp-reason</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-reason</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-resp-status">resp-status</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-resp-trailers">resp-trailers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-resp-with-body">resp-with-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-with-header">resp-with-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-with-headers">resp-with-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-with-reason">resp-with-reason</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-reason</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-with-status">resp-with-status</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-resp-with-trailers">resp-with-trailers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resp-with-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-status-accepted">status-accepted</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-accepted</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-already-reported">status-already-reported</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-already-reported</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-bad-gateway">status-bad-gateway</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-bad-gateway</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-bad-request">status-bad-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-bad-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-conflict">status-conflict</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-conflict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-continue">status-continue</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-continue</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-created">status-created</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-created</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-early-hints">status-early-hints</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-early-hints</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-expectation-failed">status-expectation-failed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-expectation-failed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-failed-dependency">status-failed-dependency</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-failed-dependency</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-forbidden">status-forbidden</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-forbidden</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-found">status-found</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-found</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-gateway-timeout">status-gateway-timeout</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-gateway-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-gone">status-gone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-gone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-http-version-not-supported">status-http-version-not-supported</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-http-version-not-supported</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-im-used">status-im-used</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-im-used</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-insufficient-storage">status-insufficient-storage</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-insufficient-storage</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-internal-server-error">status-internal-server-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-internal-server-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-length-required">status-length-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-length-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-locked">status-locked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-locked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-loop-detected">status-loop-detected</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-loop-detected</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-method-not-allowed">status-method-not-allowed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-method-not-allowed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-misdirected-request">status-misdirected-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-misdirected-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-moved-permanently">status-moved-permanently</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-moved-permanently</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-multi-status">status-multi-status</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-multi-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-multiple-choices">status-multiple-choices</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-multiple-choices</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-network-authentication-required">status-network-authentication-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-network-authentication-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-no-content">status-no-content</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-no-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-non-authoritative-info">status-non-authoritative-info</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-non-authoritative-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-not-acceptable">status-not-acceptable</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-not-acceptable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-not-extended">status-not-extended</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-not-extended</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-not-found">status-not-found</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-not-found</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-not-implemented">status-not-implemented</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-not-implemented</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-not-modified">status-not-modified</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-not-modified</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-ok">status-ok</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-partial-content">status-partial-content</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-partial-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-payment-required">status-payment-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-payment-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-permanent-redirect">status-permanent-redirect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-permanent-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-precondition-failed">status-precondition-failed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-precondition-failed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-precondition-required">status-precondition-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-precondition-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-processing">status-processing</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-processing</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-proxy-auth-required">status-proxy-auth-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-proxy-auth-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-request-entity-too-large">status-request-entity-too-large</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-request-entity-too-large</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-request-header-fields-too-large">status-request-header-fields-too-large</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-request-header-fields-too-large</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-request-timeout">status-request-timeout</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-request-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-request-uri-too-long">status-request-uri-too-long</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-request-uri-too-long</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-requested-range-not-satisfiable">status-requested-range-not-satisfiable</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-requested-range-not-satisfiable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-reset-content">status-reset-content</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-reset-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-see-other">status-see-other</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-see-other</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-service-unavailable">status-service-unavailable</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-service-unavailable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-switching-protocols">status-switching-protocols</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-switching-protocols</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-teapot">status-teapot</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-teapot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-temporary-redirect">status-temporary-redirect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-temporary-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-too-early">status-too-early</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-too-early</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-too-many-requests">status-too-many-requests</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-too-many-requests</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-unauthorized">status-unauthorized</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-unauthorized</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-unavailable-for-legal-reasons">status-unavailable-for-legal-reasons</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-unavailable-for-legal-reasons</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-unprocessable-entity">status-unprocessable-entity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-unprocessable-entity</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-unsupported-media-type">status-unsupported-media-type</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-unsupported-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-upgrade-required">status-upgrade-required</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-upgrade-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-use-proxy">status-use-proxy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-use-proxy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-status-variant-also-negotiates">status-variant-also-negotiates</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">status-variant-also-negotiates</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-48747470486561646572"></a>
+# Types
 
-## `HttpHeader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpHeader</span></code></pre>
+<article class="doc-entry" id="t-HttpHeader">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpHeader</strong></code><span class="doc-sig-links"><a href="#t-HttpHeader" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L671" title="View source at line 671">Source</a></span></div>
+<div class="doc-body">
 
 Canonical HTTP header multimap backed by Text.TextProto.MimeHeader.
 
-[Source](/reference-sources/Text.Http.cinch) · line 671
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpHeaderMap"><code><strong class="tok-constructor">HttpHeaderMap</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpHeaderMap</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">TextProto</span>.<span class="tok-constructor">MimeHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
-
-<a id="type-4874747050726f746f4572726f72"></a>
-
-## `HttpProtoError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpProtoError</span></code></pre>
+<article class="doc-entry" id="t-HttpProtoError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpProtoError</strong></code><span class="doc-sig-links"><a href="#t-HttpProtoError" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L432" title="View source at line 432">Source</a></span></div>
+<div class="doc-body">
 
 A named HTTP/1.1 framing, parsing or route pattern error.
 
-[Source](/reference-sources/Text.Http.cinch) · line 432
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpProtoIncomplete"><code><strong class="tok-constructor">HttpProtoIncomplete</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoBadRequestLine"><code><strong class="tok-constructor">HttpProtoBadRequestLine</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoBadStatusLine"><code><strong class="tok-constructor">HttpProtoBadStatusLine</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoBadHeader"><code><strong class="tok-constructor">HttpProtoBadHeader</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoInvalidVersion"><code><strong class="tok-constructor">HttpProtoInvalidVersion</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoInvalidContentLength"><code><strong class="tok-constructor">HttpProtoInvalidContentLength</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoConflictingContentLength"><code><strong class="tok-constructor">HttpProtoConflictingContentLength</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoUnsupportedTransferEncoding"><code><strong class="tok-constructor">HttpProtoUnsupportedTransferEncoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoBadChunk"><code><strong class="tok-constructor">HttpProtoBadChunk</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoTruncatedBody"><code><strong class="tok-constructor">HttpProtoTruncatedBody</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoTooLarge"><code><strong class="tok-constructor">HttpProtoTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoBadPattern"><code><strong class="tok-constructor">HttpProtoBadPattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li><li id="k-HttpProtoPatternConflict"><code><strong class="tok-constructor">HttpProtoPatternConflict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoIncomplete</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoBadRequestLine</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoBadStatusLine</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoBadHeader</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoInvalidVersion</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoInvalidContentLength</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoConflictingContentLength</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoUnsupportedTransferEncoding</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoBadChunk</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoTruncatedBody</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoTooLarge</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoBadPattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpProtoPatternConflict</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span>)</code></pre>
-
-<a id="type-4874747056657273696f6e"></a>
-
-## `HttpVersion`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpVersion</span></code></pre>
+<article class="doc-entry" id="t-HttpVersion">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpVersion</strong></code><span class="doc-sig-links"><a href="#t-HttpVersion" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L792" title="View source at line 792">Source</a></span></div>
+<div class="doc-body">
 
 Major and minor version numbers.
 
-[Source](/reference-sources/Text.Http.cinch) · line 792
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpVersion"><code><strong class="tok-constructor">HttpVersion</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpVersion</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span>))</code></pre>
-
-<a id="type-487474705769726552657175657374"></a>
-
-## `HttpWireRequest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpWireRequest</span></code></pre>
+<article class="doc-entry" id="t-HttpWireRequest">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpWireRequest</strong></code><span class="doc-sig-links"><a href="#t-HttpWireRequest" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L842" title="View source at line 842">Source</a></span></div>
+<div class="doc-body">
 
 Request fields in the order listed above.
 
-[Source](/reference-sources/Text.Http.cinch) · line 842
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpWireRequest"><code><strong class="tok-constructor">HttpWireRequest</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpWireRequest</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>)))))))))))))))</code></pre>
-
-<a id="type-4874747057697265526573706f6e7365"></a>
-
-## `HttpWireResponse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpWireResponse</span></code></pre>
+<article class="doc-entry" id="t-HttpWireResponse">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpWireResponse</strong></code><span class="doc-sig-links"><a href="#t-HttpWireResponse" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1130" title="View source at line 1130">Source</a></span></div>
+<div class="doc-body">
 
 Response fields in the order listed above.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1130
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpWireResponse"><code><strong class="tok-constructor">HttpWireResponse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpWireResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))))))</code></pre>
-
-<a id="type-4d75784d61746368"></a>
-
-## `MuxMatch`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MuxMatch</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-MuxMatch">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxMatch</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-MuxMatch" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1991" title="View source at line 1991">Source</a></span></div>
+<div class="doc-body">
 
 The outcome of matching an HTTP request against a ServeMux.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1991
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MuxMatched"><code><strong class="tok-constructor">MuxMatched</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li><li id="k-MuxRedirect"><code><strong class="tok-constructor">MuxRedirect</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li><li id="k-MuxMethodNotAllowed"><code><strong class="tok-constructor">MuxMethodNotAllowed</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li><li id="k-MuxNotFound"><code><strong class="tok-constructor">MuxNotFound</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MuxMatched</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span>)))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MuxRedirect</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MuxMethodNotAllowed</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MuxNotFound</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span></code></pre>
-
-<a id="type-4d75785061747465726e"></a>
-
-## `MuxPattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MuxPattern</span></code></pre>
+<article class="doc-entry" id="t-MuxPattern">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxPattern</strong></code><span class="doc-sig-links"><a href="#t-MuxPattern" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1693" title="View source at line 1693">Source</a></span></div>
+<div class="doc-body">
 
 Pattern fields: original string, method, host, segments.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1693
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MuxPattern"><code><strong class="tok-constructor">MuxPattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxSegment" title="Text.Http.MuxSegment">MuxSegment</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MuxPattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxSegment</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span>))))</code></pre>
-
-<a id="type-4d75785365676d656e74"></a>
-
-## `MuxSegment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MuxSegment</span></code></pre>
+<article class="doc-entry" id="t-MuxSegment">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MuxSegment</strong></code><span class="doc-sig-links"><a href="#t-MuxSegment" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1680" title="View source at line 1680">Source</a></span></div>
+<div class="doc-body">
 
 One parsed segment in a ServeMux route pattern.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1680
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SegLiteral"><code><strong class="tok-constructor">SegLiteral</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxSegment" title="Text.Http.MuxSegment">MuxSegment</a></code></li><li id="k-SegWild"><code><strong class="tok-constructor">SegWild</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxSegment" title="Text.Http.MuxSegment">MuxSegment</a></code></li><li id="k-SegMulti"><code><strong class="tok-constructor">SegMulti</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxSegment" title="Text.Http.MuxSegment">MuxSegment</a></code></li><li id="k-SegExactEnd"><code><strong class="tok-constructor">SegExactEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxSegment" title="Text.Http.MuxSegment">MuxSegment</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SegLiteral</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxSegment</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SegWild</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxSegment</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SegMulti</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxSegment</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SegExactEnd</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxSegment</span></code></pre>
-
-<a id="type-5061747465726e52656c6174696f6e"></a>
-
-## `PatternRelation`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PatternRelation</span></code></pre>
+<article class="doc-entry" id="t-PatternRelation">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PatternRelation</strong></code><span class="doc-sig-links"><a href="#t-PatternRelation" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1839" title="View source at line 1839">Source</a></span></div>
+<div class="doc-body">
 
 Specificity relationship between two route patterns.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1839
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PatDisjoint"><code><strong class="tok-constructor">PatDisjoint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li><li id="k-PatEquivalent"><code><strong class="tok-constructor">PatEquivalent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li><li id="k-PatMoreSpecific"><code><strong class="tok-constructor">PatMoreSpecific</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li><li id="k-PatLessSpecific"><code><strong class="tok-constructor">PatLessSpecific</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li><li id="k-PatOverlaps"><code><strong class="tok-constructor">PatOverlaps</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PatDisjoint</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PatEquivalent</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PatMoreSpecific</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PatLessSpecific</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PatOverlaps</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span></code></pre>
-
-<a id="type-53657276654d7578"></a>
-
-## `ServeMux`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ServeMux</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-ServeMux">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ServeMux</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-ServeMux" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1965" title="View source at line 1965">Source</a></span></div>
+<div class="doc-body">
 
 Registered entries.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1965
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ServeMux</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxEntry</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ServeMux"><code><strong class="tok-constructor">ServeMux</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-constructor">MuxEntry</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-687474702d63616e6f6e6963616c2d6865616465722d6b6579"></a>
-
-## `http-canonical-header-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-canonical-header-key</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-canonical-header-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-canonical-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-canonical-header-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L676" title="View source at line 676">Source</a></span></div>
+<div class="doc-body">
 
 Canonicalize an HTTP header field name using Text.TextProto.
 
-[Source](/reference-sources/Text.Http.cinch) · line 676
+</div>
+</article>
 
-<a id="value-687474702d6368756e6b2d6465636f6465"></a>
-
-## `http-chunk-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-chunk-decode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-http-chunk-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-chunk-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-chunk-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1279" title="View source at line 1279">Source</a></span></div>
+<div class="doc-body">
 
 Decode an HTTP/1.1 chunked body and optional trailing headers starting at offset start.
 Returns decoded body bytes, trailers, and the next byte offset after the terminating blank line.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1279
+</div>
+</article>
 
-<a id="value-687474702d6368756e6b2d656e636f6465"></a>
-
-## `http-chunk-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-chunk-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-http-chunk-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-chunk-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-chunk-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1258" title="View source at line 1258">Source</a></span></div>
+<div class="doc-body">
 
 Encode raw body bytes using HTTP/1.1 chunked transfer encoding with a given maximum chunk size.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1258
+</div>
+</article>
 
-<a id="value-687474702d636c65616e2d70617468"></a>
-
-## `http-clean-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-clean-path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-clean-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-clean-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-clean-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1637" title="View source at line 1637">Source</a></span></div>
+<div class="doc-body">
 
 Return the canonical URL path for p, eliminating "." and ".." elements and repeated slashes,
 preserving a trailing slash when present.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1637
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d616464"></a>
-
-## `http-header-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-add</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-add" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L684" title="View source at line 684">Source</a></span></div>
+<div class="doc-body">
 
 Append a value for a header field, canonicalizing the field name.
 
-[Source](/reference-sources/Text.Http.cinch) · line 684
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d636c6f6e65"></a>
-
-## `http-header-clone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-clone</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-http-header-clone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-clone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-clone" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L734" title="View source at line 734">Source</a></span></div>
+<div class="doc-body">
 
 Return an independent copy of a header map.
 
-[Source](/reference-sources/Text.Http.cinch) · line 734
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d64656c"></a>
-
-## `http-header-del`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-del</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>))</code></pre>
+<article class="doc-entry" id="v-http-header-del">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-del</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-del" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L712" title="View source at line 712">Source</a></span></div>
+<div class="doc-body">
 
 Delete a header field and all its values.
 
-[Source](/reference-sources/Text.Http.cinch) · line 712
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d656d707479"></a>
-
-## `http-header-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-empty</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span></code></pre>
+<article class="doc-entry" id="v-http-header-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-empty" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L680" title="View source at line 680">Source</a></span></div>
+<div class="doc-body">
 
 An empty HTTP header map.
 
-[Source](/reference-sources/Text.Http.cinch) · line 680
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d656e7472696573"></a>
-
-## `http-header-entries`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-entries</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-http-header-entries">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-entries</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-http-header-entries" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L722" title="View source at line 722">Source</a></span></div>
+<div class="doc-body">
 
 All header fields with their ordered value lists.
 
-[Source](/reference-sources/Text.Http.cinch) · line 722
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d66726f6d2d6d696d65"></a>
-
-## `http-header-from-mime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-from-mime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">TextProto</span>.<span class="tok-constructor">MimeHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-http-header-from-mime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-from-mime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-from-mime" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L776" title="View source at line 776">Source</a></span></div>
+<div class="doc-body">
 
 Wrap a Text.TextProto.MimeHeader as an HttpHeader.
 
-[Source](/reference-sources/Text.Http.cinch) · line 776
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d66726f6d2d7061697273"></a>
-
-## `http-header-from-pairs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-from-pairs</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-http-header-from-pairs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-from-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-from-pairs" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L738" title="View source at line 738">Source</a></span></div>
+<div class="doc-body">
 
 Construct a header map from name/value pairs in order.
 
-[Source](/reference-sources/Text.Http.cinch) · line 738
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d676574"></a>
-
-## `http-header-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-get</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-header-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L694" title="View source at line 694">Source</a></span></div>
+<div class="doc-body">
 
 Retrieve the first value for a header field, if present.
 
-[Source](/reference-sources/Text.Http.cinch) · line 694
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d6b657973"></a>
-
-## `http-header-keys`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-keys</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-http-header-keys">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-keys</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-header-keys" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L717" title="View source at line 717">Source</a></span></div>
+<div class="doc-body">
 
 All canonical header keys in insertion order.
 
-[Source](/reference-sources/Text.Http.cinch) · line 717
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d72656e646572"></a>
-
-## `http-header-render`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-render</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-http-header-render">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-render</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-header-render" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L766" title="View source at line 766">Source</a></span></div>
+<div class="doc-body">
 
 Render HTTP headers as wire lines followed by the terminating CRLF blank line.
 
-[Source](/reference-sources/Text.Http.cinch) · line 766
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d736574"></a>
-
-## `http-header-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-set</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-set</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-set" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L689" title="View source at line 689">Source</a></span></div>
+<div class="doc-body">
 
 Replace all values for a header field with a single value.
 
-[Source](/reference-sources/Text.Http.cinch) · line 689
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d746f2d6d696d65"></a>
-
-## `http-header-to-mime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-to-mime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">TextProto</span>.<span class="tok-constructor">MimeHeader</span>)</code></pre>
+<article class="doc-entry" id="v-http-header-to-mime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-to-mime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a></code><span class="doc-sig-links"><a href="#v-http-header-to-mime" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L771" title="View source at line 771">Source</a></span></div>
+<div class="doc-body">
 
 Unwrap the underlying Text.TextProto.MimeHeader.
 
-[Source](/reference-sources/Text.Http.cinch) · line 771
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d746f2d7061697273"></a>
-
-## `http-header-to-pairs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-to-pairs</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-to-pairs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-to-pairs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-http-header-to-pairs" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L749" title="View source at line 749">Source</a></span></div>
+<div class="doc-body">
 
 Flatten a header map into ordered (CanonicalKey, Value) pairs.
 
-[Source](/reference-sources/Text.Http.cinch) · line 749
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d76616c756573"></a>
-
-## `http-header-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-header-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L701" title="View source at line 701">Source</a></span></div>
+<div class="doc-body">
 
 Retrieve all values for a header field in insertion order.
 
-[Source](/reference-sources/Text.Http.cinch) · line 701
+</div>
+</article>
 
-<a id="value-687474702d6e65772d72657175657374"></a>
-
-## `http-new-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-new-request</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>)))</code></pre>
+<article class="doc-entry" id="v-http-new-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-new-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-http-new-request" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L845" title="View source at line 845">Source</a></span></div>
+<div class="doc-body">
 
 Construct a fresh HTTP/1.1 request from method, target URI/path, and body bytes.
 
-[Source](/reference-sources/Text.Http.cinch) · line 845
+</div>
+</article>
 
-<a id="value-687474702d70617273652d72657175657374"></a>
-
-## `http-parse-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-request</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-http-parse-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-parse-request" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1412" title="View source at line 1412">Source</a></span></div>
+<div class="doc-body">
 
 Parse one HTTP/1.1 request from wire bytes, returning the request and exact bytes consumed.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1412
+</div>
+</article>
 
-<a id="value-687474702d70617273652d726571756573742d6c696d6974"></a>
-
-## `http-parse-request-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-request-limit</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>, <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-http-parse-request-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-request-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-parse-request-limit" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1416" title="View source at line 1416">Source</a></span></div>
+<div class="doc-body">
 
 Parse one HTTP/1.1 request with explicit header and body byte limits (0 disables a limit).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1416
+</div>
+</article>
 
-<a id="value-687474702d70617273652d726573706f6e7365"></a>
-
-## `http-parse-response`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-response</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-http-parse-response">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-parse-response" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1514" title="View source at line 1514">Source</a></span></div>
+<div class="doc-body">
 
 Parse an HTTP/1.1 response assuming a GET request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1514
+</div>
+</article>
 
-<a id="value-687474702d70617273652d726573706f6e73652d666f72"></a>
-
-## `http-parse-response-for`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-response-for</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-http-parse-response-for">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-response-for</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-parse-response-for" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1518" title="View source at line 1518">Source</a></span></div>
+<div class="doc-body">
 
 Parse an HTTP/1.1 response for a given request method (handling HEAD and bodyless statuses).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1518
+</div>
+</article>
 
-<a id="value-687474702d70617273652d726573706f6e73652d6c696d6974"></a>
-
-## `http-parse-response-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-response-limit</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>, <span class="tok-constructor">Nat</span>))))))</code></pre>
+<article class="doc-entry" id="v-http-parse-response-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-response-limit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-http-parse-response-limit" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1522" title="View source at line 1522">Source</a></span></div>
+<div class="doc-body">
 
 Parse an HTTP/1.1 response with explicit request method, header limit, and body limit.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1522
+</div>
+</article>
 
-<a id="value-687474702d70617273652d76657273696f6e"></a>
-
-## `http-parse-version`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-parse-version</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span>))</code></pre>
+<article class="doc-entry" id="v-http-parse-version">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-parse-version</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code><span class="doc-sig-links"><a href="#v-http-parse-version" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L816" title="View source at line 816">Source</a></span></div>
+<div class="doc-body">
 
 Parse an HTTP version token "HTTP/<major>.<minor>".
 
-[Source](/reference-sources/Text.Http.cinch) · line 816
+</div>
+</article>
 
-<a id="value-687474702d70726f746f2d6572726f722d6d657373616765"></a>
-
-## `http-proto-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-proto-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-proto-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-proto-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-proto-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L461" title="View source at line 461">Source</a></span></div>
+<div class="doc-body">
 
 Render a readable diagnostic for an HTTP protocol error.
 
-[Source](/reference-sources/Text.Http.cinch) · line 461
+</div>
+</article>
 
-<a id="value-687474702d72656e6465722d72657175657374"></a>
-
-## `http-render-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-render-request</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-http-render-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-render-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-render-request" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1482" title="View source at line 1482">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP/1.1 request to wire bytes using Content-Length when a body is present.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1482
+</div>
+</article>
 
-<a id="value-687474702d72656e6465722d726571756573742d6368756e6b6564"></a>
-
-## `http-render-request-chunked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-render-request-chunked</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-http-render-request-chunked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-render-request-chunked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-render-request-chunked" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1496" title="View source at line 1496">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP/1.1 request using Transfer-Encoding: chunked with the specified chunk size.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1496
+</div>
+</article>
 
-<a id="value-687474702d72656e6465722d726573706f6e7365"></a>
-
-## `http-render-response`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-render-response</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-http-render-response">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-render-response</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-render-response" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1593" title="View source at line 1593">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP/1.1 response to wire bytes with automatic status text and Content-Length.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1593
+</div>
+</article>
 
-<a id="value-687474702d72656e6465722d726573706f6e73652d6368756e6b6564"></a>
-
-## `http-render-response-chunked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-render-response-chunked</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-http-render-response-chunked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-render-response-chunked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-render-response-chunked" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1618" title="View source at line 1618">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP/1.1 response using Transfer-Encoding: chunked.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1618
+</div>
+</article>
 
-<a id="value-687474702d72656e6465722d726573706f6e73652d666f72"></a>
-
-## `http-render-response-for`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-render-response-for</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-http-render-response-for">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-render-response-for</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-render-response-for" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1597" title="View source at line 1597">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP/1.1 response for a specific request method (omitting wire body for HEAD).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1597
+</div>
+</article>
 
-<a id="value-687474702d726573706f6e73652d6279746573"></a>
-
-## `http-response-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-response-bytes</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-http-response-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-response-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-http-response-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1144" title="View source at line 1144">Source</a></span></div>
+<div class="doc-body">
 
 Build an HTTP/1.1 response with an explicit Content-Type and body bytes.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1144
+</div>
+</article>
 
-<a id="value-687474702d726573706f6e73652d6572726f72"></a>
-
-## `http-response-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-response-error</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-http-response-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-response-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-http-response-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1150" title="View source at line 1150">Source</a></span></div>
+<div class="doc-body">
 
 Build a standard plain-text error response with X-Content-Type-Options: nosniff.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1150
+</div>
+</article>
 
-<a id="value-687474702d726573706f6e73652d6e6577"></a>
-
-## `http-response-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-response-new</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-http-response-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-response-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-http-response-new" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1133" title="View source at line 1133">Source</a></span></div>
+<div class="doc-body">
 
 Build an HTTP/1.1 response with status code, headers and body bytes.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1133
+</div>
+</article>
 
-<a id="value-687474702d726573706f6e73652d7265646972656374"></a>
-
-## `http-response-redirect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-response-redirect</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-http-response-redirect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-response-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-http-response-redirect" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1157" title="View source at line 1157">Source</a></span></div>
+<div class="doc-body">
 
 Build an HTTP redirect response with Location header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1157
+</div>
+</article>
 
-<a id="value-687474702d726573706f6e73652d74657874"></a>
-
-## `http-response-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-response-text</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-http-response-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-response-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-http-response-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1138" title="View source at line 1138">Source</a></span></div>
+<div class="doc-body">
 
 Build a UTF-8 plain text HTTP/1.1 response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1138
+</div>
+</article>
 
-<a id="value-687474702d7365742d636f6f6b6965"></a>
-
-## `http-set-cookie`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-set-cookie</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>))</code></pre>
+<article class="doc-entry" id="v-http-set-cookie">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-set-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-http-set-cookie" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L780" title="View source at line 780">Source</a></span></div>
+<div class="doc-body">
 
 Append a Set-Cookie header for a Cookie value when valid to serialize.
 
-[Source](/reference-sources/Text.Http.cinch) · line 780
+</div>
+</article>
 
-<a id="value-687474702d7374617475732d74657874"></a>
-
-## `http-status-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-status-text</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-status-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-status-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-status-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L325" title="View source at line 325">Source</a></span></div>
+<div class="doc-body">
 
 The standard reason phrase for an HTTP status code, or empty text if unknown.
 
-[Source](/reference-sources/Text.Http.cinch) · line 325
+</div>
+</article>
 
-<a id="value-687474702d76657273696f6e2d6d616a6f72"></a>
-
-## `http-version-major`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-version-major</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-http-version-major">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-version-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-http-version-major" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L803" title="View source at line 803">Source</a></span></div>
+<div class="doc-body">
 
 The major version number.
 
-[Source](/reference-sources/Text.Http.cinch) · line 803
+</div>
+</article>
 
-<a id="value-687474702d76657273696f6e2d6d696e6f72"></a>
-
-## `http-version-minor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-version-minor</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-http-version-minor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-version-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-http-version-minor" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L807" title="View source at line 807">Source</a></span></div>
+<div class="doc-body">
 
 The minor version number.
 
-[Source](/reference-sources/Text.Http.cinch) · line 807
+</div>
+</article>
 
-<a id="value-687474702d76657273696f6e2d737472696e67"></a>
-
-## `http-version-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-version-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-version-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-version-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-version-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L811" title="View source at line 811">Source</a></span></div>
+<div class="doc-body">
 
 Render an HTTP version token such as "HTTP/1.1".
 
-[Source](/reference-sources/Text.Http.cinch) · line 811
+</div>
+</article>
 
-<a id="value-687474703130"></a>
-
-## `http10`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http10</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span></code></pre>
+<article class="doc-entry" id="v-http10">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code><span class="doc-sig-links"><a href="#v-http10" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L795" title="View source at line 795">Source</a></span></div>
+<div class="doc-body">
 
 HTTP/1.0 protocol version.
 
-[Source](/reference-sources/Text.Http.cinch) · line 795
+</div>
+</article>
 
-<a id="value-687474703131"></a>
-
-## `http11`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http11</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span></code></pre>
+<article class="doc-entry" id="v-http11">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http11</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a></code><span class="doc-sig-links"><a href="#v-http11" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L799" title="View source at line 799">Source</a></span></div>
+<div class="doc-body">
 
 HTTP/1.1 protocol version.
 
-[Source](/reference-sources/Text.Http.cinch) · line 799
+</div>
+</article>
 
-<a id="value-6d6574686f642d636f6e6e656374"></a>
-
-## `method-connect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-connect</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-connect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-connect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-connect" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L416" title="View source at line 416">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP CONNECT method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 416
+</div>
+</article>
 
-<a id="value-6d6574686f642d64656c657465"></a>
-
-## `method-delete`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-delete</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-delete">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-delete</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-delete" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L412" title="View source at line 412">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP DELETE method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 412
+</div>
+</article>
 
-<a id="value-6d6574686f642d676574"></a>
-
-## `method-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-get</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L392" title="View source at line 392">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP GET method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 392
+</div>
+</article>
 
-<a id="value-6d6574686f642d68656164"></a>
-
-## `method-head`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-head</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-head">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-head</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-head" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L396" title="View source at line 396">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP HEAD method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 396
+</div>
+</article>
 
-<a id="value-6d6574686f642d6f7074696f6e73"></a>
-
-## `method-options`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-options</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-options">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-options</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-options" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L420" title="View source at line 420">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP OPTIONS method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 420
+</div>
+</article>
 
-<a id="value-6d6574686f642d7061746368"></a>
-
-## `method-patch`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-patch</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-patch">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-patch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-patch" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L408" title="View source at line 408">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP PATCH method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 408
+</div>
+</article>
 
-<a id="value-6d6574686f642d706f7374"></a>
-
-## `method-post`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-post</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-post">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-post</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-post" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L400" title="View source at line 400">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP POST method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 400
+</div>
+</article>
 
-<a id="value-6d6574686f642d707574"></a>
-
-## `method-put`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-put</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-put">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-put</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-put" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L404" title="View source at line 404">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP PUT method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 404
+</div>
+</article>
 
-<a id="value-6d6574686f642d7472616365"></a>
-
-## `method-trace`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">method-trace</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="v-method-trace">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">method-trace</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-method-trace" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L424" title="View source at line 424">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP TRACE method token.
 
-[Source](/reference-sources/Text.Http.cinch) · line 424
+</div>
+</article>
 
-<a id="value-6d75782d616c6c6f772d686561646572"></a>
-
-## `mux-allow-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-allow-header</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-mux-allow-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-allow-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mux-allow-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L2156" title="View source at line 2156">Source</a></span></div>
+<div class="doc-body">
 
 Format a list of allowed methods as a standard HTTP Allow header value.
 
-[Source](/reference-sources/Text.Http.cinch) · line 2156
+</div>
+</article>
 
-<a id="value-6d75782d656d707479"></a>
-
-## `mux-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-mux-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mux-empty" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1968" title="View source at line 1968">Source</a></span></div>
+<div class="doc-body">
 
 An empty ServeMux with no registered routes.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1968
+</div>
+</article>
 
-<a id="value-6d75782d68616e646c65"></a>
-
-## `mux-handle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-handle</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>)))))</code></pre>
+<article class="doc-entry" id="v-mux-handle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-handle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-mux-handle" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1972" title="View source at line 1972">Source</a></span></div>
+<div class="doc-body">
 
 Register a pattern and handler, rejecting invalid syntax or conflicting routes.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1972
+</div>
+</article>
 
-<a id="value-6d75782d68616e646c6572"></a>
-
-## `mux-handler`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-handler</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-mux-handler">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-handler</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mux-handler" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L2002" title="View source at line 2002">Source</a></span></div>
+<div class="doc-body">
 
 Match an HTTP wire request against a ServeMux.
 
-[Source](/reference-sources/Text.Http.cinch) · line 2002
+</div>
+</article>
 
-<a id="value-6d75782d6d61746368"></a>
-
-## `mux-match`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-match</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxMatch</span> <span class="tok-variable">a</span>)))))</code></pre>
+<article class="doc-entry" id="v-mux-match">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-match</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxMatch" title="Text.Http.MuxMatch">MuxMatch</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mux-match" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L2007" title="View source at line 2007">Source</a></span></div>
+<div class="doc-body">
 
 Match a method, host and path (optionally containing "?query") against a ServeMux.
 
-[Source](/reference-sources/Text.Http.cinch) · line 2007
+</div>
+</article>
 
-<a id="value-6d75782d70617273652d7061747465726e"></a>
-
-## `mux-parse-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-parse-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpProtoError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span>))</code></pre>
+<article class="doc-entry" id="v-mux-parse-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-parse-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpProtoError" title="Text.Http.HttpProtoError">HttpProtoError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a></code><span class="doc-sig-links"><a href="#v-mux-parse-pattern" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1712" title="View source at line 1712">Source</a></span></div>
+<div class="doc-body">
 
 Parse and validate a route pattern of the form "[METHOD ][HOST]/[PATH]".
 
-[Source](/reference-sources/Text.Http.cinch) · line 1712
+</div>
+</article>
 
-<a id="value-6d75782d7061747465726e2d636f6d70617265"></a>
-
-## `mux-pattern-compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-pattern-compare</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">PatternRelation</span>))</code></pre>
+<article class="doc-entry" id="v-mux-pattern-compare">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-pattern-compare</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-PatternRelation" title="Text.Http.PatternRelation">PatternRelation</a></code><span class="doc-sig-links"><a href="#v-mux-pattern-compare" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1880" title="View source at line 1880">Source</a></span></div>
+<div class="doc-body">
 
 Compare two route patterns for precedence and conflicts.
 When patterns would otherwise overlap or invert on path/method, a pattern with an explicit host
 takes precedence over a host-less pattern.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1880
+</div>
+</article>
 
-<a id="value-6d75782d7061747465726e2d686f7374"></a>
-
-## `mux-pattern-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-pattern-host</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-mux-pattern-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-pattern-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mux-pattern-host" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1704" title="View source at line 1704">Source</a></span></div>
+<div class="doc-body">
 
 Host constraint of a parsed route pattern (empty if unconstrained).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1704
+</div>
+</article>
 
-<a id="value-6d75782d7061747465726e2d6d6574686f64"></a>
-
-## `mux-pattern-method`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-pattern-method</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-mux-pattern-method">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-pattern-method</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mux-pattern-method" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1700" title="View source at line 1700">Source</a></span></div>
+<div class="doc-body">
 
 Method constraint of a parsed route pattern (empty if unconstrained).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1700
+</div>
+</article>
 
-<a id="value-6d75782d7061747465726e2d737472696e67"></a>
-
-## `mux-pattern-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mux-pattern-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">MuxPattern</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-mux-pattern-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mux-pattern-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-MuxPattern" title="Text.Http.MuxPattern">MuxPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mux-pattern-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1696" title="View source at line 1696">Source</a></span></div>
+<div class="doc-body">
 
 Original text of a parsed route pattern.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1696
+</div>
+</article>
 
-<a id="value-7265712d6164642d636f6f6b6965"></a>
-
-## `req-add-cookie`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-add-cookie</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-add-cookie">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-add-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-add-cookie" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1029" title="View source at line 1029">Source</a></span></div>
+<div class="doc-body">
 
 Append a cookie name=value pair to the request's Cookie header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1029
+</div>
+</article>
 
-<a id="value-7265712d6164642d686561646572"></a>
-
-## `req-add-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-add-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>)))</code></pre>
+<article class="doc-entry" id="v-req-add-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-add-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L987" title="View source at line 987">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with an additional header value appended.
 
-[Source](/reference-sources/Text.Http.cinch) · line 987
+</div>
+</article>
 
-<a id="value-7265712d626f6479"></a>
-
-## `req-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-body</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-req-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-req-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L946" title="View source at line 946">Source</a></span></div>
+<div class="doc-body">
 
 The decoded body bytes of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 946
+</div>
+</article>
 
-<a id="value-7265712d636c6f7365"></a>
-
-## `req-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-close</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-req-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-close</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-req-close" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L977" title="View source at line 977">Source</a></span></div>
+<div class="doc-body">
 
 Whether the connection should be closed after replying to this request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 977
+</div>
+</article>
 
-<a id="value-7265712d636f6e74656e742d6c656e677468"></a>
-
-## `req-content-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-content-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-req-content-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-content-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-req-content-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L973" title="View source at line 973">Source</a></span></div>
+<div class="doc-body">
 
 The declared content length (-1 when chunked or unspecified).
 
-[Source](/reference-sources/Text.Http.cinch) · line 973
+</div>
+</article>
 
-<a id="value-7265712d636f6f6b6965"></a>
-
-## `req-cookie`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-cookie</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>)))</code></pre>
+<article class="doc-entry" id="v-req-cookie">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-req-cookie" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1053" title="View source at line 1053">Source</a></span></div>
+<div class="doc-body">
 
 Find the first request cookie matching name.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1053
+</div>
+</article>
 
-<a id="value-7265712d636f6f6b696573"></a>
-
-## `req-cookies`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-cookies</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>))</code></pre>
+<article class="doc-entry" id="v-req-cookies">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-cookies</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-req-cookies" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1037" title="View source at line 1037">Source</a></span></div>
+<div class="doc-body">
 
 Parse all cookies carried in the request's Cookie headers via Text.Cookie.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1037
+</div>
+</article>
 
-<a id="value-7265712d666f726d2d76616c7565"></a>
-
-## `req-form-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-form-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-form-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-form-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-form-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1115" title="View source at line 1115">Source</a></span></div>
+<div class="doc-body">
 
 Look up the first form value (body parameters before query parameters).
 
-[Source](/reference-sources/Text.Http.cinch) · line 1115
+</div>
+</article>
 
-<a id="value-7265712d686561646572"></a>
-
-## `req-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L938" title="View source at line 938">Source</a></span></div>
+<div class="doc-body">
 
 Retrieve the first value for a request header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 938
+</div>
+</article>
 
-<a id="value-7265712d6865616465722d76616c756573"></a>
-
-## `req-header-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-header-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-header-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-header-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L942" title="View source at line 942">Source</a></span></div>
+<div class="doc-body">
 
 Retrieve all values for a request header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 942
+</div>
+</article>
 
-<a id="value-7265712d68656164657273"></a>
-
-## `req-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-headers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-req-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-req-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L934" title="View source at line 934">Source</a></span></div>
+<div class="doc-body">
 
 The canonical header map of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 934
+</div>
+</article>
 
-<a id="value-7265712d686f7374"></a>
-
-## `req-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-host</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-host" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L906" title="View source at line 906">Source</a></span></div>
+<div class="doc-body">
 
 The host of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 906
+</div>
+</article>
 
-<a id="value-7265712d6d6574686f64"></a>
-
-## `req-method`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-method</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-method">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-method</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-method" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L898" title="View source at line 898">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP method of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 898
+</div>
+</article>
 
-<a id="value-7265712d70617273652d666f726d"></a>
-
-## `req-parse-form`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-parse-form</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Query</span>.<span class="tok-constructor">UrlValues</span>))</code></pre>
+<article class="doc-entry" id="v-req-parse-form">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-parse-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code><span class="doc-sig-links"><a href="#v-req-parse-form" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1094" title="View source at line 1094">Source</a></span></div>
+<div class="doc-body">
 
 Parse both URL-encoded body parameters (taking priority) and URL query parameters.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1094
+</div>
+</article>
 
-<a id="value-7265712d70617468"></a>
-
-## `req-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-path</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L910" title="View source at line 910">Source</a></span></div>
+<div class="doc-body">
 
 The decoded path of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 910
+</div>
+</article>
 
-<a id="value-7265712d706174682d76616c7565"></a>
-
-## `req-path-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-path-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-path-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-path-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-path-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L958" title="View source at line 958">Source</a></span></div>
+<div class="doc-body">
 
 Look up a single matched route path parameter by name.
 
-[Source](/reference-sources/Text.Http.cinch) · line 958
+</div>
+</article>
 
-<a id="value-7265712d706174682d76616c756573"></a>
-
-## `req-path-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-path-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-path-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-path-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-req-path-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L954" title="View source at line 954">Source</a></span></div>
+<div class="doc-body">
 
 All matched route path parameter bindings.
 
-[Source](/reference-sources/Text.Http.cinch) · line 954
+</div>
+</article>
 
-<a id="value-7265712d706f73742d666f726d"></a>
-
-## `req-post-form`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-post-form</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Query</span>.<span class="tok-constructor">UrlValues</span>))</code></pre>
+<article class="doc-entry" id="v-req-post-form">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-post-form</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code><span class="doc-sig-links"><a href="#v-req-post-form" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1078" title="View source at line 1078">Source</a></span></div>
+<div class="doc-body">
 
 Parse application/x-www-form-urlencoded parameters from a POST, PUT or PATCH request body.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1078
+</div>
+</article>
 
-<a id="value-7265712d70726f746f"></a>
-
-## `req-proto`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-proto</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-proto">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-proto</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-proto" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L930" title="View source at line 930">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP protocol version string (such as "HTTP/1.1") of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 930
+</div>
+</article>
 
-<a id="value-7265712d70726f746f2d6d616a6f72"></a>
-
-## `req-proto-major`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-proto-major</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-req-proto-major">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-proto-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-req-proto-major" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L922" title="View source at line 922">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP major version number of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 922
+</div>
+</article>
 
-<a id="value-7265712d70726f746f2d6d696e6f72"></a>
-
-## `req-proto-minor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-proto-minor</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-req-proto-minor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-proto-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-req-proto-minor" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L926" title="View source at line 926">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP minor version number of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 926
+</div>
+</article>
 
-<a id="value-7265712d7175657279"></a>
-
-## `req-query`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-query</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Error</span>.<span class="tok-constructor">UrlFailure</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Query</span>.<span class="tok-constructor">UrlValues</span>))</code></pre>
+<article class="doc-entry" id="v-req-query">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlValues" title="Text.Url.Query.UrlValues">UrlValues</a></code><span class="doc-sig-links"><a href="#v-req-query" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1063" title="View source at line 1063">Source</a></span></div>
+<div class="doc-body">
 
 Parse the request's raw query string into URL values via Text.Url.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1063
+</div>
+</article>
 
-<a id="value-7265712d71756572792d706172616d"></a>
-
-## `req-query-param`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-query-param</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-req-query-param">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-query-param</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-query-param" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1069" title="View source at line 1069">Source</a></span></div>
+<div class="doc-body">
 
 Look up the first value of a query parameter by name.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1069
+</div>
+</article>
 
-<a id="value-7265712d7261772d70617468"></a>
-
-## `req-raw-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-raw-path</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-raw-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-raw-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-raw-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L914" title="View source at line 914">Source</a></span></div>
+<div class="doc-body">
 
 The raw escaped path of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 914
+</div>
+</article>
 
-<a id="value-7265712d7261772d7175657279"></a>
-
-## `req-raw-query`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-raw-query</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-raw-query">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-raw-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-raw-query" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L918" title="View source at line 918">Source</a></span></div>
+<div class="doc-body">
 
 The raw query string (without leading '?') of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 918
+</div>
+</article>
 
-<a id="value-7265712d72656d6f74652d61646472"></a>
-
-## `req-remote-addr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-remote-addr</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-remote-addr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-remote-addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-remote-addr" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L969" title="View source at line 969">Source</a></span></div>
+<div class="doc-body">
 
 The remote address string recorded on a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 969
+</div>
+</article>
 
-<a id="value-7265712d726571756573742d757269"></a>
-
-## `req-request-uri`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-request-uri</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-req-request-uri">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-request-uri</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-req-request-uri" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L902" title="View source at line 902">Source</a></span></div>
+<div class="doc-body">
 
 The raw request-target URI of a request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 902
+</div>
+</article>
 
-<a id="value-7265712d747261696c657273"></a>
-
-## `req-trailers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-trailers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-req-trailers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-req-trailers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L950" title="View source at line 950">Source</a></span></div>
+<div class="doc-body">
 
 The trailing headers decoded after a chunked request body.
 
-[Source](/reference-sources/Text.Http.cinch) · line 950
+</div>
+</article>
 
-<a id="value-7265712d776974682d626f6479"></a>
-
-## `req-with-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-body</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1005" title="View source at line 1005">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with its body bytes replaced and content length updated.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1005
+</div>
+</article>
 
-<a id="value-7265712d776974682d686561646572"></a>
-
-## `req-with-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>)))</code></pre>
+<article class="doc-entry" id="v-req-with-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L981" title="View source at line 981">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with a header replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 981
+</div>
+</article>
 
-<a id="value-7265712d776974682d68656164657273"></a>
-
-## `req-with-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-headers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L993" title="View source at line 993">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with its entire header map replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 993
+</div>
+</article>
 
-<a id="value-7265712d776974682d686f7374"></a>
-
-## `req-with-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-host</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-host" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L999" title="View source at line 999">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with its Host field updated.
 
-[Source](/reference-sources/Text.Http.cinch) · line 999
+</div>
+</article>
 
-<a id="value-7265712d776974682d706174682d76616c756573"></a>
-
-## `req-with-path-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-path-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-path-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-path-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-path-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1011" title="View source at line 1011">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with matched route path parameters attached.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1011
+</div>
+</article>
 
-<a id="value-7265712d776974682d70726f746f"></a>
-
-## `req-with-proto`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-proto</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpVersion</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-proto">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-proto</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpVersion" title="Text.Http.HttpVersion">HttpVersion</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-proto" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1023" title="View source at line 1023">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with its protocol version updated.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1023
+</div>
+</article>
 
-<a id="value-7265712d776974682d72656d6f74652d61646472"></a>
-
-## `req-with-remote-addr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">req-with-remote-addr</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>))</code></pre>
+<article class="doc-entry" id="v-req-with-remote-addr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">req-with-remote-addr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-req-with-remote-addr" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1017" title="View source at line 1017">Source</a></span></div>
+<div class="doc-body">
 
 Return a request with its remote address updated.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1017
+</div>
+</article>
 
-<a id="value-726573702d6164642d636f6f6b6965"></a>
-
-## `resp-add-cookie`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-add-cookie</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-add-cookie">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-add-cookie</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-add-cookie" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1249" title="View source at line 1249">Source</a></span></div>
+<div class="doc-body">
 
 Append a Set-Cookie header to a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1249
+</div>
+</article>
 
-<a id="value-726573702d6164642d686561646572"></a>
-
-## `resp-add-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-add-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-resp-add-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-add-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1229" title="View source at line 1229">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with an additional header value appended.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1229
+</div>
+</article>
 
-<a id="value-726573702d626f6479"></a>
-
-## `resp-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-body</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-resp-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-resp-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1194" title="View source at line 1194">Source</a></span></div>
+<div class="doc-body">
 
 The decoded body bytes of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1194
+</div>
+</article>
 
-<a id="value-726573702d636f6f6b696573"></a>
-
-## `resp-cookies`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-cookies</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>))</code></pre>
+<article class="doc-entry" id="v-resp-cookies">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-cookies</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-resp-cookies" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1202" title="View source at line 1202">Source</a></span></div>
+<div class="doc-body">
 
 Parse all valid Set-Cookie headers from a response via Text.Cookie.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1202
+</div>
+</article>
 
-<a id="value-726573702d686561646572"></a>
-
-## `resp-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-resp-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-resp-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1186" title="View source at line 1186">Source</a></span></div>
+<div class="doc-body">
 
 Look up the first value of a response header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1186
+</div>
+</article>
 
-<a id="value-726573702d6865616465722d76616c756573"></a>
-
-## `resp-header-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-header-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-resp-header-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-header-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-resp-header-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1190" title="View source at line 1190">Source</a></span></div>
+<div class="doc-body">
 
 Look up all values of a response header.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1190
+</div>
+</article>
 
-<a id="value-726573702d68656164657273"></a>
-
-## `resp-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-headers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-resp-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-resp-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1182" title="View source at line 1182">Source</a></span></div>
+<div class="doc-body">
 
 The canonical header map of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1182
+</div>
+</article>
 
-<a id="value-726573702d70726f746f2d6d616a6f72"></a>
-
-## `resp-proto-major`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-proto-major</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-resp-proto-major">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-proto-major</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-resp-proto-major" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1174" title="View source at line 1174">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP major version of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1174
+</div>
+</article>
 
-<a id="value-726573702d70726f746f2d6d696e6f72"></a>
-
-## `resp-proto-minor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-proto-minor</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-resp-proto-minor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-proto-minor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-resp-proto-minor" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1178" title="View source at line 1178">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP minor version of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1178
+</div>
+</article>
 
-<a id="value-726573702d726561736f6e"></a>
-
-## `resp-reason`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-reason</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-resp-reason">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-reason</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-resp-reason" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1170" title="View source at line 1170">Source</a></span></div>
+<div class="doc-body">
 
 The reason phrase of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1170
+</div>
+</article>
 
-<a id="value-726573702d737461747573"></a>
-
-## `resp-status`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-status</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-resp-status">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-resp-status" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1166" title="View source at line 1166">Source</a></span></div>
+<div class="doc-body">
 
 The HTTP status code of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1166
+</div>
+</article>
 
-<a id="value-726573702d747261696c657273"></a>
-
-## `resp-trailers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-trailers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-resp-trailers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-resp-trailers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1198" title="View source at line 1198">Source</a></span></div>
+<div class="doc-body">
 
 The trailing headers of a response.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1198
+</div>
+</article>
 
-<a id="value-726573702d776974682d626f6479"></a>
-
-## `resp-with-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-body</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-with-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1239" title="View source at line 1239">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with its body bytes replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1239
+</div>
+</article>
 
-<a id="value-726573702d776974682d686561646572"></a>
-
-## `resp-with-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-resp-with-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1224" title="View source at line 1224">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with a header replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1224
+</div>
+</article>
 
-<a id="value-726573702d776974682d68656164657273"></a>
-
-## `resp-with-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-headers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-with-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1234" title="View source at line 1234">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with its entire header map replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1234
+</div>
+</article>
 
-<a id="value-726573702d776974682d726561736f6e"></a>
-
-## `resp-with-reason`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-reason</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-with-reason">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-reason</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-reason" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1219" title="View source at line 1219">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with an explicit reason phrase.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1219
+</div>
+</article>
 
-<a id="value-726573702d776974682d737461747573"></a>
-
-## `resp-with-status`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-status</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-with-status">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-status" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1214" title="View source at line 1214">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with an updated status code and matching default reason phrase.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1214
+</div>
+</article>
 
-<a id="value-726573702d776974682d747261696c657273"></a>
-
-## `resp-with-trailers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resp-with-trailers</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>))</code></pre>
+<article class="doc-entry" id="v-resp-with-trailers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resp-with-trailers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-resp-with-trailers" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L1244" title="View source at line 1244">Source</a></span></div>
+<div class="doc-body">
 
 Return a response with its trailers replaced.
 
-[Source](/reference-sources/Text.Http.cinch) · line 1244
+</div>
+</article>
 
-<a id="value-7374617475732d6163636570746564"></a>
-
-## `status-accepted`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-accepted</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-accepted">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-accepted</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-accepted" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 202 Accepted.
 
-[Source](/reference-sources/Text.Http.cinch) · line 101
+</div>
+</article>
 
-<a id="value-7374617475732d616c72656164792d7265706f72746564"></a>
-
-## `status-already-reported`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-already-reported</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-already-reported">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-already-reported</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-already-reported" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 208 Already Reported.
 
-[Source](/reference-sources/Text.Http.cinch) · line 125
+</div>
+</article>
 
-<a id="value-7374617475732d6261642d67617465776179"></a>
-
-## `status-bad-gateway`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-bad-gateway</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-bad-gateway">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-bad-gateway</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-bad-gateway" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L289" title="View source at line 289">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 502 Bad Gateway.
 
-[Source](/reference-sources/Text.Http.cinch) · line 289
+</div>
+</article>
 
-<a id="value-7374617475732d6261642d72657175657374"></a>
-
-## `status-bad-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-bad-request</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-bad-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-bad-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-bad-request" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 400 Bad Request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 165
+</div>
+</article>
 
-<a id="value-7374617475732d636f6e666c696374"></a>
-
-## `status-conflict`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-conflict</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-conflict">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-conflict</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-conflict" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 409 Conflict.
 
-[Source](/reference-sources/Text.Http.cinch) · line 201
+</div>
+</article>
 
-<a id="value-7374617475732d636f6e74696e7565"></a>
-
-## `status-continue`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-continue</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-continue">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-continue</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-continue" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L77" title="View source at line 77">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 100 Continue.
 
-[Source](/reference-sources/Text.Http.cinch) · line 77
+</div>
+</article>
 
-<a id="value-7374617475732d63726561746564"></a>
-
-## `status-created`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-created</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-created">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-created</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-created" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 201 Created.
 
-[Source](/reference-sources/Text.Http.cinch) · line 97
+</div>
+</article>
 
-<a id="value-7374617475732d6561726c792d68696e7473"></a>
-
-## `status-early-hints`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-early-hints</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-early-hints">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-early-hints</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-early-hints" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 103 Early Hints.
 
-[Source](/reference-sources/Text.Http.cinch) · line 89
+</div>
+</article>
 
-<a id="value-7374617475732d6578706563746174696f6e2d6661696c6564"></a>
-
-## `status-expectation-failed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-expectation-failed</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-expectation-failed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-expectation-failed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-expectation-failed" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L233" title="View source at line 233">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 417 Expectation Failed.
 
-[Source](/reference-sources/Text.Http.cinch) · line 233
+</div>
+</article>
 
-<a id="value-7374617475732d6661696c65642d646570656e64656e6379"></a>
-
-## `status-failed-dependency`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-failed-dependency</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-failed-dependency">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-failed-dependency</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-failed-dependency" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L253" title="View source at line 253">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 424 Failed Dependency.
 
-[Source](/reference-sources/Text.Http.cinch) · line 253
+</div>
+</article>
 
-<a id="value-7374617475732d666f7262696464656e"></a>
-
-## `status-forbidden`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-forbidden</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-forbidden">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-forbidden</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-forbidden" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L177" title="View source at line 177">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 403 Forbidden.
 
-[Source](/reference-sources/Text.Http.cinch) · line 177
+</div>
+</article>
 
-<a id="value-7374617475732d666f756e64"></a>
-
-## `status-found`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-found</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-found">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-found</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-found" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 302 Found.
 
-[Source](/reference-sources/Text.Http.cinch) · line 141
+</div>
+</article>
 
-<a id="value-7374617475732d676174657761792d74696d656f7574"></a>
-
-## `status-gateway-timeout`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-gateway-timeout</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-gateway-timeout">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-gateway-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-gateway-timeout" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L297" title="View source at line 297">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 504 Gateway Timeout.
 
-[Source](/reference-sources/Text.Http.cinch) · line 297
+</div>
+</article>
 
-<a id="value-7374617475732d676f6e65"></a>
-
-## `status-gone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-gone</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-gone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-gone</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-gone" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 410 Gone.
 
-[Source](/reference-sources/Text.Http.cinch) · line 205
+</div>
+</article>
 
-<a id="value-7374617475732d687474702d76657273696f6e2d6e6f742d737570706f72746564"></a>
-
-## `status-http-version-not-supported`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-http-version-not-supported</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-http-version-not-supported">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-http-version-not-supported</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-http-version-not-supported" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L301" title="View source at line 301">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 505 HTTP Version Not Supported.
 
-[Source](/reference-sources/Text.Http.cinch) · line 301
+</div>
+</article>
 
-<a id="value-7374617475732d696d2d75736564"></a>
-
-## `status-im-used`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-im-used</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-im-used">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-im-used</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-im-used" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L129" title="View source at line 129">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 226 IM Used.
 
-[Source](/reference-sources/Text.Http.cinch) · line 129
+</div>
+</article>
 
-<a id="value-7374617475732d696e73756666696369656e742d73746f72616765"></a>
-
-## `status-insufficient-storage`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-insufficient-storage</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-insufficient-storage">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-insufficient-storage</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-insufficient-storage" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L309" title="View source at line 309">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 507 Insufficient Storage.
 
-[Source](/reference-sources/Text.Http.cinch) · line 309
+</div>
+</article>
 
-<a id="value-7374617475732d696e7465726e616c2d7365727665722d6572726f72"></a>
-
-## `status-internal-server-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-internal-server-error</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-internal-server-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-internal-server-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-internal-server-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L281" title="View source at line 281">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 500 Internal Server Error.
 
-[Source](/reference-sources/Text.Http.cinch) · line 281
+</div>
+</article>
 
-<a id="value-7374617475732d6c656e6774682d7265717569726564"></a>
-
-## `status-length-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-length-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-length-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-length-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-length-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 411 Length Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 209
+</div>
+</article>
 
-<a id="value-7374617475732d6c6f636b6564"></a>
-
-## `status-locked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-locked</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-locked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-locked</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-locked" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L249" title="View source at line 249">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 423 Locked.
 
-[Source](/reference-sources/Text.Http.cinch) · line 249
+</div>
+</article>
 
-<a id="value-7374617475732d6c6f6f702d6465746563746564"></a>
-
-## `status-loop-detected`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-loop-detected</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-loop-detected">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-loop-detected</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-loop-detected" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L313" title="View source at line 313">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 508 Loop Detected.
 
-[Source](/reference-sources/Text.Http.cinch) · line 313
+</div>
+</article>
 
-<a id="value-7374617475732d6d6574686f642d6e6f742d616c6c6f776564"></a>
-
-## `status-method-not-allowed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-method-not-allowed</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-method-not-allowed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-method-not-allowed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-method-not-allowed" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L185" title="View source at line 185">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 405 Method Not Allowed.
 
-[Source](/reference-sources/Text.Http.cinch) · line 185
+</div>
+</article>
 
-<a id="value-7374617475732d6d697364697265637465642d72657175657374"></a>
-
-## `status-misdirected-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-misdirected-request</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-misdirected-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-misdirected-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-misdirected-request" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L241" title="View source at line 241">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 421 Misdirected Request.
 
-[Source](/reference-sources/Text.Http.cinch) · line 241
+</div>
+</article>
 
-<a id="value-7374617475732d6d6f7665642d7065726d616e656e746c79"></a>
-
-## `status-moved-permanently`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-moved-permanently</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-moved-permanently">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-moved-permanently</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-moved-permanently" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L137" title="View source at line 137">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 301 Moved Permanently.
 
-[Source](/reference-sources/Text.Http.cinch) · line 137
+</div>
+</article>
 
-<a id="value-7374617475732d6d756c74692d737461747573"></a>
-
-## `status-multi-status`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-multi-status</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-multi-status">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-multi-status</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-multi-status" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 207 Multi-Status.
 
-[Source](/reference-sources/Text.Http.cinch) · line 121
+</div>
+</article>
 
-<a id="value-7374617475732d6d756c7469706c652d63686f69636573"></a>
-
-## `status-multiple-choices`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-multiple-choices</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-multiple-choices">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-multiple-choices</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-multiple-choices" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L133" title="View source at line 133">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 300 Multiple Choices.
 
-[Source](/reference-sources/Text.Http.cinch) · line 133
+</div>
+</article>
 
-<a id="value-7374617475732d6e6574776f726b2d61757468656e7469636174696f6e2d7265717569726564"></a>
-
-## `status-network-authentication-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-network-authentication-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-network-authentication-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-network-authentication-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-network-authentication-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L321" title="View source at line 321">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 511 Network Authentication Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 321
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f2d636f6e74656e74"></a>
-
-## `status-no-content`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-no-content</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-no-content">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-no-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-no-content" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 204 No Content.
 
-[Source](/reference-sources/Text.Http.cinch) · line 109
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f6e2d617574686f72697461746976652d696e666f"></a>
-
-## `status-non-authoritative-info`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-non-authoritative-info</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-non-authoritative-info">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-non-authoritative-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-non-authoritative-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 203 Non-Authoritative Information.
 
-[Source](/reference-sources/Text.Http.cinch) · line 105
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f742d61636365707461626c65"></a>
-
-## `status-not-acceptable`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-not-acceptable</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-not-acceptable">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-not-acceptable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-not-acceptable" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L189" title="View source at line 189">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 406 Not Acceptable.
 
-[Source](/reference-sources/Text.Http.cinch) · line 189
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f742d657874656e646564"></a>
-
-## `status-not-extended`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-not-extended</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-not-extended">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-not-extended</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-not-extended" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L317" title="View source at line 317">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 510 Not Extended.
 
-[Source](/reference-sources/Text.Http.cinch) · line 317
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f742d666f756e64"></a>
-
-## `status-not-found`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-not-found</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-not-found">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-not-found</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-not-found" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 404 Not Found.
 
-[Source](/reference-sources/Text.Http.cinch) · line 181
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f742d696d706c656d656e746564"></a>
-
-## `status-not-implemented`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-not-implemented</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-not-implemented">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-not-implemented</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-not-implemented" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L285" title="View source at line 285">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 501 Not Implemented.
 
-[Source](/reference-sources/Text.Http.cinch) · line 285
+</div>
+</article>
 
-<a id="value-7374617475732d6e6f742d6d6f646966696564"></a>
-
-## `status-not-modified`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-not-modified</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-not-modified">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-not-modified</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-not-modified" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L149" title="View source at line 149">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 304 Not Modified.
 
-[Source](/reference-sources/Text.Http.cinch) · line 149
+</div>
+</article>
 
-<a id="value-7374617475732d6f6b"></a>
-
-## `status-ok`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-ok</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-ok">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-ok</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-ok" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 200 OK.
 
-[Source](/reference-sources/Text.Http.cinch) · line 93
+</div>
+</article>
 
-<a id="value-7374617475732d7061727469616c2d636f6e74656e74"></a>
-
-## `status-partial-content`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-partial-content</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-partial-content">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-partial-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-partial-content" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 206 Partial Content.
 
-[Source](/reference-sources/Text.Http.cinch) · line 117
+</div>
+</article>
 
-<a id="value-7374617475732d7061796d656e742d7265717569726564"></a>
-
-## `status-payment-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-payment-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-payment-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-payment-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-payment-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L173" title="View source at line 173">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 402 Payment Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 173
+</div>
+</article>
 
-<a id="value-7374617475732d7065726d616e656e742d7265646972656374"></a>
-
-## `status-permanent-redirect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-permanent-redirect</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-permanent-redirect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-permanent-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-permanent-redirect" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 308 Permanent Redirect.
 
-[Source](/reference-sources/Text.Http.cinch) · line 161
+</div>
+</article>
 
-<a id="value-7374617475732d707265636f6e646974696f6e2d6661696c6564"></a>
-
-## `status-precondition-failed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-precondition-failed</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-precondition-failed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-precondition-failed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-precondition-failed" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 412 Precondition Failed.
 
-[Source](/reference-sources/Text.Http.cinch) · line 213
+</div>
+</article>
 
-<a id="value-7374617475732d707265636f6e646974696f6e2d7265717569726564"></a>
-
-## `status-precondition-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-precondition-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-precondition-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-precondition-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-precondition-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L265" title="View source at line 265">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 428 Precondition Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 265
+</div>
+</article>
 
-<a id="value-7374617475732d70726f63657373696e67"></a>
-
-## `status-processing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-processing</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-processing">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-processing</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-processing" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L85" title="View source at line 85">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 102 Processing.
 
-[Source](/reference-sources/Text.Http.cinch) · line 85
+</div>
+</article>
 
-<a id="value-7374617475732d70726f78792d617574682d7265717569726564"></a>
-
-## `status-proxy-auth-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-proxy-auth-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-proxy-auth-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-proxy-auth-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-proxy-auth-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L193" title="View source at line 193">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 407 Proxy Authentication Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 193
+</div>
+</article>
 
-<a id="value-7374617475732d726571756573742d656e746974792d746f6f2d6c61726765"></a>
-
-## `status-request-entity-too-large`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-request-entity-too-large</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-request-entity-too-large">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-request-entity-too-large</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-request-entity-too-large" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 413 Request Entity Too Large.
 
-[Source](/reference-sources/Text.Http.cinch) · line 217
+</div>
+</article>
 
-<a id="value-7374617475732d726571756573742d6865616465722d6669656c64732d746f6f2d6c61726765"></a>
-
-## `status-request-header-fields-too-large`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-request-header-fields-too-large</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-request-header-fields-too-large">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-request-header-fields-too-large</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-request-header-fields-too-large" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L273" title="View source at line 273">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 431 Request Header Fields Too Large.
 
-[Source](/reference-sources/Text.Http.cinch) · line 273
+</div>
+</article>
 
-<a id="value-7374617475732d726571756573742d74696d656f7574"></a>
-
-## `status-request-timeout`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-request-timeout</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-request-timeout">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-request-timeout</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-request-timeout" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L197" title="View source at line 197">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 408 Request Timeout.
 
-[Source](/reference-sources/Text.Http.cinch) · line 197
+</div>
+</article>
 
-<a id="value-7374617475732d726571756573742d7572692d746f6f2d6c6f6e67"></a>
-
-## `status-request-uri-too-long`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-request-uri-too-long</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-request-uri-too-long">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-request-uri-too-long</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-request-uri-too-long" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L221" title="View source at line 221">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 414 Request URI Too Long.
 
-[Source](/reference-sources/Text.Http.cinch) · line 221
+</div>
+</article>
 
-<a id="value-7374617475732d7265717565737465642d72616e67652d6e6f742d7361746973666961626c65"></a>
-
-## `status-requested-range-not-satisfiable`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-requested-range-not-satisfiable</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-requested-range-not-satisfiable">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-requested-range-not-satisfiable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-requested-range-not-satisfiable" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 416 Requested Range Not Satisfiable.
 
-[Source](/reference-sources/Text.Http.cinch) · line 229
+</div>
+</article>
 
-<a id="value-7374617475732d72657365742d636f6e74656e74"></a>
-
-## `status-reset-content`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-reset-content</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-reset-content">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-reset-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-reset-content" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 205 Reset Content.
 
-[Source](/reference-sources/Text.Http.cinch) · line 113
+</div>
+</article>
 
-<a id="value-7374617475732d7365652d6f74686572"></a>
-
-## `status-see-other`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-see-other</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-see-other">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-see-other</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-see-other" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L145" title="View source at line 145">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 303 See Other.
 
-[Source](/reference-sources/Text.Http.cinch) · line 145
+</div>
+</article>
 
-<a id="value-7374617475732d736572766963652d756e617661696c61626c65"></a>
-
-## `status-service-unavailable`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-service-unavailable</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-service-unavailable">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-service-unavailable</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-service-unavailable" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L293" title="View source at line 293">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 503 Service Unavailable.
 
-[Source](/reference-sources/Text.Http.cinch) · line 293
+</div>
+</article>
 
-<a id="value-7374617475732d737769746368696e672d70726f746f636f6c73"></a>
-
-## `status-switching-protocols`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-switching-protocols</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-switching-protocols">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-switching-protocols</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-switching-protocols" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 101 Switching Protocols.
 
-[Source](/reference-sources/Text.Http.cinch) · line 81
+</div>
+</article>
 
-<a id="value-7374617475732d746561706f74"></a>
-
-## `status-teapot`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-teapot</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-teapot">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-teapot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-teapot" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L237" title="View source at line 237">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 418 I'm a teapot.
 
-[Source](/reference-sources/Text.Http.cinch) · line 237
+</div>
+</article>
 
-<a id="value-7374617475732d74656d706f726172792d7265646972656374"></a>
-
-## `status-temporary-redirect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-temporary-redirect</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-temporary-redirect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-temporary-redirect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-temporary-redirect" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 307 Temporary Redirect.
 
-[Source](/reference-sources/Text.Http.cinch) · line 157
+</div>
+</article>
 
-<a id="value-7374617475732d746f6f2d6561726c79"></a>
-
-## `status-too-early`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-too-early</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-too-early">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-too-early</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-too-early" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L257" title="View source at line 257">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 425 Too Early.
 
-[Source](/reference-sources/Text.Http.cinch) · line 257
+</div>
+</article>
 
-<a id="value-7374617475732d746f6f2d6d616e792d7265717565737473"></a>
-
-## `status-too-many-requests`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-too-many-requests</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-too-many-requests">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-too-many-requests</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-too-many-requests" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L269" title="View source at line 269">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 429 Too Many Requests.
 
-[Source](/reference-sources/Text.Http.cinch) · line 269
+</div>
+</article>
 
-<a id="value-7374617475732d756e617574686f72697a6564"></a>
-
-## `status-unauthorized`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-unauthorized</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-unauthorized">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-unauthorized</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-unauthorized" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 401 Unauthorized.
 
-[Source](/reference-sources/Text.Http.cinch) · line 169
+</div>
+</article>
 
-<a id="value-7374617475732d756e617661696c61626c652d666f722d6c6567616c2d726561736f6e73"></a>
-
-## `status-unavailable-for-legal-reasons`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-unavailable-for-legal-reasons</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-unavailable-for-legal-reasons">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-unavailable-for-legal-reasons</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-unavailable-for-legal-reasons" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L277" title="View source at line 277">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 451 Unavailable For Legal Reasons.
 
-[Source](/reference-sources/Text.Http.cinch) · line 277
+</div>
+</article>
 
-<a id="value-7374617475732d756e70726f6365737361626c652d656e74697479"></a>
-
-## `status-unprocessable-entity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-unprocessable-entity</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-unprocessable-entity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-unprocessable-entity</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-unprocessable-entity" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L245" title="View source at line 245">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 422 Unprocessable Entity.
 
-[Source](/reference-sources/Text.Http.cinch) · line 245
+</div>
+</article>
 
-<a id="value-7374617475732d756e737570706f727465642d6d656469612d74797065"></a>
-
-## `status-unsupported-media-type`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-unsupported-media-type</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-unsupported-media-type">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-unsupported-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-unsupported-media-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L225" title="View source at line 225">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 415 Unsupported Media Type.
 
-[Source](/reference-sources/Text.Http.cinch) · line 225
+</div>
+</article>
 
-<a id="value-7374617475732d757067726164652d7265717569726564"></a>
-
-## `status-upgrade-required`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-upgrade-required</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-upgrade-required">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-upgrade-required</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-upgrade-required" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L261" title="View source at line 261">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 426 Upgrade Required.
 
-[Source](/reference-sources/Text.Http.cinch) · line 261
+</div>
+</article>
 
-<a id="value-7374617475732d7573652d70726f7879"></a>
-
-## `status-use-proxy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-use-proxy</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-use-proxy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-use-proxy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-use-proxy" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 305 Use Proxy.
 
-[Source](/reference-sources/Text.Http.cinch) · line 153
+</div>
+</article>
 
-<a id="value-7374617475732d76617269616e742d616c736f2d6e65676f746961746573"></a>
-
-## `status-variant-also-negotiates`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">status-variant-also-negotiates</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-status-variant-also-negotiates">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">status-variant-also-negotiates</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-status-variant-also-negotiates" title="Permalink">#</a><a href="/packages/stdlib/Text.Http/source/#L305" title="View source at line 305">Source</a></span></div>
+<div class="doc-body">
 
 HTTP 506 Variant Also Negotiates.
 
-[Source](/reference-sources/Text.Http.cinch) · line 305
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Http.cinch`. Source SHA-256: `6bd8ad591566a16cc25d7072b3ab5009d3f08ac1a98a4c74f626be9387ddad15`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

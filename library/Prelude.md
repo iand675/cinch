@@ -2,17 +2,11 @@
 
 The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> Implicitly in scope.</div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prelude/source/">View source</a><a href="/packages/search/?q=%2BPrelude">Search module</a><a href="/reference-sources/Prelude.cinch" download="Prelude.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Prelude`. This module is implicitly available.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Bits](Algebra.Bits.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Enum](Data.Enum.md), [Data.FromList](Data.FromList.md), [Data.FromMap](Data.FromMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Map](Data.Map.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Producer](Data.Producer.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Sym](Data.Sym.md), [Data.Target](Data.Target.md), [Effect.Concurrent](Effect.Concurrent.md), [Effect.Io](Effect.Io.md), [Effect.Sequencing](Effect.Sequencing.md), [Function.Combinators](Function.Combinators.md), `Prelude.Generated`, [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Prelude.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Bits](Algebra.Bits.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Enum](Data.Enum.md), [Data.FromList](Data.FromList.md), [Data.FromMap](Data.FromMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Map](Data.Map.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Producer](Data.Producer.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Sym](Data.Sym.md), [Data.Target](Data.Target.md), [Effect.Concurrent](Effect.Concurrent.md), [Effect.Io](Effect.Io.md), [Effect.Sequencing](Effect.Sequencing.md), [Function.Combinators](Function.Combinators.md), `Prelude.Generated` (compiler-generated vocabulary), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Prelude: the curated re-export facade (decision D107's export
 machinery, D143's surface rule, D146's re-export forms).
@@ -52,51 +46,46 @@ redeclaring them (user direction, 2026-10-30).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (81 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-AVX2_256">AVX2_256</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AVX2_256</strong></code></li><li><a class="syn-name" href="#t-CapAvailable">CapAvailable</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CapAvailable</strong> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></li><li><a class="syn-name" href="#t-Config">Config</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Config</strong></code></li><li><a class="syn-name" href="#t-ConfigError">ConfigError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConfigError</strong></code></li><li><a class="syn-name" href="#t-Down">Down</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Down</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-EightLanes">EightLanes</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">EightLanes</strong></code></li><li><a class="syn-name" href="#t-InRange">InRange</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">InRange</strong> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (lo &lt;= x &amp;&amp; x &lt;= hi)</code></li><li><a class="syn-name" href="#t-Json">Json</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Json</strong></code></li><li><a class="syn-name" href="#t-List">List</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">List</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-LoadError">LoadError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LoadError</strong></code></li><li><a class="syn-name" href="#t-Map">Map</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Map</strong> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#t-NEON64">NEON64</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">NEON64</strong></code></li><li><a class="syn-name" href="#t-NonZero">NonZero</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonZero</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NonZero n</code></li><li><a class="syn-name" href="#t-Option">Option</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Option</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-Ordering">Ordering</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ordering</strong></code></li><li><a class="syn-name" href="#t-Path">Path</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Path</strong></code></li><li><a class="syn-name" href="#t-Producer">Producer</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Producer</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-Request">Request</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Request</strong></code></li><li><a class="syn-name" href="#t-Result">Result</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Result</strong> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-ScalableShape">ScalableShape</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScalableShape</strong></code></li><li><a class="syn-name" href="#t-Step">Step</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-String">String</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code></li><li><a class="syn-name" href="#t-TakeSt">TakeSt</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TakeSt</strong> <span class="tok-variable">s</span></code></li><li><a class="syn-name" href="#c-Add">Add</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Add</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Add-op-2b">+</a><code class="syn-sig"><strong class="tok-variable">+</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Bits">Bits</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Bits</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-bit-and">bit-and</a><code class="syn-sig"><strong class="tok-variable">bit-and</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-bit-or">bit-or</a><code class="syn-sig"><strong class="tok-variable">bit-or</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-bit-xor">bit-xor</a><code class="syn-sig"><strong class="tok-variable">bit-xor</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-bit-not">bit-not</a><code class="syn-sig"><strong class="tok-variable">bit-not</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-shift-left">shift-left</a><code class="syn-sig"><strong class="tok-variable">shift-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-shift-right">shift-right</a><code class="syn-sig"><strong class="tok-variable">shift-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-rotate-left">rotate-left</a><code class="syn-sig"><strong class="tok-variable">rotate-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-rotate-right">rotate-right</a><code class="syn-sig"><strong class="tok-variable">rotate-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-test-bit">test-bit</a><code class="syn-sig"><strong class="tok-variable">test-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-set-bit">set-bit</a><code class="syn-sig"><strong class="tok-variable">set-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-clear-bit">clear-bit</a><code class="syn-sig"><strong class="tok-variable">clear-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-complement-bit">complement-bit</a><code class="syn-sig"><strong class="tok-variable">complement-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-count-ones">count-ones</a><code class="syn-sig"><strong class="tok-variable">count-ones</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-leading-zeros">leading-zeros</a><code class="syn-sig"><strong class="tok-variable">leading-zeros</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Bits-trailing-zeros">trailing-zeros</a><code class="syn-sig"><strong class="tok-variable">trailing-zeros</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#c-DirectSequencing">DirectSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">DirectSequencing</strong></code></li><li class="syn-sub"><a class="syn-name" href="#m-DirectSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-DirectSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#c-Div">Div</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Div</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Div-op-2f">/</a><code class="syn-sig"><strong class="tok-variable">/</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Enum">Enum</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Enum</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Enum-succ">succ</a><code class="syn-sig"><strong class="tok-variable">succ</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Enum-pred">pred</a><code class="syn-sig"><strong class="tok-variable">pred</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Enum-to-enum">to-enum</a><code class="syn-sig"><strong class="tok-variable">to-enum</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Enum-from-enum">from-enum</a><code class="syn-sig"><strong class="tok-variable">from-enum</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#c-Eq">Eq</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Eq</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Eq-op-3d3d">==</a><code class="syn-sig"><strong class="tok-variable">==</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Eq-op-2f3d">/=</a><code class="syn-sig"><strong class="tok-variable">/=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#c-FromList">FromList</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromList</strong> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-FromList-from-list">from-list</a><code class="syn-sig"><strong class="tok-variable">from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#c-FromMap">FromMap</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromMap</strong> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-FromMap-from-map">from-map</a><code class="syn-sig"><strong class="tok-variable">from-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">m</span></code></li><li><a class="syn-name" href="#c-Mul">Mul</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Mul</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Mul-op-2a">*</a><code class="syn-sig"><strong class="tok-variable">*</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-Neg">Neg</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Neg</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Neg-negate">negate</a><code class="syn-sig"><strong class="tok-variable">negate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-OptionSequencing">OptionSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">OptionSequencing</strong></code></li><li class="syn-sub"><a class="syn-name" href="#m-OptionSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-OptionSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#c-Ord">Ord</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Ord</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Ord-op-3c">&lt;</a><code class="syn-sig"><strong class="tok-variable">&lt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Ord-op-3c3d">&lt;=</a><code class="syn-sig"><strong class="tok-variable">&lt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Ord-op-3e">&gt;</a><code class="syn-sig"><strong class="tok-variable">&gt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Ord-op-3e3d">&gt;=</a><code class="syn-sig"><strong class="tok-variable">&gt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#c-Rem">Rem</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Rem</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Rem-op-25">%</a><code class="syn-sig"><strong class="tok-variable">%</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-ResultSequencing">ResultSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ResultSequencing</strong> <span class="tok-variable">e</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-ResultSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-ResultSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#c-Sub">Sub</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Sub</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Sub--">-</a><code class="syn-sig"><strong class="tok-variable">-</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-SumProofs">SumProofs</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">SumProofs</strong></code></li><li class="syn-sub"><a class="syn-name" href="#m-SumProofs-scalar-to-simd">scalar-to-simd</a><code class="syn-sig"><strong class="tok-variable">scalar-to-simd</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-SumProofs" title="Data.Target.SumProofs">SumProofs</a>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">vectors</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-VecU32Target" title="Data.Target.VecU32Target">VecU32Target</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Eq">Eq</a> (<span class="tok-constructor">scalar-sum-wrap32</span> @ <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> @ <span class="tok-variable">region</span> @ 1 (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <span class="tok-variable">n</span>) @ 4 <span class="tok-variable">region</span> <span class="tok-variable">xs</span>) (<span class="tok-constructor">simd-sum-wrap32</span> @ <span class="tok-variable">t</span> @ <span class="tok-variable">w</span> @ <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> @ <span class="tok-variable">region</span> @ 1 (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <span class="tok-variable">n</span>) @ 4 <span class="tok-variable">region</span> <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)</code></li><li><a class="syn-name" href="#c-VecU32Target">VecU32Target</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">VecU32Target</strong> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-VecU32Target-positive-width">positive-width</a><code class="syn-sig"><strong class="tok-variable">positive-width</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-VecU32Target" title="Data.Target.VecU32Target">VecU32Target</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-415658325f323536"></a>
+# Types
 
-## `AVX2_256`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AVX2_256</span></code></pre>
+<article class="doc-entry" id="t-AVX2_256">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AVX2_256</strong></code><span class="doc-sig-links"><a href="#t-AVX2_256" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Target profiles and vector shapes as marker types: the platform
 chapter's `Target` kind and the compile-time lane width are
 represented as types in the bootstrap (decision D58).
 
-[Source](/reference-sources/Data.Target.cinch) · line 47
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-AVX2_256Tag"><code><strong class="tok-constructor">AVX2_256Tag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#t-AVX2_256" title="Data.Target.AVX2_256">AVX2_256</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AVX2_256Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">AVX2_256</span></code></pre>
-
-<a id="type-436170417661696c61626c65"></a>
-
-## `CapAvailable`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CapAvailable</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-CapAvailable">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CapAvailable</strong> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code><span class="doc-sig-links"><a href="#t-CapAvailable" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Operational evidence that a capability is valid in the current
 validity scope (platform section 2): the lexical region and thread
 supplying it. A rewrite's `require` clause names it.
 
-[Source](/reference-sources/Data.Target.cinch) · line 69
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Available"><code><strong class="tok-constructor">Available</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-VecU32Target" title="Data.Target.VecU32Target">VecU32Target</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#t-CapAvailable" title="Data.Target.CapAvailable">CapAvailable</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Available</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">CapAvailable</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>)</code></pre>
+<article class="doc-entry" id="t-Config">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Config</strong></code><span class="doc-sig-links"><a href="#t-Config" title="Permalink">#</a><a href="/packages/stdlib/Effect.Io/source/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Config"><code><strong class="tok-constructor">Config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Io/#t-Config" title="Effect.Io.Config">Config</a></code></li></ul></div>
+</div>
+</article>
 
-<a id="type-436f6e666967"></a>
-
-## `Config`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Config</span></code></pre>
-
-[Source](/reference-sources/Effect.Io.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>)</code></pre>
-
-<a id="type-436f6e6669674572726f72"></a>
-
-## `ConfigError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ConfigError</span></code></pre>
+<article class="doc-entry" id="t-ConfigError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConfigError</strong></code><span class="doc-sig-links"><a href="#t-ConfigError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Io/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 The worked vocabulary of the sequencing chapter's `loadConfig`
 sketch (runtime capabilities, effects and sequencing
@@ -108,40 +97,34 @@ capability and reports a missing or unreadable file as a
 bootstrap's config document is the payload, and an empty
 document is not a config.
 
-[Source](/reference-sources/Effect.Io.cinch) · line 30
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BadConfig"><code><strong class="tok-constructor">BadConfig</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span></code></pre>
-
-<a id="type-446f776e"></a>
-
-## `Down`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Down</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Down">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Down</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Down" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 The order-reversing newtype: `Down x` is `x` with the order
 swapped, so `comparing (\p -> Down (key p))` sorts by `key`
 descending. Equality is unaffected by the flip (only the four
 ordering methods reverse).
 
-[Source](/reference-sources/Relation.Ord.cinch) · line 46
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Down"><code><strong class="tok-constructor">Down</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Down</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Down</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="t-EightLanes">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">EightLanes</strong></code><span class="doc-sig-links"><a href="#t-EightLanes" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-EightLanesTag"><code><strong class="tok-constructor">EightLanesTag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#t-EightLanes" title="Data.Target.EightLanes">EightLanes</a></code></li></ul></div>
+</div>
+</article>
 
-<a id="type-45696768744c616e6573"></a>
-
-## `EightLanes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">EightLanes</span></code></pre>
-
-[Source](/reference-sources/Data.Target.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EightLanesTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">EightLanes</span></code></pre>
-
-<a id="type-496e52616e6765"></a>
-
-## `InRange`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">InRange</span> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (<span class="tok-variable">lo</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">x</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">x</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">hi</span>)</code></pre>
+<article class="doc-entry" id="t-InRange">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">InRange</strong> (<span class="tok-variable">lo</span> :: <span class="tok-constructor">Int</span>) (<span class="tok-variable">hi</span> :: <span class="tok-constructor">Int</span>) <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">x</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> (lo &lt;= x &amp;&amp; x &lt;= hi)</code><span class="doc-sig-links"><a href="#t-InRange" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 A range of a number, the result type of every operation whose
 result lies in known bounds by construction (`u32-to-i64 :: U32 ->
@@ -153,13 +136,12 @@ carries `lo <= x && x <= hi` as a fact, an application in an
 obligation carries it for its term, and where no range is demanded
 the value is its number (`c - 48`, `nat-add c 1`).
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 41
+</div>
+</article>
 
-<a id="type-4a736f6e"></a>
-
-## `Json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Json</span></code></pre>
+<article class="doc-entry" id="t-Json">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Json</strong></code><span class="doc-sig-links"><a href="#t-Json" title="Permalink">#</a><a href="/packages/stdlib/Data.Json/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 The `Json`-shaped value a file converter binds for a JSON file with
 no declared type (surface grammar local amendments section 11); with
@@ -169,80 +151,50 @@ object entry is `JObj key value tail` (ended by `JObjEnd`): the
 positivity discipline allows only direct recursive occurrences, so
 the payloads stay inside the family.
 
-[Source](/reference-sources/Data.Json.cinch) · line 23
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JNull"><code><strong class="tok-constructor">JNull</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JBool"><code><strong class="tok-constructor">JBool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JNum"><code><strong class="tok-constructor">JNum</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JFloat"><code><strong class="tok-constructor">JFloat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JStr"><code><strong class="tok-constructor">JStr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JArr"><code><strong class="tok-constructor">JArr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JObj"><code><strong class="tok-constructor">JObj</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JArrEnd"><code><strong class="tok-constructor">JArrEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li id="k-JObjEnd"><code><strong class="tok-constructor">JObjEnd</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Json/#instances">Text.Json</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNull</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
+<article class="doc-entry" id="t-List">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">List</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-List" title="Permalink">#</a><a href="/packages/stdlib/Data.Core/source/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Nil"><code><strong class="tok-constructor">Nil</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li id="k-Cons"><code><strong class="tok-constructor">Cons</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (11)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JBool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="t-LoadError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LoadError</strong></code><span class="doc-sig-links"><a href="#t-LoadError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Concurrent/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-LoadError"><code><strong class="tok-constructor">LoadError</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Concurrent/#t-LoadError" title="Effect.Concurrent.LoadError">LoadError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JNum</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JFloat</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JStr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObj</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JArrEnd</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JObjEnd</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
-
-<a id="type-4c697374"></a>
-
-## `List`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">List</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Core.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-4c6f61644572726f72"></a>
-
-## `LoadError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LoadError</span></code></pre>
-
-[Source](/reference-sources/Effect.Concurrent.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LoadError</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">LoadError</span>)</code></pre>
-
-<a id="type-4d6170"></a>
-
-## `Map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Map</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Map">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Map</strong> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#t-Map" title="Permalink">#</a><a href="/packages/stdlib/Data.Map/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 The ordered map: an unbalanced binary search tree over `Ord k`
 (decision D105). `map-insert` keeps the left subtree strictly
 smaller and the right strictly greater, so a repeated key replaces
 the stored value in place.
 
-[Source](/reference-sources/Data.Map.cinch) · line 25
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Tip"><code><strong class="tok-constructor">Tip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li><li id="k-Bin"><code><strong class="tok-constructor">Bin</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Map/#instances">Data.Map</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
+<article class="doc-entry" id="t-NEON64">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">NEON64</strong></code><span class="doc-sig-links"><a href="#t-NEON64" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-NEON64Tag"><code><strong class="tok-constructor">NEON64Tag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#t-NEON64" title="Data.Target.NEON64">NEON64</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bin</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . (<span class="tok-variable">k</span> -&gt; (<span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>))))</code></pre>
-
-<a id="type-4e454f4e3634"></a>
-
-## `NEON64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">NEON64</span></code></pre>
-
-[Source](/reference-sources/Data.Target.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NEON64Tag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">NEON64</span></code></pre>
-
-<a id="type-4e6f6e5a65726f"></a>
-
-## `NonZero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonZero</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NonZero</span> <span class="tok-variable">n</span></code></pre>
+<article class="doc-entry" id="t-NonZero">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonZero</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">n</span> :: <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NonZero n</code><span class="doc-sig-links"><a href="#t-NonZero" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 The divisor type, declared here because the `Div`/`Rem` classes
 and the `Nat`/`Int` homes (checked right after this module) name
@@ -253,63 +205,49 @@ Int`, a machine integer): the carrier is the container, so a
 `NonZero Nat` IS its `Nat` at runtime, and a numeral decides its
 predicate at compile time.
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 30
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NonZero/#instances">Data.NonZero</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NonZero/#instances">Data.NonZero</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="type-4f7074696f6e"></a>
+<article class="doc-entry" id="t-Option">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Option</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Option" title="Permalink">#</a><a href="/packages/stdlib/Data.Core/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-None"><code><strong class="tok-constructor">None</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li id="k-Some"><code><strong class="tok-constructor">Some</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li></ul></details>
+</div>
+</article>
 
-## `Option`
+<article class="doc-entry" id="t-Ordering">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ordering</strong></code><span class="doc-sig-links"><a href="#t-Ordering" title="Permalink">#</a><a href="/packages/stdlib/Data.Ordering/source/#L13" title="View source at line 13">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-LT"><code><strong class="tok-constructor">LT</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li id="k-EQ"><code><strong class="tok-constructor">EQ</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li id="k-GT"><code><strong class="tok-constructor">GT</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Ordering/#instances">Data.Ordering</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Ordering/#instances">Data.Ordering</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Option</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Core.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">None</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Some</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
-
-<a id="type-4f72646572696e67"></a>
-
-## `Ordering`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ordering</span></code></pre>
-
-[Source](/reference-sources/Data.Ordering.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EQ</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GT</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span></code></pre>
-
-<a id="type-50617468"></a>
-
-## `Path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Path</span></code></pre>
+<article class="doc-entry" id="t-Path">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Path</strong></code><span class="doc-sig-links"><a href="#t-Path" title="Permalink">#</a><a href="/packages/stdlib/Data.Path/source/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 The path text (POSIX; UTF-8 at the boundary).
 
-[Source](/reference-sources/Data.Path.cinch) · line 48
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Path"><code><strong class="tok-constructor">Path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)</code></pre>
-
-<a id="type-50726f6475636572"></a>
-
-## `Producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Producer</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Producer">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Producer</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Producer" title="Permalink">#</a><a href="/packages/stdlib/Data.Producer/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 A producer: a state with its step function.
 
-[Source](/reference-sources/Data.Producer.cinch) · line 23
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Producer"><code><strong class="tok-constructor">Producer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-52657175657374"></a>
-
-## `Request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Request</span></code></pre>
+<article class="doc-entry" id="t-Request">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Request</strong></code><span class="doc-sig-links"><a href="#t-Request" title="Permalink">#</a><a href="/packages/stdlib/Effect.Concurrent/source/#L24" title="View source at line 24">Source</a></span></div>
+<div class="doc-body">
 
 Structured concurrency (concurrency specification, section 2): the
 worked vocabulary of the spec's `loadPair` sketch. A `Request` names
@@ -320,99 +258,74 @@ operations (`ioWrite`, `ioRead`, `ioSleep`, `pollCancel`) are builtin
 values with compiler-known schemes (like `newIO`), never foreign
 imports.
 
-[Source](/reference-sources/Effect.Concurrent.cinch) · line 24
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Request"><code><strong class="tok-constructor">Request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Concurrent/#t-Request" title="Effect.Concurrent.Request">Request</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Request</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">Request</span>)</code></pre>
-
-<a id="type-526573756c74"></a>
-
-## `Result`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Result</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Result">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Result</strong> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Result" title="Permalink">#</a><a href="/packages/stdlib/Data.Core/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 `Result` is here for the same reason: `Data.Result`'s
 `partition-results` and `results` consume a `List`, and it too is
 checked before `Data.List`.
 
-[Source](/reference-sources/Data.Core.cinch) · line 37
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Err"><code><strong class="tok-constructor">Err</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-variable">e</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code></li><li id="k-Ok"><code><strong class="tok-constructor">Ok</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Result/#instances">Data.Result</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Result/#instances">Data.Result</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Result/#instances">Data.Result</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Err</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">e</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="t-ScalableShape">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ScalableShape</strong></code><span class="doc-sig-links"><a href="#t-ScalableShape" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ScalableShapeTag"><code><strong class="tok-constructor">ScalableShapeTag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#t-ScalableShape" title="Data.Target.ScalableShape">ScalableShape</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ok</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>)</code></pre>
-
-<a id="type-5363616c61626c655368617065"></a>
-
-## `ScalableShape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ScalableShape</span></code></pre>
-
-[Source](/reference-sources/Data.Target.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ScalableShapeTag</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">ScalableShape</span></code></pre>
-
-<a id="type-53746570"></a>
-
-## `Step`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Step">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Step" title="Permalink">#</a><a href="/packages/stdlib/Data.Producer/source/#L17" title="View source at line 17">Source</a></span></div>
+<div class="doc-body">
 
 The vector step form (modules section 6): `Done`, `Skip(state)` and
 `Yield(value, state)`. Producer pipelines lower to state machines.
 
-[Source](/reference-sources/Data.Producer.cinch) · line 17
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Done"><code><strong class="tok-constructor">Done</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li id="k-Skip"><code><strong class="tok-constructor">Skip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li id="k-Yield"><code><strong class="tok-constructor">Yield</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-537472696e67"></a>
-
-## `String`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">String</span></code></pre>
+<article class="doc-entry" id="t-String">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code><span class="doc-sig-links"><a href="#t-String" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 The representation constructor: module-private (the immutability
 contract: no API hands out a string's backing). A `StrBuf` wraps a
 buffer that is either fresh (`bytes-new` filled here) or a copy,
 never one a caller retains.
 
-[Source](/reference-sources/Data.String.cinch) · line 72
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="type-54616b655374"></a>
+<article class="doc-entry" id="t-TakeSt">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TakeSt</strong> <span class="tok-variable">s</span></code><span class="doc-sig-links"><a href="#t-TakeSt" title="Permalink">#</a><a href="/packages/stdlib/Data.Producer/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TakeSt"><code><strong class="tok-constructor">TakeSt</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span></code></li></ul></div>
+</div>
+</article>
 
-## `TakeSt`
+# Signatures
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TakeSt</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="c-Add">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Add</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Add" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Add-op-2b"><div class="doc-method-row"><code><strong class="tok-variable">+</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Add-op-2b" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L45">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-[Source](/reference-sources/Data.Producer.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
-
-# Signatures and methods
-
-<a id="class-416464"></a>
-
-## `Add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Add</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4164642e2b"></a>
-
-## `Add.+`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">+</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-42697473"></a>
-
-## `Bits`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Bits</span> <span class="tok-variable">a</span></code></pre>
+<article class="doc-entry" id="c-Bits">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Bits</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Bits" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Bit manipulation (primitive types specification section 4).
 
@@ -426,133 +339,14 @@ rotates are total. The checked shift family stays as the per-type
 position n means position n modulo the width, consistent with the
 shift rule.
 
-[Source](/reference-sources/Algebra.Bits.cinch) · line 41
-
-<a id="method-426974732e6269742d616e64"></a>
-
-## `Bits.bit-and`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-and</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e6269742d6f72"></a>
-
-## `Bits.bit-or`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-or</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e6269742d786f72"></a>
-
-## `Bits.bit-xor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e6269742d6e6f74"></a>
-
-## `Bits.bit-not`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-not</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="method-426974732e73686966742d6c656674"></a>
-
-## `Bits.shift-left`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-left</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e73686966742d7269676874"></a>
-
-## `Bits.shift-right`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">shift-right</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e726f746174652d6c656674"></a>
-
-## `Bits.rotate-left`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-left</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e726f746174652d7269676874"></a>
-
-## `Bits.rotate-right`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e746573742d626974"></a>
-
-## `Bits.test-bit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">test-bit</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="method-426974732e7365742d626974"></a>
-
-## `Bits.set-bit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">set-bit</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e636c6561722d626974"></a>
-
-## `Bits.clear-bit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">clear-bit</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e636f6d706c656d656e742d626974"></a>
-
-## `Bits.complement-bit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complement-bit</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-426974732e636f756e742d6f6e6573"></a>
-
-## `Bits.count-ones`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">count-ones</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-
-
-<a id="method-426974732e6c656164696e672d7a65726f73"></a>
-
-## `Bits.leading-zeros`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">leading-zeros</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-
-
-<a id="method-426974732e747261696c696e672d7a65726f73"></a>
-
-## `Bits.trailing-zeros`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trailing-zeros</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Bits</span>.<span class="tok-constructor">Bits</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-
-
-<a id="class-44697265637453657175656e63696e67"></a>
-
-## `DirectSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">DirectSequencing</span> </code></pre>
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Bits-bit-and"><div class="doc-method-row"><code><strong class="tok-variable">bit-and</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-bit-and" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L42">Source</a></span></div></li><li id="m-Bits-bit-or"><div class="doc-method-row"><code><strong class="tok-variable">bit-or</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-bit-or" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L43">Source</a></span></div></li><li id="m-Bits-bit-xor"><div class="doc-method-row"><code><strong class="tok-variable">bit-xor</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-bit-xor" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L44">Source</a></span></div></li><li id="m-Bits-bit-not"><div class="doc-method-row"><code><strong class="tok-variable">bit-not</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-bit-not" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L45">Source</a></span></div></li><li id="m-Bits-shift-left"><div class="doc-method-row"><code><strong class="tok-variable">shift-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-shift-left" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L46">Source</a></span></div></li><li id="m-Bits-shift-right"><div class="doc-method-row"><code><strong class="tok-variable">shift-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-shift-right" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L47">Source</a></span></div></li><li id="m-Bits-rotate-left"><div class="doc-method-row"><code><strong class="tok-variable">rotate-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-rotate-left" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L48">Source</a></span></div></li><li id="m-Bits-rotate-right"><div class="doc-method-row"><code><strong class="tok-variable">rotate-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-rotate-right" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L49">Source</a></span></div></li><li id="m-Bits-test-bit"><div class="doc-method-row"><code><strong class="tok-variable">test-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Bits-test-bit" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L50">Source</a></span></div></li><li id="m-Bits-set-bit"><div class="doc-method-row"><code><strong class="tok-variable">set-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-set-bit" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L51">Source</a></span></div></li><li id="m-Bits-clear-bit"><div class="doc-method-row"><code><strong class="tok-variable">clear-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-clear-bit" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L52">Source</a></span></div></li><li id="m-Bits-complement-bit"><div class="doc-method-row"><code><strong class="tok-variable">complement-bit</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Bits-complement-bit" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L53">Source</a></span></div></li><li id="m-Bits-count-ones"><div class="doc-method-row"><code><strong class="tok-variable">count-ones</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#m-Bits-count-ones" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L54">Source</a></span></div></li><li id="m-Bits-leading-zeros"><div class="doc-method-row"><code><strong class="tok-variable">leading-zeros</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#m-Bits-leading-zeros" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L55">Source</a></span></div></li><li id="m-Bits-trailing-zeros"><div class="doc-method-row"><code><strong class="tok-variable">trailing-zeros</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#m-Bits-trailing-zeros" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Bits/source/#L56">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (12)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Bits/#c-Bits" title="Algebra.Bits.Bits">Bits</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-DirectSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">DirectSequencing</strong></code><span class="doc-sig-links"><a href="#c-DirectSequencing" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 Sequencing providers for `do` notation (runtime capabilities,
 effects and sequencing specification, "Unqualified do through
@@ -561,109 +355,38 @@ types differently per provider: direct sequencing is the default and
 a `using` binder with a provider head selects another. `pure` and
 `bind` are the provider's class methods (decision D2).
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 28
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-DirectSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-DirectSequencing-pure" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L29">Source</a></span></div></li><li id="m-DirectSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-DirectSequencing-bind" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L30">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Sequencing/#instances">Effect.Sequencing</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-44697265637453657175656e63696e672e70757265"></a>
+<article class="doc-entry" id="c-Div">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Div</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Div" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Div-op-2f"><div class="doc-method-row"><code><strong class="tok-variable">/</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Div-op-2f" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L69">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-## `DirectSequencing.pure`
+<article class="doc-entry" id="c-Enum">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Enum</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Enum" title="Permalink">#</a><a href="/packages/stdlib/Data.Enum/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Enum-succ"><div class="doc-method-row"><code><strong class="tok-variable">succ</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Enum-succ" title="Permalink">#</a><a href="/packages/stdlib/Data.Enum/source/#L31">Source</a></span></div></li><li id="m-Enum-pred"><div class="doc-method-row"><code><strong class="tok-variable">pred</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Enum-pred" title="Permalink">#</a><a href="/packages/stdlib/Data.Enum/source/#L32">Source</a></span></div></li><li id="m-Enum-to-enum"><div class="doc-method-row"><code><strong class="tok-variable">to-enum</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Enum-to-enum" title="Permalink">#</a><a href="/packages/stdlib/Data.Enum/source/#L33">Source</a></span></div></li><li id="m-Enum-from-enum"><div class="doc-method-row"><code><strong class="tok-variable">from-enum</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#m-Enum-from-enum" title="Permalink">#</a><a href="/packages/stdlib/Data.Enum/source/#L34">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="c-Eq">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Eq</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Eq" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L15" title="View source at line 15">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Eq-op-3d3d"><div class="doc-method-row"><code><strong class="tok-variable">==</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Eq-op-3d3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L16">Source</a></span></div></li><li id="m-Eq-op-2f3d"><div class="doc-method-row"><code><strong class="tok-variable">/=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Eq-op-2f3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L17">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (62)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#t-MapSeed" title="Data.MapHash.MapSeed">MapSeed</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Addr" title="Data.NetIp.Addr">Addr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-AddrPort" title="Data.NetIp.AddrPort">AddrPort</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-NetIpError" title="Data.NetIp.NetIpError">NetIpError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Prefix" title="Data.NetIp.Prefix">Prefix</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlColumnType" title="Data.Sql.SqlColumnType">SqlColumnType</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlError" title="Data.Sql.SqlError">SqlError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlExecResult" title="Data.Sql.SqlExecResult">SqlExecResult</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlIsolation" title="Data.Sql.SqlIsolation">SqlIsolation</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlNamedArg" title="Data.Sql.SqlNamedArg">SqlNamedArg</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlRow" title="Data.Sql.SqlRow">SqlRow</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlTxOptions" title="Data.Sql.SqlTxOptions">SqlTxOptions</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlValue" title="Data.Sql.SqlValue">SqlValue</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned/#instances">Data.Time.Zoned</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Expvar/#instances">Effect.Expvar</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sql/#t-SqlDbStats" title="Effect.Sql.SqlDbStats">SqlDbStats</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Sql/#instances">Effect.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Syslog/#t-SyslogFacility" title="Effect.Syslog.SyslogFacility">SyslogFacility</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Syslog/#instances">Effect.Syslog</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Syslog/#t-SyslogSeverity" title="Effect.Syslog.SyslogSeverity">SyslogSeverity</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Syslog/#instances">Effect.Syslog</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Mime/#instances">Text.Mime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Strconv/#instances">Text.Strconv</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-GroupInfo" title="Text.User.GroupInfo">GroupInfo</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-ProcIdentity" title="Text.User.ProcIdentity">ProcIdentity</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-UserError" title="Text.User.UserError">UserError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-UserInfo" title="Text.User.UserInfo">UserInfo</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Yaml/#instances">Text.Yaml</a></span></li></ul></details>
+</div>
+</article>
 
-
-
-<a id="method-44697265637453657175656e63696e672e62696e64"></a>
-
-## `DirectSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
-
-
-
-<a id="class-446976"></a>
-
-## `Div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Div</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4469762e2f"></a>
-
-## `Div./`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Div</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-456e756d"></a>
-
-## `Enum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Enum</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Data.Enum.cinch)
-
-<a id="method-456e756d2e73756363"></a>
-
-## `Enum.succ`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">succ</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Enum</span>.<span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="method-456e756d2e70726564"></a>
-
-## `Enum.pred`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pred</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Enum</span>.<span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-456e756d2e746f2d656e756d"></a>
-
-## `Enum.to-enum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-enum</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Enum</span>.<span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-456e756d2e66726f6d2d656e756d"></a>
-
-## `Enum.from-enum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-enum</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Enum</span>.<span class="tok-constructor">Enum</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-
-
-<a id="class-4571"></a>
-
-## `Eq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Eq</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Relation.Eq.cinch)
-
-<a id="method-45712e3d3d"></a>
-
-## `Eq.==`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">==</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="method-45712e2f3d"></a>
-
-## `Eq./=`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">/=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="class-46726f6d4c697374"></a>
-
-## `FromList`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></pre>
+<article class="doc-entry" id="c-FromList">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromList</strong> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code><span class="doc-sig-links"><a href="#c-FromList" title="Permalink">#</a><a href="/packages/stdlib/Data.FromList/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Collection literals (surface grammar local amendments, section 10):
 `[a, b, c]` desugars to `from-list` at the expected type's `FromList
@@ -671,133 +394,54 @@ c e` instance and `{k => v}` to `from-map` over a `List (k, v)` of
 pairs at the expected type's `FromMap m k v` instance; unconstrained
 they default to `List` and `Map`. Instances opt in per container.
 
-[Source](/reference-sources/Data.FromList.cinch) · line 19
-
-<a id="method-46726f6d4c6973742e66726f6d2d6c697374"></a>
-
-## `FromList.from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">FromList</span>.<span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">e</span>) -&gt; <span class="tok-variable">c</span>)</code></pre>
-
-
-
-<a id="class-46726f6d4d6170"></a>
-
-## `FromMap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
-
-[Source](/reference-sources/Data.FromMap.cinch)
-
-<a id="method-46726f6d4d61702e66726f6d2d6d6170"></a>
-
-## `FromMap.from-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">FromMap</span>.<span class="tok-constructor">FromMap</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)) -&gt; <span class="tok-variable">m</span>)</code></pre>
-
-
-
-<a id="class-4d756c"></a>
-
-## `Mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Mul</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4d756c2e2a"></a>
-
-## `Mul.*`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">*</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Mul</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-4e6567"></a>
-
-## `Neg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Neg</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-4e65672e6e6567617465"></a>
-
-## `Neg.negate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">negate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Neg</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="class-4f7074696f6e53657175656e63696e67"></a>
-
-## `OptionSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">OptionSequencing</span> </code></pre>
-
-[Source](/reference-sources/Effect.Sequencing.cinch)
-
-<a id="method-4f7074696f6e53657175656e63696e672e70757265"></a>
-
-## `OptionSequencing.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-4f7074696f6e53657175656e63696e672e62696e64"></a>
-
-## `OptionSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)))</code></pre>
-
-
-
-<a id="class-4f7264"></a>
-
-## `Ord`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Ord</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Relation.Ord.cinch)
-
-<a id="method-4f72642e3c"></a>
-
-## `Ord.<`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="method-4f72642e3c3d"></a>
-
-## `Ord.<=`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&lt;=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="method-4f72642e3e"></a>
-
-## `Ord.>`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="method-4f72642e3e3d"></a>
-
-## `Ord.>=`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">&gt;=</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-
-
-<a id="class-52656d"></a>
-
-## `Rem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Rem</span> <span class="tok-variable">a</span></code></pre>
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-FromList-from-list"><div class="doc-method-row"><code><strong class="tok-variable">from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#m-FromList-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.FromList/source/#L20">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (4)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Array/#instances">Data.Array</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Set/#instances">Data.Set</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-FromMap">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromMap</strong> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#c-FromMap" title="Permalink">#</a><a href="/packages/stdlib/Data.FromMap/source/#L13" title="View source at line 13">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-FromMap-from-map"><div class="doc-method-row"><code><strong class="tok-variable">from-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> <span class="tok-variable">m</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">m</span></code><span class="doc-sig-links"><a href="#m-FromMap-from-map" title="Permalink">#</a><a href="/packages/stdlib/Data.FromMap/source/#L14">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.HashMap/#t-HashMap" title="Data.HashMap.HashMap">HashMap</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.HashMap/#instances">Data.HashMap</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Map/#instances">Data.Map</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-Mul">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Mul</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Mul" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Mul-op-2a"><div class="doc-method-row"><code><strong class="tok-variable">*</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Mul-op-2a" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L51">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-Neg">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Neg</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Neg" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Neg-negate"><div class="doc-method-row"><code><strong class="tok-variable">negate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Neg-negate" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L54">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-OptionSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">OptionSequencing</strong></code><span class="doc-sig-links"><a href="#c-OptionSequencing" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-OptionSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-OptionSequencing-pure" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L41">Source</a></span></div></li><li id="m-OptionSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-OptionSequencing-bind" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L42">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-Ord">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Ord</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Ord" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Ord-op-3c"><div class="doc-method-row"><code><strong class="tok-variable">&lt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3c" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L26">Source</a></span></div></li><li id="m-Ord-op-3c3d"><div class="doc-method-row"><code><strong class="tok-variable">&lt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3c3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L27">Source</a></span></div></li><li id="m-Ord-op-3e"><div class="doc-method-row"><code><strong class="tok-variable">&gt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3e" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L28">Source</a></span></div></li><li id="m-Ord-op-3e3d"><div class="doc-method-row"><code><strong class="tok-variable">&gt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3e3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L29">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (38)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Addr" title="Data.NetIp.Addr">Addr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-AddrPort" title="Data.NetIp.AddrPort">AddrPort</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Prefix" title="Data.NetIp.Prefix">Prefix</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li></ul></details>
+</div>
+</article>
+
+<article class="doc-entry" id="c-Rem">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Rem</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Rem" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Modulo and division for the mathematical types (decision D91).
 The divisor carries its evidence: a `NonZero a`, so no instance
@@ -809,1212 +453,1165 @@ divisor may be zero is not this operation: `Data.Complex.div`'s
 IEEE quotient stays a named function. Machine integers keep the
 checked family only, per the primitive types specification.
 
-[Source](/reference-sources/Algebra.Arithmetic.cinch) · line 65
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Rem-op-25"><div class="doc-method-row"><code><strong class="tok-variable">%</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Rem-op-25" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L66">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-52656d2e25"></a>
+<article class="doc-entry" id="c-ResultSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ResultSequencing</strong> <span class="tok-variable">e</span></code><span class="doc-sig-links"><a href="#c-ResultSequencing" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-ResultSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-ResultSequencing-pure" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L37">Source</a></span></div></li><li id="m-ResultSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-ResultSequencing-bind" title="Permalink">#</a><a href="/packages/stdlib/Effect.Sequencing/source/#L38">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Result/#instances">Data.Result</a></span></li></ul></details>
+</div>
+</article>
 
-## `Rem.%`
+<article class="doc-entry" id="c-Sub">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Sub</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Sub" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Sub--"><div class="doc-method-row"><code><strong class="tok-variable">-</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Sub--" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Arithmetic/source/#L48">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">%</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Rem</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-526573756c7453657175656e63696e67"></a>
-
-## `ResultSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span></code></pre>
-
-[Source](/reference-sources/Effect.Sequencing.cinch)
-
-<a id="method-526573756c7453657175656e63696e672e70757265"></a>
-
-## `ResultSequencing.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span>) <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-526573756c7453657175656e63696e672e62696e64"></a>
-
-## `ResultSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)))</code></pre>
-
-
-
-<a id="class-537562"></a>
-
-## `Sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Sub</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Arithmetic.cinch)
-
-<a id="method-5375622e2d"></a>
-
-## `Sub.-`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-operator">-</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Sub</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-53756d50726f6f6673"></a>
-
-## `SumProofs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">SumProofs</span> </code></pre>
+<article class="doc-entry" id="c-SumProofs">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">SumProofs</strong></code><span class="doc-sig-links"><a href="#c-SumProofs" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 The instruction law (platform section 5): the scalar model and the
 SIMD intrinsic compute the same sum. Discharging it is a proof
 obligation of the target library; a rewrite citing it records the
 assumption in the artifact manifest (decision D55).
 
-[Source](/reference-sources/Data.Target.cinch) · line 89
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-SumProofs-scalar-to-simd"><div class="doc-method-row"><code><strong class="tok-variable">scalar-to-simd</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-SumProofs" title="Data.Target.SumProofs">SumProofs</a>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">vectors</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-VecU32Target" title="Data.Target.VecU32Target">VecU32Target</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Eq">Eq</a> (<span class="tok-constructor">scalar-sum-wrap32</span> @ <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> @ <span class="tok-variable">region</span> @ 1 (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <span class="tok-variable">n</span>) @ 4 <span class="tok-variable">region</span> <span class="tok-variable">xs</span>) (<span class="tok-constructor">simd-sum-wrap32</span> @ <span class="tok-variable">t</span> @ <span class="tok-variable">w</span> @ <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> @ <span class="tok-variable">region</span> @ 1 (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <span class="tok-variable">n</span>) @ 4 <span class="tok-variable">region</span> <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)</code><span class="doc-sig-links"><a href="#m-SumProofs-scalar-to-simd" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L90">Source</a></span></div></li></ul></div>
+</div>
+</article>
 
-<a id="method-53756d50726f6f66732e7363616c61722d746f2d73696d64"></a>
-
-## `SumProofs.scalar-to-simd`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-to-simd</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">SumProofs</span>) =&gt; ((<span class="tok-variable">vectors</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) -&gt; ((<span class="tok-variable">xs</span> :: <span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Eq</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-variable">scalar-sum-wrap32</span> @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">xs</span>) (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-variable">simd-sum-wrap32</span> @(<span class="tok-variable">t</span>) @(<span class="tok-variable">w</span>) @(<span class="tok-constructor">Nat</span>) @(<span class="tok-variable">region</span>) @<span class="tok-number">1</span>((<span class="tok-constructor">Nat</span>, <span class="tok-variable">n</span>)) @<span class="tok-number">4</span>(<span class="tok-variable">region</span>) <span class="tok-variable">vectors</span> <span class="tok-variable">xs</span>)))</code></pre>
-
-
-
-<a id="class-566563553332546172676574"></a>
-
-## `VecU32Target`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code></pre>
+<article class="doc-entry" id="c-VecU32Target">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">VecU32Target</strong> <span class="tok-variable">t</span> <span class="tok-variable">w</span></code><span class="doc-sig-links"><a href="#c-VecU32Target" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 The u32-sum capability: its construction establishes that the sum
 intrinsics may execute in the current environment (platform proofs
 and SIMD specification section 2). The method is the width evidence
 a generic proof consumes (section 6).
 
-[Source](/reference-sources/Data.Target.cinch) · line 63
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-VecU32Target-positive-width"><div class="doc-method-row"><code><strong class="tok-variable">positive-width</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Target/#c-VecU32Target" title="Data.Target.VecU32Target">VecU32Target</a> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#m-VecU32Target-positive-width" title="Permalink">#</a><a href="/packages/stdlib/Data.Target/source/#L64">Source</a></span></div></li></ul></div>
+</div>
+</article>
 
-<a id="method-5665635533325461726765742e706f7369746976652d7769647468"></a>
+# Re-exported values
 
-## `VecU32Target.positive-width`
+Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/packages/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">positive-width</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">w</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Target</span>.<span class="tok-constructor">VecU32Target</span> <span class="tok-variable">t</span> <span class="tok-variable">w</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-
-
-# Values
-
-This facade re-exports the following checked values. Follow a defining module for declaration documentation. Compiler-installed operations such as `ioWrite` have a [separate reference](../reference/20-compiler-vocabulary.md).
-
-| Value | Defining module |
-| --- | --- |
-| `&` | [Algebra.Bits](Algebra.Bits.md#value-26) |
-| `&&` | [Data.Bool](Data.Bool.md#value-2626) |
-| `<<` | [Algebra.Bits](Algebra.Bits.md#value-3c3c) |
-| `>>` | [Algebra.Bits](Algebra.Bits.md#value-3e3e) |
-| `^` | [Algebra.Bits](Algebra.Bits.md#value-5e) |
-| `abs-f32` | [Data.Machine](Data.Machine.md#value-6162732d663332) |
-| `abs-f64` | [Data.Machine](Data.Machine.md#value-6162732d663634) |
-| `add-f32` | [Data.Machine](Data.Machine.md#value-6164642d663332) |
-| `add-f64` | [Data.Machine](Data.Machine.md#value-6164642d663634) |
-| `and` | [Data.Bool](Data.Bool.md#value-616e64) |
-| `apply-n-times` | [Function.Combinators](Function.Combinators.md#value-6170706c792d6e2d74696d6573) |
-| `apply-to` | [Function.Combinators](Function.Combinators.md#value-6170706c792d746f) |
-| `bit-and-i16` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d693136) |
-| `bit-and-i32` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d693332) |
-| `bit-and-i64` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d693634) |
-| `bit-and-i8` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d6938) |
-| `bit-and-isize` | [Data.Machine](Data.Machine.md#value-6269742d616e642d6973697a65) |
-| `bit-and-u16` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d753136) |
-| `bit-and-u32` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d753332) |
-| `bit-and-u64` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d753634) |
-| `bit-and-u8` | [Prim.Machine](Prim.Machine.md#value-6269742d616e642d7538) |
-| `bit-and-usize` | [Data.Machine](Data.Machine.md#value-6269742d616e642d7573697a65) |
-| `bit-not-i16` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d693136) |
-| `bit-not-i32` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d693332) |
-| `bit-not-i64` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d693634) |
-| `bit-not-i8` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d6938) |
-| `bit-not-isize` | [Data.Machine](Data.Machine.md#value-6269742d6e6f742d6973697a65) |
-| `bit-not-u16` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d753136) |
-| `bit-not-u32` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d753332) |
-| `bit-not-u64` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d753634) |
-| `bit-not-u8` | [Prim.Machine](Prim.Machine.md#value-6269742d6e6f742d7538) |
-| `bit-not-usize` | [Data.Machine](Data.Machine.md#value-6269742d6e6f742d7573697a65) |
-| `bit-or-i16` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d693136) |
-| `bit-or-i32` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d693332) |
-| `bit-or-i64` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d693634) |
-| `bit-or-i8` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d6938) |
-| `bit-or-isize` | [Data.Machine](Data.Machine.md#value-6269742d6f722d6973697a65) |
-| `bit-or-u16` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d753136) |
-| `bit-or-u32` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d753332) |
-| `bit-or-u64` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d753634) |
-| `bit-or-u8` | [Prim.Machine](Prim.Machine.md#value-6269742d6f722d7538) |
-| `bit-or-usize` | [Data.Machine](Data.Machine.md#value-6269742d6f722d7573697a65) |
-| `bit-xor-i16` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d693136) |
-| `bit-xor-i32` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d693332) |
-| `bit-xor-i64` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d693634) |
-| `bit-xor-i8` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d6938) |
-| `bit-xor-isize` | [Data.Machine](Data.Machine.md#value-6269742d786f722d6973697a65) |
-| `bit-xor-u16` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d753136) |
-| `bit-xor-u32` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d753332) |
-| `bit-xor-u64` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d753634) |
-| `bit-xor-u8` | [Prim.Machine](Prim.Machine.md#value-6269742d786f722d7538) |
-| `bit-xor-usize` | [Data.Machine](Data.Machine.md#value-6269742d786f722d7573697a65) |
-| `bool` | [Data.Bool](Data.Bool.md#value-626f6f6c) |
-| `both` | [Function.Combinators](Function.Combinators.md#value-626f7468) |
-| `break` | [Data.List](Data.List.md#value-627265616b) |
-| `bytes-compare` | [Data.Bytes](Data.Bytes.md#value-62797465732d636f6d70617265) |
-| `bytes-copy-range` | [Data.Bytes](Data.Bytes.md#value-62797465732d636f70792d72616e6765) |
-| `bytes-data` | [Data.Bytes](Data.Bytes.md#value-62797465732d64617461) |
-| `bytes-from-list` | [Data.Bytes](Data.Bytes.md#value-62797465732d66726f6d2d6c697374) |
-| `bytes-from-u8s` | [Data.Bytes](Data.Bytes.md#value-62797465732d66726f6d2d753873) |
-| `bytes-get` | [Data.Bytes](Data.Bytes.md#value-62797465732d676574) |
-| `bytes-get-u8` | [Data.Bytes](Data.Bytes.md#value-62797465732d6765742d7538) |
-| `bytes-get-u8-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d6765742d75382d6174) |
-| `bytes-len` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c656e) |
-| `bytes-len-i64` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c656e2d693634) |
-| `bytes-load-le32` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d6c653332) |
-| `bytes-load-le32-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d6c6533322d6174) |
-| `bytes-load-le64` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d6c653634) |
-| `bytes-load-le64-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d6c6536342d6174) |
-| `bytes-load-u128` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d75313238) |
-| `bytes-load-u128-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d6c6f61642d753132382d6174) |
-| `bytes-new` | [Data.Bytes](Data.Bytes.md#value-62797465732d6e6577) |
-| `bytes-set` | [Data.Bytes](Data.Bytes.md#value-62797465732d736574) |
-| `bytes-set-u8` | [Data.Bytes](Data.Bytes.md#value-62797465732d7365742d7538) |
-| `bytes-set-u8-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d7365742d75382d6174) |
-| `bytes-store-le32` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d6c653332) |
-| `bytes-store-le32-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d6c6533322d6174) |
-| `bytes-store-le64` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d6c653634) |
-| `bytes-store-le64-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d6c6536342d6174) |
-| `bytes-store-u128` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d75313238) |
-| `bytes-store-u128-at` | [Data.Bytes](Data.Bytes.md#value-62797465732d73746f72652d753132382d6174) |
-| `cat-options` | [Data.Option](Data.Option.md#value-6361742d6f7074696f6e73) |
-| `ceil-f32` | [Data.Machine](Data.Machine.md#value-6365696c2d663332) |
-| `ceil-f64` | [Data.Machine](Data.Machine.md#value-6365696c2d663634) |
-| `char-code` | [Data.Char](Data.Char.md#value-636861722d636f6465) |
-| `char-from-code` | [Data.Char](Data.Char.md#value-636861722d66726f6d2d636f6465) |
-| `char-string` | [Text.Show](Text.Show.md#value-636861722d737472696e67) |
-| `char-to-u32` | [Data.Char](Data.Char.md#value-636861722d746f2d753332) |
-| `checked-add-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d693136) |
-| `checked-add-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d693332) |
-| `checked-add-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d693634) |
-| `checked-add-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d6938) |
-| `checked-add-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d6973697a65) |
-| `checked-add-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d753136) |
-| `checked-add-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d753332) |
-| `checked-add-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d753634) |
-| `checked-add-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d7538) |
-| `checked-add-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6164642d7573697a65) |
-| `checked-div` | [Data.Nat](Data.Nat.md#value-636865636b65642d646976) |
-| `checked-div-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d693136) |
-| `checked-div-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d693332) |
-| `checked-div-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d693634) |
-| `checked-div-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d6938) |
-| `checked-div-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d6973697a65) |
-| `checked-div-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d753136) |
-| `checked-div-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d753332) |
-| `checked-div-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d753634) |
-| `checked-div-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d7538) |
-| `checked-div-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6469762d7573697a65) |
-| `checked-f32-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d693136) |
-| `checked-f32-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d693332) |
-| `checked-f32-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d693634) |
-| `checked-f32-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d6938) |
-| `checked-f32-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d6973697a65) |
-| `checked-f32-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d753136) |
-| `checked-f32-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d753332) |
-| `checked-f32-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d753634) |
-| `checked-f32-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d7538) |
-| `checked-f32-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6633322d746f2d7573697a65) |
-| `checked-f64-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d693136) |
-| `checked-f64-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d693332) |
-| `checked-f64-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d693634) |
-| `checked-f64-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d6938) |
-| `checked-f64-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d6973697a65) |
-| `checked-f64-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d753136) |
-| `checked-f64-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d753332) |
-| `checked-f64-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d753634) |
-| `checked-f64-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d7538) |
-| `checked-f64-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6636342d746f2d7573697a65) |
-| `checked-i16-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d693136) |
-| `checked-i16-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d693332) |
-| `checked-i16-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d693634) |
-| `checked-i16-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d6938) |
-| `checked-i16-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d6973697a65) |
-| `checked-i16-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d753136) |
-| `checked-i16-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d753332) |
-| `checked-i16-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d753634) |
-| `checked-i16-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d7538) |
-| `checked-i16-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6931362d746f2d7573697a65) |
-| `checked-i32-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d693136) |
-| `checked-i32-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d693332) |
-| `checked-i32-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d693634) |
-| `checked-i32-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d6938) |
-| `checked-i32-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d6973697a65) |
-| `checked-i32-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d753136) |
-| `checked-i32-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d753332) |
-| `checked-i32-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d753634) |
-| `checked-i32-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d7538) |
-| `checked-i32-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6933322d746f2d7573697a65) |
-| `checked-i64-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d693136) |
-| `checked-i64-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d693332) |
-| `checked-i64-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d693634) |
-| `checked-i64-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d6938) |
-| `checked-i64-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d6973697a65) |
-| `checked-i64-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d753136) |
-| `checked-i64-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d753332) |
-| `checked-i64-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d753634) |
-| `checked-i64-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d7538) |
-| `checked-i64-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6936342d746f2d7573697a65) |
-| `checked-i8-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d693136) |
-| `checked-i8-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d693332) |
-| `checked-i8-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d693634) |
-| `checked-i8-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d6938) |
-| `checked-i8-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d6973697a65) |
-| `checked-i8-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d753136) |
-| `checked-i8-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d753332) |
-| `checked-i8-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d753634) |
-| `checked-i8-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d7538) |
-| `checked-i8-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d69382d746f2d7573697a65) |
-| `checked-int-to-i64` | [Data.Int](Data.Int.md#value-636865636b65642d696e742d746f2d693634) |
-| `checked-isize-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d693136) |
-| `checked-isize-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d693332) |
-| `checked-isize-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d693634) |
-| `checked-isize-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d6938) |
-| `checked-isize-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d6973697a65) |
-| `checked-isize-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d753136) |
-| `checked-isize-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d753332) |
-| `checked-isize-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d753634) |
-| `checked-isize-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d7538) |
-| `checked-isize-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6973697a652d746f2d7573697a65) |
-| `checked-mul-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d693136) |
-| `checked-mul-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d693332) |
-| `checked-mul-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d693634) |
-| `checked-mul-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d6938) |
-| `checked-mul-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d6973697a65) |
-| `checked-mul-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d753136) |
-| `checked-mul-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d753332) |
-| `checked-mul-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d753634) |
-| `checked-mul-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d7538) |
-| `checked-mul-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6d756c2d7573697a65) |
-| `checked-nat-from-i64` | [Data.Nat](Data.Nat.md#value-636865636b65642d6e61742d66726f6d2d693634) |
-| `checked-nat-to-i64` | [Data.Nat](Data.Nat.md#value-636865636b65642d6e61742d746f2d693634) |
-| `checked-neg-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d693136) |
-| `checked-neg-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d693332) |
-| `checked-neg-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d693634) |
-| `checked-neg-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d6938) |
-| `checked-neg-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d6973697a65) |
-| `checked-neg-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d753136) |
-| `checked-neg-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d753332) |
-| `checked-neg-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d753634) |
-| `checked-neg-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d7538) |
-| `checked-neg-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d6e65672d7573697a65) |
-| `checked-rem` | [Data.Nat](Data.Nat.md#value-636865636b65642d72656d) |
-| `checked-rem-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d693136) |
-| `checked-rem-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d693332) |
-| `checked-rem-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d693634) |
-| `checked-rem-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d6938) |
-| `checked-rem-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d6973697a65) |
-| `checked-rem-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d753136) |
-| `checked-rem-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d753332) |
-| `checked-rem-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d753634) |
-| `checked-rem-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d7538) |
-| `checked-rem-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d72656d2d7573697a65) |
-| `checked-shl-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d693136) |
-| `checked-shl-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d693332) |
-| `checked-shl-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d693634) |
-| `checked-shl-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d6938) |
-| `checked-shl-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d6973697a65) |
-| `checked-shl-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d753136) |
-| `checked-shl-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d753332) |
-| `checked-shl-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d753634) |
-| `checked-shl-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d7538) |
-| `checked-shl-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d73686c2d7573697a65) |
-| `checked-shr-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d693136) |
-| `checked-shr-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d693332) |
-| `checked-shr-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d693634) |
-| `checked-shr-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d6938) |
-| `checked-shr-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d6973697a65) |
-| `checked-shr-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d753136) |
-| `checked-shr-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d753332) |
-| `checked-shr-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d753634) |
-| `checked-shr-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d7538) |
-| `checked-shr-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7368722d7573697a65) |
-| `checked-sub` | [Data.Nat](Data.Nat.md#value-636865636b65642d737562) |
-| `checked-sub-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d693136) |
-| `checked-sub-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d693332) |
-| `checked-sub-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d693634) |
-| `checked-sub-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d6938) |
-| `checked-sub-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d6973697a65) |
-| `checked-sub-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d753136) |
-| `checked-sub-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d753332) |
-| `checked-sub-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d753634) |
-| `checked-sub-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d7538) |
-| `checked-sub-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7375622d7573697a65) |
-| `checked-u16-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d693136) |
-| `checked-u16-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d693332) |
-| `checked-u16-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d693634) |
-| `checked-u16-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d6938) |
-| `checked-u16-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d6973697a65) |
-| `checked-u16-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d753136) |
-| `checked-u16-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d753332) |
-| `checked-u16-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d753634) |
-| `checked-u16-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d7538) |
-| `checked-u16-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7531362d746f2d7573697a65) |
-| `checked-u32-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d693136) |
-| `checked-u32-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d693332) |
-| `checked-u32-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d693634) |
-| `checked-u32-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d6938) |
-| `checked-u32-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d6973697a65) |
-| `checked-u32-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d753136) |
-| `checked-u32-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d753332) |
-| `checked-u32-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d753634) |
-| `checked-u32-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d7538) |
-| `checked-u32-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7533322d746f2d7573697a65) |
-| `checked-u64-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d693136) |
-| `checked-u64-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d693332) |
-| `checked-u64-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d693634) |
-| `checked-u64-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d6938) |
-| `checked-u64-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d6973697a65) |
-| `checked-u64-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d753136) |
-| `checked-u64-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d753332) |
-| `checked-u64-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d753634) |
-| `checked-u64-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d7538) |
-| `checked-u64-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7536342d746f2d7573697a65) |
-| `checked-u8-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d693136) |
-| `checked-u8-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d693332) |
-| `checked-u8-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d693634) |
-| `checked-u8-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d6938) |
-| `checked-u8-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d6973697a65) |
-| `checked-u8-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d753136) |
-| `checked-u8-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d753332) |
-| `checked-u8-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d753634) |
-| `checked-u8-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d7538) |
-| `checked-u8-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d75382d746f2d7573697a65) |
-| `checked-usize-to-i16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d693136) |
-| `checked-usize-to-i32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d693332) |
-| `checked-usize-to-i64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d693634) |
-| `checked-usize-to-i8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d6938) |
-| `checked-usize-to-isize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d6973697a65) |
-| `checked-usize-to-u16` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d753136) |
-| `checked-usize-to-u32` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d753332) |
-| `checked-usize-to-u64` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d753634) |
-| `checked-usize-to-u8` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d7538) |
-| `checked-usize-to-usize` | [Data.Machine](Data.Machine.md#value-636865636b65642d7573697a652d746f2d7573697a65) |
-| `compare-bytes-from` | [Data.String](Data.String.md#value-636f6d706172652d62797465732d66726f6d) |
-| `comparing` | [Relation.Ord](Relation.Ord.md#value-636f6d706172696e67) |
-| `compose` | [Function.Combinators](Function.Combinators.md#value-636f6d706f7365) |
-| `const` | [Function.Combinators](Function.Combinators.md#value-636f6e7374) |
-| `copy-bytes-into` | [Data.String](Data.String.md#value-636f70792d62797465732d696e746f) |
-| `copysign-f32` | [Data.Machine](Data.Machine.md#value-636f70797369676e2d663332) |
-| `copysign-f64` | [Data.Machine](Data.Machine.md#value-636f70797369676e2d663634) |
-| `count-ones-i16` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d693136) |
-| `count-ones-i32` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d693332) |
-| `count-ones-i64` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d693634) |
-| `count-ones-i8` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d6938) |
-| `count-ones-isize` | [Data.Machine](Data.Machine.md#value-636f756e742d6f6e65732d6973697a65) |
-| `count-ones-u16` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d753136) |
-| `count-ones-u32` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d753332) |
-| `count-ones-u64` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d753634) |
-| `count-ones-u8` | [Prim.Machine](Prim.Machine.md#value-636f756e742d6f6e65732d7538) |
-| `count-ones-usize` | [Data.Machine](Data.Machine.md#value-636f756e742d6f6e65732d7573697a65) |
-| `curry` | [Function.Combinators](Function.Combinators.md#value-6375727279) |
-| `cycle` | [Data.List](Data.List.md#value-6379636c65) |
-| `detect-vec-u32` | [Data.Target](Data.Target.md#value-6465746563742d7665632d753332) |
-| `digit-value` | [Data.Char](Data.Char.md#value-64696769742d76616c7565) |
-| `div-f32` | [Data.Machine](Data.Machine.md#value-6469762d663332) |
-| `div-f64` | [Data.Machine](Data.Machine.md#value-6469762d663634) |
-| `div-u16` | [Data.Machine](Data.Machine.md#value-6469762d753136) |
-| `div-u32` | [Data.Machine](Data.Machine.md#value-6469762d753332) |
-| `div-u64` | [Data.Machine](Data.Machine.md#value-6469762d753634) |
-| `div-u8` | [Data.Machine](Data.Machine.md#value-6469762d7538) |
-| `div-usize` | [Data.Machine](Data.Machine.md#value-6469762d7573697a65) |
-| `drop` | [Data.List](Data.List.md#value-64726f70) |
-| `either` | [Data.Result](Data.Result.md#value-656974686572) |
-| `elem-index` | [Data.List](Data.List.md#value-656c656d2d696e646578) |
-| `empty-string` | [Data.String](Data.String.md#value-656d7074792d737472696e67) |
-| `enum-from-then-to` | [Data.Enum](Data.Enum.md#value-656e756d2d66726f6d2d7468656e2d746f) |
-| `enum-from-to` | [Data.Enum](Data.Enum.md#value-656e756d2d66726f6d2d746f) |
-| `eq-char` | [Data.Char](Data.Char.md#value-65712d63686172) |
-| `eq-i16` | [Prim.Machine](Prim.Machine.md#value-65712d693136) |
-| `eq-i32` | [Prim.Machine](Prim.Machine.md#value-65712d693332) |
-| `eq-i64` | [Prim.Machine](Prim.Machine.md#value-65712d693634) |
-| `eq-i8` | [Prim.Machine](Prim.Machine.md#value-65712d6938) |
-| `eq-isize` | [Data.Machine](Data.Machine.md#value-65712d6973697a65) |
-| `eq-u16` | [Prim.Machine](Prim.Machine.md#value-65712d753136) |
-| `eq-u32` | [Prim.Machine](Prim.Machine.md#value-65712d753332) |
-| `eq-u64` | [Prim.Machine](Prim.Machine.md#value-65712d753634) |
-| `eq-u8` | [Prim.Machine](Prim.Machine.md#value-65712d7538) |
-| `eq-usize` | [Data.Machine](Data.Machine.md#value-65712d7573697a65) |
-| `errors` | [Data.Result](Data.Result.md#value-6572726f7273) |
-| `f32-bits` | [Data.Machine](Data.Machine.md#value-6633322d62697473) |
-| `f32-from-bits` | [Data.Machine](Data.Machine.md#value-6633322d66726f6d2d62697473) |
-| `f32-to-f32` | [Data.Machine](Data.Machine.md#value-6633322d746f2d663332) |
-| `f32-to-f64` | [Prim.Machine](Prim.Machine.md#value-6633322d746f2d663634) |
-| `f64-bits` | [Data.Machine](Data.Machine.md#value-6636342d62697473) |
-| `f64-from-bits` | [Data.Machine](Data.Machine.md#value-6636342d66726f6d2d62697473) |
-| `f64-from-decimal` | [Data.Machine](Data.Machine.md#value-6636342d66726f6d2d646563696d616c) |
-| `f64-to-decimal` | [Data.Machine](Data.Machine.md#value-6636342d746f2d646563696d616c) |
-| `f64-to-f32` | [Prim.Machine](Prim.Machine.md#value-6636342d746f2d663332) |
-| `f64-to-f64` | [Data.Machine](Data.Machine.md#value-6636342d746f2d663634) |
-| `feq-f32` | [Data.Machine](Data.Machine.md#value-6665712d663332) |
-| `feq-f64` | [Data.Machine](Data.Machine.md#value-6665712d663634) |
-| `fetch` | [Effect.Concurrent](Effect.Concurrent.md#value-6665746368) |
-| `fge-f32` | [Data.Machine](Data.Machine.md#value-6667652d663332) |
-| `fge-f64` | [Data.Machine](Data.Machine.md#value-6667652d663634) |
-| `fgt-f32` | [Data.Machine](Data.Machine.md#value-6667742d663332) |
-| `fgt-f64` | [Data.Machine](Data.Machine.md#value-6667742d663634) |
-| `find` | [Data.List](Data.List.md#value-66696e64) |
-| `find-index` | [Data.List](Data.List.md#value-66696e642d696e646578) |
-| `fle-f32` | [Data.Machine](Data.Machine.md#value-666c652d663332) |
-| `fle-f64` | [Data.Machine](Data.Machine.md#value-666c652d663634) |
-| `flip` | [Function.Combinators](Function.Combinators.md#value-666c6970) |
-| `floor-f32` | [Data.Machine](Data.Machine.md#value-666c6f6f722d663332) |
-| `floor-f64` | [Data.Machine](Data.Machine.md#value-666c6f6f722d663634) |
-| `flt-f32` | [Data.Machine](Data.Machine.md#value-666c742d663332) |
-| `flt-f64` | [Data.Machine](Data.Machine.md#value-666c742d663634) |
-| `fne-f32` | [Data.Machine](Data.Machine.md#value-666e652d663332) |
-| `fne-f64` | [Data.Machine](Data.Machine.md#value-666e652d663634) |
-| `fold-left1` | [Data.List](Data.List.md#value-666f6c642d6c65667431) |
-| `fold-right1` | [Data.List](Data.List.md#value-666f6c642d726967687431) |
-| `foldr` | [Data.List](Data.List.md#value-666f6c6472) |
-| `from-option` | [Data.Option](Data.Option.md#value-66726f6d2d6f7074696f6e) |
-| `from-result` | [Data.Result](Data.Result.md#value-66726f6d2d726573756c74) |
-| `fst` | [Function.Combinators](Function.Combinators.md#value-667374) |
-| `ge-char` | [Data.Char](Data.Char.md#value-67652d63686172) |
-| `ge-i16` | [Prim.Machine](Prim.Machine.md#value-67652d693136) |
-| `ge-i32` | [Prim.Machine](Prim.Machine.md#value-67652d693332) |
-| `ge-i64` | [Prim.Machine](Prim.Machine.md#value-67652d693634) |
-| `ge-i8` | [Prim.Machine](Prim.Machine.md#value-67652d6938) |
-| `ge-isize` | [Data.Machine](Data.Machine.md#value-67652d6973697a65) |
-| `ge-u16` | [Prim.Machine](Prim.Machine.md#value-67652d753136) |
-| `ge-u32` | [Prim.Machine](Prim.Machine.md#value-67652d753332) |
-| `ge-u64` | [Prim.Machine](Prim.Machine.md#value-67652d753634) |
-| `ge-u8` | [Prim.Machine](Prim.Machine.md#value-67652d7538) |
-| `ge-usize` | [Data.Machine](Data.Machine.md#value-67652d7573697a65) |
-| `group-by` | [Data.List](Data.List.md#value-67726f75702d6279) |
-| `gt-char` | [Data.Char](Data.Char.md#value-67742d63686172) |
-| `gt-i16` | [Prim.Machine](Prim.Machine.md#value-67742d693136) |
-| `gt-i32` | [Prim.Machine](Prim.Machine.md#value-67742d693332) |
-| `gt-i64` | [Prim.Machine](Prim.Machine.md#value-67742d693634) |
-| `gt-i8` | [Prim.Machine](Prim.Machine.md#value-67742d6938) |
-| `gt-isize` | [Data.Machine](Data.Machine.md#value-67742d6973697a65) |
-| `gt-u16` | [Prim.Machine](Prim.Machine.md#value-67742d753136) |
-| `gt-u32` | [Prim.Machine](Prim.Machine.md#value-67742d753332) |
-| `gt-u64` | [Prim.Machine](Prim.Machine.md#value-67742d753634) |
-| `gt-u8` | [Prim.Machine](Prim.Machine.md#value-67742d7538) |
-| `gt-usize` | [Data.Machine](Data.Machine.md#value-67742d7573697a65) |
-| `head` | [Data.List](Data.List.md#value-68656164) |
-| `hex-digit-value` | [Data.Char](Data.Char.md#value-6865782d64696769742d76616c7565) |
-| `i16-to-f32` | [Prim.Machine](Prim.Machine.md#value-6931362d746f2d663332) |
-| `i16-to-f64` | [Prim.Machine](Prim.Machine.md#value-6931362d746f2d663634) |
-| `i16-to-i16` | [Data.Machine](Data.Machine.md#value-6931362d746f2d693136) |
-| `i16-to-i32` | [Prim.Machine](Prim.Machine.md#value-6931362d746f2d693332) |
-| `i16-to-i64` | [Prim.Machine](Prim.Machine.md#value-6931362d746f2d693634) |
-| `i16-to-isize` | [Prim.Machine](Prim.Machine.md#value-6931362d746f2d6973697a65) |
-| `i32-to-f32` | [Prim.Machine](Prim.Machine.md#value-6933322d746f2d663332) |
-| `i32-to-f64` | [Prim.Machine](Prim.Machine.md#value-6933322d746f2d663634) |
-| `i32-to-i32` | [Data.Machine](Data.Machine.md#value-6933322d746f2d693332) |
-| `i32-to-i64` | [Prim.Machine](Prim.Machine.md#value-6933322d746f2d693634) |
-| `i32-to-isize` | [Prim.Machine](Prim.Machine.md#value-6933322d746f2d6973697a65) |
-| `i64-le-byte` | [Data.Machine](Data.Machine.md#value-6936342d6c652d62797465) |
-| `i64-to-f32` | [Prim.Machine](Prim.Machine.md#value-6936342d746f2d663332) |
-| `i64-to-f64` | [Prim.Machine](Prim.Machine.md#value-6936342d746f2d663634) |
-| `i64-to-i64` | [Data.Machine](Data.Machine.md#value-6936342d746f2d693634) |
-| `i64-to-isize` | [Prim.Machine](Prim.Machine.md#value-6936342d746f2d6973697a65) |
-| `i8-to-f32` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d663332) |
-| `i8-to-f64` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d663634) |
-| `i8-to-i16` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d693136) |
-| `i8-to-i32` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d693332) |
-| `i8-to-i64` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d693634) |
-| `i8-to-i8` | [Data.Machine](Data.Machine.md#value-69382d746f2d6938) |
-| `i8-to-isize` | [Prim.Machine](Prim.Machine.md#value-69382d746f2d6973697a65) |
-| `identity` | [Function.Combinators](Function.Combinators.md#value-6964656e74697479) |
-| `init` | [Data.List](Data.List.md#value-696e6974) |
-| `int-add` | [Data.Int](Data.Int.md#value-696e742d616464) |
-| `int-cmp` | [Data.Int](Data.Int.md#value-696e742d636d70) |
-| `int-div` | [Data.Int](Data.Int.md#value-696e742d646976) |
-| `int-from-i64` | [Data.Int](Data.Int.md#value-696e742d66726f6d2d693634) |
-| `int-mod-nat` | [Data.Int](Data.Int.md#value-696e742d6d6f642d6e6174) |
-| `int-mul` | [Data.Int](Data.Int.md#value-696e742d6d756c) |
-| `int-neg` | [Data.Int](Data.Int.md#value-696e742d6e6567) |
-| `int-rem` | [Data.Int](Data.Int.md#value-696e742d72656d) |
-| `int-sub` | [Data.Int](Data.Int.md#value-696e742d737562) |
-| `int-to-i64` | [Data.Int](Data.Int.md#value-696e742d746f2d693634) |
-| `int-to-string` | [Text.Show](Text.Show.md#value-696e742d746f2d737472696e67) |
-| `intercalate` | [Data.List](Data.List.md#value-696e74657263616c617465) |
-| `intern` | [Data.Sym](Data.Sym.md#value-696e7465726e) |
-| `intersperse` | [Data.List](Data.List.md#value-696e746572737065727365) |
-| `is-ascii-alpha` | [Data.Char](Data.Char.md#value-69732d61736369692d616c706861) |
-| `is-ascii-alpha-numeric` | [Data.Char](Data.Char.md#value-69732d61736369692d616c7068612d6e756d65726963) |
-| `is-ascii-digit` | [Data.Char](Data.Char.md#value-69732d61736369692d6469676974) |
-| `is-ascii-hex-digit` | [Data.Char](Data.Char.md#value-69732d61736369692d6865782d6469676974) |
-| `is-ascii-lower` | [Data.Char](Data.Char.md#value-69732d61736369692d6c6f776572) |
-| `is-ascii-space` | [Data.Char](Data.Char.md#value-69732d61736369692d7370616365) |
-| `is-ascii-upper` | [Data.Char](Data.Char.md#value-69732d61736369692d7570706572) |
-| `is-empty` | [Data.List](Data.List.md#value-69732d656d707479) |
-| `is-err` | [Data.Result](Data.Result.md#value-69732d657272) |
-| `is-finite-f32` | [Data.Machine](Data.Machine.md#value-69732d66696e6974652d663332) |
-| `is-finite-f64` | [Data.Machine](Data.Machine.md#value-69732d66696e6974652d663634) |
-| `is-infinite-f32` | [Data.Machine](Data.Machine.md#value-69732d696e66696e6974652d663332) |
-| `is-infinite-f64` | [Data.Machine](Data.Machine.md#value-69732d696e66696e6974652d663634) |
-| `is-na-nf32` | [Data.Machine](Data.Machine.md#value-69732d6e612d6e663332) |
-| `is-na-nf64` | [Data.Machine](Data.Machine.md#value-69732d6e612d6e663634) |
-| `is-none` | [Data.Option](Data.Option.md#value-69732d6e6f6e65) |
-| `is-normal-f32` | [Data.Machine](Data.Machine.md#value-69732d6e6f726d616c2d663332) |
-| `is-normal-f64` | [Data.Machine](Data.Machine.md#value-69732d6e6f726d616c2d663634) |
-| `is-ok` | [Data.Result](Data.Result.md#value-69732d6f6b) |
-| `is-some` | [Data.Option](Data.Option.md#value-69732d736f6d65) |
-| `isize-to-f32` | [Data.Machine](Data.Machine.md#value-6973697a652d746f2d663332) |
-| `isize-to-f64` | [Data.Machine](Data.Machine.md#value-6973697a652d746f2d663634) |
-| `isize-to-i64` | [Prim.Machine](Prim.Machine.md#value-6973697a652d746f2d693634) |
-| `isize-to-isize` | [Data.Machine](Data.Machine.md#value-6973697a652d746f2d6973697a65) |
-| `iterate` | [Data.List](Data.List.md#value-69746572617465) |
-| `last` | [Data.List](Data.List.md#value-6c617374) |
-| `le-char` | [Data.Char](Data.Char.md#value-6c652d63686172) |
-| `le-i16` | [Prim.Machine](Prim.Machine.md#value-6c652d693136) |
-| `le-i32` | [Prim.Machine](Prim.Machine.md#value-6c652d693332) |
-| `le-i64` | [Prim.Machine](Prim.Machine.md#value-6c652d693634) |
-| `le-i8` | [Prim.Machine](Prim.Machine.md#value-6c652d6938) |
-| `le-isize` | [Data.Machine](Data.Machine.md#value-6c652d6973697a65) |
-| `le-u16` | [Prim.Machine](Prim.Machine.md#value-6c652d753136) |
-| `le-u32` | [Prim.Machine](Prim.Machine.md#value-6c652d753332) |
-| `le-u64` | [Prim.Machine](Prim.Machine.md#value-6c652d753634) |
-| `le-u8` | [Prim.Machine](Prim.Machine.md#value-6c652d7538) |
-| `le-usize` | [Data.Machine](Data.Machine.md#value-6c652d7573697a65) |
-| `leading-zeros-i16` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d693136) |
-| `leading-zeros-i32` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d693332) |
-| `leading-zeros-i64` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d693634) |
-| `leading-zeros-i8` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d6938) |
-| `leading-zeros-isize` | [Data.Machine](Data.Machine.md#value-6c656164696e672d7a65726f732d6973697a65) |
-| `leading-zeros-u16` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d753136) |
-| `leading-zeros-u32` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d753332) |
-| `leading-zeros-u64` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d753634) |
-| `leading-zeros-u8` | [Prim.Machine](Prim.Machine.md#value-6c656164696e672d7a65726f732d7538) |
-| `leading-zeros-usize` | [Data.Machine](Data.Machine.md#value-6c656164696e672d7a65726f732d7573697a65) |
-| `length` | [Data.List](Data.List.md#value-6c656e677468) |
-| `list-length` | [Data.List](Data.List.md#value-6c6973742d6c656e677468) |
-| `list-to-option` | [Data.Option](Data.Option.md#value-6c6973742d746f2d6f7074696f6e) |
-| `lookup` | [Data.List](Data.List.md#value-6c6f6f6b7570) |
-| `lt-char` | [Data.Char](Data.Char.md#value-6c742d63686172) |
-| `lt-i16` | [Prim.Machine](Prim.Machine.md#value-6c742d693136) |
-| `lt-i32` | [Prim.Machine](Prim.Machine.md#value-6c742d693332) |
-| `lt-i64` | [Prim.Machine](Prim.Machine.md#value-6c742d693634) |
-| `lt-i8` | [Prim.Machine](Prim.Machine.md#value-6c742d6938) |
-| `lt-isize` | [Data.Machine](Data.Machine.md#value-6c742d6973697a65) |
-| `lt-u16` | [Prim.Machine](Prim.Machine.md#value-6c742d753136) |
-| `lt-u32` | [Prim.Machine](Prim.Machine.md#value-6c742d753332) |
-| `lt-u64` | [Prim.Machine](Prim.Machine.md#value-6c742d753634) |
-| `lt-u8` | [Prim.Machine](Prim.Machine.md#value-6c742d7538) |
-| `lt-usize` | [Data.Machine](Data.Machine.md#value-6c742d7573697a65) |
-| `map` | [Data.List](Data.List.md#value-6d6170) |
-| `map-delete` | [Data.Map](Data.Map.md#value-6d61702d64656c657465) |
-| `map-empty` | [Data.Map](Data.Map.md#value-6d61702d656d707479) |
-| `map-err` | [Data.Result](Data.Result.md#value-6d61702d657272) |
-| `map-filter` | [Data.Map](Data.Map.md#value-6d61702d66696c746572) |
-| `map-fold` | [Data.Map](Data.Map.md#value-6d61702d666f6c64) |
-| `map-from-pairs` | [Data.Map](Data.Map.md#value-6d61702d66726f6d2d7061697273) |
-| `map-insert` | [Data.Map](Data.Map.md#value-6d61702d696e73657274) |
-| `map-is-empty` | [Data.Map](Data.Map.md#value-6d61702d69732d656d707479) |
-| `map-keys` | [Data.Map](Data.Map.md#value-6d61702d6b657973) |
-| `map-lookup` | [Data.Map](Data.Map.md#value-6d61702d6c6f6f6b7570) |
-| `map-map` | [Data.Map](Data.Map.md#value-6d61702d6d6170) |
-| `map-option` | [Data.Option](Data.Option.md#value-6d61702d6f7074696f6e) |
-| `map-result` | [Data.Result](Data.Result.md#value-6d61702d726573756c74) |
-| `map-size` | [Data.Map](Data.Map.md#value-6d61702d73697a65) |
-| `map-to-list` | [Data.Map](Data.Map.md#value-6d61702d746f2d6c697374) |
-| `map-union` | [Data.Map](Data.Map.md#value-6d61702d756e696f6e) |
-| `map-union-with` | [Data.Map](Data.Map.md#value-6d61702d756e696f6e2d77697468) |
-| `map-values` | [Data.Map](Data.Map.md#value-6d61702d76616c756573) |
-| `mask-i64` | [Prim.Machine](Prim.Machine.md#value-6d61736b2d693634) |
-| `max-bound-i16` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d693136) |
-| `max-bound-i32` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d693332) |
-| `max-bound-i64` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d693634) |
-| `max-bound-i8` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d6938) |
-| `max-bound-isize` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d6973697a65) |
-| `max-bound-u16` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d753136) |
-| `max-bound-u32` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d753332) |
-| `max-bound-u64` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d753634) |
-| `max-bound-u8` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d7538) |
-| `max-bound-usize` | [Data.Machine](Data.Machine.md#value-6d61782d626f756e642d7573697a65) |
-| `maximum-f32` | [Data.Machine](Data.Machine.md#value-6d6178696d756d2d663332) |
-| `maximum-f64` | [Data.Machine](Data.Machine.md#value-6d6178696d756d2d663634) |
-| `maybe` | [Data.Option](Data.Option.md#value-6d61796265) |
-| `min-bound-i16` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d693136) |
-| `min-bound-i32` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d693332) |
-| `min-bound-i64` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d693634) |
-| `min-bound-i8` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d6938) |
-| `min-bound-isize` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d6973697a65) |
-| `min-bound-u16` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d753136) |
-| `min-bound-u32` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d753332) |
-| `min-bound-u64` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d753634) |
-| `min-bound-u8` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d7538) |
-| `min-bound-usize` | [Data.Machine](Data.Machine.md#value-6d696e2d626f756e642d7573697a65) |
-| `minimum-f32` | [Data.Machine](Data.Machine.md#value-6d696e696d756d2d663332) |
-| `minimum-f64` | [Data.Machine](Data.Machine.md#value-6d696e696d756d2d663634) |
-| `mul-f32` | [Data.Machine](Data.Machine.md#value-6d756c2d663332) |
-| `mul-f64` | [Data.Machine](Data.Machine.md#value-6d756c2d663634) |
-| `nat-add` | [Data.Nat](Data.Nat.md#value-6e61742d616464) |
-| `nat-cmp` | [Data.Nat](Data.Nat.md#value-6e61742d636d70) |
-| `nat-digit-count` | [Text.Show](Text.Show.md#value-6e61742d64696769742d636f756e74) |
-| `nat-digits-into` | [Text.Show](Text.Show.md#value-6e61742d6469676974732d696e746f) |
-| `nat-div` | [Data.Nat](Data.Nat.md#value-6e61742d646976) |
-| `nat-from-i64` | [Data.Nat](Data.Nat.md#value-6e61742d66726f6d2d693634) |
-| `nat-from-int` | [Data.Nat](Data.Nat.md#value-6e61742d66726f6d2d696e74) |
-| `nat-mul` | [Data.Nat](Data.Nat.md#value-6e61742d6d756c) |
-| `nat-rem` | [Data.Nat](Data.Nat.md#value-6e61742d72656d) |
-| `nat-sub` | [Data.Nat](Data.Nat.md#value-6e61742d737562) |
-| `nat-to-i64` | [Data.Nat](Data.Nat.md#value-6e61742d746f2d693634) |
-| `nat-to-int` | [Data.Nat](Data.Nat.md#value-6e61742d746f2d696e74) |
-| `nat-to-string` | [Text.Show](Text.Show.md#value-6e61742d746f2d737472696e67) |
-| `ne-char` | [Data.Char](Data.Char.md#value-6e652d63686172) |
-| `ne-i16` | [Prim.Machine](Prim.Machine.md#value-6e652d693136) |
-| `ne-i32` | [Prim.Machine](Prim.Machine.md#value-6e652d693332) |
-| `ne-i64` | [Prim.Machine](Prim.Machine.md#value-6e652d693634) |
-| `ne-i8` | [Prim.Machine](Prim.Machine.md#value-6e652d6938) |
-| `ne-isize` | [Data.Machine](Data.Machine.md#value-6e652d6973697a65) |
-| `ne-u16` | [Prim.Machine](Prim.Machine.md#value-6e652d753136) |
-| `ne-u32` | [Prim.Machine](Prim.Machine.md#value-6e652d753332) |
-| `ne-u64` | [Prim.Machine](Prim.Machine.md#value-6e652d753634) |
-| `ne-u8` | [Prim.Machine](Prim.Machine.md#value-6e652d7538) |
-| `ne-usize` | [Data.Machine](Data.Machine.md#value-6e652d7573697a65) |
-| `neg-f32` | [Data.Machine](Data.Machine.md#value-6e65672d663332) |
-| `neg-f64` | [Data.Machine](Data.Machine.md#value-6e65672d663634) |
-| `not` | [Data.Bool](Data.Bool.md#value-6e6f74) |
-| `nth` | [Data.List](Data.List.md#value-6e7468) |
-| `nub` | [Data.List](Data.List.md#value-6e7562) |
-| `on` | [Function.Combinators](Function.Combinators.md#value-6f6e) |
-| `option-to-list` | [Data.Option](Data.Option.md#value-6f7074696f6e2d746f2d6c697374) |
-| `option-to-result` | [Data.Result](Data.Result.md#value-6f7074696f6e2d746f2d726573756c74) |
-| `or` | [Data.Bool](Data.Bool.md#value-6f72) |
-| `or-else` | [Data.Option](Data.Option.md#value-6f722d656c7365) |
-| `pack` | [Data.String](Data.String.md#value-7061636b) |
-| `parse-config` | [Effect.Io](Effect.Io.md#value-70617273652d636f6e666967) |
-| `partition` | [Data.List](Data.List.md#value-706172746974696f6e) |
-| `partition-results` | [Data.Result](Data.Result.md#value-706172746974696f6e2d726573756c7473) |
-| `pow10` | [Text.Show](Text.Show.md#value-706f773130) |
-| `prim-and-bool` | [Data.Bool](Data.Bool.md#value-7072696d2d616e642d626f6f6c) |
-| `prim-eq-bool` | [Data.Bool](Data.Bool.md#value-7072696d2d65712d626f6f6c) |
-| `prim-ne-bool` | [Data.Bool](Data.Bool.md#value-7072696d2d6e652d626f6f6c) |
-| `prim-not-bool` | [Data.Bool](Data.Bool.md#value-7072696d2d6e6f742d626f6f6c) |
-| `prim-or-bool` | [Data.Bool](Data.Bool.md#value-7072696d2d6f722d626f6f6c) |
-| `prod-fold` | [Data.Producer](Data.Producer.md#value-70726f642d666f6c64) |
-| `prod-fold-go` | [Data.Producer](Data.Producer.md#value-70726f642d666f6c642d676f) |
-| `prod-map` | [Data.Producer](Data.Producer.md#value-70726f642d6d6170) |
-| `prod-take` | [Data.Producer](Data.Producer.md#value-70726f642d74616b65) |
-| `prod-take-step` | [Data.Producer](Data.Producer.md#value-70726f642d74616b652d73746570) |
-| `read-config-bytes` | [Effect.Io](Effect.Io.md#value-726561642d636f6e6669672d6279746573) |
-| `rem-u16` | [Data.Machine](Data.Machine.md#value-72656d2d753136) |
-| `rem-u32` | [Data.Machine](Data.Machine.md#value-72656d2d753332) |
-| `rem-u64` | [Data.Machine](Data.Machine.md#value-72656d2d753634) |
-| `rem-u8` | [Data.Machine](Data.Machine.md#value-72656d2d7538) |
-| `rem-usize` | [Data.Machine](Data.Machine.md#value-72656d2d7573697a65) |
-| `replicate` | [Data.List](Data.List.md#value-7265706c6963617465) |
-| `result-to-option` | [Data.Result](Data.Result.md#value-726573756c742d746f2d6f7074696f6e) |
-| `results` | [Data.Result](Data.Result.md#value-726573756c7473) |
-| `reverse` | [Data.List](Data.List.md#value-72657665727365) |
-| `reverse-bits-i16` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d693136) |
-| `reverse-bits-i32` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d693332) |
-| `reverse-bits-i64` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d693634) |
-| `reverse-bits-i8` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d6938) |
-| `reverse-bits-isize` | [Data.Machine](Data.Machine.md#value-726576657273652d626974732d6973697a65) |
-| `reverse-bits-u16` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d753136) |
-| `reverse-bits-u32` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d753332) |
-| `reverse-bits-u64` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d753634) |
-| `reverse-bits-u8` | [Prim.Machine](Prim.Machine.md#value-726576657273652d626974732d7538) |
-| `reverse-bits-usize` | [Data.Machine](Data.Machine.md#value-726576657273652d626974732d7573697a65) |
-| `rotate-left-i16` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d693136) |
-| `rotate-left-i32` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d693332) |
-| `rotate-left-i64` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d693634) |
-| `rotate-left-i8` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d6938) |
-| `rotate-left-isize` | [Data.Machine](Data.Machine.md#value-726f746174652d6c6566742d6973697a65) |
-| `rotate-left-u16` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d753136) |
-| `rotate-left-u32` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d753332) |
-| `rotate-left-u64` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d753634) |
-| `rotate-left-u8` | [Prim.Machine](Prim.Machine.md#value-726f746174652d6c6566742d7538) |
-| `rotate-left-usize` | [Data.Machine](Data.Machine.md#value-726f746174652d6c6566742d7573697a65) |
-| `rotate-right-i16` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d693136) |
-| `rotate-right-i32` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d693332) |
-| `rotate-right-i64` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d693634) |
-| `rotate-right-i8` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d6938) |
-| `rotate-right-isize` | [Data.Machine](Data.Machine.md#value-726f746174652d72696768742d6973697a65) |
-| `rotate-right-u16` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d753136) |
-| `rotate-right-u32` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d753332) |
-| `rotate-right-u64` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d753634) |
-| `rotate-right-u8` | [Prim.Machine](Prim.Machine.md#value-726f746174652d72696768742d7538) |
-| `rotate-right-usize` | [Data.Machine](Data.Machine.md#value-726f746174652d72696768742d7573697a65) |
-| `round-f32` | [Data.Machine](Data.Machine.md#value-726f756e642d663332) |
-| `round-f64` | [Data.Machine](Data.Machine.md#value-726f756e642d663634) |
-| `round-to-even-f32` | [Data.Machine](Data.Machine.md#value-726f756e642d746f2d6576656e2d663332) |
-| `round-to-even-f64` | [Data.Machine](Data.Machine.md#value-726f756e642d746f2d6576656e2d663634) |
-| `saturating-add-i16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d693136) |
-| `saturating-add-i32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d693332) |
-| `saturating-add-i64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d693634) |
-| `saturating-add-i8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d6938) |
-| `saturating-add-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6164642d6973697a65) |
-| `saturating-add-u16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d753136) |
-| `saturating-add-u32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d753332) |
-| `saturating-add-u64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d753634) |
-| `saturating-add-u8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6164642d7538) |
-| `saturating-add-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6164642d7573697a65) |
-| `saturating-f32-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d693136) |
-| `saturating-f32-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d693332) |
-| `saturating-f32-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d693634) |
-| `saturating-f32-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d6938) |
-| `saturating-f32-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d6973697a65) |
-| `saturating-f32-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d753136) |
-| `saturating-f32-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d753332) |
-| `saturating-f32-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d753634) |
-| `saturating-f32-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d7538) |
-| `saturating-f32-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6633322d746f2d7573697a65) |
-| `saturating-f64-to-i16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d693136) |
-| `saturating-f64-to-i32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d693332) |
-| `saturating-f64-to-i64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d693634) |
-| `saturating-f64-to-i8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d6938) |
-| `saturating-f64-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6636342d746f2d6973697a65) |
-| `saturating-f64-to-u16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d753136) |
-| `saturating-f64-to-u32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d753332) |
-| `saturating-f64-to-u64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d753634) |
-| `saturating-f64-to-u8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6636342d746f2d7538) |
-| `saturating-f64-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6636342d746f2d7573697a65) |
-| `saturating-i16-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d693136) |
-| `saturating-i16-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d693332) |
-| `saturating-i16-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d693634) |
-| `saturating-i16-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d6938) |
-| `saturating-i16-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d6973697a65) |
-| `saturating-i16-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d753136) |
-| `saturating-i16-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d753332) |
-| `saturating-i16-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d753634) |
-| `saturating-i16-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d7538) |
-| `saturating-i16-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6931362d746f2d7573697a65) |
-| `saturating-i32-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d693136) |
-| `saturating-i32-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d693332) |
-| `saturating-i32-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d693634) |
-| `saturating-i32-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d6938) |
-| `saturating-i32-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d6973697a65) |
-| `saturating-i32-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d753136) |
-| `saturating-i32-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d753332) |
-| `saturating-i32-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d753634) |
-| `saturating-i32-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d7538) |
-| `saturating-i32-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6933322d746f2d7573697a65) |
-| `saturating-i64-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d693136) |
-| `saturating-i64-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d693332) |
-| `saturating-i64-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d693634) |
-| `saturating-i64-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d6938) |
-| `saturating-i64-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d6973697a65) |
-| `saturating-i64-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d753136) |
-| `saturating-i64-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d753332) |
-| `saturating-i64-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d753634) |
-| `saturating-i64-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d7538) |
-| `saturating-i64-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6936342d746f2d7573697a65) |
-| `saturating-i8-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d693136) |
-| `saturating-i8-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d693332) |
-| `saturating-i8-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d693634) |
-| `saturating-i8-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d6938) |
-| `saturating-i8-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d6973697a65) |
-| `saturating-i8-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d753136) |
-| `saturating-i8-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d753332) |
-| `saturating-i8-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d753634) |
-| `saturating-i8-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d7538) |
-| `saturating-i8-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d69382d746f2d7573697a65) |
-| `saturating-isize-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d693136) |
-| `saturating-isize-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d693332) |
-| `saturating-isize-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d693634) |
-| `saturating-isize-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d6938) |
-| `saturating-isize-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d6973697a65) |
-| `saturating-isize-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d753136) |
-| `saturating-isize-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d753332) |
-| `saturating-isize-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d753634) |
-| `saturating-isize-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d7538) |
-| `saturating-isize-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6973697a652d746f2d7573697a65) |
-| `saturating-mul-i16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d693136) |
-| `saturating-mul-i32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d693332) |
-| `saturating-mul-i64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d693634) |
-| `saturating-mul-i8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d6938) |
-| `saturating-mul-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6d756c2d6973697a65) |
-| `saturating-mul-u16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d753136) |
-| `saturating-mul-u32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d753332) |
-| `saturating-mul-u64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d753634) |
-| `saturating-mul-u8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d6d756c2d7538) |
-| `saturating-mul-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6d756c2d7573697a65) |
-| `saturating-neg-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d693136) |
-| `saturating-neg-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d693332) |
-| `saturating-neg-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d693634) |
-| `saturating-neg-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d6938) |
-| `saturating-neg-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d6973697a65) |
-| `saturating-neg-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d753136) |
-| `saturating-neg-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d753332) |
-| `saturating-neg-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d753634) |
-| `saturating-neg-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d7538) |
-| `saturating-neg-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d6e65672d7573697a65) |
-| `saturating-sub` | [Data.Nat](Data.Nat.md#value-73617475726174696e672d737562) |
-| `saturating-sub-i16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d693136) |
-| `saturating-sub-i32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d693332) |
-| `saturating-sub-i64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d693634) |
-| `saturating-sub-i8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d6938) |
-| `saturating-sub-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7375622d6973697a65) |
-| `saturating-sub-u16` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d753136) |
-| `saturating-sub-u32` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d753332) |
-| `saturating-sub-u64` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d753634) |
-| `saturating-sub-u8` | [Prim.Machine](Prim.Machine.md#value-73617475726174696e672d7375622d7538) |
-| `saturating-sub-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7375622d7573697a65) |
-| `saturating-u16-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d693136) |
-| `saturating-u16-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d693332) |
-| `saturating-u16-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d693634) |
-| `saturating-u16-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d6938) |
-| `saturating-u16-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d6973697a65) |
-| `saturating-u16-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d753136) |
-| `saturating-u16-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d753332) |
-| `saturating-u16-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d753634) |
-| `saturating-u16-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d7538) |
-| `saturating-u16-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7531362d746f2d7573697a65) |
-| `saturating-u32-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d693136) |
-| `saturating-u32-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d693332) |
-| `saturating-u32-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d693634) |
-| `saturating-u32-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d6938) |
-| `saturating-u32-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d6973697a65) |
-| `saturating-u32-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d753136) |
-| `saturating-u32-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d753332) |
-| `saturating-u32-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d753634) |
-| `saturating-u32-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d7538) |
-| `saturating-u32-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7533322d746f2d7573697a65) |
-| `saturating-u64-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d693136) |
-| `saturating-u64-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d693332) |
-| `saturating-u64-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d693634) |
-| `saturating-u64-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d6938) |
-| `saturating-u64-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d6973697a65) |
-| `saturating-u64-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d753136) |
-| `saturating-u64-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d753332) |
-| `saturating-u64-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d753634) |
-| `saturating-u64-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d7538) |
-| `saturating-u64-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7536342d746f2d7573697a65) |
-| `saturating-u8-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d693136) |
-| `saturating-u8-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d693332) |
-| `saturating-u8-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d693634) |
-| `saturating-u8-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d6938) |
-| `saturating-u8-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d6973697a65) |
-| `saturating-u8-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d753136) |
-| `saturating-u8-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d753332) |
-| `saturating-u8-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d753634) |
-| `saturating-u8-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d7538) |
-| `saturating-u8-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d75382d746f2d7573697a65) |
-| `saturating-usize-to-i16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d693136) |
-| `saturating-usize-to-i32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d693332) |
-| `saturating-usize-to-i64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d693634) |
-| `saturating-usize-to-i8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d6938) |
-| `saturating-usize-to-isize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d6973697a65) |
-| `saturating-usize-to-u16` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d753136) |
-| `saturating-usize-to-u32` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d753332) |
-| `saturating-usize-to-u64` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d753634) |
-| `saturating-usize-to-u8` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d7538) |
-| `saturating-usize-to-usize` | [Data.Machine](Data.Machine.md#value-73617475726174696e672d7573697a652d746f2d7573697a65) |
-| `scalar-sum-wrap32` | [Data.Producer](Data.Producer.md#value-7363616c61722d73756d2d777261703332) |
-| `scanl` | [Data.List](Data.List.md#value-7363616e6c) |
-| `scanr` | [Data.List](Data.List.md#value-7363616e72) |
-| `sha256-bytes` | [Data.Bytes](Data.Bytes.md#value-7368613235362d6279746573) |
-| `sign-bit-f32` | [Data.Machine](Data.Machine.md#value-7369676e2d6269742d663332) |
-| `sign-bit-f64` | [Data.Machine](Data.Machine.md#value-7369676e2d6269742d663634) |
-| `simd-sum-wrap32` | [Data.Target](Data.Target.md#value-73696d642d73756d2d777261703332) |
-| `snd` | [Function.Combinators](Function.Combinators.md#value-736e64) |
-| `sort` | [Data.List](Data.List.md#value-736f7274) |
-| `sort-by` | [Data.List](Data.List.md#value-736f72742d6279) |
-| `span` | [Data.List](Data.List.md#value-7370616e) |
-| `split-at` | [Data.List](Data.List.md#value-73706c69742d6174) |
-| `sqrt-f32` | [Data.Machine](Data.Machine.md#value-737172742d663332) |
-| `sqrt-f64` | [Data.Machine](Data.Machine.md#value-737172742d663634) |
-| `string-byte-index-from` | [Data.String](Data.String.md#value-737472696e672d627974652d696e6465782d66726f6d) |
-| `string-byte-length` | [Data.String](Data.String.md#value-737472696e672d627974652d6c656e677468) |
-| `string-char-at` | [Data.String](Data.String.md#value-737472696e672d636861722d6174) |
-| `string-char-at-from` | [Data.String](Data.String.md#value-737472696e672d636861722d61742d66726f6d) |
-| `string-clone` | [Data.String](Data.String.md#value-737472696e672d636c6f6e65) |
-| `string-compare` | [Data.String](Data.String.md#value-737472696e672d636f6d70617265) |
-| `string-concat` | [Data.String](Data.String.md#value-737472696e672d636f6e636174) |
-| `string-concat-all` | [Data.String](Data.String.md#value-737472696e672d636f6e6361742d616c6c) |
-| `string-from-bytes` | [Data.String](Data.String.md#value-737472696e672d66726f6d2d6279746573) |
-| `string-join` | [Data.String](Data.String.md#value-737472696e672d6a6f696e) |
-| `string-length` | [Data.String](Data.String.md#value-737472696e672d6c656e677468) |
-| `string-length-from` | [Data.String](Data.String.md#value-737472696e672d6c656e6774682d66726f6d) |
-| `string-repeat` | [Data.String](Data.String.md#value-737472696e672d726570656174) |
-| `string-slice` | [Data.String](Data.String.md#value-737472696e672d736c696365) |
-| `string-to-bytes` | [Data.String](Data.String.md#value-737472696e672d746f2d6279746573) |
-| `string-utf8-first` | [Data.String](Data.String.md#value-737472696e672d757466382d6669727374) |
-| `string-utf8-last` | [Data.String](Data.String.md#value-737472696e672d757466382d6c617374) |
-| `sub-f32` | [Data.Machine](Data.Machine.md#value-7375622d663332) |
-| `sub-f64` | [Data.Machine](Data.Machine.md#value-7375622d663634) |
-| `subsequences` | [Data.List](Data.List.md#value-73756273657175656e636573) |
-| `sum-list` | [Data.List](Data.List.md#value-73756d2d6c697374) |
-| `swap` | [Function.Combinators](Function.Combinators.md#value-73776170) |
-| `swap-bytes-i16` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d693136) |
-| `swap-bytes-i32` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d693332) |
-| `swap-bytes-i64` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d693634) |
-| `swap-bytes-i8` | [Data.Machine](Data.Machine.md#value-737761702d62797465732d6938) |
-| `swap-bytes-isize` | [Data.Machine](Data.Machine.md#value-737761702d62797465732d6973697a65) |
-| `swap-bytes-u16` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d753136) |
-| `swap-bytes-u32` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d753332) |
-| `swap-bytes-u64` | [Prim.Machine](Prim.Machine.md#value-737761702d62797465732d753634) |
-| `swap-bytes-u8` | [Data.Machine](Data.Machine.md#value-737761702d62797465732d7538) |
-| `swap-bytes-usize` | [Data.Machine](Data.Machine.md#value-737761702d62797465732d7573697a65) |
-| `sym-name` | [Data.Sym](Data.Sym.md#value-73796d2d6e616d65) |
-| `tail` | [Data.List](Data.List.md#value-7461696c) |
-| `take` | [Data.List](Data.List.md#value-74616b65) |
-| `to-lower-ascii` | [Data.Char](Data.Char.md#value-746f2d6c6f7765722d6173636969) |
-| `to-upper-ascii` | [Data.Char](Data.Char.md#value-746f2d75707065722d6173636969) |
-| `total-order-f32` | [Data.Machine](Data.Machine.md#value-746f74616c2d6f726465722d663332) |
-| `total-order-f64` | [Data.Machine](Data.Machine.md#value-746f74616c2d6f726465722d663634) |
-| `trailing-zeros-i16` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d693136) |
-| `trailing-zeros-i32` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d693332) |
-| `trailing-zeros-i64` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d693634) |
-| `trailing-zeros-i8` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d6938) |
-| `trailing-zeros-isize` | [Data.Machine](Data.Machine.md#value-747261696c696e672d7a65726f732d6973697a65) |
-| `trailing-zeros-u16` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d753136) |
-| `trailing-zeros-u32` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d753332) |
-| `trailing-zeros-u64` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d753634) |
-| `trailing-zeros-u8` | [Prim.Machine](Prim.Machine.md#value-747261696c696e672d7a65726f732d7538) |
-| `trailing-zeros-usize` | [Data.Machine](Data.Machine.md#value-747261696c696e672d7a65726f732d7573697a65) |
-| `transpose` | [Data.List](Data.List.md#value-7472616e73706f7365) |
-| `trunc-f32` | [Data.Machine](Data.Machine.md#value-7472756e632d663332) |
-| `trunc-f64` | [Data.Machine](Data.Machine.md#value-7472756e632d663634) |
-| `u16-to-f32` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d663332) |
-| `u16-to-f64` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d663634) |
-| `u16-to-i32` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d693332) |
-| `u16-to-i64` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d693634) |
-| `u16-to-isize` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d6973697a65) |
-| `u16-to-nat` | [Data.Machine](Data.Machine.md#value-7531362d746f2d6e6174) |
-| `u16-to-u16` | [Data.Machine](Data.Machine.md#value-7531362d746f2d753136) |
-| `u16-to-u32` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d753332) |
-| `u16-to-u64` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d753634) |
-| `u16-to-usize` | [Prim.Machine](Prim.Machine.md#value-7531362d746f2d7573697a65) |
-| `u32-to-char` | [Data.Char](Data.Char.md#value-7533322d746f2d63686172) |
-| `u32-to-f32` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d663332) |
-| `u32-to-f64` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d663634) |
-| `u32-to-i64` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d693634) |
-| `u32-to-isize` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d6973697a65) |
-| `u32-to-nat` | [Data.Machine](Data.Machine.md#value-7533322d746f2d6e6174) |
-| `u32-to-u32` | [Data.Machine](Data.Machine.md#value-7533322d746f2d753332) |
-| `u32-to-u64` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d753634) |
-| `u32-to-usize` | [Prim.Machine](Prim.Machine.md#value-7533322d746f2d7573697a65) |
-| `u64-to-f32` | [Prim.Machine](Prim.Machine.md#value-7536342d746f2d663332) |
-| `u64-to-f64` | [Prim.Machine](Prim.Machine.md#value-7536342d746f2d663634) |
-| `u64-to-u64` | [Data.Machine](Data.Machine.md#value-7536342d746f2d753634) |
-| `u64-to-usize` | [Prim.Machine](Prim.Machine.md#value-7536342d746f2d7573697a65) |
-| `u8-to-f32` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d663332) |
-| `u8-to-f64` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d663634) |
-| `u8-to-i16` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d693136) |
-| `u8-to-i32` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d693332) |
-| `u8-to-i64` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d693634) |
-| `u8-to-isize` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d6973697a65) |
-| `u8-to-nat` | [Data.Machine](Data.Machine.md#value-75382d746f2d6e6174) |
-| `u8-to-u16` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d753136) |
-| `u8-to-u32` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d753332) |
-| `u8-to-u64` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d753634) |
-| `u8-to-u8` | [Data.Machine](Data.Machine.md#value-75382d746f2d7538) |
-| `u8-to-usize` | [Prim.Machine](Prim.Machine.md#value-75382d746f2d7573697a65) |
-| `uncurry` | [Function.Combinators](Function.Combinators.md#value-756e6375727279) |
-| `unfold` | [Data.List](Data.List.md#value-756e666f6c64) |
-| `unpack` | [Data.String](Data.String.md#value-756e7061636b) |
-| `unzip` | [Data.List](Data.List.md#value-756e7a6970) |
-| `usize-to-f32` | [Data.Machine](Data.Machine.md#value-7573697a652d746f2d663332) |
-| `usize-to-f64` | [Data.Machine](Data.Machine.md#value-7573697a652d746f2d663634) |
-| `usize-to-u64` | [Prim.Machine](Prim.Machine.md#value-7573697a652d746f2d753634) |
-| `usize-to-usize` | [Data.Machine](Data.Machine.md#value-7573697a652d746f2d7573697a65) |
-| `utf8-at` | [Data.String](Data.String.md#value-757466382d6174) |
-| `utf8-char` | [Data.String](Data.String.md#value-757466382d63686172) |
-| `utf8-cont` | [Data.String](Data.String.md#value-757466382d636f6e74) |
-| `utf8-encode-into` | [Data.String](Data.String.md#value-757466382d656e636f64652d696e746f) |
-| `utf8-encode-width` | [Data.String](Data.String.md#value-757466382d656e636f64652d7769647468) |
-| `utf8-lead-payload` | [Data.String](Data.String.md#value-757466382d6c6561642d7061796c6f6164) |
-| `utf8-min` | [Data.String](Data.String.md#value-757466382d6d696e) |
-| `utf8-valid-from` | [Data.String](Data.String.md#value-757466382d76616c69642d66726f6d) |
-| `utf8-width` | [Data.String](Data.String.md#value-757466382d7769647468) |
-| `vec-stream` | [Data.Producer](Data.Producer.md#value-7665632d73747265616d) |
-| `wrapping-add-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d693136) |
-| `wrapping-add-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d693332) |
-| `wrapping-add-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d693634) |
-| `wrapping-add-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d6938) |
-| `wrapping-add-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6164642d6973697a65) |
-| `wrapping-add-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d753136) |
-| `wrapping-add-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d753332) |
-| `wrapping-add-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d753634) |
-| `wrapping-add-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6164642d7538) |
-| `wrapping-add-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6164642d7573697a65) |
-| `wrapping-i16-to-i16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6931362d746f2d693136) |
-| `wrapping-i16-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6931362d746f2d693332) |
-| `wrapping-i16-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6931362d746f2d693634) |
-| `wrapping-i16-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6931362d746f2d6938) |
-| `wrapping-i16-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6931362d746f2d6973697a65) |
-| `wrapping-i16-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6931362d746f2d753136) |
-| `wrapping-i16-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6931362d746f2d753332) |
-| `wrapping-i16-to-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6931362d746f2d753634) |
-| `wrapping-i16-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6931362d746f2d7538) |
-| `wrapping-i16-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6931362d746f2d7573697a65) |
-| `wrapping-i32-to-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d693136) |
-| `wrapping-i32-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6933322d746f2d693332) |
-| `wrapping-i32-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6933322d746f2d693634) |
-| `wrapping-i32-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d6938) |
-| `wrapping-i32-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6933322d746f2d6973697a65) |
-| `wrapping-i32-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d753136) |
-| `wrapping-i32-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d753332) |
-| `wrapping-i32-to-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d753634) |
-| `wrapping-i32-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6933322d746f2d7538) |
-| `wrapping-i32-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6933322d746f2d7573697a65) |
-| `wrapping-i64-to-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d693136) |
-| `wrapping-i64-to-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d693332) |
-| `wrapping-i64-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6936342d746f2d693634) |
-| `wrapping-i64-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d6938) |
-| `wrapping-i64-to-isize` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d6973697a65) |
-| `wrapping-i64-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d753136) |
-| `wrapping-i64-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d753332) |
-| `wrapping-i64-to-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d753634) |
-| `wrapping-i64-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6936342d746f2d7538) |
-| `wrapping-i64-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6936342d746f2d7573697a65) |
-| `wrapping-i8-to-i16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d693136) |
-| `wrapping-i8-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d693332) |
-| `wrapping-i8-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d693634) |
-| `wrapping-i8-to-i8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d6938) |
-| `wrapping-i8-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d6973697a65) |
-| `wrapping-i8-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d69382d746f2d753136) |
-| `wrapping-i8-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d69382d746f2d753332) |
-| `wrapping-i8-to-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d69382d746f2d753634) |
-| `wrapping-i8-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d69382d746f2d7538) |
-| `wrapping-i8-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d69382d746f2d7573697a65) |
-| `wrapping-isize-to-i16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d693136) |
-| `wrapping-isize-to-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6973697a652d746f2d693332) |
-| `wrapping-isize-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d693634) |
-| `wrapping-isize-to-i8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d6938) |
-| `wrapping-isize-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d6973697a65) |
-| `wrapping-isize-to-u16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d753136) |
-| `wrapping-isize-to-u32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d753332) |
-| `wrapping-isize-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d753634) |
-| `wrapping-isize-to-u8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d7538) |
-| `wrapping-isize-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6973697a652d746f2d7573697a65) |
-| `wrapping-mul-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d693136) |
-| `wrapping-mul-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d693332) |
-| `wrapping-mul-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d693634) |
-| `wrapping-mul-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d6938) |
-| `wrapping-mul-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6d756c2d6973697a65) |
-| `wrapping-mul-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d753136) |
-| `wrapping-mul-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d753332) |
-| `wrapping-mul-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d753634) |
-| `wrapping-mul-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6d756c2d7538) |
-| `wrapping-mul-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6d756c2d7573697a65) |
-| `wrapping-neg-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d693136) |
-| `wrapping-neg-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d693332) |
-| `wrapping-neg-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d693634) |
-| `wrapping-neg-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d6938) |
-| `wrapping-neg-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6e65672d6973697a65) |
-| `wrapping-neg-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d753136) |
-| `wrapping-neg-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d753332) |
-| `wrapping-neg-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d753634) |
-| `wrapping-neg-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d6e65672d7538) |
-| `wrapping-neg-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d6e65672d7573697a65) |
-| `wrapping-shl-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d693136) |
-| `wrapping-shl-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d693332) |
-| `wrapping-shl-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d693634) |
-| `wrapping-shl-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d6938) |
-| `wrapping-shl-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d73686c2d6973697a65) |
-| `wrapping-shl-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d753136) |
-| `wrapping-shl-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d753332) |
-| `wrapping-shl-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d753634) |
-| `wrapping-shl-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d73686c2d7538) |
-| `wrapping-shl-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d73686c2d7573697a65) |
-| `wrapping-shr-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d693136) |
-| `wrapping-shr-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d693332) |
-| `wrapping-shr-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d693634) |
-| `wrapping-shr-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d6938) |
-| `wrapping-shr-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7368722d6973697a65) |
-| `wrapping-shr-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d753136) |
-| `wrapping-shr-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d753332) |
-| `wrapping-shr-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d753634) |
-| `wrapping-shr-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7368722d7538) |
-| `wrapping-shr-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7368722d7573697a65) |
-| `wrapping-sub-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d693136) |
-| `wrapping-sub-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d693332) |
-| `wrapping-sub-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d693634) |
-| `wrapping-sub-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d6938) |
-| `wrapping-sub-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7375622d6973697a65) |
-| `wrapping-sub-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d753136) |
-| `wrapping-sub-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d753332) |
-| `wrapping-sub-u64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d753634) |
-| `wrapping-sub-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7375622d7538) |
-| `wrapping-sub-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7375622d7573697a65) |
-| `wrapping-u16-to-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7531362d746f2d693136) |
-| `wrapping-u16-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d693332) |
-| `wrapping-u16-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d693634) |
-| `wrapping-u16-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7531362d746f2d6938) |
-| `wrapping-u16-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d6973697a65) |
-| `wrapping-u16-to-u16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d753136) |
-| `wrapping-u16-to-u32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d753332) |
-| `wrapping-u16-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d753634) |
-| `wrapping-u16-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7531362d746f2d7538) |
-| `wrapping-u16-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7531362d746f2d7573697a65) |
-| `wrapping-u32-to-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7533322d746f2d693136) |
-| `wrapping-u32-to-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7533322d746f2d693332) |
-| `wrapping-u32-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7533322d746f2d693634) |
-| `wrapping-u32-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7533322d746f2d6938) |
-| `wrapping-u32-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7533322d746f2d6973697a65) |
-| `wrapping-u32-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7533322d746f2d753136) |
-| `wrapping-u32-to-u32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7533322d746f2d753332) |
-| `wrapping-u32-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7533322d746f2d753634) |
-| `wrapping-u32-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7533322d746f2d7538) |
-| `wrapping-u32-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7533322d746f2d7573697a65) |
-| `wrapping-u64-to-i16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d693136) |
-| `wrapping-u64-to-i32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d693332) |
-| `wrapping-u64-to-i64` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d693634) |
-| `wrapping-u64-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d6938) |
-| `wrapping-u64-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7536342d746f2d6973697a65) |
-| `wrapping-u64-to-u16` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d753136) |
-| `wrapping-u64-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d753332) |
-| `wrapping-u64-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7536342d746f2d753634) |
-| `wrapping-u64-to-u8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d7538) |
-| `wrapping-u64-to-usize` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7536342d746f2d7573697a65) |
-| `wrapping-u8-to-i16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d693136) |
-| `wrapping-u8-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d693332) |
-| `wrapping-u8-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d693634) |
-| `wrapping-u8-to-i8` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d75382d746f2d6938) |
-| `wrapping-u8-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d6973697a65) |
-| `wrapping-u8-to-u16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d753136) |
-| `wrapping-u8-to-u32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d753332) |
-| `wrapping-u8-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d753634) |
-| `wrapping-u8-to-u8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d7538) |
-| `wrapping-u8-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d75382d746f2d7573697a65) |
-| `wrapping-usize-to-i16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d693136) |
-| `wrapping-usize-to-i32` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d693332) |
-| `wrapping-usize-to-i64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d693634) |
-| `wrapping-usize-to-i8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d6938) |
-| `wrapping-usize-to-isize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d6973697a65) |
-| `wrapping-usize-to-u16` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d753136) |
-| `wrapping-usize-to-u32` | [Prim.Machine](Prim.Machine.md#value-7772617070696e672d7573697a652d746f2d753332) |
-| `wrapping-usize-to-u64` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d753634) |
-| `wrapping-usize-to-u8` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d7538) |
-| `wrapping-usize-to-usize` | [Data.Machine](Data.Machine.md#value-7772617070696e672d7573697a652d746f2d7573697a65) |
-| `xor` | [Data.Bool](Data.Bool.md#value-786f72) |
-| `zero-u32` | [Data.Machine](Data.Machine.md#value-7a65726f2d753332) |
-| `zip` | [Data.List](Data.List.md#value-7a6970) |
-| `zip-with` | [Data.List](Data.List.md#value-7a69702d77697468) |
-| `\|` | [Algebra.Bits](Algebra.Bits.md#value-7c) |
-| `\|\|` | [Data.Bool](Data.Bool.md#value-7c7c) |
+| Value | Signature | Defining module |
+| --- | --- | --- |
+| `&` | `forall a. using (bits :: Bits a) => a -> a -> a` | [Algebra.Bits](Algebra.Bits.md#v-op-26) |
+| `&&` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-op-2626) |
+| `<<` | `forall a. using (bits :: Bits a) => a -> U32 -> a` | [Algebra.Bits](Algebra.Bits.md#v-op-3c3c) |
+| `>>` | `forall a. using (bits :: Bits a) => a -> U32 -> a` | [Algebra.Bits](Algebra.Bits.md#v-op-3e3e) |
+| `^` | `forall a. using (bits :: Bits a) => a -> a -> a` | [Algebra.Bits](Algebra.Bits.md#v-op-5e) |
+| `abs-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-abs-f32) |
+| `abs-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-abs-f64) |
+| `add-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-add-f32) |
+| `add-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-add-f64) |
+| `and` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-and) |
+| `apply-n-times` | `forall a. Nat -> (a -> a) -> a -> a` | [Function.Combinators](Function.Combinators.md#v-apply-n-times) |
+| `apply-to` | `forall a b. a -> (a -> b) -> b` | [Function.Combinators](Function.Combinators.md#v-apply-to) |
+| `bit-and-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-and-i16) |
+| `bit-and-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-and-i32) |
+| `bit-and-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-and-i64) |
+| `bit-and-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-and-i8) |
+| `bit-and-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-and-isize) |
+| `bit-and-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-and-u16) |
+| `bit-and-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-and-u32) |
+| `bit-and-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-and-u64) |
+| `bit-and-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-and-u8) |
+| `bit-and-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-and-usize) |
+| `bit-not-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-not-i16) |
+| `bit-not-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-not-i32) |
+| `bit-not-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-not-i64) |
+| `bit-not-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-not-i8) |
+| `bit-not-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-not-isize) |
+| `bit-not-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-not-u16) |
+| `bit-not-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-not-u32) |
+| `bit-not-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-not-u64) |
+| `bit-not-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-not-u8) |
+| `bit-not-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-not-usize) |
+| `bit-or-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-or-i16) |
+| `bit-or-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-or-i32) |
+| `bit-or-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-or-i64) |
+| `bit-or-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-or-i8) |
+| `bit-or-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-or-isize) |
+| `bit-or-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-or-u16) |
+| `bit-or-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-or-u32) |
+| `bit-or-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-or-u64) |
+| `bit-or-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-or-u8) |
+| `bit-or-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-or-usize) |
+| `bit-xor-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i16) |
+| `bit-xor-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i32) |
+| `bit-xor-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i64) |
+| `bit-xor-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i8) |
+| `bit-xor-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-xor-isize) |
+| `bit-xor-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u16) |
+| `bit-xor-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u32) |
+| `bit-xor-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u64) |
+| `bit-xor-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u8) |
+| `bit-xor-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-xor-usize) |
+| `bool` | `forall a. a -> a -> Bool -> a` | [Data.Bool](Data.Bool.md#v-bool) |
+| `both` | `forall a b c. (a -> b) -> (a -> c) -> a -> (b, c)` | [Function.Combinators](Function.Combinators.md#v-both) |
+| `break` | `forall a. (a -> Bool) -> List a -> (List a, List a)` | [Data.List](Data.List.md#v-break) |
+| `bytes-compare` | `Bytes -> Bytes -> I64` | [Data.Bytes](Data.Bytes.md#v-bytes-compare) |
+| `bytes-copy-range` | `(arg2 + arg4 <= (bytes-len arg0), arg3 + arg4 <= (bytes-len arg1)) => (arg0 :: Bytes) -> (arg1 :: Bytes) -> (arg2 :: Nat) -> (arg3 :: Nat) -> (arg4 :: Nat) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-copy-range) |
+| `bytes-data` | `Bytes -> I64` | [Data.Bytes](Data.Bytes.md#v-bytes-data) |
+| `bytes-from-list` | `List (InRange 0 255 Nat) -> Bytes` | [Data.Bytes](Data.Bytes.md#v-bytes-from-list) |
+| `bytes-from-u8s` | `List U8 -> Bytes` | [Data.Bytes](Data.Bytes.md#v-bytes-from-u8s) |
+| `bytes-get` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> InRange 0 255 Nat` | [Data.Bytes](Data.Bytes.md#v-bytes-get) |
+| `bytes-get-u8` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U8` | [Data.Bytes](Data.Bytes.md#v-bytes-get-u8) |
+| `bytes-get-u8-at` | `(0 <= arg1, arg1 < (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U8` | [Data.Bytes](Data.Bytes.md#v-bytes-get-u8-at) |
+| `bytes-len` | `Bytes -> InRange 0 9223372036854775807 Nat` | [Data.Bytes](Data.Bytes.md#v-bytes-len) |
+| `bytes-len-i64` | `((b :: Bytes) -> (refined ((0 <= cinch-result && cinch-result == (b.bytesLen b))) I64))` | [Data.Bytes](Data.Bytes.md#v-bytes-len-i64) |
+| `bytes-load-le32` | `arg1 + 4 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U32` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le32) |
+| `bytes-load-le32-at` | `(0 <= arg1, arg1 + 4 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U32` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le32-at) |
+| `bytes-load-le64` | `arg1 + 8 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U64` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le64) |
+| `bytes-load-le64-at` | `(0 <= arg1, arg1 + 8 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U64` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le64-at) |
+| `bytes-load-u128` | `arg1 + 16 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U128` | [Data.Bytes](Data.Bytes.md#v-bytes-load-u128) |
+| `bytes-load-u128-at` | `(0 <= arg1, arg1 + 16 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U128` | [Data.Bytes](Data.Bytes.md#v-bytes-load-u128-at) |
+| `bytes-new` | `((n :: Nat) -> (refined ((b.bytesLen cinch-result) == n) Bytes))` | [Data.Bytes](Data.Bytes.md#v-bytes-new) |
+| `bytes-set` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: InRange 0 255 Nat) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set) |
+| `bytes-set-u8` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U8) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set-u8) |
+| `bytes-set-u8-at` | `(0 <= arg1, arg1 < (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U8) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set-u8-at) |
+| `bytes-store-le32` | `arg1 + 4 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U32) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le32) |
+| `bytes-store-le32-at` | `(0 <= arg1, arg1 + 4 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U32) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le32-at) |
+| `bytes-store-le64` | `arg1 + 8 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U64) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le64) |
+| `bytes-store-le64-at` | `(0 <= arg1, arg1 + 8 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U64) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le64-at) |
+| `bytes-store-u128` | `arg1 + 16 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U128) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-u128) |
+| `bytes-store-u128-at` | `(0 <= arg1, arg1 + 16 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U128) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-u128-at) |
+| `cat-options` | `forall a. List (Option a) -> List a` | [Data.Option](Data.Option.md#v-cat-options) |
+| `ceil-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-ceil-f32) |
+| `ceil-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-ceil-f64) |
+| `char-code` | `Char -> InRange 0 1114111 Nat` | [Data.Char](Data.Char.md#v-char-code) |
+| `char-from-code` | `Nat -> Option Char` | [Data.Char](Data.Char.md#v-char-from-code) |
+| `char-string` | `Char -> String` | [Text.Show](Text.Show.md#v-char-string) |
+| `char-to-u32` | `(a0 :: Char) -> refined (0 <= r && r <= 1114111 && r == a0) U32` | [Data.Char](Data.Char.md#v-char-to-u32) |
+| `checked-add-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-add-i16) |
+| `checked-add-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-add-i32) |
+| `checked-add-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-add-i64) |
+| `checked-add-i8` | `I8 -> I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-add-i8) |
+| `checked-add-isize` | `Isize -> Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-add-isize) |
+| `checked-add-u16` | `U16 -> U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-add-u16) |
+| `checked-add-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-add-u32) |
+| `checked-add-u64` | `U64 -> U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-add-u64) |
+| `checked-add-u8` | `U8 -> U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-add-u8) |
+| `checked-add-usize` | `Usize -> Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-add-usize) |
+| `checked-div` | `Nat -> Nat -> Option Nat` | [Data.Nat](Data.Nat.md#v-checked-div) |
+| `checked-div-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-div-i16) |
+| `checked-div-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-div-i32) |
+| `checked-div-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-div-i64) |
+| `checked-div-i8` | `I8 -> I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-div-i8) |
+| `checked-div-isize` | `Isize -> Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-div-isize) |
+| `checked-div-u16` | `U16 -> U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-div-u16) |
+| `checked-div-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-div-u32) |
+| `checked-div-u64` | `U64 -> U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-div-u64) |
+| `checked-div-u8` | `U8 -> U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-div-u8) |
+| `checked-div-usize` | `Usize -> Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-div-usize) |
+| `checked-f32-to-i16` | `F32 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-f32-to-i16) |
+| `checked-f32-to-i32` | `F32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-f32-to-i32) |
+| `checked-f32-to-i64` | `F32 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-f32-to-i64) |
+| `checked-f32-to-i8` | `F32 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-f32-to-i8) |
+| `checked-f32-to-isize` | `F32 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-f32-to-isize) |
+| `checked-f32-to-u16` | `F32 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-f32-to-u16) |
+| `checked-f32-to-u32` | `F32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-f32-to-u32) |
+| `checked-f32-to-u64` | `F32 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-f32-to-u64) |
+| `checked-f32-to-u8` | `F32 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-f32-to-u8) |
+| `checked-f32-to-usize` | `F32 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-f32-to-usize) |
+| `checked-f64-to-i16` | `F64 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-f64-to-i16) |
+| `checked-f64-to-i32` | `F64 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-f64-to-i32) |
+| `checked-f64-to-i64` | `F64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-f64-to-i64) |
+| `checked-f64-to-i8` | `F64 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-f64-to-i8) |
+| `checked-f64-to-isize` | `F64 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-f64-to-isize) |
+| `checked-f64-to-u16` | `F64 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-f64-to-u16) |
+| `checked-f64-to-u32` | `F64 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-f64-to-u32) |
+| `checked-f64-to-u64` | `F64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-f64-to-u64) |
+| `checked-f64-to-u8` | `F64 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-f64-to-u8) |
+| `checked-f64-to-usize` | `F64 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-f64-to-usize) |
+| `checked-i16-to-i16` | `I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-i16-to-i16) |
+| `checked-i16-to-i32` | `I16 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-i16-to-i32) |
+| `checked-i16-to-i64` | `I16 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-i16-to-i64) |
+| `checked-i16-to-i8` | `I16 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-i16-to-i8) |
+| `checked-i16-to-isize` | `I16 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-i16-to-isize) |
+| `checked-i16-to-u16` | `I16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-i16-to-u16) |
+| `checked-i16-to-u32` | `I16 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-i16-to-u32) |
+| `checked-i16-to-u64` | `I16 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-i16-to-u64) |
+| `checked-i16-to-u8` | `I16 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-i16-to-u8) |
+| `checked-i16-to-usize` | `I16 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-i16-to-usize) |
+| `checked-i32-to-i16` | `I32 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-i32-to-i16) |
+| `checked-i32-to-i32` | `I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-i32-to-i32) |
+| `checked-i32-to-i64` | `I32 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-i32-to-i64) |
+| `checked-i32-to-i8` | `I32 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-i32-to-i8) |
+| `checked-i32-to-isize` | `I32 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-i32-to-isize) |
+| `checked-i32-to-u16` | `I32 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-i32-to-u16) |
+| `checked-i32-to-u32` | `I32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-i32-to-u32) |
+| `checked-i32-to-u64` | `I32 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-i32-to-u64) |
+| `checked-i32-to-u8` | `I32 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-i32-to-u8) |
+| `checked-i32-to-usize` | `I32 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-i32-to-usize) |
+| `checked-i64-to-i16` | `I64 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-i64-to-i16) |
+| `checked-i64-to-i32` | `I64 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-i64-to-i32) |
+| `checked-i64-to-i64` | `I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-i64-to-i64) |
+| `checked-i64-to-i8` | `I64 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-i64-to-i8) |
+| `checked-i64-to-isize` | `I64 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-i64-to-isize) |
+| `checked-i64-to-u16` | `I64 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-i64-to-u16) |
+| `checked-i64-to-u32` | `I64 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-i64-to-u32) |
+| `checked-i64-to-u64` | `I64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-i64-to-u64) |
+| `checked-i64-to-u8` | `I64 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-i64-to-u8) |
+| `checked-i64-to-usize` | `I64 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-i64-to-usize) |
+| `checked-i8-to-i16` | `I8 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-i8-to-i16) |
+| `checked-i8-to-i32` | `I8 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-i8-to-i32) |
+| `checked-i8-to-i64` | `I8 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-i8-to-i64) |
+| `checked-i8-to-i8` | `I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-i8-to-i8) |
+| `checked-i8-to-isize` | `I8 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-i8-to-isize) |
+| `checked-i8-to-u16` | `I8 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-i8-to-u16) |
+| `checked-i8-to-u32` | `I8 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-i8-to-u32) |
+| `checked-i8-to-u64` | `I8 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-i8-to-u64) |
+| `checked-i8-to-u8` | `I8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-i8-to-u8) |
+| `checked-i8-to-usize` | `I8 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-i8-to-usize) |
+| `checked-int-to-i64` | `Int -> Option I64` | [Data.Int](Data.Int.md#v-checked-int-to-i64) |
+| `checked-isize-to-i16` | `Isize -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-isize-to-i16) |
+| `checked-isize-to-i32` | `Isize -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-isize-to-i32) |
+| `checked-isize-to-i64` | `Isize -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-isize-to-i64) |
+| `checked-isize-to-i8` | `Isize -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-isize-to-i8) |
+| `checked-isize-to-isize` | `Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-isize-to-isize) |
+| `checked-isize-to-u16` | `Isize -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-isize-to-u16) |
+| `checked-isize-to-u32` | `Isize -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-isize-to-u32) |
+| `checked-isize-to-u64` | `Isize -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-isize-to-u64) |
+| `checked-isize-to-u8` | `Isize -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-isize-to-u8) |
+| `checked-isize-to-usize` | `Isize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-isize-to-usize) |
+| `checked-mul-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-mul-i16) |
+| `checked-mul-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-mul-i32) |
+| `checked-mul-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-mul-i64) |
+| `checked-mul-i8` | `I8 -> I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-mul-i8) |
+| `checked-mul-isize` | `Isize -> Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-mul-isize) |
+| `checked-mul-u16` | `U16 -> U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-mul-u16) |
+| `checked-mul-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-mul-u32) |
+| `checked-mul-u64` | `U64 -> U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-mul-u64) |
+| `checked-mul-u8` | `U8 -> U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-mul-u8) |
+| `checked-mul-usize` | `Usize -> Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-mul-usize) |
+| `checked-nat-from-i64` | `I64 -> Option Nat` | [Data.Nat](Data.Nat.md#v-checked-nat-from-i64) |
+| `checked-nat-to-i64` | `Nat -> Option I64` | [Data.Nat](Data.Nat.md#v-checked-nat-to-i64) |
+| `checked-neg-i16` | `I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-neg-i16) |
+| `checked-neg-i32` | `I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-neg-i32) |
+| `checked-neg-i64` | `I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-neg-i64) |
+| `checked-neg-i8` | `I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-neg-i8) |
+| `checked-neg-isize` | `Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-neg-isize) |
+| `checked-neg-u16` | `U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-neg-u16) |
+| `checked-neg-u32` | `U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-neg-u32) |
+| `checked-neg-u64` | `U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-neg-u64) |
+| `checked-neg-u8` | `U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-neg-u8) |
+| `checked-neg-usize` | `Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-neg-usize) |
+| `checked-rem` | `Nat -> Nat -> Option Nat` | [Data.Nat](Data.Nat.md#v-checked-rem) |
+| `checked-rem-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-rem-i16) |
+| `checked-rem-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-rem-i32) |
+| `checked-rem-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-rem-i64) |
+| `checked-rem-i8` | `I8 -> I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-rem-i8) |
+| `checked-rem-isize` | `Isize -> Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-rem-isize) |
+| `checked-rem-u16` | `U16 -> U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-rem-u16) |
+| `checked-rem-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-rem-u32) |
+| `checked-rem-u64` | `U64 -> U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-rem-u64) |
+| `checked-rem-u8` | `U8 -> U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-rem-u8) |
+| `checked-rem-usize` | `Usize -> Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-rem-usize) |
+| `checked-shl-i16` | `I16 -> U32 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-shl-i16) |
+| `checked-shl-i32` | `I32 -> U32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-shl-i32) |
+| `checked-shl-i64` | `I64 -> U32 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-shl-i64) |
+| `checked-shl-i8` | `I8 -> U32 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-shl-i8) |
+| `checked-shl-isize` | `Isize -> U32 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-shl-isize) |
+| `checked-shl-u16` | `U16 -> U32 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-shl-u16) |
+| `checked-shl-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-shl-u32) |
+| `checked-shl-u64` | `U64 -> U32 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-shl-u64) |
+| `checked-shl-u8` | `U8 -> U32 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-shl-u8) |
+| `checked-shl-usize` | `Usize -> U32 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-shl-usize) |
+| `checked-shr-i16` | `I16 -> U32 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-shr-i16) |
+| `checked-shr-i32` | `I32 -> U32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-shr-i32) |
+| `checked-shr-i64` | `I64 -> U32 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-shr-i64) |
+| `checked-shr-i8` | `I8 -> U32 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-shr-i8) |
+| `checked-shr-isize` | `Isize -> U32 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-shr-isize) |
+| `checked-shr-u16` | `U16 -> U32 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-shr-u16) |
+| `checked-shr-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-shr-u32) |
+| `checked-shr-u64` | `U64 -> U32 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-shr-u64) |
+| `checked-shr-u8` | `U8 -> U32 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-shr-u8) |
+| `checked-shr-usize` | `Usize -> U32 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-shr-usize) |
+| `checked-sub` | `Nat -> Nat -> Option Nat` | [Data.Nat](Data.Nat.md#v-checked-sub) |
+| `checked-sub-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-sub-i16) |
+| `checked-sub-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-sub-i32) |
+| `checked-sub-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-sub-i64) |
+| `checked-sub-i8` | `I8 -> I8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-sub-i8) |
+| `checked-sub-isize` | `Isize -> Isize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-sub-isize) |
+| `checked-sub-u16` | `U16 -> U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-sub-u16) |
+| `checked-sub-u32` | `U32 -> U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-sub-u32) |
+| `checked-sub-u64` | `U64 -> U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-sub-u64) |
+| `checked-sub-u8` | `U8 -> U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-sub-u8) |
+| `checked-sub-usize` | `Usize -> Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-sub-usize) |
+| `checked-u16-to-i16` | `U16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-u16-to-i16) |
+| `checked-u16-to-i32` | `U16 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-u16-to-i32) |
+| `checked-u16-to-i64` | `U16 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-u16-to-i64) |
+| `checked-u16-to-i8` | `U16 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-u16-to-i8) |
+| `checked-u16-to-isize` | `U16 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-u16-to-isize) |
+| `checked-u16-to-u16` | `U16 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-u16-to-u16) |
+| `checked-u16-to-u32` | `U16 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-u16-to-u32) |
+| `checked-u16-to-u64` | `U16 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-u16-to-u64) |
+| `checked-u16-to-u8` | `U16 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-u16-to-u8) |
+| `checked-u16-to-usize` | `U16 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-u16-to-usize) |
+| `checked-u32-to-i16` | `U32 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-u32-to-i16) |
+| `checked-u32-to-i32` | `U32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-u32-to-i32) |
+| `checked-u32-to-i64` | `U32 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-u32-to-i64) |
+| `checked-u32-to-i8` | `U32 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-u32-to-i8) |
+| `checked-u32-to-isize` | `U32 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-u32-to-isize) |
+| `checked-u32-to-u16` | `U32 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-u32-to-u16) |
+| `checked-u32-to-u32` | `U32 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-u32-to-u32) |
+| `checked-u32-to-u64` | `U32 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-u32-to-u64) |
+| `checked-u32-to-u8` | `U32 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-u32-to-u8) |
+| `checked-u32-to-usize` | `U32 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-u32-to-usize) |
+| `checked-u64-to-i16` | `U64 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-u64-to-i16) |
+| `checked-u64-to-i32` | `U64 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-u64-to-i32) |
+| `checked-u64-to-i64` | `U64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-u64-to-i64) |
+| `checked-u64-to-i8` | `U64 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-u64-to-i8) |
+| `checked-u64-to-isize` | `U64 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-u64-to-isize) |
+| `checked-u64-to-u16` | `U64 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-u64-to-u16) |
+| `checked-u64-to-u32` | `U64 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-u64-to-u32) |
+| `checked-u64-to-u64` | `U64 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-u64-to-u64) |
+| `checked-u64-to-u8` | `U64 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-u64-to-u8) |
+| `checked-u64-to-usize` | `U64 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-u64-to-usize) |
+| `checked-u8-to-i16` | `U8 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-u8-to-i16) |
+| `checked-u8-to-i32` | `U8 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-u8-to-i32) |
+| `checked-u8-to-i64` | `U8 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-u8-to-i64) |
+| `checked-u8-to-i8` | `U8 -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-u8-to-i8) |
+| `checked-u8-to-isize` | `U8 -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-u8-to-isize) |
+| `checked-u8-to-u16` | `U8 -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-u8-to-u16) |
+| `checked-u8-to-u32` | `U8 -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-u8-to-u32) |
+| `checked-u8-to-u64` | `U8 -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-u8-to-u64) |
+| `checked-u8-to-u8` | `U8 -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-u8-to-u8) |
+| `checked-u8-to-usize` | `U8 -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-u8-to-usize) |
+| `checked-usize-to-i16` | `Usize -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-usize-to-i16) |
+| `checked-usize-to-i32` | `Usize -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-usize-to-i32) |
+| `checked-usize-to-i64` | `Usize -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-usize-to-i64) |
+| `checked-usize-to-i8` | `Usize -> Option I8` | [Data.Machine](Data.Machine.md#v-checked-usize-to-i8) |
+| `checked-usize-to-isize` | `Usize -> Option Isize` | [Data.Machine](Data.Machine.md#v-checked-usize-to-isize) |
+| `checked-usize-to-u16` | `Usize -> Option U16` | [Data.Machine](Data.Machine.md#v-checked-usize-to-u16) |
+| `checked-usize-to-u32` | `Usize -> Option U32` | [Data.Machine](Data.Machine.md#v-checked-usize-to-u32) |
+| `checked-usize-to-u64` | `Usize -> Option U64` | [Data.Machine](Data.Machine.md#v-checked-usize-to-u64) |
+| `checked-usize-to-u8` | `Usize -> Option U8` | [Data.Machine](Data.Machine.md#v-checked-usize-to-u8) |
+| `checked-usize-to-usize` | `Usize -> Option Usize` | [Data.Machine](Data.Machine.md#v-checked-usize-to-usize) |
+| `compare-bytes-from` | `Bytes -> Bytes -> Nat -> I64` | [Data.String](Data.String.md#v-compare-bytes-from) |
+| `comparing` | `forall a b. using (ord :: Ord b) => (a -> b) -> a -> a -> Ordering` | [Relation.Ord](Relation.Ord.md#v-comparing) |
+| `compose` | `forall a b c. (b -> c) -> (a -> b) -> a -> c` | [Function.Combinators](Function.Combinators.md#v-compose) |
+| `const` | `forall a b. a -> b -> a` | [Function.Combinators](Function.Combinators.md#v-const) |
+| `copy-bytes-into` | `(arg2 + arg4 <= (bytes-len arg0), arg3 + arg4 <= (bytes-len arg1)) => (arg0 :: Bytes) -> (arg1 :: Bytes) -> (arg2 :: Nat) -> (arg3 :: Nat) -> (arg4 :: Nat) -> Unit` | [Data.String](Data.String.md#v-copy-bytes-into) |
+| `copysign-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-copysign-f32) |
+| `copysign-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-copysign-f64) |
+| `count-ones-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i16) |
+| `count-ones-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i32) |
+| `count-ones-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i64) |
+| `count-ones-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i8) |
+| `count-ones-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-isize) |
+| `count-ones-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u16) |
+| `count-ones-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u32) |
+| `count-ones-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u64) |
+| `count-ones-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u8) |
+| `count-ones-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-usize) |
+| `curry` | `forall a b c. ((a, b) -> c) -> a -> b -> c` | [Function.Combinators](Function.Combinators.md#v-curry) |
+| `cycle` | `forall a. Nat -> List a -> List a` | [Data.List](Data.List.md#v-cycle) |
+| `detect-vec-u32` | `Unit -> Option (VecU32Target AVX2_256 EightLanes)` | [Data.Target](Data.Target.md#v-detect-vec-u32) |
+| `digit-value` | `Char -> Option Nat` | [Data.Char](Data.Char.md#v-digit-value) |
+| `div-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-div-f32) |
+| `div-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-div-f64) |
+| `div-u16` | `arg1 /= 0 => (arg0 :: U16) -> (arg1 :: U16) -> U16` | [Data.Machine](Data.Machine.md#v-div-u16) |
+| `div-u32` | `arg1 /= 0 => (arg0 :: U32) -> (arg1 :: U32) -> U32` | [Data.Machine](Data.Machine.md#v-div-u32) |
+| `div-u64` | `arg1 /= 0 => (arg0 :: U64) -> (arg1 :: U64) -> U64` | [Data.Machine](Data.Machine.md#v-div-u64) |
+| `div-u8` | `arg1 /= 0 => (arg0 :: U8) -> (arg1 :: U8) -> U8` | [Data.Machine](Data.Machine.md#v-div-u8) |
+| `div-usize` | `arg1 /= 0 => (arg0 :: Usize) -> (arg1 :: Usize) -> Usize` | [Data.Machine](Data.Machine.md#v-div-usize) |
+| `drop` | `forall a. Nat -> List a -> List a` | [Data.List](Data.List.md#v-drop) |
+| `either` | `forall e a b. (e -> b) -> (a -> b) -> Result e a -> b` | [Data.Result](Data.Result.md#v-either) |
+| `elem-index` | `forall a. using (eq :: Eq a) => a -> List a -> Option Nat` | [Data.List](Data.List.md#v-elem-index) |
+| `empty-string` | `String` | [Data.String](Data.String.md#v-empty-string) |
+| `enum-from-then-to` | `forall a. using (e :: Enum a) => a -> a -> a -> List a` | [Data.Enum](Data.Enum.md#v-enum-from-then-to) |
+| `enum-from-to` | `forall a. using (e :: Enum a) => a -> a -> List a` | [Data.Enum](Data.Enum.md#v-enum-from-to) |
+| `eq-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-eq-char) |
+| `eq-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i16) |
+| `eq-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i32) |
+| `eq-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i64) |
+| `eq-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i8) |
+| `eq-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-eq-isize) |
+| `eq-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u16) |
+| `eq-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u32) |
+| `eq-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u64) |
+| `eq-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u8) |
+| `eq-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-eq-usize) |
+| `errors` | `forall e a. List (Result e a) -> List e` | [Data.Result](Data.Result.md#v-errors) |
+| `f32-bits` | `F32 -> U32` | [Data.Machine](Data.Machine.md#v-f32-bits) |
+| `f32-from-bits` | `U32 -> F32` | [Data.Machine](Data.Machine.md#v-f32-from-bits) |
+| `f32-to-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-f32-to-f32) |
+| `f32-to-f64` | `F32 -> F64` | [Prim.Machine](Prim.Machine.md#v-f32-to-f64) |
+| `f64-bits` | `F64 -> U64` | [Data.Machine](Data.Machine.md#v-f64-bits) |
+| `f64-from-bits` | `U64 -> F64` | [Data.Machine](Data.Machine.md#v-f64-from-bits) |
+| `f64-from-decimal` | `Bytes -> F64` | [Data.Machine](Data.Machine.md#v-f64-from-decimal) |
+| `f64-to-decimal` | `F64 -> Bytes` | [Data.Machine](Data.Machine.md#v-f64-to-decimal) |
+| `f64-to-f32` | `F64 -> F32` | [Prim.Machine](Prim.Machine.md#v-f64-to-f32) |
+| `f64-to-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-f64-to-f64) |
+| `feq-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-feq-f32) |
+| `feq-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-feq-f64) |
+| `fetch` | `forall (r :: Region). using (io :: Io r) => Request ->{Diverge, IO r} Result LoadError Bytes` | [Effect.Concurrent](Effect.Concurrent.md#v-fetch) |
+| `fge-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fge-f32) |
+| `fge-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-fge-f64) |
+| `fgt-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fgt-f32) |
+| `fgt-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-fgt-f64) |
+| `find` | `forall a. (a -> Bool) -> List a -> Option a` | [Data.List](Data.List.md#v-find) |
+| `find-index` | `forall a. (a -> Bool) -> List a -> Option Nat` | [Data.List](Data.List.md#v-find-index) |
+| `fle-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fle-f32) |
+| `fle-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-fle-f64) |
+| `flip` | `forall a b c. (a -> b -> c) -> b -> a -> c` | [Function.Combinators](Function.Combinators.md#v-flip) |
+| `floor-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-floor-f32) |
+| `floor-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-floor-f64) |
+| `flt-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-flt-f32) |
+| `flt-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-flt-f64) |
+| `fne-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fne-f32) |
+| `fne-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-fne-f64) |
+| `fold-left1` | `forall a. (a -> a -> a) -> List a -> Option a` | [Data.List](Data.List.md#v-fold-left1) |
+| `fold-right1` | `forall a. (a -> a -> a) -> List a -> Option a` | [Data.List](Data.List.md#v-fold-right1) |
+| `foldr` | `forall a b. (a -> b -> b) -> b -> List a -> b` | [Data.List](Data.List.md#v-foldr) |
+| `from-option` | `forall a. a -> Option a -> a` | [Data.Option](Data.Option.md#v-from-option) |
+| `from-result` | `forall e a. a -> Result e a -> a` | [Data.Result](Data.Result.md#v-from-result) |
+| `fst` | `forall a b. (a, b) -> a` | [Function.Combinators](Function.Combinators.md#v-fst) |
+| `ge-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-ge-char) |
+| `ge-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i16) |
+| `ge-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i32) |
+| `ge-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i64) |
+| `ge-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i8) |
+| `ge-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-ge-isize) |
+| `ge-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u16) |
+| `ge-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u32) |
+| `ge-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u64) |
+| `ge-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u8) |
+| `ge-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-ge-usize) |
+| `group-by` | `forall a. (a -> a -> Bool) -> List a -> List (List a)` | [Data.List](Data.List.md#v-group-by) |
+| `gt-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-gt-char) |
+| `gt-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i16) |
+| `gt-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i32) |
+| `gt-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i64) |
+| `gt-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i8) |
+| `gt-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-gt-isize) |
+| `gt-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u16) |
+| `gt-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u32) |
+| `gt-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u64) |
+| `gt-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u8) |
+| `gt-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-gt-usize) |
+| `head` | `forall a. List a -> Option a` | [Data.List](Data.List.md#v-head) |
+| `hex-digit-value` | `Char -> Option Nat` | [Data.Char](Data.Char.md#v-hex-digit-value) |
+| `i16-to-f32` | `I16 -> F32` | [Prim.Machine](Prim.Machine.md#v-i16-to-f32) |
+| `i16-to-f64` | `I16 -> F64` | [Prim.Machine](Prim.Machine.md#v-i16-to-f64) |
+| `i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-i16-to-i16) |
+| `i16-to-i32` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-i16-to-i32) |
+| `i16-to-i64` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i16-to-i64) |
+| `i16-to-isize` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i16-to-isize) |
+| `i32-to-f32` | `I32 -> F32` | [Prim.Machine](Prim.Machine.md#v-i32-to-f32) |
+| `i32-to-f64` | `I32 -> F64` | [Prim.Machine](Prim.Machine.md#v-i32-to-f64) |
+| `i32-to-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-i32-to-i32) |
+| `i32-to-i64` | `(a0 :: I32) -> refined (- 2147483648 <= r && r <= 2147483647 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i32-to-i64) |
+| `i32-to-isize` | `(a0 :: I32) -> refined (- 2147483648 <= r && r <= 2147483647 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i32-to-isize) |
+| `i64-le-byte` | `I64 -> U32 -> InRange 0 255 Nat` | [Data.Machine](Data.Machine.md#v-i64-le-byte) |
+| `i64-to-f32` | `I64 -> F32` | [Prim.Machine](Prim.Machine.md#v-i64-to-f32) |
+| `i64-to-f64` | `I64 -> F64` | [Prim.Machine](Prim.Machine.md#v-i64-to-f64) |
+| `i64-to-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-i64-to-i64) |
+| `i64-to-isize` | `(a0 :: I64) -> refined (r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i64-to-isize) |
+| `i8-to-f32` | `I8 -> F32` | [Prim.Machine](Prim.Machine.md#v-i8-to-f32) |
+| `i8-to-f64` | `I8 -> F64` | [Prim.Machine](Prim.Machine.md#v-i8-to-f64) |
+| `i8-to-i16` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I16` | [Prim.Machine](Prim.Machine.md#v-i8-to-i16) |
+| `i8-to-i32` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-i8-to-i32) |
+| `i8-to-i64` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i8-to-i64) |
+| `i8-to-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-i8-to-i8) |
+| `i8-to-isize` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i8-to-isize) |
+| `identity` | `forall a. a -> a` | [Function.Combinators](Function.Combinators.md#v-identity) |
+| `init` | `forall a. List a -> Option (List a)` | [Data.List](Data.List.md#v-init) |
+| `int-add` | `Int -> Int -> Int` | [Data.Int](Data.Int.md#v-int-add) |
+| `int-cmp` | `Int -> Int -> I64` | [Data.Int](Data.Int.md#v-int-cmp) |
+| `int-div` | `Int -> NonZero Int -> Int` | [Data.Int](Data.Int.md#v-int-div) |
+| `int-from-i64` | `(x :: I64) -> refined (cinch-result == x) Int` | [Data.Int](Data.Int.md#v-int-from-i64) |
+| `int-mod-nat` | `Int -> NonZero Nat -> Nat` | [Data.Int](Data.Int.md#v-int-mod-nat) |
+| `int-mul` | `Int -> Int -> Int` | [Data.Int](Data.Int.md#v-int-mul) |
+| `int-neg` | `Int -> Int` | [Data.Int](Data.Int.md#v-int-neg) |
+| `int-rem` | `Int -> NonZero Int -> Int` | [Data.Int](Data.Int.md#v-int-rem) |
+| `int-sub` | `Int -> Int -> Int` | [Data.Int](Data.Int.md#v-int-sub) |
+| `int-to-i64` | `(- 9223372036854775808 <= arg0, arg0 <= 9223372036854775807) => (arg0 :: Int) -> refined (r == arg0) I64` | [Data.Int](Data.Int.md#v-int-to-i64) |
+| `int-to-string` | `Int -> String` | [Text.Show](Text.Show.md#v-int-to-string) |
+| `intercalate` | `forall a. List a -> List (List a) -> List a` | [Data.List](Data.List.md#v-intercalate) |
+| `intern` | `String -> Sym` | [Data.Sym](Data.Sym.md#v-intern) |
+| `intersperse` | `forall a. a -> List a -> List a` | [Data.List](Data.List.md#v-intersperse) |
+| `is-ascii-alpha` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-alpha) |
+| `is-ascii-alpha-numeric` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-alpha-numeric) |
+| `is-ascii-digit` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-digit) |
+| `is-ascii-hex-digit` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-hex-digit) |
+| `is-ascii-lower` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-lower) |
+| `is-ascii-space` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-space) |
+| `is-ascii-upper` | `Char -> Bool` | [Data.Char](Data.Char.md#v-is-ascii-upper) |
+| `is-empty` | `forall a. List a -> Bool` | [Data.List](Data.List.md#v-is-empty) |
+| `is-err` | `forall e a. Result e a -> Bool` | [Data.Result](Data.Result.md#v-is-err) |
+| `is-finite-f32` | `F32 -> Bool` | [Data.Machine](Data.Machine.md#v-is-finite-f32) |
+| `is-finite-f64` | `F64 -> Bool` | [Data.Machine](Data.Machine.md#v-is-finite-f64) |
+| `is-infinite-f32` | `F32 -> Bool` | [Data.Machine](Data.Machine.md#v-is-infinite-f32) |
+| `is-infinite-f64` | `F64 -> Bool` | [Data.Machine](Data.Machine.md#v-is-infinite-f64) |
+| `is-na-nf32` | `F32 -> Bool` | [Data.Machine](Data.Machine.md#v-is-na-nf32) |
+| `is-na-nf64` | `F64 -> Bool` | [Data.Machine](Data.Machine.md#v-is-na-nf64) |
+| `is-none` | `forall a. Option a -> Bool` | [Data.Option](Data.Option.md#v-is-none) |
+| `is-normal-f32` | `F32 -> Bool` | [Data.Machine](Data.Machine.md#v-is-normal-f32) |
+| `is-normal-f64` | `F64 -> Bool` | [Data.Machine](Data.Machine.md#v-is-normal-f64) |
+| `is-ok` | `forall e a. Result e a -> Bool` | [Data.Result](Data.Result.md#v-is-ok) |
+| `is-some` | `forall a. Option a -> Bool` | [Data.Option](Data.Option.md#v-is-some) |
+| `isize-to-f32` | `Isize -> F32` | [Data.Machine](Data.Machine.md#v-isize-to-f32) |
+| `isize-to-f64` | `Isize -> F64` | [Data.Machine](Data.Machine.md#v-isize-to-f64) |
+| `isize-to-i64` | `(a0 :: Isize) -> refined (r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-isize-to-i64) |
+| `isize-to-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-isize-to-isize) |
+| `iterate` | `forall a. Nat -> (a -> a) -> a -> List a` | [Data.List](Data.List.md#v-iterate) |
+| `last` | `forall a. List a -> Option a` | [Data.List](Data.List.md#v-last) |
+| `le-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-le-char) |
+| `le-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i16) |
+| `le-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i32) |
+| `le-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i64) |
+| `le-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i8) |
+| `le-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-le-isize) |
+| `le-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u16) |
+| `le-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u32) |
+| `le-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u64) |
+| `le-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u8) |
+| `le-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-le-usize) |
+| `leading-zeros-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i16) |
+| `leading-zeros-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i32) |
+| `leading-zeros-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i64) |
+| `leading-zeros-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i8) |
+| `leading-zeros-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-isize) |
+| `leading-zeros-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u16) |
+| `leading-zeros-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u32) |
+| `leading-zeros-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u64) |
+| `leading-zeros-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u8) |
+| `leading-zeros-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-usize) |
+| `length` | `forall a. List a -> Int` | [Data.List](Data.List.md#v-length) |
+| `list-length` | `forall a. List a -> Nat` | [Data.List](Data.List.md#v-list-length) |
+| `list-to-option` | `forall a. List a -> Option a` | [Data.Option](Data.Option.md#v-list-to-option) |
+| `lookup` | `forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v` | [Data.List](Data.List.md#v-lookup) |
+| `lt-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-lt-char) |
+| `lt-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i16) |
+| `lt-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i32) |
+| `lt-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i64) |
+| `lt-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i8) |
+| `lt-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-lt-isize) |
+| `lt-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u16) |
+| `lt-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u32) |
+| `lt-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u64) |
+| `lt-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u8) |
+| `lt-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-lt-usize) |
+| `map` | `forall a b. (a -> b) -> List a -> List b` | [Data.List](Data.List.md#v-map) |
+| `map-delete` | `forall k v. using (ord :: Ord k) => k -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-delete) |
+| `map-empty` | `forall k v. Map k v` | [Data.Map](Data.Map.md#v-map-empty) |
+| `map-err` | `forall e f a. (e -> f) -> Result e a -> Result f a` | [Data.Result](Data.Result.md#v-map-err) |
+| `map-filter` | `forall k v. (k -> v -> Bool) -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-filter) |
+| `map-fold` | `forall k v b. (k -> v -> b -> b) -> b -> Map k v -> b` | [Data.Map](Data.Map.md#v-map-fold) |
+| `map-from-pairs` | `forall k v. using (ord :: Ord k) => List (k, v) -> Map k v` | [Data.Map](Data.Map.md#v-map-from-pairs) |
+| `map-insert` | `forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-insert) |
+| `map-is-empty` | `forall k v. Map k v -> Bool` | [Data.Map](Data.Map.md#v-map-is-empty) |
+| `map-keys` | `forall k v. Map k v -> List k` | [Data.Map](Data.Map.md#v-map-keys) |
+| `map-lookup` | `forall k v. using (ord :: Ord k) => k -> Map k v -> Option v` | [Data.Map](Data.Map.md#v-map-lookup) |
+| `map-map` | `forall k v w. (v -> w) -> Map k v -> Map k w` | [Data.Map](Data.Map.md#v-map-map) |
+| `map-option` | `forall a b. (a -> b) -> Option a -> Option b` | [Data.Option](Data.Option.md#v-map-option) |
+| `map-result` | `forall e a b. (a -> b) -> Result e a -> Result e b` | [Data.Result](Data.Result.md#v-map-result) |
+| `map-size` | `forall k v. Map k v -> Nat` | [Data.Map](Data.Map.md#v-map-size) |
+| `map-to-list` | `forall k v. Map k v -> List (k, v)` | [Data.Map](Data.Map.md#v-map-to-list) |
+| `map-union` | `forall k v. using (ord :: Ord k) => Map k v -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-union) |
+| `map-union-with` | `forall k v. using (ord :: Ord k) => (v -> v -> v) -> Map k v -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-union-with) |
+| `map-values` | `forall k v. Map k v -> List v` | [Data.Map](Data.Map.md#v-map-values) |
+| `mask-i64` | `I64 -> (a1 :: InRange 0 9223372036854775807 I64) -> refined (0 <= r && r <= a1) I64` | [Prim.Machine](Prim.Machine.md#v-mask-i64) |
+| `max-bound-i16` | `refined (cinch-result == 32767) I16` | [Data.Machine](Data.Machine.md#v-max-bound-i16) |
+| `max-bound-i32` | `refined (cinch-result == 2147483647) I32` | [Data.Machine](Data.Machine.md#v-max-bound-i32) |
+| `max-bound-i64` | `refined (cinch-result == 9223372036854775807) I64` | [Data.Machine](Data.Machine.md#v-max-bound-i64) |
+| `max-bound-i8` | `refined (cinch-result == 127) I8` | [Data.Machine](Data.Machine.md#v-max-bound-i8) |
+| `max-bound-isize` | `Isize` | [Data.Machine](Data.Machine.md#v-max-bound-isize) |
+| `max-bound-u16` | `refined (cinch-result == 65535) U16` | [Data.Machine](Data.Machine.md#v-max-bound-u16) |
+| `max-bound-u32` | `refined (cinch-result == 4294967295) U32` | [Data.Machine](Data.Machine.md#v-max-bound-u32) |
+| `max-bound-u64` | `refined (cinch-result == 18446744073709551615) U64` | [Data.Machine](Data.Machine.md#v-max-bound-u64) |
+| `max-bound-u8` | `refined (cinch-result == 255) U8` | [Data.Machine](Data.Machine.md#v-max-bound-u8) |
+| `max-bound-usize` | `Usize` | [Data.Machine](Data.Machine.md#v-max-bound-usize) |
+| `maximum-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-maximum-f32) |
+| `maximum-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-maximum-f64) |
+| `maybe` | `forall a b. b -> (a -> b) -> Option a -> b` | [Data.Option](Data.Option.md#v-maybe) |
+| `min-bound-i16` | `refined (cinch-result == - 32768) I16` | [Data.Machine](Data.Machine.md#v-min-bound-i16) |
+| `min-bound-i32` | `refined (cinch-result == - 2147483648) I32` | [Data.Machine](Data.Machine.md#v-min-bound-i32) |
+| `min-bound-i64` | `refined (cinch-result == - 9223372036854775808) I64` | [Data.Machine](Data.Machine.md#v-min-bound-i64) |
+| `min-bound-i8` | `refined (cinch-result == - 128) I8` | [Data.Machine](Data.Machine.md#v-min-bound-i8) |
+| `min-bound-isize` | `Isize` | [Data.Machine](Data.Machine.md#v-min-bound-isize) |
+| `min-bound-u16` | `refined (cinch-result == 0) U16` | [Data.Machine](Data.Machine.md#v-min-bound-u16) |
+| `min-bound-u32` | `refined (cinch-result == 0) U32` | [Data.Machine](Data.Machine.md#v-min-bound-u32) |
+| `min-bound-u64` | `refined (cinch-result == 0) U64` | [Data.Machine](Data.Machine.md#v-min-bound-u64) |
+| `min-bound-u8` | `refined (cinch-result == 0) U8` | [Data.Machine](Data.Machine.md#v-min-bound-u8) |
+| `min-bound-usize` | `Usize` | [Data.Machine](Data.Machine.md#v-min-bound-usize) |
+| `minimum-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-minimum-f32) |
+| `minimum-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-minimum-f64) |
+| `mul-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-mul-f32) |
+| `mul-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-mul-f64) |
+| `nat-add` | `Nat -> Nat -> Nat` | [Data.Nat](Data.Nat.md#v-nat-add) |
+| `nat-cmp` | `Nat -> Nat -> I64` | [Data.Nat](Data.Nat.md#v-nat-cmp) |
+| `nat-digit-count` | `Nat -> Nat` | [Text.Show](Text.Show.md#v-nat-digit-count) |
+| `nat-digits-into` | `arg1 + arg3 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: Nat) -> (arg3 :: Nat) -> Unit` | [Text.Show](Text.Show.md#v-nat-digits-into) |
+| `nat-div` | `Nat -> NonZero Nat -> Nat` | [Data.Nat](Data.Nat.md#v-nat-div) |
+| `nat-from-i64` | `0 <= arg0 => (arg0 :: I64) -> refined (r == arg0) Nat` | [Data.Nat](Data.Nat.md#v-nat-from-i64) |
+| `nat-from-int` | `0 <= arg0 => (arg0 :: Int) -> refined (r == arg0) Nat` | [Data.Nat](Data.Nat.md#v-nat-from-int) |
+| `nat-mul` | `Nat -> Nat -> Nat` | [Data.Nat](Data.Nat.md#v-nat-mul) |
+| `nat-rem` | `Nat -> (d :: NonZero Nat) -> refined (cinch-result < d) Nat` | [Data.Nat](Data.Nat.md#v-nat-rem) |
+| `nat-sub` | `arg1 <= arg0 => (arg0 :: Nat) -> (arg1 :: Nat) -> Nat` | [Data.Nat](Data.Nat.md#v-nat-sub) |
+| `nat-to-i64` | `arg0 <= 9223372036854775807 => (arg0 :: Nat) -> refined (r == arg0) I64` | [Data.Nat](Data.Nat.md#v-nat-to-i64) |
+| `nat-to-int` | `(n :: Nat) -> refined (cinch-result == n) Int` | [Data.Nat](Data.Nat.md#v-nat-to-int) |
+| `nat-to-string` | `Nat -> String` | [Text.Show](Text.Show.md#v-nat-to-string) |
+| `ne-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-ne-char) |
+| `ne-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i16) |
+| `ne-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i32) |
+| `ne-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i64) |
+| `ne-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i8) |
+| `ne-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-ne-isize) |
+| `ne-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u16) |
+| `ne-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u32) |
+| `ne-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u64) |
+| `ne-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u8) |
+| `ne-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-ne-usize) |
+| `neg-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-neg-f32) |
+| `neg-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-neg-f64) |
+| `not` | `Bool -> Bool` | [Data.Bool](Data.Bool.md#v-not) |
+| `nth` | `forall a. Nat -> List a -> Option a` | [Data.List](Data.List.md#v-nth) |
+| `nub` | `forall a. using (eq :: Eq a) => List a -> List a` | [Data.List](Data.List.md#v-nub) |
+| `on` | `forall a b c. (b -> b -> c) -> (a -> b) -> a -> a -> c` | [Function.Combinators](Function.Combinators.md#v-on) |
+| `option-to-list` | `forall a. Option a -> List a` | [Data.Option](Data.Option.md#v-option-to-list) |
+| `option-to-result` | `forall e a. e -> Option a -> Result e a` | [Data.Result](Data.Result.md#v-option-to-result) |
+| `or` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-or) |
+| `or-else` | `forall a. Option a -> Option a -> Option a` | [Data.Option](Data.Option.md#v-or-else) |
+| `pack` | `List Char -> String` | [Data.String](Data.String.md#v-pack) |
+| `parse-config` | `Bytes -> Result ConfigError Config` | [Effect.Io](Effect.Io.md#v-parse-config) |
+| `partition` | `forall a. (a -> Bool) -> List a -> (List a, List a)` | [Data.List](Data.List.md#v-partition) |
+| `partition-results` | `forall e a. List (Result e a) -> (List e, List a)` | [Data.Result](Data.Result.md#v-partition-results) |
+| `pow10` | `Nat -> Nat` | [Text.Show](Text.Show.md#v-pow10) |
+| `prim-and-bool` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-prim-and-bool) |
+| `prim-eq-bool` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-prim-eq-bool) |
+| `prim-ne-bool` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-prim-ne-bool) |
+| `prim-not-bool` | `Bool -> Bool` | [Data.Bool](Data.Bool.md#v-prim-not-bool) |
+| `prim-or-bool` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-prim-or-bool) |
+| `prod-fold` | `forall s a b. b -> (b -> a -> b) -> Producer s a -> b` | [Data.Producer](Data.Producer.md#v-prod-fold) |
+| `prod-fold-go` | `forall s a b. (s -> Step s a) -> (b -> a -> b) -> b -> s -> b` | [Data.Producer](Data.Producer.md#v-prod-fold-go) |
+| `prod-map` | `forall s a b. (a -> b) -> Producer s a -> Producer s b` | [Data.Producer](Data.Producer.md#v-prod-map) |
+| `prod-take` | `forall s a. Nat -> Producer s a -> Producer (TakeSt s) a` | [Data.Producer](Data.Producer.md#v-prod-take) |
+| `prod-take-step` | `forall s a. (s -> Step s a) -> TakeSt s -> Step (TakeSt s) a` | [Data.Producer](Data.Producer.md#v-prod-take-step) |
+| `read-config-bytes` | `forall (r :: Region). using (io :: Io r) => Path ->{IO r} Result ConfigError Bytes` | [Effect.Io](Effect.Io.md#v-read-config-bytes) |
+| `rem-u16` | `arg1 /= 0 => (arg0 :: U16) -> (arg1 :: U16) -> U16` | [Data.Machine](Data.Machine.md#v-rem-u16) |
+| `rem-u32` | `arg1 /= 0 => (arg0 :: U32) -> (arg1 :: U32) -> U32` | [Data.Machine](Data.Machine.md#v-rem-u32) |
+| `rem-u64` | `arg1 /= 0 => (arg0 :: U64) -> (arg1 :: U64) -> U64` | [Data.Machine](Data.Machine.md#v-rem-u64) |
+| `rem-u8` | `arg1 /= 0 => (arg0 :: U8) -> (arg1 :: U8) -> U8` | [Data.Machine](Data.Machine.md#v-rem-u8) |
+| `rem-usize` | `arg1 /= 0 => (arg0 :: Usize) -> (arg1 :: Usize) -> Usize` | [Data.Machine](Data.Machine.md#v-rem-usize) |
+| `replicate` | `forall a. Nat -> a -> List a` | [Data.List](Data.List.md#v-replicate) |
+| `result-to-option` | `forall e a. Result e a -> Option a` | [Data.Result](Data.Result.md#v-result-to-option) |
+| `results` | `forall e a. List (Result e a) -> List a` | [Data.Result](Data.Result.md#v-results) |
+| `reverse` | `forall a. List a -> List a` | [Data.List](Data.List.md#v-reverse) |
+| `reverse-bits-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i16) |
+| `reverse-bits-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i32) |
+| `reverse-bits-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i64) |
+| `reverse-bits-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i8) |
+| `reverse-bits-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-reverse-bits-isize) |
+| `reverse-bits-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u16) |
+| `reverse-bits-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u32) |
+| `reverse-bits-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u64) |
+| `reverse-bits-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u8) |
+| `reverse-bits-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-reverse-bits-usize) |
+| `rotate-left-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i16) |
+| `rotate-left-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i32) |
+| `rotate-left-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i64) |
+| `rotate-left-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i8) |
+| `rotate-left-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-rotate-left-isize) |
+| `rotate-left-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u16) |
+| `rotate-left-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u32) |
+| `rotate-left-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u64) |
+| `rotate-left-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u8) |
+| `rotate-left-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-rotate-left-usize) |
+| `rotate-right-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i16) |
+| `rotate-right-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i32) |
+| `rotate-right-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i64) |
+| `rotate-right-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i8) |
+| `rotate-right-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-rotate-right-isize) |
+| `rotate-right-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u16) |
+| `rotate-right-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u32) |
+| `rotate-right-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u64) |
+| `rotate-right-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u8) |
+| `rotate-right-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-rotate-right-usize) |
+| `round-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-round-f32) |
+| `round-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-round-f64) |
+| `round-to-even-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-round-to-even-f32) |
+| `round-to-even-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-round-to-even-f64) |
+| `saturating-add-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i16) |
+| `saturating-add-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i32) |
+| `saturating-add-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i64) |
+| `saturating-add-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i8) |
+| `saturating-add-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-add-isize) |
+| `saturating-add-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u16) |
+| `saturating-add-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u32) |
+| `saturating-add-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u64) |
+| `saturating-add-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u8) |
+| `saturating-add-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-add-usize) |
+| `saturating-f32-to-i16` | `F32 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i16) |
+| `saturating-f32-to-i32` | `F32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i32) |
+| `saturating-f32-to-i64` | `F32 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i64) |
+| `saturating-f32-to-i8` | `F32 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i8) |
+| `saturating-f32-to-isize` | `F32 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-isize) |
+| `saturating-f32-to-u16` | `F32 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u16) |
+| `saturating-f32-to-u32` | `F32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u32) |
+| `saturating-f32-to-u64` | `F32 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u64) |
+| `saturating-f32-to-u8` | `F32 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u8) |
+| `saturating-f32-to-usize` | `F32 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-usize) |
+| `saturating-f64-to-i16` | `F64 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i16) |
+| `saturating-f64-to-i32` | `F64 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i32) |
+| `saturating-f64-to-i64` | `F64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i64) |
+| `saturating-f64-to-i8` | `F64 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i8) |
+| `saturating-f64-to-isize` | `F64 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-isize) |
+| `saturating-f64-to-u16` | `F64 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u16) |
+| `saturating-f64-to-u32` | `F64 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u32) |
+| `saturating-f64-to-u64` | `F64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u64) |
+| `saturating-f64-to-u8` | `F64 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u8) |
+| `saturating-f64-to-usize` | `F64 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-usize) |
+| `saturating-i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i16) |
+| `saturating-i16-to-i32` | `I16 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i32) |
+| `saturating-i16-to-i64` | `I16 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i64) |
+| `saturating-i16-to-i8` | `I16 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i8) |
+| `saturating-i16-to-isize` | `I16 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-isize) |
+| `saturating-i16-to-u16` | `I16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-u16) |
+| `saturating-i16-to-u32` | `I16 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-u32) |
+| `saturating-i16-to-u64` | `I16 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-u64) |
+| `saturating-i16-to-u8` | `I16 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-u8) |
+| `saturating-i16-to-usize` | `I16 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-usize) |
+| `saturating-i32-to-i16` | `I32 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-i16) |
+| `saturating-i32-to-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-i32) |
+| `saturating-i32-to-i64` | `I32 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-i64) |
+| `saturating-i32-to-i8` | `I32 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-i8) |
+| `saturating-i32-to-isize` | `I32 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-isize) |
+| `saturating-i32-to-u16` | `I32 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-u16) |
+| `saturating-i32-to-u32` | `I32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-u32) |
+| `saturating-i32-to-u64` | `I32 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-u64) |
+| `saturating-i32-to-u8` | `I32 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-u8) |
+| `saturating-i32-to-usize` | `I32 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-i32-to-usize) |
+| `saturating-i64-to-i16` | `I64 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-i16) |
+| `saturating-i64-to-i32` | `I64 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-i32) |
+| `saturating-i64-to-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-i64) |
+| `saturating-i64-to-i8` | `I64 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-i8) |
+| `saturating-i64-to-isize` | `I64 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-isize) |
+| `saturating-i64-to-u16` | `I64 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-u16) |
+| `saturating-i64-to-u32` | `I64 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-u32) |
+| `saturating-i64-to-u64` | `I64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-u64) |
+| `saturating-i64-to-u8` | `I64 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-u8) |
+| `saturating-i64-to-usize` | `I64 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-i64-to-usize) |
+| `saturating-i8-to-i16` | `I8 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-i16) |
+| `saturating-i8-to-i32` | `I8 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-i32) |
+| `saturating-i8-to-i64` | `I8 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-i64) |
+| `saturating-i8-to-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-i8) |
+| `saturating-i8-to-isize` | `I8 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-isize) |
+| `saturating-i8-to-u16` | `I8 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-u16) |
+| `saturating-i8-to-u32` | `I8 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-u32) |
+| `saturating-i8-to-u64` | `I8 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-u64) |
+| `saturating-i8-to-u8` | `I8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-u8) |
+| `saturating-i8-to-usize` | `I8 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-i8-to-usize) |
+| `saturating-isize-to-i16` | `Isize -> I16` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-i16) |
+| `saturating-isize-to-i32` | `Isize -> I32` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-i32) |
+| `saturating-isize-to-i64` | `Isize -> I64` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-i64) |
+| `saturating-isize-to-i8` | `Isize -> I8` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-i8) |
+| `saturating-isize-to-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-isize) |
+| `saturating-isize-to-u16` | `Isize -> U16` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u16) |
+| `saturating-isize-to-u32` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u32) |
+| `saturating-isize-to-u64` | `Isize -> U64` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u64) |
+| `saturating-isize-to-u8` | `Isize -> U8` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u8) |
+| `saturating-isize-to-usize` | `Isize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-usize) |
+| `saturating-mul-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i16) |
+| `saturating-mul-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i32) |
+| `saturating-mul-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i64) |
+| `saturating-mul-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i8) |
+| `saturating-mul-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-mul-isize) |
+| `saturating-mul-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u16) |
+| `saturating-mul-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u32) |
+| `saturating-mul-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u64) |
+| `saturating-mul-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u8) |
+| `saturating-mul-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-mul-usize) |
+| `saturating-neg-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-neg-i16) |
+| `saturating-neg-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-neg-i32) |
+| `saturating-neg-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-neg-i64) |
+| `saturating-neg-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-neg-i8) |
+| `saturating-neg-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-neg-isize) |
+| `saturating-neg-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-neg-u16) |
+| `saturating-neg-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-neg-u32) |
+| `saturating-neg-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-neg-u64) |
+| `saturating-neg-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-neg-u8) |
+| `saturating-neg-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-neg-usize) |
+| `saturating-sub` | `Nat -> Nat -> Nat` | [Data.Nat](Data.Nat.md#v-saturating-sub) |
+| `saturating-sub-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i16) |
+| `saturating-sub-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i32) |
+| `saturating-sub-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i64) |
+| `saturating-sub-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i8) |
+| `saturating-sub-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-sub-isize) |
+| `saturating-sub-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u16) |
+| `saturating-sub-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u32) |
+| `saturating-sub-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u64) |
+| `saturating-sub-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u8) |
+| `saturating-sub-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-sub-usize) |
+| `saturating-u16-to-i16` | `U16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i16) |
+| `saturating-u16-to-i32` | `U16 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i32) |
+| `saturating-u16-to-i64` | `U16 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i64) |
+| `saturating-u16-to-i8` | `U16 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i8) |
+| `saturating-u16-to-isize` | `U16 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-isize) |
+| `saturating-u16-to-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-u16) |
+| `saturating-u16-to-u32` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-u32) |
+| `saturating-u16-to-u64` | `U16 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-u64) |
+| `saturating-u16-to-u8` | `U16 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-u8) |
+| `saturating-u16-to-usize` | `U16 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-usize) |
+| `saturating-u32-to-i16` | `U32 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-i16) |
+| `saturating-u32-to-i32` | `U32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-i32) |
+| `saturating-u32-to-i64` | `U32 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-i64) |
+| `saturating-u32-to-i8` | `U32 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-i8) |
+| `saturating-u32-to-isize` | `U32 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-isize) |
+| `saturating-u32-to-u16` | `U32 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-u16) |
+| `saturating-u32-to-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-u32) |
+| `saturating-u32-to-u64` | `U32 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-u64) |
+| `saturating-u32-to-u8` | `U32 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-u8) |
+| `saturating-u32-to-usize` | `U32 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-u32-to-usize) |
+| `saturating-u64-to-i16` | `U64 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-i16) |
+| `saturating-u64-to-i32` | `U64 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-i32) |
+| `saturating-u64-to-i64` | `U64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-i64) |
+| `saturating-u64-to-i8` | `U64 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-i8) |
+| `saturating-u64-to-isize` | `U64 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-isize) |
+| `saturating-u64-to-u16` | `U64 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-u16) |
+| `saturating-u64-to-u32` | `U64 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-u32) |
+| `saturating-u64-to-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-u64) |
+| `saturating-u64-to-u8` | `U64 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-u8) |
+| `saturating-u64-to-usize` | `U64 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-u64-to-usize) |
+| `saturating-u8-to-i16` | `U8 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-i16) |
+| `saturating-u8-to-i32` | `U8 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-i32) |
+| `saturating-u8-to-i64` | `U8 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-i64) |
+| `saturating-u8-to-i8` | `U8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-i8) |
+| `saturating-u8-to-isize` | `U8 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-isize) |
+| `saturating-u8-to-u16` | `U8 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-u16) |
+| `saturating-u8-to-u32` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-u32) |
+| `saturating-u8-to-u64` | `U8 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-u64) |
+| `saturating-u8-to-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-u8) |
+| `saturating-u8-to-usize` | `U8 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-u8-to-usize) |
+| `saturating-usize-to-i16` | `Usize -> I16` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-i16) |
+| `saturating-usize-to-i32` | `Usize -> I32` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-i32) |
+| `saturating-usize-to-i64` | `Usize -> I64` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-i64) |
+| `saturating-usize-to-i8` | `Usize -> I8` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-i8) |
+| `saturating-usize-to-isize` | `Usize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-isize) |
+| `saturating-usize-to-u16` | `Usize -> U16` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-u16) |
+| `saturating-usize-to-u32` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-u32) |
+| `saturating-usize-to-u64` | `Usize -> U64` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-u64) |
+| `saturating-usize-to-u8` | `Usize -> U8` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-u8) |
+| `saturating-usize-to-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-usize-to-usize) |
+| `scalar-sum-wrap32` | `forall (n :: Nat) region. Ref region Vec n U32 -> U32` | [Data.Producer](Data.Producer.md#v-scalar-sum-wrap32) |
+| `scanl` | `forall a b. (b -> a -> b) -> b -> List a -> List b` | [Data.List](Data.List.md#v-scanl) |
+| `scanr` | `forall a b. (a -> b -> b) -> b -> List a -> List b` | [Data.List](Data.List.md#v-scanr) |
+| `sha256-bytes` | `Bytes -> Bytes` | [Data.Bytes](Data.Bytes.md#v-sha256-bytes) |
+| `sign-bit-f32` | `F32 -> Bool` | [Data.Machine](Data.Machine.md#v-sign-bit-f32) |
+| `sign-bit-f64` | `F64 -> Bool` | [Data.Machine](Data.Machine.md#v-sign-bit-f64) |
+| `simd-sum-wrap32` | `forall t w (n :: Nat) region. VecU32Target t w -> Ref region Vec n U32 -> U32` | [Data.Target](Data.Target.md#v-simd-sum-wrap32) |
+| `snd` | `forall a b. (a, b) -> b` | [Function.Combinators](Function.Combinators.md#v-snd) |
+| `sort` | `forall a. using (ord :: Ord a) => List a -> List a` | [Data.List](Data.List.md#v-sort) |
+| `sort-by` | `forall a. (a -> a -> Ordering) -> List a -> List a` | [Data.List](Data.List.md#v-sort-by) |
+| `span` | `forall a. (a -> Bool) -> List a -> (List a, List a)` | [Data.List](Data.List.md#v-span) |
+| `split-at` | `forall a. Nat -> List a -> (List a, List a)` | [Data.List](Data.List.md#v-split-at) |
+| `sqrt-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-sqrt-f32) |
+| `sqrt-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-sqrt-f64) |
+| `string-byte-index-from` | `arg1 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: Nat) -> refined (arg1 <= r && r <= (bytes-len arg0)) Nat` | [Data.String](Data.String.md#v-string-byte-index-from) |
+| `string-byte-length` | `String -> Nat` | [Data.String](Data.String.md#v-string-byte-length) |
+| `string-char-at` | `String -> Nat -> Option Char` | [Data.String](Data.String.md#v-string-char-at) |
+| `string-char-at-from` | `Bytes -> Nat -> Nat -> Option Char` | [Data.String](Data.String.md#v-string-char-at-from) |
+| `string-clone` | `String -> String` | [Data.String](Data.String.md#v-string-clone) |
+| `string-compare` | `String -> String -> I64` | [Data.String](Data.String.md#v-string-compare) |
+| `string-concat` | `String -> String -> String` | [Data.String](Data.String.md#v-string-concat) |
+| `string-concat-all` | `List String -> String` | [Data.String](Data.String.md#v-string-concat-all) |
+| `string-from-bytes` | `Bytes -> Option String` | [Data.String](Data.String.md#v-string-from-bytes) |
+| `string-join` | `List String -> String -> String` | [Data.String](Data.String.md#v-string-join) |
+| `string-length` | `String -> Nat` | [Data.String](Data.String.md#v-string-length) |
+| `string-length-from` | `Bytes -> Nat -> Nat -> Nat` | [Data.String](Data.String.md#v-string-length-from) |
+| `string-repeat` | `Nat -> String -> String` | [Data.String](Data.String.md#v-string-repeat) |
+| `string-slice` | `String -> Nat -> Nat -> String` | [Data.String](Data.String.md#v-string-slice) |
+| `string-to-bytes` | `String -> Bytes` | [Data.String](Data.String.md#v-string-to-bytes) |
+| `string-utf8-first` | `String -> Option (Char, Nat)` | [Data.String](Data.String.md#v-string-utf8-first) |
+| `string-utf8-last` | `String -> Option (Char, Nat)` | [Data.String](Data.String.md#v-string-utf8-last) |
+| `sub-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-sub-f32) |
+| `sub-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-sub-f64) |
+| `subsequences` | `forall a. List a -> List (List a)` | [Data.List](Data.List.md#v-subsequences) |
+| `sum-list` | `forall a. using (add :: Add a) => a -> List a -> a` | [Data.List](Data.List.md#v-sum-list) |
+| `swap` | `forall a b. (a, b) -> (b, a)` | [Function.Combinators](Function.Combinators.md#v-swap) |
+| `swap-bytes-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i16) |
+| `swap-bytes-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i32) |
+| `swap-bytes-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i64) |
+| `swap-bytes-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-swap-bytes-i8) |
+| `swap-bytes-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-swap-bytes-isize) |
+| `swap-bytes-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u16) |
+| `swap-bytes-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u32) |
+| `swap-bytes-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u64) |
+| `swap-bytes-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-swap-bytes-u8) |
+| `swap-bytes-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-swap-bytes-usize) |
+| `sym-name` | `Sym -> String` | [Data.Sym](Data.Sym.md#v-sym-name) |
+| `tail` | `forall a. List a -> Option (List a)` | [Data.List](Data.List.md#v-tail) |
+| `take` | `forall a. Nat -> List a -> List a` | [Data.List](Data.List.md#v-take) |
+| `to-lower-ascii` | `Char -> Char` | [Data.Char](Data.Char.md#v-to-lower-ascii) |
+| `to-upper-ascii` | `Char -> Char` | [Data.Char](Data.Char.md#v-to-upper-ascii) |
+| `total-order-f32` | `F32 -> F32 -> Ordering` | [Data.Machine](Data.Machine.md#v-total-order-f32) |
+| `total-order-f64` | `F64 -> F64 -> Ordering` | [Data.Machine](Data.Machine.md#v-total-order-f64) |
+| `trailing-zeros-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i16) |
+| `trailing-zeros-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i32) |
+| `trailing-zeros-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i64) |
+| `trailing-zeros-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i8) |
+| `trailing-zeros-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-isize) |
+| `trailing-zeros-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u16) |
+| `trailing-zeros-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u32) |
+| `trailing-zeros-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u64) |
+| `trailing-zeros-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u8) |
+| `trailing-zeros-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-usize) |
+| `transpose` | `forall a. List (List a) -> List (List a)` | [Data.List](Data.List.md#v-transpose) |
+| `trunc-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-trunc-f32) |
+| `trunc-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-trunc-f64) |
+| `u16-to-f32` | `U16 -> F32` | [Prim.Machine](Prim.Machine.md#v-u16-to-f32) |
+| `u16-to-f64` | `U16 -> F64` | [Prim.Machine](Prim.Machine.md#v-u16-to-f64) |
+| `u16-to-i32` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-u16-to-i32) |
+| `u16-to-i64` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u16-to-i64) |
+| `u16-to-isize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u16-to-isize) |
+| `u16-to-nat` | `U16 -> InRange 0 65535 Nat` | [Data.Machine](Data.Machine.md#v-u16-to-nat) |
+| `u16-to-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-u16-to-u16) |
+| `u16-to-u32` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) U32` | [Prim.Machine](Prim.Machine.md#v-u16-to-u32) |
+| `u16-to-u64` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u16-to-u64) |
+| `u16-to-usize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u16-to-usize) |
+| `u32-to-char` | `U32 -> Option Char` | [Data.Char](Data.Char.md#v-u32-to-char) |
+| `u32-to-f32` | `U32 -> F32` | [Prim.Machine](Prim.Machine.md#v-u32-to-f32) |
+| `u32-to-f64` | `U32 -> F64` | [Prim.Machine](Prim.Machine.md#v-u32-to-f64) |
+| `u32-to-i64` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u32-to-i64) |
+| `u32-to-isize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u32-to-isize) |
+| `u32-to-nat` | `U32 -> InRange 0 4294967295 Nat` | [Data.Machine](Data.Machine.md#v-u32-to-nat) |
+| `u32-to-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-u32-to-u32) |
+| `u32-to-u64` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u32-to-u64) |
+| `u32-to-usize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u32-to-usize) |
+| `u64-to-f32` | `U64 -> F32` | [Prim.Machine](Prim.Machine.md#v-u64-to-f32) |
+| `u64-to-f64` | `U64 -> F64` | [Prim.Machine](Prim.Machine.md#v-u64-to-f64) |
+| `u64-to-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-u64-to-u64) |
+| `u64-to-usize` | `(a0 :: U64) -> refined (r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u64-to-usize) |
+| `u8-to-f32` | `U8 -> F32` | [Prim.Machine](Prim.Machine.md#v-u8-to-f32) |
+| `u8-to-f64` | `U8 -> F64` | [Prim.Machine](Prim.Machine.md#v-u8-to-f64) |
+| `u8-to-i16` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I16` | [Prim.Machine](Prim.Machine.md#v-u8-to-i16) |
+| `u8-to-i32` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-u8-to-i32) |
+| `u8-to-i64` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u8-to-i64) |
+| `u8-to-isize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u8-to-isize) |
+| `u8-to-nat` | `U8 -> InRange 0 255 Nat` | [Data.Machine](Data.Machine.md#v-u8-to-nat) |
+| `u8-to-u16` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U16` | [Prim.Machine](Prim.Machine.md#v-u8-to-u16) |
+| `u8-to-u32` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U32` | [Prim.Machine](Prim.Machine.md#v-u8-to-u32) |
+| `u8-to-u64` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u8-to-u64) |
+| `u8-to-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-u8-to-u8) |
+| `u8-to-usize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u8-to-usize) |
+| `uncurry` | `forall a b c. (a -> b -> c) -> (a, b) -> c` | [Function.Combinators](Function.Combinators.md#v-uncurry) |
+| `unfold` | `forall a b. (b -> Option (a, b)) -> b -> List a` | [Data.List](Data.List.md#v-unfold) |
+| `unpack` | `String -> List Char` | [Data.String](Data.String.md#v-unpack) |
+| `unzip` | `forall a b. List (a, b) -> (List a, List b)` | [Data.List](Data.List.md#v-unzip) |
+| `usize-to-f32` | `Usize -> F32` | [Data.Machine](Data.Machine.md#v-usize-to-f32) |
+| `usize-to-f64` | `Usize -> F64` | [Data.Machine](Data.Machine.md#v-usize-to-f64) |
+| `usize-to-u64` | `(a0 :: Usize) -> refined (r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-usize-to-u64) |
+| `usize-to-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-usize-to-usize) |
+| `utf8-at` | `Bytes -> Nat -> Option (Char, Nat)` | [Data.String](Data.String.md#v-utf8-at) |
+| `utf8-char` | `Nat -> Nat -> Option (Char, Nat)` | [Data.String](Data.String.md#v-utf8-char) |
+| `utf8-cont` | `arg1 + arg2 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: Nat) -> (arg3 :: Nat) -> Option Nat` | [Data.String](Data.String.md#v-utf8-cont) |
+| `utf8-encode-into` | `arg1 + (utf8-encode-width arg2) <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: Nat) -> Nat` | [Data.String](Data.String.md#v-utf8-encode-into) |
+| `utf8-encode-width` | `Nat -> InRange 1 4 Nat` | [Data.String](Data.String.md#v-utf8-encode-width) |
+| `utf8-lead-payload` | `Nat -> Nat -> Nat` | [Data.String](Data.String.md#v-utf8-lead-payload) |
+| `utf8-min` | `Nat -> Nat` | [Data.String](Data.String.md#v-utf8-min) |
+| `utf8-valid-from` | `Bytes -> Nat -> Bool` | [Data.String](Data.String.md#v-utf8-valid-from) |
+| `utf8-width` | `Nat -> Nat` | [Data.String](Data.String.md#v-utf8-width) |
+| `vec-stream` | `forall a (n :: Nat) region. Ref region Vec n a -> Producer (Ref region Vec n a) a` | [Data.Producer](Data.Producer.md#v-vec-stream) |
+| `wrapping-add-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i16) |
+| `wrapping-add-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i32) |
+| `wrapping-add-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i64) |
+| `wrapping-add-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i8) |
+| `wrapping-add-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-add-isize) |
+| `wrapping-add-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u16) |
+| `wrapping-add-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u32) |
+| `wrapping-add-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u64) |
+| `wrapping-add-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u8) |
+| `wrapping-add-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-add-usize) |
+| `wrapping-i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i16) |
+| `wrapping-i16-to-i32` | `I16 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i32) |
+| `wrapping-i16-to-i64` | `I16 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i64) |
+| `wrapping-i16-to-i8` | `I16 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-i8) |
+| `wrapping-i16-to-isize` | `I16 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-isize) |
+| `wrapping-i16-to-u16` | `I16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u16) |
+| `wrapping-i16-to-u32` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u32) |
+| `wrapping-i16-to-u64` | `I16 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u64) |
+| `wrapping-i16-to-u8` | `I16 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u8) |
+| `wrapping-i16-to-usize` | `I16 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-usize) |
+| `wrapping-i32-to-i16` | `I32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-i16) |
+| `wrapping-i32-to-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i32) |
+| `wrapping-i32-to-i64` | `I32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i64) |
+| `wrapping-i32-to-i8` | `I32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-i8) |
+| `wrapping-i32-to-isize` | `I32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-isize) |
+| `wrapping-i32-to-u16` | `I32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u16) |
+| `wrapping-i32-to-u32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u32) |
+| `wrapping-i32-to-u64` | `I32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u64) |
+| `wrapping-i32-to-u8` | `I32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u8) |
+| `wrapping-i32-to-usize` | `I32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-usize) |
+| `wrapping-i64-to-i16` | `I64 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i16) |
+| `wrapping-i64-to-i32` | `I64 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i32) |
+| `wrapping-i64-to-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-i64) |
+| `wrapping-i64-to-i8` | `I64 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i8) |
+| `wrapping-i64-to-isize` | `I64 -> Isize` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-isize) |
+| `wrapping-i64-to-u16` | `I64 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u16) |
+| `wrapping-i64-to-u32` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u32) |
+| `wrapping-i64-to-u64` | `I64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u64) |
+| `wrapping-i64-to-u8` | `I64 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u8) |
+| `wrapping-i64-to-usize` | `I64 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-usize) |
+| `wrapping-i8-to-i16` | `I8 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i16) |
+| `wrapping-i8-to-i32` | `I8 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i32) |
+| `wrapping-i8-to-i64` | `I8 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i64) |
+| `wrapping-i8-to-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i8) |
+| `wrapping-i8-to-isize` | `I8 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-isize) |
+| `wrapping-i8-to-u16` | `I8 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u16) |
+| `wrapping-i8-to-u32` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u32) |
+| `wrapping-i8-to-u64` | `I8 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u64) |
+| `wrapping-i8-to-u8` | `I8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u8) |
+| `wrapping-i8-to-usize` | `I8 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-usize) |
+| `wrapping-isize-to-i16` | `Isize -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i16) |
+| `wrapping-isize-to-i32` | `Isize -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-isize-to-i32) |
+| `wrapping-isize-to-i64` | `Isize -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i64) |
+| `wrapping-isize-to-i8` | `Isize -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i8) |
+| `wrapping-isize-to-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-isize) |
+| `wrapping-isize-to-u16` | `Isize -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u16) |
+| `wrapping-isize-to-u32` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u32) |
+| `wrapping-isize-to-u64` | `Isize -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u64) |
+| `wrapping-isize-to-u8` | `Isize -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u8) |
+| `wrapping-isize-to-usize` | `Isize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-usize) |
+| `wrapping-mul-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i16) |
+| `wrapping-mul-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i32) |
+| `wrapping-mul-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i64) |
+| `wrapping-mul-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i8) |
+| `wrapping-mul-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-mul-isize) |
+| `wrapping-mul-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u16) |
+| `wrapping-mul-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u32) |
+| `wrapping-mul-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u64) |
+| `wrapping-mul-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u8) |
+| `wrapping-mul-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-mul-usize) |
+| `wrapping-neg-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i16) |
+| `wrapping-neg-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i32) |
+| `wrapping-neg-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i64) |
+| `wrapping-neg-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i8) |
+| `wrapping-neg-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-neg-isize) |
+| `wrapping-neg-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u16) |
+| `wrapping-neg-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u32) |
+| `wrapping-neg-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u64) |
+| `wrapping-neg-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u8) |
+| `wrapping-neg-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-neg-usize) |
+| `wrapping-shl-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i16) |
+| `wrapping-shl-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i32) |
+| `wrapping-shl-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i64) |
+| `wrapping-shl-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i8) |
+| `wrapping-shl-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-shl-isize) |
+| `wrapping-shl-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u16) |
+| `wrapping-shl-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u32) |
+| `wrapping-shl-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u64) |
+| `wrapping-shl-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u8) |
+| `wrapping-shl-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-shl-usize) |
+| `wrapping-shr-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i16) |
+| `wrapping-shr-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i32) |
+| `wrapping-shr-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i64) |
+| `wrapping-shr-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i8) |
+| `wrapping-shr-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-shr-isize) |
+| `wrapping-shr-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u16) |
+| `wrapping-shr-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u32) |
+| `wrapping-shr-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u64) |
+| `wrapping-shr-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u8) |
+| `wrapping-shr-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-shr-usize) |
+| `wrapping-sub-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i16) |
+| `wrapping-sub-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i32) |
+| `wrapping-sub-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i64) |
+| `wrapping-sub-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i8) |
+| `wrapping-sub-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-sub-isize) |
+| `wrapping-sub-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u16) |
+| `wrapping-sub-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u32) |
+| `wrapping-sub-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u64) |
+| `wrapping-sub-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u8) |
+| `wrapping-sub-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-sub-usize) |
+| `wrapping-u16-to-i16` | `U16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-i16) |
+| `wrapping-u16-to-i32` | `U16 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i32) |
+| `wrapping-u16-to-i64` | `U16 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i64) |
+| `wrapping-u16-to-i8` | `U16 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-i8) |
+| `wrapping-u16-to-isize` | `U16 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-isize) |
+| `wrapping-u16-to-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u16) |
+| `wrapping-u16-to-u32` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u32) |
+| `wrapping-u16-to-u64` | `U16 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u64) |
+| `wrapping-u16-to-u8` | `U16 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-u8) |
+| `wrapping-u16-to-usize` | `U16 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-usize) |
+| `wrapping-u32-to-i16` | `U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i16) |
+| `wrapping-u32-to-i32` | `U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i32) |
+| `wrapping-u32-to-i64` | `U32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-i64) |
+| `wrapping-u32-to-i8` | `U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i8) |
+| `wrapping-u32-to-isize` | `U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-isize) |
+| `wrapping-u32-to-u16` | `U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-u16) |
+| `wrapping-u32-to-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u32) |
+| `wrapping-u32-to-u64` | `U32 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u64) |
+| `wrapping-u32-to-u8` | `U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-u8) |
+| `wrapping-u32-to-usize` | `U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-usize) |
+| `wrapping-u64-to-i16` | `U64 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i16) |
+| `wrapping-u64-to-i32` | `U64 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i32) |
+| `wrapping-u64-to-i64` | `U64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i64) |
+| `wrapping-u64-to-i8` | `U64 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i8) |
+| `wrapping-u64-to-isize` | `U64 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-isize) |
+| `wrapping-u64-to-u16` | `U64 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u16) |
+| `wrapping-u64-to-u32` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u32) |
+| `wrapping-u64-to-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-u64) |
+| `wrapping-u64-to-u8` | `U64 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u8) |
+| `wrapping-u64-to-usize` | `U64 -> Usize` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-usize) |
+| `wrapping-u8-to-i16` | `U8 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i16) |
+| `wrapping-u8-to-i32` | `U8 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i32) |
+| `wrapping-u8-to-i64` | `U8 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i64) |
+| `wrapping-u8-to-i8` | `U8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u8-to-i8) |
+| `wrapping-u8-to-isize` | `U8 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-isize) |
+| `wrapping-u8-to-u16` | `U8 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u16) |
+| `wrapping-u8-to-u32` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u32) |
+| `wrapping-u8-to-u64` | `U8 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u64) |
+| `wrapping-u8-to-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u8) |
+| `wrapping-u8-to-usize` | `U8 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-usize) |
+| `wrapping-usize-to-i16` | `Usize -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-i16) |
+| `wrapping-usize-to-i32` | `Usize -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-i32) |
+| `wrapping-usize-to-i64` | `Usize -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-i64) |
+| `wrapping-usize-to-i8` | `Usize -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-i8) |
+| `wrapping-usize-to-isize` | `Usize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-isize) |
+| `wrapping-usize-to-u16` | `Usize -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u16) |
+| `wrapping-usize-to-u32` | `Usize -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-usize-to-u32) |
+| `wrapping-usize-to-u64` | `Usize -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u64) |
+| `wrapping-usize-to-u8` | `Usize -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u8) |
+| `wrapping-usize-to-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-usize) |
+| `xor` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-xor) |
+| `zero-u32` | `U32` | [Data.Machine](Data.Machine.md#v-zero-u32) |
+| `zip` | `forall a b. List a -> List b -> List (a, b)` | [Data.List](Data.List.md#v-zip) |
+| `zip-with` | `forall a b c. (a -> b -> c) -> List a -> List b -> List c` | [Data.List](Data.List.md#v-zip-with) |
+| `\|` | `forall a. using (bits :: Bits a) => a -> a -> a` | [Algebra.Bits](Algebra.Bits.md#v-op-7c) |
+| `\|\|` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-op-7c7c) |
 
 # Operator fixities
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">%</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">6</span> <span class="tok-operator">&amp;</span>
-<span class="tok-keyword">infixr</span> <span class="tok-number">2</span> <span class="tok-operator">&amp;&amp;</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">*</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">+</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">8</span> <span class="tok-operator">-</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">9</span> <span class="tok-operator">/</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">/=</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&lt;&lt;</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&lt;=</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">==</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;</span>
-<span class="tok-keyword">infix</span> <span class="tok-number">3</span> <span class="tok-operator">&gt;=</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">7</span> <span class="tok-operator">&gt;&gt;</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">5</span> <span class="tok-operator">^</span>
-<span class="tok-keyword">infixl</span> <span class="tok-number">4</span> |
-<span class="tok-keyword">infixr</span> <span class="tok-number">1</span> <span class="tok-operator">||</span></code></pre>
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Prelude.cinch`. Source SHA-256: `7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+| Operator | Associativity | Precedence |
+| --- | --- | --- |
+| `%` | `infixl` | `9` |
+| `&` | `infixl` | `6` |
+| `&&` | `infixr` | `2` |
+| `*` | `infixl` | `9` |
+| `+` | `infixl` | `8` |
+| `-` | `infixl` | `8` |
+| `/` | `infixl` | `9` |
+| `/=` | `infix` | `3` |
+| `<` | `infix` | `3` |
+| `<<` | `infixl` | `7` |
+| `<=` | `infix` | `3` |
+| `==` | `infix` | `3` |
+| `>` | `infix` | `3` |
+| `>=` | `infix` | `3` |
+| `>>` | `infixl` | `7` |
+| `^` | `infixl` | `5` |
+| `\|` | `infixl` | `4` |
+| `\|\|` | `infixr` | `1` |

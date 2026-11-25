@@ -1,25 +1,21 @@
 # Modules, signatures, instances, and packages
 
-A module is a unit of naming, not a file. One file may declare several modules, a module may be declared in a file whose name differs from it, and a project may put several files beside its entry. What the compiler guarantees is that every imported name resolves to exactly one declaration, and that the record of that decision is a checked interface.
+A module is a namespace with a checked interface, not a file. One source file may declare multiple modules, a module's name need not match its filename, and a project may spread modules across any directory layout beside its entry. The compiler enforces two invariants across the module graph: every imported name resolves to a single declaration, and every module boundary is recorded in a verified interface.
 
-This page covers the declaration and resolution rules you type. The artifact the compiler writes for each module is on [artifacts and incremental compilation](18-artifacts-and-incremental.md); installing packages is on [packages, manifests, and the registry](29-package-management.md).
+Build artifacts and incremental rechecking are covered in [artifacts and incremental compilation](18-artifacts-and-incremental.md); manifests, lockfiles, and registry workflows are in [packages, manifests, and the registry](29-package-management.md).
 
 # Module headers
 
-A module starts with `module NAME where` and its declarations form the indented block that follows. Names may contain dots:
+A module begins with `module NAME where`, followed by an indented block of declarations. Module names may be dot-separated:
 
 ```text
 module Data.Core where
   export List, Nil, Cons
 ```
 
-Every module declared in the file you compile belongs to that compile, and the program entry is the module that declares `main`. A file with no `module` declaration is refused before anything else:
+Every module declared in the entry file participates in the compilation, and the executable entry point is the module declaring `main`. A source file without a `module` header is rejected immediately (`Main.cinch: no \`module\` declaration`).
 
-```text
-Main.cinch: no `module` declaration
-```
-
-Several modules in one file are legal and are how a generator is kept beside its consumer:
+Declaring multiple modules in one file is standard when keeping compile-time macros beside the module that invokes them:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -41,7 +37,7 @@ module Main where
 
 ## Module parameters
 
-A module may take parameters in its header. A signature-typed parameter is a dictionary the instantiating import supplies; a value-typed parameter is an ordinary binding:
+A non-entry module may declare parameters in its header. A parameter typed by a `signature` accepts an explicit dictionary at instantiation; a parameter typed by a value type accepts an ordinary value:
 
 ```text
 module Tally (S :: Stepper) where
@@ -51,7 +47,7 @@ module Tally (S :: Stepper) where
   bump x = step x
 ```
 
-Instantiation happens at the import, and the argument is written in the same position as an imported member:
+Instantiation occurs at the `import` site, passing the argument in parentheses before `as`:
 
 <!-- cinch:project group=modules-params file=Main.cinch exit=0 stdout="20" -->
 ```cinch
@@ -88,22 +84,24 @@ module Tally (S :: Stepper) where
   bump x = step x
 ```
 
-`Up.bump 1` and `Down.bump 1` are two copies of one module, each closed over a different dictionary. A value parameter works the same way: `module AddK (k :: Int) where` instantiates with `import AddK (1) as ByLit` or with any name in scope, `import AddK (base) as ByName`. The parameter and its argument are recorded in the interface: `Tally.cinchif` carries `"params": ["S :: Api.Stepper"]`.
+`Up` and `Down` are distinct instantiations of `Tally`, each closed over a different `Stepper` dictionary. Value parameters work identically: `module AddK (k :: Int) where` can be instantiated with a literal (`import AddK (1) as ByLit`) or an in-scope binding (`import AddK (base) as ByName`). Parameter signatures are recorded in the module's checked interface. Entry modules declaring `main` cannot take module parameters.
 
 # Import forms
 
 | Form | Effect |
 | --- | --- |
-| `import Mod` | Brings `Mod` into the project and makes its exported names available unqualified |
-| `import Mod (a, b)` | Brings `Mod` in and makes only `a` and `b` available unqualified |
-| `import Mod (a as b)` | Same, renamed at the use site |
-| `import Mod hiding (a, b)` | Brings `Mod` in and makes every exported name available except `a` and `b`, which are then out of scope bare and as `Mod.a` |
-| `import Mod as M` | Available qualified only, as `M.a` |
-| `import stage Mod` | Compile-time dependency; see [staging](14-staging-and-macros.md) |
-| `import data "path" as name` | Binds a converted non-source input |
-| `import Mod when <clause>` | Selected by the compile target; see [conditional surface](#conditional-imports-and-declarations) |
+| `import Mod` | Loads `Mod` and brings all exported names into scope unqualified. |
+| `import Mod (a, b)` | Loads `Mod` and brings only `a` and `b` into scope unqualified. |
+| `import Mod (a as b)` | Loads `Mod` and binds `a` locally under the name `b`. |
+| `import Mod hiding (a, b)` | Loads `Mod` and brings all exported names into scope except `a` and `b` (excluded both bare and as `Mod.a`). |
+| `import Mod as M` | Loads `Mod` for qualified access only (`M.a`). |
+| `import stage Mod` | Declares a compile-time dependency; see [staging and macros](14-staging-and-macros.md). |
+| `import data "path" as name` | Converts a non-source asset at check time and binds it as `name`. |
+| `import Mod when <clause>` | Conditionally includes the import for matching targets; see [conditional imports and declarations](#conditional-imports-and-declarations). |
 
-An unconditional import statement always loads the module. What a selection or a `hiding` list changes is which of the module's names become unqualified in the importer, and whether the module's implicit instances are reachable (see below). A `hiding` list names members of the module's surface: hiding a name the module does not export is refused with `` `Mod` has no member `missing` to hide ``, so a misspelling cannot hide nothing in silence. A hidden operator's fixity stays out with it. An import either selects or hides, never both. An import with a `when` clause loads the module only where that clause holds, which the [conditional surface](#conditional-imports-and-declarations) section covers.
+Every unconditional `import` loads the target module; selection and `hiding` clauses only control which names enter unqualified scope. An import may either select or hide, never both. Hiding a name that `Mod` does not export is an error (`` `Mod` has no member `missing` to hide ``), preventing silent typos. Hiding an operator also excludes its fixity declaration.
+
+Selective, qualified, and renaming imports:
 
 <!-- cinch:project group=modules-two file=Main.cinch exit=0 stdout="hello, world" -->
 ```cinch
@@ -124,8 +122,6 @@ module Greeting where
   greet :: String -> String
   greet name = string-concat "hello, " name
 ```
-
-The qualified and renaming forms are ordinary:
 
 <!-- cinch:project group=modules-qualified file=Main.cinch exit=0 -->
 ```cinch
@@ -163,30 +159,29 @@ module Greeting where
   greet name = string-concat "hello, " name
 ```
 
-## How `import Mod` finds a module
+## Module resolution
 
-The loader tries three sources in order, and the first hit wins:
+When resolving `import Mod`, the loader searches four sources in order and stops at the first match:
 
-1. A module already loaded, including one declared earlier in the same file.
-2. A file named `Mod.cinch` beside the entry.
-3. A unique `module Mod` declaration in any `.cinch` file under the entry's directory, searched recursively. `.git`, `target`, `build`, and `node_modules` are skipped.
+1. A module already loaded in the current compilation, including one declared earlier in the same file.
+2. A file named `Mod.cinch` beside the entry file.
+3. A unique `module Mod` declaration in any `.cinch` file recursively under the entry file's parent directory (skipping `.git`, `target`, `build`, and `node_modules`).
+4. The toolchain's `cinch/stdlib` package (declared in its `.cinchpkg` manifest, overridable via `CINCH_STDLIB`), resolved on demand with its transitive interface closure.
 
-Step 3 is what makes a `vendor/` tree importable, and it reads the entry path's directory. Compile `Main.cinch` and the directory to search is empty, so a module declared in a differently named file is invisible; compile `./Main.cinch` or an absolute path and the search runs. This is the decision D42 rule in `driver.rs` and the one resolution behaviour worth remembering, because the failure looks like a missing file.
+Step 3 is how vendored packages under `vendor/` and modules whose filenames differ from their module names are discovered. Because recursive search inspects the entry path's parent directory, invoking `cinch check Main.cinch` leaves the search directory empty and skips step 3; pass `./Main.cinch` or a path with an explicit directory component when importing modules declared in differently named files or subdirectories. Standard library modules in step 4 resolve regardless of working directory.
 
-Missing and ambiguous modules are separate diagnostics:
+Missing and ambiguous modules produce distinct errors:
 
 ```text
 cinch: module Thing is imported, but Thing.cinch does not exist and no other source file beside the entry declares `module Thing`
 cinch: module Thing is imported, but several source files declare it (./B.cinch, ./A.cinch); imports resolve to a unique module
 ```
 
-The paths in the second diagnostic are the loader's own joined paths, which is why they carry the entry's directory prefix.
-
 # Conditional imports and declarations
 
-Two positions take a `when` clause: an import, and a declaration. Both read the compile target, both use the same vocabulary a `prim` body's `when` uses, and repeated clauses on one position are a conjunction. The vocabulary is one atom over the target profile (`Available <capability>`, `arch`, `os`, `libc`, `endian`, `word-size`, `target`), each atom also spellable negated as `not (<atom>)`; [the target vocabulary](15-ffi-layout-and-attributes.md#target-conditions) lists what each atom reads.
+Target conditions use `when` clauses in two module-level positions: imports and declarations. Both evaluate against the active `--target` profile using the same atom vocabulary as `prim` bodies (`Available <capability>`, `arch`, `os`, `libc`, `endian`, `word-size`, `target`, and `not (<atom>)`; see [target conditions](15-ffi-layout-and-attributes.md#target-conditions)). Multiple `when` clauses on the same item form a conjunction.
 
-An import carries its clause after everything else it names:
+On an import, `when` clauses follow the rest of the import form:
 
 ```cinch
 import Prim.Sys.Darwin when os darwin
@@ -194,25 +189,25 @@ import Prim.Sys.Linux when os linux
 import Data.Machine when arch aarch64 when not (os windows)
 ```
 
-A declaration carries its clause as a prefix, and the clause is exactly the atom, so the declaration follows without a separator:
+On a declaration, each `when` clause is written as a prefix immediately before the declaration with no separator:
 
 ```cinch
 when os darwin sys-errno :: I64
 when os darwin sys-errno = 2
 ```
 
-## What a false condition means
+## Inactive items
 
-Where a clause does not hold in the target profile, the position contributes nothing at all:
+When a `when` clause evaluates to false for the active target, the annotated item is completely absent:
 
-- An import brings no names into scope, is not a module dependency, does not appear in the checked interface's import list, and does not affect the check order or the set of files the compiler loads. A program naming one of its names fails with the ordinary unknown-name diagnostic, because there is no such name on this target.
-- A declaration is absent from the interface, from the module's exports and from code generation. Nothing downstream can see it.
+- An inactive import introduces no names, adds no module dependency, triggers no file lookup, and is omitted from the checked interface. Referencing one of its names fails with an ordinary unknown-name error.
+- An inactive declaration is omitted from the module's exports, checked interface, and code generation.
 
-Where the clause holds, the position behaves exactly as the unconditional form does. Nothing in the checked interface records the condition: the interface records the target's view, so a Darwin build's interface names the modules Darwin selected and no others.
+When a clause holds, the item behaves identically to its unconditional form. Checked interfaces record only the active target's surface.
 
-## Re-exports follow their import
+## Conditional re-exports
 
-`export module A` and `export A.name` are conditional with the import they re-export. Where the import does not hold there is nothing to re-export, so the item is dropped rather than reported as an unimported module, and the module's surface is exactly the selected module's surface. That is what makes a facade over per-platform modules work: `Platform` below imports and re-exports `Darwin` alone on a Darwin target, and `Linux` alone on a Linux target, so a caller writes `import Platform` once for every target. The prelude's `Prim.Sys` is this shape over `Prim.Sys.Darwin` and `Prim.Sys.Linux`, and `Effect.Fs` imports it and nothing platform specific.
+`export module A` and `export A.name` inherit the condition of the import they reference. If the underlying import is inactive on the current target, the re-export is dropped silently rather than reported as an unimported module. This lets a platform facade expose a uniform surface across targets—the same pattern used by `Prim.Sys` in the standard library:
 
 <!-- cinch:project group=modules-conditional file=Main.cinch exit=0 -->
 ```cinch
@@ -251,17 +246,17 @@ module Linux where
   word = 3
 ```
 
-## Two definitions of one name
+## Disjoint conditional definitions
 
-One name may be defined twice, in the same module, only when no target profile can satisfy both conditions. Two clauses are disjoint when they fix one component of the profile two ways (`os darwin` against `os linux`, or `os darwin` against `not (os darwin)`); then exactly one definition applies per target, and the other is invisible as above. Two plain definitions, or two conditions that can hold together, are refused:
+A module may define the same name more than once only if the definitions' `when` clauses are provably disjoint—meaning no target profile can satisfy both. Two clauses are disjoint when they assign conflicting values to the same target component (`os darwin` vs. `os linux`) or negate one another (`os darwin` vs. `not (os darwin)`).
+
+Overlap checking is purely syntactic over the conditions and does not depend on the active `--target`: a module with overlapping conditions (or a conditional definition alongside an unconditional one) is rejected on every target:
 
 ```text
-cinch: 7:3: two definitions of `word` can apply to one target profile: `os darwin` and `os darwin and arch aarch64` overlap, because the atom `os darwin` holds under both. A name may be defined twice only when no target profile satisfies both conditions, so that exactly one definition applies per target (modules specification section 11)
+cinch: 7:3: two definitions of `word` can apply to one target profile: `os darwin` and `os darwin and arch aarch64` overlap, because the atom `os darwin` holds under both.
 ```
 
-The rule reads conditions, not the target being built, so the same source is accepted or refused identically for every `--target`. A conditional definition beside a plain one is always an overlap, because the plain definition holds everywhere.
-
-This example is one name defined twice with disjoint conditions, which is accepted and selects one definition per target:
+With disjoint conditions, exactly one definition applies per target:
 
 <!-- cinch:project group=modules-conditional-name file=Main.cinch exit=0 -->
 ```cinch
@@ -286,15 +281,15 @@ module Word where
 
 # Export forms
 
-A module without an `export` declaration exports the declarations it defines. An `export` declaration replaces that with exactly the listed surface.
+A module with no `export` declaration exports every declaration it defines. Adding one or more `export` declarations replaces that default with exactly the listed items. Imported names are private unless explicitly re-exported.
 
-| Item | Meaning |
+| Form | Meaning |
 | --- | --- |
-| `export name` | Export a declaration of this module or an imported name |
-| `export A.name` | Export one member of an imported module (exactly two segments) |
-| `export module A` | Re-export an imported module's surface |
+| `export name` | Exports a local declaration or an unqualified imported name. |
+| `export A.name` | Re-exports one member of an imported module (two segments only). |
+| `export module A` | Re-exports the entire exported surface of imported module `A`. |
 
-An import is private unless re-exported. Both re-export forms can appear together:
+Both re-export forms can be combined in a single facade:
 
 <!-- cinch:project group=modules-reexport file=Main.cinch exit=0 -->
 ```cinch
@@ -326,25 +321,13 @@ module Inner where
   other = 9
 ```
 
-There is no renaming form in an `export` item. `export Inner.other as renamed` is rejected by the parser with `expected `;` or `}` in the declaration block, found As`.
+`export` items do not support `as` renaming (rename at the `import` site instead). Naming an out-of-scope identifier in an export list fails with `` `<name>` is not a name in scope to export ``.
 
-An export list naming something that is not in scope is a diagnostic at parse of the block:
+# Surface and coherence errors
 
-```text
-cinch: 2:10: `nothing-here` is not a name in scope to export (in Bad.cinch)
-```
+The module checker enforces unambiguous surfaces and an acyclic import graph:
 
-# Diagnostics for broken surfaces
-
-Four failures account for most module-level mistakes. Each is real compiler output.
-
-A name that exists but is not exported is reported by the importer, not the definer. Given `Lib` exporting only `public-one` and a `Main` that imports `helper`:
-
-```text
-cinch: `Lib` has no member `helper` to import (as `helper`) (in Main.cinch)
-```
-
-Requesting a member that does not exist produces the same shape:
+- **Missing or private member.** Importing a name that does not exist or is not exported is reported at the import site:
 
 <!-- cinch:reject contains="has no member `farewell` to import" -->
 ```cinch
@@ -361,7 +344,7 @@ module Main where
   main = if greet "x" == farewell "x" then 0 else 1
 ```
 
-Two modules exporting one name, both imported unqualified, is not resolved by import order:
+- **Ambiguous unqualified import.** Importing the same unqualified name from two modules is always an error—import order never shadows an earlier import:
 
 <!-- cinch:reject contains="is imported from both A and B" -->
 ```cinch
@@ -382,11 +365,7 @@ module Main where
   main = shared
 ```
 
-```text
-cinch: the name `shared` is imported from both A and B: rename one (a selection like `import B (shared as ...)`) or leave one out (`import B hiding (shared)`) (in R3.cinch)
-```
-
-Either remedy the message names resolves it. Hiding is the one to reach for when the two modules are imported whole and only one name is in the way:
+Resolve the collision by renaming one member (`import B (shared as b-shared)`), qualifying one module (`import B as B`), or hiding the duplicate from a whole-module import:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -409,7 +388,7 @@ module Main where
   main = if shared + other == 12 then 0 else 1
 ```
 
-An import cycle is reported against the modules, after the per-module checks:
+- **Import cycles.** Mutual imports are rejected by interface coherence checking:
 
 <!-- cinch:reject contains="interface coherence error: import cycle through A" -->
 ```cinch
@@ -431,32 +410,13 @@ module Main where
   main = a-value
 ```
 
-```text
-cinch: interface coherence error: import cycle through A
-```
-
-A repeated signature in one module is reported with its span:
-
-```text
-cinch: 4:3: duplicate signature for twice (in Main.cinch)
-```
-
-Two files each declaring the same module name reach the ambiguous-module diagnostic above. A module declared twice inside one file is not rejected today; keep one declaration per module name per file.
+- **Duplicate declarations.** Repeating a type signature for the same binding in one module reports `duplicate signature for <name>`. Declaring the same module name in two separate files triggers the ambiguous-module error during resolution; keep one declaration per module name per file.
 
 # Signatures and instances
 
-A `signature` declares a class: the methods, their types, and optionally a default body for a method. An `instance` supplies the dictionary. `implicit instance` makes it usable by default resolution.
+A `signature` declares a type class—its method signatures and optional default implementations. An `instance` defines a named dictionary for a concrete target type; `implicit instance` additionally registers that dictionary for automatic resolution.
 
-```cinch
-  signature Label a where
-    label :: a -> Nat
-    level :: a -> Nat
-    level x = label x + label x
-```
-
-That block sits inside `module Api where` (shown in full in the verified project below), with `import Data.Nat` and `export Label, label, level` at the top of the module.
-
-An equation beneath a method's signature is that method's default. An instance that omits the method takes the default, checked at the instance's types; an instance that defines it overrides it:
+An equation immediately beneath a method's signature provides its default body. Instances that omit the method inherit the default, checked at the instance's types; instances that supply an equation override it:
 
 <!-- cinch:project group=modules-default file=Main.cinch exit=0 stdout="10" -->
 ```cinch
@@ -500,85 +460,48 @@ module Inst where
       Box n -> n
 ```
 
-`level` is never defined at `Box`; the instance supplies `label` and the class default supplies `level`, so `level (Box 5)` is 10.
+Here `Label_Box` defines only `label`; `level (Box 5)` evaluates through the default `label x + label x` to `10`.
 
 ## Resolution rules
 
-A default body is checked once at the class, before any instance takes it, so a broken default is reported against the class. A default must also be expressible in the closed first-order body tier the interface can carry; a default that calls an allocating function is refused:
-
-```text
-cinch: 9:5: class default `shout3` uses unsupported interface syntax (in Api3.cinch)
-```
-
-Omitting a method that has no default is an error at the instance:
-
-```text
-cinch: 10:3: instance Twice_Box2 does not define method twice2 (in Inst2.cinch)
-```
-
-Implicit instances are collected over the loaded import closure, not only over the importer's own selections. Importing a module with any selection makes its exported implicit instances reachable, and so does importing a module that imports it. Using a method with no reachable instance names the class and the target:
-
-```text
-cinch: 5:13: no instance for Tone Shade (in Main.cinch)
-```
-
-Two reachable implicit instances for the same class and target are ambiguous, and the diagnostic is at the use, not at either declaration:
-
-```text
-cinch: 7:13: ambiguous instances for Tone Shade (in Main.cinch)
-```
-
-That is why several implementations of one class are written as plain `instance`, which resolution never selects by accident, and chosen explicitly by name at a module argument (`import Tally (StepUp) as Up`).
-
-There are no superclasses. A body that needs two classes states both constraints, and a `using` binder makes the requirement explicit:
+- **Default method checks.** Default bodies are checked once at the `signature` declaration. Because defaults are serialized into module interfaces, they must stay within the first-order interface expression subset (an allocating call in a default body is rejected with `class default ... uses unsupported interface syntax`). Omitting a method that has no default is rejected at the `instance` declaration.
+- **Transitive implicit collection.** Implicit instances are gathered across the entire loaded import closure, not merely from the importer's explicit selection list. Importing a module with any selection—or importing a module that transitively imports it—makes its exported `implicit instance` declarations reachable.
+- **Missing and ambiguous instances.** Resolution checks for a unique reachable implicit instance at each use site, reporting either `no instance for <Class> <Type>` or `ambiguous instances for <Class> <Type>`. When multiple implementations of one class exist for the same type, declare them as plain `instance` (never selected implicitly) and pass the desired dictionary explicitly via a module parameter (`import Tally (StepUp) as Up`).
+- **No superclasses.** A function requiring multiple classes lists each constraint directly in its `using` clause:
 
 ```cinch
 explicit :: forall a. using (d :: Label a) => a -> Nat
 explicit x = level x
 ```
 
-The binder is discharged automatically when an instance is reachable; `explicit (Box 5)` typechecks and evaluates through `Label_Box`. It is not a way to pass a dictionary at a call site: `explicit @{d = Label_Box}` is refused with `explicit has no capability parameter d`, because `@{...}` supplies capabilities, not dictionaries.
+`using` constraints for ordinary signatures are discharged by implicit instance resolution; calling `explicit (Box 5)` resolves `Label_Box` automatically. Call-site `@{...}` syntax supplies runtime capabilities (`Io r`), never type-class dictionaries (`explicit @{d = Label_Box}` fails with `explicit has no capability parameter d`).
 
-# Data and stage imports
+# Stage and data imports
 
-`import stage Other` records a compile-time dependency on `Other`. The imported module is compiled before the importer, and its macros and generators run during that stage. `CINCH_STAGE_MODE` selects how external reads are observed: `refresh` (default) executes them and records the snapshots, `replay` uses the recorded ones, `live` performs current reads. A replay with no captured input is a build diagnostic.
-
-`import data "path" as name` converts a non-source input at check time. Three converters are built in and are selected by extension: text, bytes, and JSON.
+- **`import stage Other`** introduces a compile-time dependency on `Other`. The compiler checks and builds `Other` first so its macros and generators can execute while compiling the importer. The environment variable `CINCH_STAGE_MODE` governs external reads during staging: `refresh` (default) executes reads and records a snapshot, `replay` reads solely from the recorded snapshot (failing if none exists), and `live` performs unrecorded reads. See [staging and macros](14-staging-and-macros.md).
+- **`import data "path" as name`** converts a non-source file at check time and binds the result as `name`. Built-in converters are chosen by file extension: `.txt` (string), `.bytes` (byte buffer), and `.json` (JSON, including direct decoding into a declared `record` type):
 
 ```cinch
-  import data "config.json" as config
-  import data "note.txt" as note
-  import data "blob.bytes" as blob
+import data "config.json" as config
+import data "note.txt" as note
+import data "blob.bytes" as blob
 ```
 
-A JSON input may decode directly into a declared `record` type. The converter, the file, and the content hash are recorded in the build manifest, never the file's contents:
+The build manifest records the converter, file path, and a 64-bit FNV-1a digest of the file's bytes—never the file contents themselves—so modifying the asset invalidates downstream build artifacts.
 
-```text
-"data_imports": {"bindings": [{"converter": "txt", "file": "note.txt", "hash": "11831194018420276491", "module": "Main", "name": "note"}]}
-```
+# Packages
 
-The hash is a 64-bit FNV-1a digest of the input bytes, rendered as a decimal string. Changing the file changes the recorded hash and the artifact identity; the file itself stays out of the manifest.
+A package pairs a `.cinchpkg` manifest with a tree of module sources, checked `.cinchif`/`.cpk` interfaces, and linkable package objects (`package.o`). The standard library ships with the toolchain as the `cinch/stdlib` package (inspectable via `cinch pkg info cinch/stdlib`); third-party and workspace packages are installed into `vendor/` with `cinch pkg install`, which writes a lockfile and source tree resolved automatically by step 3 of [module resolution](#module-resolution).
 
-# What is not implemented
+The implicit `Prelude` is a curated facade re-exporting core definitions rather than the entire standard library. Placing a source module with the same name beside your entry file overrides the toolchain copy. For manifests, lockfiles, and registry publishing, see [packages, manifests, and the registry](29-package-management.md).
 
-<span class="support-tag support-tag--planned">Coming soon</span> **general parameterized-module composition.** The admitted forms are the ones exercised above: a signature-typed parameter and a value-typed parameter. Parameterized instances as module arguments, nested unit instantiation, and index references through parameterized functions are named refusals rather than inference features. `Io` capabilities stay lexical and `Copy` is structural; neither is an arbitrary module parameter.
+# Current boundaries
 
-<span class="support-tag support-tag--planned">Coming soon</span> **richer dependent module interfaces.** The [modules specification](../specifications/modules-and-compilation-specification.md) section 1 requires modules that package abstract and concrete types, associated type families, semantic models, laws, and staged generators, with later fields depending on earlier ones. What runs today is signatures, dictionaries, and the two parameter kinds above.
-
-This schematic fragment from the specification is not accepted by the compiler; it is a design target, not syntax you can write:
+- <span class="support-tag support-tag--planned">Coming soon</span> **General parameterized-module composition.** Only signature-typed and value-typed module parameters are currently accepted. Passing parameterized instances as module arguments, nested parameterized instantiations, and dependent index references through parameterized functions are rejected. `Io` capabilities remain lexical and `Copy` remains structural; neither can be abstracted as an arbitrary module parameter.
+- <span class="support-tag support-tag--planned">Coming soon</span> **Richer dependent module interfaces.** Signature blocks currently admit `opaque type` and `record` declarations alongside methods (spliced ahead of the signature so method types can reference them). Full dependent module signatures—packaging associated type families, semantic models, laws, and staged generators, as well as settled applicative/generative functor identity rules—are planned. The following schematic target syntax is not yet accepted:
 
 ```text
 signature Filtering (c :: Type -> Type) where
   type Output :: forall a. (a -> Bool) -> c a -> Type
   filter :: forall a. (p :: a -> Bool) -> (xs :: c a) -> Output p xs
 ```
-
-Signature blocks do admit `opaque type` and `record` members today, which the parser splices ahead of the signature so method types can name them. Exact applicative and generative functor identity rules remain open design decisions, so no syntax or type-equality rule for them is presented here as settled.
-
-# Packages
-
-A package is a manifest plus module sources. The embedded base library ships as `seed/prelude/cinch-base.cinchpkg`, a manifest naming its modules and their check order; a project package is a `.cinchpkg` beside its sources, installed into `vendor/` by `cinch pkg`. Manifests, the `pkg` subcommands, the local store, and the registry protocol are on [packages, manifests, and the registry](29-package-management.md). The implicit `Prelude` is a facade that re-exports curated surfaces from the defining homes, not every module in the repository; a source module beside the entry shadows the embedded copy of the same name.
-
-Installation is a separate step from compilation. `cinch pkg install` writes `vendor/` and a lock; `cinch check`, `build`, and `run` then resolve imports against the resulting source tree through rule 3 above.
-
-Implementation: `driver.rs` (loader and `Package::parse`), `check_decls.rs` (imports, exports, instance resolution), `interface.rs` (coherence and the import-cycle check); suites: `modules.rs`, `params.rs`, `surface.rs`, `class_defaults.rs`, `fixity_interfaces.rs`, `package_manifest.rs`.

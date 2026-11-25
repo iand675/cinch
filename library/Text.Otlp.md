@@ -2,19 +2,11 @@
 
 OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Otlp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Otlp/source/">View source</a><a href="/packages/search/?q=%2BText.Otlp">Search module</a><a href="/reference-sources/Text.Otlp.cinch" download="Text.Otlp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Otlp`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Otlp.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md), [Text.Otlp](Text.Otlp.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Otlp: the observability wire formats (the P32
 structured/OTLP/W3C story).
@@ -48,52 +40,47 @@ one.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-any-value">any-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">any-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-attributes">attributes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">attributes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-format-traceparent">format-traceparent</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-traceparent</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-otlp-export">otlp-export</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">otlp-export</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-parse-traceparent">parse-traceparent</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-traceparent</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span>)</code></li></ul>
+</details>
 
 # Values
 
-<a id="value-616e792d76616c7565"></a>
-
-## `any-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">any-value</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-any-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">any-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-any-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Otlp/source/#L276" title="View source at line 276">Source</a></span></div>
+<div class="doc-body">
 
 One `Json` value as an OTLP `AnyValue` (the protobuf-JSON
 mapping): strings, int64-as-string, doubles, bools, arrays as
 `arrayValue`, objects as `kvlistValue`, `JNull` as the empty
 value.
 
-[Source](/reference-sources/Text.Otlp.cinch) · line 276
+</div>
+</article>
 
-<a id="value-61747472696275746573"></a>
-
-## `attributes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attributes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-attributes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">attributes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-attributes" title="Permalink">#</a><a href="/packages/stdlib/Text.Otlp/source/#L263" title="View source at line 263">Source</a></span></div>
+<div class="doc-body">
 
 A record's fields as OTLP attributes: `[{"key": ..., "value":
 <AnyValue>}, ...]` in object-spine order.
 
-[Source](/reference-sources/Text.Otlp.cinch) · line 263
+</div>
+</article>
 
-<a id="value-666f726d61742d7472616365706172656e74"></a>
-
-## `format-traceparent`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-traceparent</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-format-traceparent">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-traceparent</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-traceparent" title="Permalink">#</a><a href="/packages/stdlib/Text.Otlp/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 Format the context back to its `traceparent` header: parse and
 format round trip exactly (the header is canonical lowercase).
 
-[Source](/reference-sources/Text.Otlp.cinch) · line 84
+</div>
+</article>
 
-<a id="value-6f746c702d6578706f7274"></a>
-
-## `otlp-export`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">otlp-export</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
+<article class="doc-entry" id="v-otlp-export">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">otlp-export</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-otlp-export" title="Permalink">#</a><a href="/packages/stdlib/Text.Otlp/source/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The envelope over the collected records: `resourceLogs` carries
 the log records, `resourceMetrics` the metric records and
@@ -101,13 +88,12 @@ the log records, `resourceMetrics` the metric records and
 trace context stamps every signal: its trace id, the parent span
 id of the roots (the incoming span) and the span's trace flags.
 
-[Source](/reference-sources/Text.Otlp.cinch) · line 140
+</div>
+</article>
 
-<a id="value-70617273652d7472616365706172656e74"></a>
-
-## `parse-traceparent`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-traceparent</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Trace</span>.<span class="tok-constructor">TraceContext</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-traceparent">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-traceparent</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Trace/#t-TraceContext" title="Effect.Trace.TraceContext">TraceContext</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-parse-traceparent" title="Permalink">#</a><a href="/packages/stdlib/Text.Otlp/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Parse a `traceparent` header into the trace context of some
 identity `r`. Refused (as `None`) unless the header is exactly the
@@ -116,8 +102,5 @@ dash-delimited fields (a later version may carry trailing fields,
 which are ignored), version not `ff`, version `00` with no
 trailing data, and neither id all zeros.
 
-[Source](/reference-sources/Text.Otlp.cinch) · line 65
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Otlp.cinch`. Source SHA-256: `650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

@@ -2,17 +2,11 @@
 
 Identity plus combination vocabulary, default folding, and unit laws with explicit checking status.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Algebra.Monoid</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Algebra.Monoid/source/">View source</a><a href="/packages/search/?q=%2BAlgebra.Monoid">Search module</a><a href="/reference-sources/Algebra.Monoid.cinch" download="Algebra.Monoid.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Algebra.Monoid`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Group](Algebra.Group.md), [Algebra.Semigroup](Algebra.Semigroup.md).
 
-[Download exact module source](/reference-sources/Algebra.Monoid.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Group](Algebra.Group.md), [Algebra.Semigroup](Algebra.Semigroup.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Algebra.Monoid: semigroups with an identity element.
 
@@ -46,13 +40,15 @@ here too (it lives with its type): the opposite group of any group.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-All">All</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">All</strong></code></li><li><a class="syn-name" href="#t-Any">Any</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Any</strong></code></li><li><a class="syn-name" href="#t-Dual">Dual</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Dual</strong> <span class="tok-variable">t</span></code></li><li><a class="syn-name" href="#t-Endo">Endo</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Endo</strong> <span class="tok-variable">t</span></code></li><li><a class="syn-name" href="#t-First">First</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">First</strong> <span class="tok-variable">t</span></code></li><li><a class="syn-name" href="#t-Last">Last</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Last</strong> <span class="tok-variable">t</span></code></li><li><a class="syn-name" href="#t-Product">Product</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Product</strong></code></li><li><a class="syn-name" href="#t-Sum">Sum</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sum</strong></code></li><li><a class="syn-name" href="#c-Monoid">Monoid</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Monoid</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Monoid-mempty">mempty</a><code class="syn-sig"><strong class="tok-variable">mempty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Monoid-mconcat">mconcat</a><code class="syn-sig"><strong class="tok-variable">mconcat</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-416c6c"></a>
+# Types
 
-## `All`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">All</span></code></pre>
+<article class="doc-entry" id="t-All">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">All</strong></code><span class="doc-sig-links"><a href="#t-All" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 Bool under conjunction. A list of `Bool` folds through `Monoid`
 only under an explicit choice of which boolean monoid is meant
@@ -61,184 +57,127 @@ only under an explicit choice of which boolean monoid is meant
 identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
 `All True`.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 110
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-All"><code><strong class="tok-constructor">All</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">All</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">All</span>)</code></pre>
-
-<a id="type-416e79"></a>
-
-## `Any`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Any</span></code></pre>
+<article class="doc-entry" id="t-Any">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Any</strong></code><span class="doc-sig-links"><a href="#t-Any" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 Bool under disjunction: `Any`'s identity is `False`, so
 `mconcat Nil` (an `Any`) is `Any False`.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 123
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Any"><code><strong class="tok-constructor">Any</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Any</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Any</span>)</code></pre>
-
-<a id="type-4475616c"></a>
-
-## `Dual`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Dual</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Dual">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Dual</strong> <span class="tok-variable">t</span></code><span class="doc-sig-links"><a href="#t-Dual" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Dual: composition in the opposite order. `Dual x <> Dual y`
 combines y before x, turning any monoid into its opposite.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 136
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Dual"><code><strong class="tok-constructor">Dual</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span>. <span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Group/#c-Group" title="Algebra.Group.Group">Group</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Dual</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Dual</span> <span class="tok-variable">t</span>)</code></pre>
-
-<a id="type-456e646f"></a>
-
-## `Endo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Endo</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Endo">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Endo</strong> <span class="tok-variable">t</span></code><span class="doc-sig-links"><a href="#t-Endo" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L185" title="View source at line 185">Source</a></span></div>
+<div class="doc-body">
 
 Endo: endomorphisms under composition. `Endo f <> Endo g` is
 `f` after `g` (like `(.)`), and `mempty` is the identity, so
 folding `<>` over endomorphisms chains them left to right.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 185
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Endo"><code><strong class="tok-constructor">Endo</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span>. (<span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">t</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Endo</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . ((<span class="tok-variable">t</span> -&gt; <span class="tok-variable">t</span>) -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Endo</span> <span class="tok-variable">t</span>)</code></pre>
-
-<a id="type-4669727374"></a>
-
-## `First`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">First</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-First">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">First</strong> <span class="tok-variable">t</span></code><span class="doc-sig-links"><a href="#t-First" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-body">
 
 First: the leftmost `Some`, in a wrapper that keeps this choice
 apart from Option's own first-some reading (they agree today; the
 wrapper makes the intent explicit and leaves Option free).
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 157
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-First"><code><strong class="tok-constructor">First</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">First</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">First</span> <span class="tok-variable">t</span>)</code></pre>
-
-<a id="type-4c617374"></a>
-
-## `Last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Last</span> (<span class="tok-variable">t</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Last">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Last</strong> <span class="tok-variable">t</span></code><span class="doc-sig-links"><a href="#t-Last" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 Last: the rightmost `Some`.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 170
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Last"><code><strong class="tok-constructor">Last</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Last</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">t</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">t</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Last</span> <span class="tok-variable">t</span>)</code></pre>
-
-<a id="type-50726f64756374"></a>
-
-## `Product`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Product</span></code></pre>
+<article class="doc-entry" id="t-Product">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Product</strong></code><span class="doc-sig-links"><a href="#t-Product" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 Nat under multiplication.
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 93
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Product"><code><strong class="tok-constructor">Product</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Product</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Product</span>)</code></pre>
-
-<a id="type-53756d"></a>
-
-## `Sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Sum</span></code></pre>
+<article class="doc-entry" id="t-Sum">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sum</strong></code><span class="doc-sig-links"><a href="#t-Sum" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 Nat under addition: `Sum x <> Sum y` adds. The bare `Nat` gets no
 Semigroup instance (two monoids live on Nat; the newtype chooses).
 
-[Source](/reference-sources/Algebra.Monoid.cinch) · line 81
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Sum"><code><strong class="tok-constructor">Sum</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Sum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Sum</span>)</code></pre>
+# Signatures
 
-# Signatures and methods
-
-<a id="class-4d6f6e6f6964"></a>
-
-## `Monoid`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Monoid.cinch)
-
-<a id="method-4d6f6e6f69642e6d656d707479"></a>
-
-## `Monoid.mempty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mempty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
-
-
-
-<a id="method-4d6f6e6f69642e6d636f6e636174"></a>
-
-## `Monoid.mconcat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mconcat</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Monoid</span>.<span class="tok-constructor">Monoid</span> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semigroup</span>.<span class="tok-constructor">Semigroup</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-`mconcat`: combine the whole list with `<>`, in order, or `mempty`
-for the empty list. This is the operation the text homes kept
-rebuilding as a private `concat-strings`; they call it now.
-
-A method with a default (D388), so a carrier whose `<>` copies its
-operands can override it with a one-pass combine (`Monoid String`
-does) while every other instance inherits the default below. The
-`Semigroup a` constraint is the method's own, not the class's (a
-class constraint entails nothing, the standing no-superbundle
-rule): the default needs it for `<>`, so every caller supplies it,
-exactly as the free function it replaces required.
-
-The default's bracketing is BALANCED: each round combines adjacent
-pairs, and rounds repeat until one value remains. Associativity (the
-Semigroup law) makes every bracketing of the same sequence equal, so
-this equals the right fold `foldr (<>) mempty` (the right unit law
-covers dropping the fold's trailing `mempty`), in n - 1 combinations
-for n values. What the bracketing changes is the cost of a `<>` that
-copies its operands: the right fold re-copies the whole accumulated
-suffix at every step, O(n^2) bytes, while each balanced round copies
-every byte once, O(n log n) over the log n rounds. An override must
-equal the default. The rounds are Algebra.Semigroup's balanced
-`sconcat`, with `mempty` for the empty list.
+<article class="doc-entry" id="c-Monoid">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Monoid</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Monoid" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Monoid-mempty"><div class="doc-method-row"><code><strong class="tok-variable">mempty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Monoid-mempty" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L37">Source</a></span></div></li><li id="m-Monoid-mconcat"><div class="doc-method-row"><code><strong class="tok-variable">mconcat</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <span class="tok-variable">a</span>, <span class="tok-variable">sa</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Monoid-mconcat" title="Permalink">#</a><a href="/packages/stdlib/Algebra.Monoid/source/#L61">Source</a></span></div><div class="doc-child-prose">mconcat: combine the whole list with &lt;&gt;, in order, or mempty for the empty list.</div></li></ul></div>
+<details class="doc-instances"><summary>Instances (15)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<span class="tok-variable">t</span>, <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Algebra.Monoid/#instances">Algebra.Monoid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NonZero/#instances">Data.NonZero</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Ordering/#instances">Data.Ordering</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li></ul></details>
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Algebra.Monoid.Group_Dual` | `Algebra.Group.Group (Algebra.Monoid.Dual t)` | Implicit |
-| `Algebra.Monoid.Monoid_All` | `Algebra.Monoid.Monoid Algebra.Monoid.All` | Implicit |
-| `Algebra.Monoid.Monoid_Any` | `Algebra.Monoid.Monoid Algebra.Monoid.Any` | Implicit |
-| `Algebra.Monoid.Monoid_Dual` | `Algebra.Monoid.Monoid (Algebra.Monoid.Dual t)` | Implicit |
-| `Algebra.Monoid.Monoid_Endo` | `Algebra.Monoid.Monoid (Algebra.Monoid.Endo t)` | Implicit |
-| `Algebra.Monoid.Monoid_First` | `Algebra.Monoid.Monoid (Algebra.Monoid.First t)` | Implicit |
-| `Algebra.Monoid.Monoid_Function` | `Algebra.Monoid.Monoid (t -> u)` | Implicit |
-| `Algebra.Monoid.Monoid_Last` | `Algebra.Monoid.Monoid (Algebra.Monoid.Last t)` | Implicit |
-| `Algebra.Monoid.Monoid_Pair` | `Algebra.Monoid.Monoid (t, u)` | Implicit |
-| `Algebra.Monoid.Monoid_Product` | `Algebra.Monoid.Monoid Algebra.Monoid.Product` | Implicit |
-| `Algebra.Monoid.Monoid_Sum` | `Algebra.Monoid.Monoid Algebra.Monoid.Sum` | Implicit |
-| `Algebra.Monoid.Semigroup_All` | `Algebra.Semigroup.Semigroup Algebra.Monoid.All` | Implicit |
-| `Algebra.Monoid.Semigroup_Any` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Any` | Implicit |
-| `Algebra.Monoid.Semigroup_Dual` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Dual t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Endo` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Endo t)` | Implicit |
-| `Algebra.Monoid.Semigroup_First` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.First t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Last` | `Algebra.Semigroup.Semigroup (Algebra.Monoid.Last t)` | Implicit |
-| `Algebra.Monoid.Semigroup_Product` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Product` | Implicit |
-| `Algebra.Monoid.Semigroup_Sum` | `Algebra.Semigroup.Semigroup Algebra.Monoid.Sum` | Implicit |
-
-**`Algebra.Monoid.Group_Dual`**: The opposite group: `invert (Dual x)` is `Dual (invert x)`. The
-inverse laws hold in the opposite order (instances live with
-their type).
-**`Algebra.Monoid.Monoid_Function`**: A function into a monoid is a monoid pointwise: the identity is the
-function returning the identity. Eta-expanded like the function
-Semigroup above: `mempty x` is the identity at x. `mconcat` is the
-class default, eta-expanded by the checker to this carrier's arity.
-**`Algebra.Monoid.Monoid_Pair`**: Tuples of monoids are monoids componentwise.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Monoid.cinch`. Source SHA-256: `65ad6baacef678beae82ef249f304e9efe7f24487278d91b053f2986bde3e1ac`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Group_Dual"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Group/#c-Group" title="Algebra.Group.Group">Group</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Group_Dual</code></span><div class="doc-child-prose">The opposite group: invert (Dual x) is Dual (invert x).</div></li>
+<li id="i-Monoid_All"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_All</code></span></li>
+<li id="i-Monoid_Any"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Any</code></span></li>
+<li id="i-Monoid_Dual"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Dual</code></span></li>
+<li id="i-Monoid_Endo"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Endo</code></span></li>
+<li id="i-Monoid_First"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_First</code></span></li>
+<li id="i-Monoid_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Function</code></span><div class="doc-child-prose">A function into a monoid is a monoid pointwise: the identity is the function returning the identity.</div></li>
+<li id="i-Monoid_Last"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Last</code></span></li>
+<li id="i-Monoid_Pair"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<span class="tok-variable">t</span>, <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Pair</code></span><div class="doc-child-prose">Tuples of monoids are monoids componentwise.</div></li>
+<li id="i-Monoid_Product"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Product</code></span></li>
+<li id="i-Monoid_Sum"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Monoid_Sum</code></span></li>
+<li id="i-Semigroup_All"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-All" title="Algebra.Monoid.All">All</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_All</code></span></li>
+<li id="i-Semigroup_Any"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Any" title="Algebra.Monoid.Any">Any</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Any</code></span></li>
+<li id="i-Semigroup_Dual"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Dual" title="Algebra.Monoid.Dual">Dual</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Dual</code></span></li>
+<li id="i-Semigroup_Endo"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Endo" title="Algebra.Monoid.Endo">Endo</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Endo</code></span></li>
+<li id="i-Semigroup_First"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-First" title="Algebra.Monoid.First">First</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_First</code></span></li>
+<li id="i-Semigroup_Last"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Last" title="Algebra.Monoid.Last">Last</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Last</code></span></li>
+<li id="i-Semigroup_Product"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Product</code></span></li>
+<li id="i-Semigroup_Sum"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Sum</code></span></li>
+</ul>

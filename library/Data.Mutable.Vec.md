@@ -2,19 +2,11 @@
 
 A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Vec</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Vec/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Vec">Search module</a><a href="/reference-sources/Data.Mutable.Vec.cinch" download="Data.Mutable.Vec.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Mutable.Vec`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.Vec.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.Mutable.Vec](Data.Mutable.Vec.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.Vec: the growable vector (C++ `std::vector`, Rust `Vec`).
 
@@ -53,305 +45,248 @@ compiler's `slots.rs`); none of them leaves the module.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (30 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Vec">Vec</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Vec</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-capacity">vec-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-vec-clear">vec-clear</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-fold">vec-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-vec-for-each">vec-for-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-freeze">vec-freeze</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-freeze</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-from-array">vec-from-array</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-from-array</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-from-list">vec-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-get">vec-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-insert">vec-insert</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-insert</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-vec-is-empty">vec-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-vec-last">vec-last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-last</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-length">vec-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-vec-map-in-place">vec-map-in-place</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-map-in-place</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-modify">vec-modify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-vec-new">vec-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-pop">vec-pop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-pop</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-push">vec-push</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-push</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-push-all">vec-push-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-push-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-remove">vec-remove</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-reserve">vec-reserve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-reserve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-reverse">vec-reverse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-reverse</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-set">vec-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-vec-sort">vec-sort</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-sort</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-sort-by">vec-sort-by</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-sort-by</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-swap">vec-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-vec-swap-remove">vec-swap-remove</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-swap-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-to-list">vec-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-vec-truncate">vec-truncate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-truncate</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-vec-with-capacity">vec-with-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-with-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-566563"></a>
+# Types
 
-## `Vec`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Vec</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Vec">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Vec</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Vec" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-body">
 
 The header: one raw word (the length) and one cell holding the
 current storage, replaced when the vector reallocates.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 64
+</div>
+</article>
 
 # Values
 
-<a id="value-7665632d6361706163697479"></a>
+<article class="doc-entry" id="v-vec-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-vec-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L142" title="View source at line 142">Source</a></span></div>
+</article>
 
-## `vec-capacity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d636c656172"></a>
-
-## `vec-clear`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-clear</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-vec-clear">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-clear" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L286" title="View source at line 286">Source</a></span></div>
+<div class="doc-body">
 
 Drop every element; the capacity stays.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 286
+</div>
+</article>
 
-<a id="value-7665632d666f6c64"></a>
-
-## `vec-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-vec-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L337" title="View source at line 337">Source</a></span></div>
+<div class="doc-body">
 
 A left fold in index order over the elements present when it
 starts. The callback is pure, so it cannot change the vector.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 337
+</div>
+</article>
 
-<a id="value-7665632d666f722d65616368"></a>
-
-## `vec-for-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-for-each</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-vec-for-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-for-each" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L349" title="View source at line 349">Source</a></span></div>
+<div class="doc-body">
 
 Run an action on each element in index order. The storage and the
 length are re-read at every step, so an action that changes this
 vector is memory-safe (it decides what is visited after it).
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 349
+</div>
+</article>
 
-<a id="value-7665632d667265657a65"></a>
-
-## `vec-freeze`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-freeze</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-vec-freeze">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-freeze</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-freeze" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L397" title="View source at line 397">Source</a></span></div>
+<div class="doc-body">
 
 An immutable copy of the elements. The copy is a fresh block with
 every slot written, so it is an ordinary `Array a` and no later
 write to the vector reaches it.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 397
+</div>
+</article>
 
-<a id="value-7665632d66726f6d2d6172726179"></a>
+<article class="doc-entry" id="v-vec-from-array">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-from-array</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-from-array" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L412" title="View source at line 412">Source</a></span></div>
+</article>
 
-## `vec-from-array`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-from-array</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d66726f6d2d6c697374"></a>
-
-## `vec-from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-vec-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L309" title="View source at line 309">Source</a></span></div>
+<div class="doc-body">
 
 Lists and folds
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 309
+</div>
+</article>
 
-<a id="value-7665632d676574"></a>
-
-## `vec-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-get" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-body">
 
 Indexing
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 190
+</div>
+</article>
 
-<a id="value-7665632d696e73657274"></a>
-
-## `vec-insert`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-insert</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-insert">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-insert</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-vec-insert" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L244" title="View source at line 244">Source</a></span></div>
+<div class="doc-body">
 
 Insert at `i`, shifting `i ..` up by one: `False` (and nothing
 inserted) when `i` exceeds the length (`i == length` appends).
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 244
+</div>
+</article>
 
-<a id="value-7665632d69732d656d707479"></a>
+<article class="doc-entry" id="v-vec-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-vec-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L147" title="View source at line 147">Source</a></span></div>
+</article>
 
-## `vec-is-empty`
+<article class="doc-entry" id="v-vec-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-last</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-last" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L178" title="View source at line 178">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-vec-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-vec-length" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L139" title="View source at line 139">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d6c617374"></a>
-
-## `vec-last`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-last</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d6c656e677468"></a>
-
-## `vec-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d6d61702d696e2d706c616365"></a>
-
-## `vec-map-in-place`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-map-in-place</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-vec-map-in-place">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-map-in-place</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-map-in-place" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L362" title="View source at line 362">Source</a></span></div>
+<div class="doc-body">
 
 Rewrite every element through `f`, moving each out and back.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 362
+</div>
+</article>
 
-<a id="value-7665632d6d6f64696679"></a>
-
-## `vec-modify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-modify</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-modify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-modify</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-vec-modify" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 Rewrite element `i` through `f`, moving it out and back so a unique
 element is updated without a copy. `False` when out of range.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 209
+</div>
+</article>
 
-<a id="value-7665632d6e6577"></a>
-
-## `vec-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-vec-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-new" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 Construction and size
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 125
+</div>
+</article>
 
-<a id="value-7665632d706f70"></a>
+<article class="doc-entry" id="v-vec-pop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-pop</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-pop" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L167" title="View source at line 167">Source</a></span></div>
+</article>
 
-## `vec-pop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-pop</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d70757368"></a>
-
-## `vec-push`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-push</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-vec-push">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-push</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-push" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 The ends
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 160
+</div>
+</article>
 
-<a id="value-7665632d707573682d616c6c"></a>
+<article class="doc-entry" id="v-vec-push-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-push-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-push-all" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L315" title="View source at line 315">Source</a></span></div>
+</article>
 
-## `vec-push-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-push-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d72656d6f7665"></a>
-
-## `vec-remove`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-remove</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-remove">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-remove" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L258" title="View source at line 258">Source</a></span></div>
+<div class="doc-body">
 
 Remove element `i`, shifting the tail down: the element, or `None`
 when out of range.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 258
+</div>
+</article>
 
-<a id="value-7665632d72657365727665"></a>
-
-## `vec-reserve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-reserve</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-vec-reserve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-reserve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-reserve" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 Make room for `extra` more elements without a further reallocation.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 151
+</div>
+</article>
 
-<a id="value-7665632d72657665727365"></a>
+<article class="doc-entry" id="v-vec-reverse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-reverse</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-reverse" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L375" title="View source at line 375">Source</a></span></div>
+</article>
 
-## `vec-reverse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-reverse</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d736574"></a>
-
-## `vec-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-vec-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 Replace element `i`: `False` (and nothing written) when `i` is not
 below the length.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 199
+</div>
+</article>
 
-<a id="value-7665632d736f7274"></a>
-
-## `vec-sort`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-sort</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-vec-sort">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-sort</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">o</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-sort" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L425" title="View source at line 425">Source</a></span></div>
+<div class="doc-body">
 
 Sorting: introsort over [lo, hi)
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 425
+</div>
+</article>
 
-<a id="value-7665632d736f72742d6279"></a>
+<article class="doc-entry" id="v-vec-sort-by">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-sort-by</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-sort-by" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L428" title="View source at line 428">Source</a></span></div>
+</article>
 
-## `vec-sort-by`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-sort-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Vec.cinch)
-
-<a id="value-7665632d73776170"></a>
-
-## `vec-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-swap</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-vec-swap" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 Exchange elements `i` and `j`: `False` when either is out of range.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 220
+</div>
+</article>
 
-<a id="value-7665632d737761702d72656d6f7665"></a>
-
-## `vec-swap-remove`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-swap-remove</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-vec-swap-remove">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-swap-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-swap-remove" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L272" title="View source at line 272">Source</a></span></div>
+<div class="doc-body">
 
 Remove element `i` by moving the last element into its place: O(1),
 and the order of the rest is not kept.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 272
+</div>
+</article>
 
-<a id="value-7665632d746f2d6c697374"></a>
-
-## `vec-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-vec-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L323" title="View source at line 323">Source</a></span></div>
+<div class="doc-body">
 
 The elements in index order (built from the back, one cons each).
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 323
+</div>
+</article>
 
-<a id="value-7665632d7472756e63617465"></a>
-
-## `vec-truncate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-truncate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-vec-truncate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-truncate</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-vec-truncate" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L295" title="View source at line 295">Source</a></span></div>
+<div class="doc-body">
 
 Keep the first `k` elements (all of them when `k` is at least the
 length).
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 295
+</div>
+</article>
 
-<a id="value-7665632d776974682d6361706163697479"></a>
-
-## `vec-with-capacity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-with-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Vec</span>.<span class="tok-constructor">Vec</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-vec-with-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-with-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Vec" title="Data.Mutable.Vec.Vec">Vec</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-with-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Vec/source/#L130" title="View source at line 130">Source</a></span></div>
+<div class="doc-body">
 
 An empty vector with room for `n` elements before its first
 reallocation.
 
-[Source](/reference-sources/Data.Mutable.Vec.cinch) · line 130
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Vec.cinch`. Source SHA-256: `65dbfe173b5386a2a8f5ee25f8e0896b0ea688534c327e99db165352ee1c474e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

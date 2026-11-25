@@ -2,19 +2,11 @@
 
 Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.ConstantTime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ConstantTime/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ConstantTime">Search module</a><a href="/reference-sources/Crypto.ConstantTime.cinch" download="Crypto.ConstantTime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Crypto.ConstantTime`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Crypto.ConstantTime.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Branch-free scalar selection and byte operations with public-length traversal.
 Byte equality returns early only for unequal lengths. Conditional copies visit
@@ -25,97 +17,86 @@ processor/runtime capability and is not enabled by these operations.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ConstantTimeError">ConstantTimeError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConstantTimeError</strong></code></li><li><a class="syn-name" href="#v-constant-byte-equal">constant-byte-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-byte-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-constant-bytes-equal">constant-bytes-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-bytes-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-constant-copy">constant-copy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-copy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-constant-i32-equal">constant-i32-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-i32-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-constant-less-or-equal">constant-less-or-equal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-less-or-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 2147483647 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 2147483647 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-constant-select">constant-select</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">constant-select</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-xor-bytes">xor-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xor-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-436f6e7374616e7454696d654572726f72"></a>
+# Types
 
-## `ConstantTimeError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ConstantTimeError</span></code></pre>
+<article class="doc-entry" id="t-ConstantTimeError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConstantTimeError</strong></code><span class="doc-sig-links"><a href="#t-ConstantTimeError" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Public buffer dimensions cannot satisfy a complete operation.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 19
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConstantTimeLengthMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ConstantTime</span>.<span class="tok-constructor">ConstantTimeError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConstantTimeShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ConstantTime</span>.<span class="tok-constructor">ConstantTimeError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ConstantTimeLengthMismatch"><code><strong class="tok-constructor">ConstantTimeLengthMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a></code></li><li id="k-ConstantTimeShortDestination"><code><strong class="tok-constructor">ConstantTimeShortDestination</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-636f6e7374616e742d627974652d657175616c"></a>
-
-## `constant-byte-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-byte-equal</span> :: (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-constant-byte-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-byte-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-constant-byte-equal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Compare two bytes without branching on their contents.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 26
+</div>
+</article>
 
-<a id="value-636f6e7374616e742d62797465732d657175616c"></a>
-
-## `constant-bytes-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-bytes-equal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-constant-bytes-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-bytes-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-constant-bytes-equal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Compare equal-length buffers using complete 16-byte blocks and an exact scalar tail.
 Every byte is read even when an earlier byte differs; lengths are public.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 61
+</div>
+</article>
 
-<a id="value-636f6e7374616e742d636f7079"></a>
-
-## `constant-copy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-copy</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ConstantTime</span>.<span class="tok-constructor">ConstantTimeError</span> <span class="tok-constructor">Unit</span>))))</code></pre>
+<article class="doc-entry" id="v-constant-copy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-copy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-constant-copy" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Conditionally copy a complete source, preserving the destination for False.
 A length mismatch is returned before any byte is written.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 69
+</div>
+</article>
 
-<a id="value-636f6e7374616e742d6933322d657175616c"></a>
-
-## `constant-i32-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-i32-equal</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-constant-i32-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-i32-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-constant-i32-equal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Compare signed 32-bit words without a content-dependent branch.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 30
+</div>
+</article>
 
-<a id="value-636f6e7374616e742d6c6573732d6f722d657175616c"></a>
-
-## `constant-less-or-equal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-less-or-equal</span> :: ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">2147483647</span> <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">2147483647</span> <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-constant-less-or-equal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-less-or-equal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 2147483647 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 2147483647 <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-constant-less-or-equal" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Compare nonnegative 31-bit values; invalid mathematical inputs are excluded by their types.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 34
+</div>
+</article>
 
-<a id="value-636f6e7374616e742d73656c656374"></a>
-
-## `constant-select`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-select</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-constant-select">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">constant-select</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-constant-select" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 Select the first word for True and the second for False without branching on the flag.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 54
+</div>
+</article>
 
-<a id="value-786f722d6279746573"></a>
-
-## `xor-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xor-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ConstantTime</span>.<span class="tok-constructor">ConstantTimeError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-xor-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xor-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Crypto.ConstantTime/#t-ConstantTimeError" title="Crypto.ConstantTime.ConstantTimeError">ConstantTimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-xor-bytes" title="Permalink">#</a><a href="/packages/stdlib/Crypto.ConstantTime/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 XOR the shorter input into the destination, returning the complete written length.
 A short destination is returned before any write; untouched trailing bytes remain unchanged.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 83
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/ConstantTime.cinch`. Source SHA-256: `698448407f9e0ff912ec4f0b515c7787efc7475bd0584d3229dfa5c105c5b9de`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

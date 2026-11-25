@@ -2,17 +2,11 @@
 
 An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TQueue</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TQueue/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TQueue">Search module</a><a href="/reference-sources/Effect.Stm.TQueue.cinch" download="Effect.Stm.TQueue.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Stm.TQueue`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.List](Data.List.md), [Effect.Stm](Effect.Stm.md).
 
-[Download exact module source](/reference-sources/Effect.Stm.TQueue.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.List](Data.List.md), [Effect.Stm](Effect.Stm.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Stm.TQueue: an unbounded first-in, first-out queue of
 transactions.
@@ -33,104 +27,85 @@ Module scheme (design/base-library.md): a concrete type over
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (10 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TQueue">TQueue</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TQueue</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tqueue-flush">tqueue-flush</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-flush</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tqueue-is-empty">tqueue-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-tqueue-new">tqueue-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tqueue-new-io">tqueue-new-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tqueue-peek">tqueue-peek</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-peek</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tqueue-read">tqueue-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tqueue-try-read">tqueue-try-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tqueue-unget">tqueue-unget</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-unget</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-tqueue-write">tqueue-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tqueue-write</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-545175657565"></a>
+# Types
 
-## `TQueue`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TQueue</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-TQueue">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TQueue</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-TQueue" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 The front (next out first) and the back (last in first).
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 27
+</div>
+</article>
 
 # Values
 
-<a id="value-7471756575652d666c757368"></a>
-
-## `tqueue-flush`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-flush</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tqueue-flush">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-flush</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tqueue-flush" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 Every element, oldest first, leaving the queue empty.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 63
+</div>
+</article>
 
-<a id="value-7471756575652d69732d656d707479"></a>
+<article class="doc-entry" id="v-tqueue-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-tqueue-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L74" title="View source at line 74">Source</a></span></div>
+</article>
 
-## `tqueue-is-empty`
+<article class="doc-entry" id="v-tqueue-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tqueue-new" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L30" title="View source at line 30">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-tqueue-new-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tqueue-new-io" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L33" title="View source at line 33">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch)
-
-<a id="value-7471756575652d6e6577"></a>
-
-## `tqueue-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TQueue.cinch)
-
-<a id="value-7471756575652d6e65772d696f"></a>
-
-## `tqueue-new-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TQueue.cinch)
-
-<a id="value-7471756575652d7065656b"></a>
-
-## `tqueue-peek`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-peek</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tqueue-peek">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-peek</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tqueue-peek" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 The oldest element, left in place. Waits while the queue is empty.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 55
+</div>
+</article>
 
-<a id="value-7471756575652d72656164"></a>
-
-## `tqueue-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tqueue-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tqueue-read" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 The oldest element, removed. Waits while the queue is empty.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 49
+</div>
+</article>
 
-<a id="value-7471756575652d7472792d72656164"></a>
-
-## `tqueue-try-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-try-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tqueue-try-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tqueue-try-read" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 The oldest element, removed, or `None` when the queue is empty.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 41
+</div>
+</article>
 
-<a id="value-7471756575652d756e676574"></a>
-
-## `tqueue-unget`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-unget</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-tqueue-unget">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-unget</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tqueue-unget" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Put `x` back at the front: the next read answers it.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 59
+</div>
+</article>
 
-<a id="value-7471756575652d7772697465"></a>
-
-## `tqueue-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tqueue-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TQueue</span>.<span class="tok-constructor">TQueue</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-tqueue-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tqueue-write</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TQueue/#t-TQueue" title="Effect.Stm.TQueue.TQueue">TQueue</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tqueue-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TQueue/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Append `x`. Never waits.
 
-[Source](/reference-sources/Effect.Stm.TQueue.cinch) · line 37
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TQueue.cinch`. Source SHA-256: `706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

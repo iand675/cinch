@@ -1,0 +1,1630 @@
+{
+  "schema": 2,
+  "name": "cinch/stdlib",
+  "version": "0.1.0",
+  "modules": [
+    {
+      "name": "Data.Core",
+      "path": "Data/Core.cinch"
+    },
+    {
+      "name": "Data.Ordering",
+      "path": "Data/Ordering.cinch"
+    },
+    {
+      "name": "Relation.Eq",
+      "path": "Relation/Eq.cinch"
+    },
+    {
+      "name": "Relation.Ord",
+      "path": "Relation/Ord.cinch"
+    },
+    {
+      "name": "Algebra.Arithmetic",
+      "path": "Algebra/Arithmetic.cinch"
+    },
+    {
+      "name": "Algebra.Bits",
+      "path": "Algebra/Bits.cinch"
+    },
+    {
+      "name": "Function.Combinators",
+      "path": "Function/Combinators.cinch"
+    },
+    {
+      "name": "Data.Nat",
+      "path": "Data/Nat.cinch"
+    },
+    {
+      "name": "Data.Int",
+      "path": "Data/Int.cinch"
+    },
+    {
+      "name": "Effect.Sequencing",
+      "path": "Effect/Sequencing.cinch"
+    },
+    {
+      "name": "Data.Option",
+      "path": "Data/Option.cinch"
+    },
+    {
+      "name": "Data.Result",
+      "path": "Data/Result.cinch"
+    },
+    {
+      "name": "Data.List",
+      "path": "Data/List.cinch"
+    },
+    {
+      "name": "Data.Enum",
+      "path": "Data/Enum.cinch"
+    },
+    {
+      "name": "Prim.Machine",
+      "path": "Prim/Machine.cinch"
+    },
+    {
+      "name": "Data.Char",
+      "path": "Data/Char.cinch"
+    },
+    {
+      "name": "Data.Bool",
+      "path": "Data/Bool.cinch"
+    },
+    {
+      "name": "Data.Machine",
+      "path": "Data/Machine.cinch"
+    },
+    {
+      "name": "Data.Bytes",
+      "path": "Data/Bytes.cinch"
+    },
+    {
+      "name": "Data.Map",
+      "path": "Data/Map.cinch"
+    },
+    {
+      "name": "Prim.Wide",
+      "path": "Prim/Wide.cinch"
+    },
+    {
+      "name": "Data.String",
+      "path": "Data/String.cinch"
+    },
+    {
+      "name": "Data.Json",
+      "path": "Data/Json.cinch"
+    },
+    {
+      "name": "Data.Producer",
+      "path": "Data/Producer.cinch"
+    },
+    {
+      "name": "Data.Target",
+      "path": "Data/Target.cinch"
+    },
+    {
+      "name": "Data.Path",
+      "path": "Data/Path.cinch"
+    },
+    {
+      "name": "Effect.Concurrent",
+      "path": "Effect/Concurrent.cinch"
+    },
+    {
+      "name": "Effect.Concurrent.MVar",
+      "path": "Effect/Concurrent/MVar.cinch"
+    },
+    {
+      "name": "Effect.Clock",
+      "path": "Effect/Clock.cinch"
+    },
+    {
+      "name": "Prim.Sys.Darwin",
+      "path": "Prim/Sys/Darwin.cinch"
+    },
+    {
+      "name": "Prim.Sys.Linux",
+      "path": "Prim/Sys/Linux.cinch"
+    },
+    {
+      "name": "Prim.Sys.Portable",
+      "path": "Prim/Sys/Portable.cinch"
+    },
+    {
+      "name": "Prim.Sys",
+      "path": "Prim/Sys.cinch"
+    },
+    {
+      "name": "Effect.Fs",
+      "path": "Effect/Fs.cinch"
+    },
+    {
+      "name": "Effect.Process",
+      "path": "Effect/Process.cinch"
+    },
+    {
+      "name": "Effect.Io",
+      "path": "Effect/Io.cinch"
+    },
+    {
+      "name": "Data.FromList",
+      "path": "Data/FromList.cinch"
+    },
+    {
+      "name": "Data.FromMap",
+      "path": "Data/FromMap.cinch"
+    },
+    {
+      "name": "Text.Show",
+      "path": "Text/Show.cinch"
+    },
+    {
+      "name": "Data.Sym",
+      "path": "Data/Sym.cinch"
+    },
+    {
+      "name": "Prelude",
+      "path": "Prelude.cinch",
+      "facade": true
+    },
+    {
+      "name": "Algebra.Semigroup",
+      "path": "Algebra/Semigroup.cinch"
+    },
+    {
+      "name": "Algebra.Group",
+      "path": "Algebra/Group.cinch"
+    },
+    {
+      "name": "Algebra.Semiring",
+      "path": "Algebra/Semiring.cinch"
+    },
+    {
+      "name": "Algebra.Monoid",
+      "path": "Algebra/Monoid.cinch"
+    },
+    {
+      "name": "Category.Functor",
+      "path": "Category/Functor.cinch"
+    },
+    {
+      "name": "Category.Applicative",
+      "path": "Category/Applicative.cinch"
+    },
+    {
+      "name": "Category.Monad",
+      "path": "Category/Monad.cinch"
+    },
+    {
+      "name": "Category.Alternative",
+      "path": "Category/Alternative.cinch"
+    },
+    {
+      "name": "Category.Foldable",
+      "path": "Category/Foldable.cinch"
+    },
+    {
+      "name": "Category.Traversable",
+      "path": "Category/Traversable.cinch"
+    },
+    {
+      "name": "Data.Identity",
+      "path": "Data/Identity.cinch"
+    },
+    {
+      "name": "Data.Const",
+      "path": "Data/Const.cinch"
+    },
+    {
+      "name": "Data.Compose",
+      "path": "Data/Compose.cinch"
+    },
+    {
+      "name": "Data.NonEmpty",
+      "path": "Data/NonEmpty.cinch"
+    },
+    {
+      "name": "Data.Sorted",
+      "path": "Data/Sorted.cinch"
+    },
+    {
+      "name": "Data.NonZero",
+      "path": "Data/NonZero.cinch"
+    },
+    {
+      "name": "Data.Ascii",
+      "path": "Data/Ascii.cinch"
+    },
+    {
+      "name": "Data.Set",
+      "path": "Data/Set.cinch"
+    },
+    {
+      "name": "Data.Wide",
+      "path": "Data/Wide.cinch"
+    },
+    {
+      "name": "Data.Hash",
+      "path": "Data/Hash.cinch"
+    },
+    {
+      "name": "Text.Codec",
+      "path": "Text/Codec.cinch"
+    },
+    {
+      "name": "Data.HashMap",
+      "path": "Data/HashMap.cinch"
+    },
+    {
+      "name": "Effect.Stm",
+      "path": "Effect/Stm.cinch"
+    },
+    {
+      "name": "Effect.Stm.TMVar",
+      "path": "Effect/Stm/TMVar.cinch"
+    },
+    {
+      "name": "Effect.Stm.TQueue",
+      "path": "Effect/Stm/TQueue.cinch"
+    },
+    {
+      "name": "Effect.Stm.TBQueue",
+      "path": "Effect/Stm/TBQueue.cinch"
+    },
+    {
+      "name": "Effect.Stm.TSem",
+      "path": "Effect/Stm/TSem.cinch"
+    },
+    {
+      "name": "Data.Bytes.Word",
+      "path": "Data/Bytes/Word.cinch"
+    },
+    {
+      "name": "Crypto.Cipher",
+      "path": "Crypto/Cipher.cinch"
+    },
+    {
+      "name": "Crypto.Aes",
+      "path": "Crypto/Aes.cinch"
+    },
+    {
+      "name": "Crypto.ConstantTime",
+      "path": "Crypto/ConstantTime.cinch"
+    },
+    {
+      "name": "Crypto.ChaCha20Poly1305",
+      "path": "Crypto/ChaCha20Poly1305.cinch"
+    },
+    {
+      "name": "Text.Hex",
+      "path": "Text/Hex.cinch"
+    },
+    {
+      "name": "Crypto.Des",
+      "path": "Crypto/Des.cinch"
+    },
+    {
+      "name": "Data.Bytes.Build",
+      "path": "Data/Bytes/Build.cinch"
+    },
+    {
+      "name": "Text.Digest",
+      "path": "Text/Digest.cinch"
+    },
+    {
+      "name": "Crypto.Hmac",
+      "path": "Crypto/Hmac.cinch"
+    },
+    {
+      "name": "Crypto.P256",
+      "path": "Crypto/P256.cinch"
+    },
+    {
+      "name": "Crypto.Ecdsa",
+      "path": "Crypto/Ecdsa.cinch"
+    },
+    {
+      "name": "Crypto.Field25519",
+      "path": "Crypto/Field25519.cinch"
+    },
+    {
+      "name": "Text.Binary",
+      "path": "Text/Binary.cinch"
+    },
+    {
+      "name": "Text.Sha512",
+      "path": "Text/Sha512.cinch"
+    },
+    {
+      "name": "Crypto.Ed25519",
+      "path": "Crypto/Ed25519.cinch"
+    },
+    {
+      "name": "Crypto.Kdf",
+      "path": "Crypto/Kdf.cinch"
+    },
+    {
+      "name": "Crypto.X25519",
+      "path": "Crypto/X25519.cinch"
+    },
+    {
+      "name": "Crypto.Hpke",
+      "path": "Crypto/Hpke.cinch"
+    },
+    {
+      "name": "Text.Sha3",
+      "path": "Text/Sha3.cinch"
+    },
+    {
+      "name": "Crypto.MlKem",
+      "path": "Crypto/MlKem.cinch"
+    },
+    {
+      "name": "Crypto.Rc4",
+      "path": "Crypto/Rc4.cinch"
+    },
+    {
+      "name": "Data.Array",
+      "path": "Data/Array.cinch"
+    },
+    {
+      "name": "Data.Array.Edit",
+      "path": "Data/Array/Edit.cinch"
+    },
+    {
+      "name": "Data.Array.Packed",
+      "path": "Data/Array/Packed.cinch"
+    },
+    {
+      "name": "Data.Compare",
+      "path": "Data/Compare.cinch"
+    },
+    {
+      "name": "Data.Search",
+      "path": "Data/Search.cinch"
+    },
+    {
+      "name": "Data.Array.Search",
+      "path": "Data/Array/Search.cinch"
+    },
+    {
+      "name": "Data.BigDecimal",
+      "path": "Data/BigDecimal.cinch"
+    },
+    {
+      "name": "Data.Bytes.Utf8",
+      "path": "Data/Bytes/Utf8.cinch"
+    },
+    {
+      "name": "Data.Bytes.View",
+      "path": "Data/Bytes/View.cinch"
+    },
+    {
+      "name": "Data.Unicode.Tables",
+      "path": "Data/Unicode/Tables.cinch"
+    },
+    {
+      "name": "Data.Unicode.Kernel",
+      "path": "Data/Unicode/Kernel.cinch"
+    },
+    {
+      "name": "Data.Bytes.Fields",
+      "path": "Data/Bytes/Fields.cinch"
+    },
+    {
+      "name": "Data.Bytes.Search",
+      "path": "Data/Bytes/Search.cinch"
+    },
+    {
+      "name": "Data.Bytes.Split",
+      "path": "Data/Bytes/Split.cinch"
+    },
+    {
+      "name": "Data.ChaCha8",
+      "path": "Data/ChaCha8.cinch"
+    },
+    {
+      "name": "Data.Columnar",
+      "path": "Data/Columnar.cinch"
+    },
+    {
+      "name": "Text.Cookie",
+      "path": "Text/Cookie.cinch"
+    },
+    {
+      "name": "Text.Punycode",
+      "path": "Text/Punycode.cinch"
+    },
+    {
+      "name": "Text.Url.Error",
+      "path": "Text/Url/Error.cinch"
+    },
+    {
+      "name": "Text.Url.Codec",
+      "path": "Text/Url/Codec.cinch"
+    },
+    {
+      "name": "Text.Url.Scan",
+      "path": "Text/Url/Scan.cinch"
+    },
+    {
+      "name": "Text.Url.Query",
+      "path": "Text/Url/Query.cinch"
+    },
+    {
+      "name": "Text.Url.Userinfo",
+      "path": "Text/Url/Userinfo.cinch"
+    },
+    {
+      "name": "Text.Url.Model",
+      "path": "Text/Url/Model.cinch"
+    },
+    {
+      "name": "Text.Url.Ip",
+      "path": "Text/Url/Ip.cinch"
+    },
+    {
+      "name": "Text.Url.Parser",
+      "path": "Text/Url/Parser.cinch"
+    },
+    {
+      "name": "Text.Url.Resolve",
+      "path": "Text/Url/Resolve.cinch"
+    },
+    {
+      "name": "Text.Url",
+      "path": "Text/Url.cinch"
+    },
+    {
+      "name": "Data.CookieJar",
+      "path": "Data/CookieJar.cinch"
+    },
+    {
+      "name": "Data.Date",
+      "path": "Data/Date.cinch"
+    },
+    {
+      "name": "Data.Float",
+      "path": "Data/Float.cinch"
+    },
+    {
+      "name": "Data.Complex",
+      "path": "Data/Complex.cinch"
+    },
+    {
+      "name": "Data.IpAddr",
+      "path": "Data/IpAddr.cinch"
+    },
+    {
+      "name": "Data.Matrix",
+      "path": "Data/Matrix.cinch"
+    },
+    {
+      "name": "Data.Mutable.Array",
+      "path": "Data/Mutable/Array.cinch"
+    },
+    {
+      "name": "Data.Mutable.BTree",
+      "path": "Data/Mutable/BTree.cinch"
+    },
+    {
+      "name": "Data.Mutable.BTreeSet",
+      "path": "Data/Mutable/BTreeSet.cinch"
+    },
+    {
+      "name": "Data.Mutable.BitSet",
+      "path": "Data/Mutable/BitSet.cinch"
+    },
+    {
+      "name": "Data.Mutable.Deque",
+      "path": "Data/Mutable/Deque.cinch"
+    },
+    {
+      "name": "Data.Mutable.HashTable",
+      "path": "Data/Mutable/HashTable.cinch"
+    },
+    {
+      "name": "Data.Mutable.HashSet",
+      "path": "Data/Mutable/HashSet.cinch"
+    },
+    {
+      "name": "Data.Mutable.Heap",
+      "path": "Data/Mutable/Heap.cinch"
+    },
+    {
+      "name": "Data.Mutable.IndexMap",
+      "path": "Data/Mutable/IndexMap.cinch"
+    },
+    {
+      "name": "Data.Mutable.LruCache",
+      "path": "Data/Mutable/LruCache.cinch"
+    },
+    {
+      "name": "Data.Mutable.UnionFind",
+      "path": "Data/Mutable/UnionFind.cinch"
+    },
+    {
+      "name": "Data.Mutable.Var",
+      "path": "Data/Mutable/Var.cinch"
+    },
+    {
+      "name": "Data.Mutable.Vec",
+      "path": "Data/Mutable/Vec.cinch"
+    },
+    {
+      "name": "Data.Mutable",
+      "path": "Data/Mutable.cinch"
+    },
+    {
+      "name": "Data.Mutable.HeapView",
+      "path": "Data/Mutable/HeapView.cinch"
+    },
+    {
+      "name": "Data.Mutable.LinkedList",
+      "path": "Data/Mutable/LinkedList.cinch"
+    },
+    {
+      "name": "Data.Mutable.Map",
+      "path": "Data/Mutable/Map.cinch"
+    },
+    {
+      "name": "Data.Mutable.Map.Float",
+      "path": "Data/Mutable/Map/Float.cinch"
+    },
+    {
+      "name": "Data.Mutable.Map.Optional",
+      "path": "Data/Mutable/Map/Optional.cinch"
+    },
+    {
+      "name": "Data.Mutable.Ring",
+      "path": "Data/Mutable/Ring.cinch"
+    },
+    {
+      "name": "Data.Rand",
+      "path": "Data/Rand.cinch"
+    },
+    {
+      "name": "Data.Rational",
+      "path": "Data/Rational.cinch"
+    },
+    {
+      "name": "Data.StringIo",
+      "path": "Data/StringIo.cinch"
+    },
+    {
+      "name": "Data.Tensor",
+      "path": "Data/Tensor.cinch"
+    },
+    {
+      "name": "Data.Time",
+      "path": "Data/Time.cinch"
+    },
+    {
+      "name": "Data.Time.Weekday",
+      "path": "Data/Time/Weekday.cinch"
+    },
+    {
+      "name": "Data.Time.Date",
+      "path": "Data/Time/Date.cinch"
+    },
+    {
+      "name": "Data.Time.TimeOfDay",
+      "path": "Data/Time/TimeOfDay.cinch"
+    },
+    {
+      "name": "Data.Time.DateTime",
+      "path": "Data/Time/DateTime.cinch"
+    },
+    {
+      "name": "Data.Time.Duration",
+      "path": "Data/Time/Duration.cinch"
+    },
+    {
+      "name": "Data.Time.Unit",
+      "path": "Data/Time/Unit.cinch"
+    },
+    {
+      "name": "Data.Time.Span",
+      "path": "Data/Time/Span.cinch"
+    },
+    {
+      "name": "Data.Time.Timestamp",
+      "path": "Data/Time/Timestamp.cinch"
+    },
+    {
+      "name": "Data.Time.Arithmetic",
+      "path": "Data/Time/Arithmetic.cinch"
+    },
+    {
+      "name": "Data.Time.Monotonic",
+      "path": "Data/Time/Monotonic.cinch"
+    },
+    {
+      "name": "Data.Time.Offset",
+      "path": "Data/Time/Offset.cinch"
+    },
+    {
+      "name": "Data.Time.Zone.Types",
+      "path": "Data/Time/Zone/Types.cinch"
+    },
+    {
+      "name": "Data.Time.Zone.Posix",
+      "path": "Data/Time/Zone/Posix.cinch"
+    },
+    {
+      "name": "Data.Time.Zone",
+      "path": "Data/Time/Zone.cinch"
+    },
+    {
+      "name": "Data.Time.Zone.Tzif",
+      "path": "Data/Time/Zone/Tzif.cinch"
+    },
+    {
+      "name": "Data.Time.Zoned",
+      "path": "Data/Time/Zoned.cinch"
+    },
+    {
+      "name": "Data.Time.Zoned.Arithmetic",
+      "path": "Data/Time/Zoned/Arithmetic.cinch"
+    },
+    {
+      "name": "Data.Unicode.Range",
+      "path": "Data/Unicode/Range.cinch"
+    },
+    {
+      "name": "Data.Unicode.Names",
+      "path": "Data/Unicode/Names.cinch"
+    },
+    {
+      "name": "Data.Unicode",
+      "path": "Data/Unicode.cinch"
+    },
+    {
+      "name": "Data.Uuid",
+      "path": "Data/Uuid.cinch"
+    },
+    {
+      "name": "Data.Word",
+      "path": "Data/Word.cinch"
+    },
+    {
+      "name": "Effect.Stream",
+      "path": "Effect/Stream.cinch"
+    },
+    {
+      "name": "Text.Adler32",
+      "path": "Text/Adler32.cinch"
+    },
+    {
+      "name": "Effect.Adler32",
+      "path": "Effect/Adler32.cinch"
+    },
+    {
+      "name": "Text.Ascii85",
+      "path": "Text/Ascii85.cinch"
+    },
+    {
+      "name": "Effect.Ascii85",
+      "path": "Effect/Ascii85.cinch"
+    },
+    {
+      "name": "Text.Base32",
+      "path": "Text/Base32.cinch"
+    },
+    {
+      "name": "Effect.Base32",
+      "path": "Effect/Base32.cinch"
+    },
+    {
+      "name": "Text.Base64.Encoding",
+      "path": "Text/Base64/Encoding.cinch"
+    },
+    {
+      "name": "Effect.Base64",
+      "path": "Effect/Base64.cinch"
+    },
+    {
+      "name": "Effect.Benchmark",
+      "path": "Effect/Benchmark.cinch"
+    },
+    {
+      "name": "Text.Binary.Layout",
+      "path": "Text/Binary/Layout.cinch"
+    },
+    {
+      "name": "Effect.Binary",
+      "path": "Effect/Binary.cinch"
+    },
+    {
+      "name": "Effect.Buffered.Internal.Cell",
+      "path": "Effect/Buffered/Internal/Cell.cinch"
+    },
+    {
+      "name": "Effect.Buffered.Core",
+      "path": "Effect/Buffered/Core.cinch"
+    },
+    {
+      "name": "Effect.Buffered.Internal.Scan",
+      "path": "Effect/Buffered/Internal/Scan.cinch"
+    },
+    {
+      "name": "Effect.Buffered.Reader",
+      "path": "Effect/Buffered/Reader.cinch"
+    },
+    {
+      "name": "Effect.Buffered.Writer",
+      "path": "Effect/Buffered/Writer.cinch"
+    },
+    {
+      "name": "Effect.Buffered",
+      "path": "Effect/Buffered.cinch"
+    },
+    {
+      "name": "Effect.Coverage",
+      "path": "Effect/Coverage.cinch"
+    },
+    {
+      "name": "Text.Crc32",
+      "path": "Text/Crc32.cinch"
+    },
+    {
+      "name": "Effect.Crc32",
+      "path": "Effect/Crc32.cinch"
+    },
+    {
+      "name": "Text.Crc64",
+      "path": "Text/Crc64.cinch"
+    },
+    {
+      "name": "Effect.Crc64",
+      "path": "Effect/Crc64.cinch"
+    },
+    {
+      "name": "Effect.Random",
+      "path": "Effect/Random.cinch"
+    },
+    {
+      "name": "Effect.Crypto",
+      "path": "Effect/Crypto.cinch"
+    },
+    {
+      "name": "Text.Csv.Record",
+      "path": "Text/Csv/Record.cinch"
+    },
+    {
+      "name": "Effect.Csv",
+      "path": "Effect/Csv.cinch"
+    },
+    {
+      "name": "Effect.FileUtils",
+      "path": "Effect/FileUtils.cinch"
+    },
+    {
+      "name": "Effect.Find",
+      "path": "Effect/Find.cinch"
+    },
+    {
+      "name": "Text.Fnv",
+      "path": "Text/Fnv.cinch"
+    },
+    {
+      "name": "Text.Fnv.State",
+      "path": "Text/Fnv/State.cinch"
+    },
+    {
+      "name": "Effect.Fnv",
+      "path": "Effect/Fnv.cinch"
+    },
+    {
+      "name": "Effect.Hex",
+      "path": "Effect/Hex.cinch"
+    },
+    {
+      "name": "Effect.Net",
+      "path": "Effect/Net.cinch"
+    },
+    {
+      "name": "Text.Uri",
+      "path": "Text/Uri.cinch"
+    },
+    {
+      "name": "Effect.Log",
+      "path": "Effect/Log.cinch"
+    },
+    {
+      "name": "Text.Md5",
+      "path": "Text/Md5.cinch"
+    },
+    {
+      "name": "Effect.Md5",
+      "path": "Effect/Md5.cinch"
+    },
+    {
+      "name": "Text.Mime",
+      "path": "Text/Mime.cinch"
+    },
+    {
+      "name": "Effect.Mime",
+      "path": "Effect/Mime.cinch"
+    },
+    {
+      "name": "Text.Multipart",
+      "path": "Text/Multipart.cinch"
+    },
+    {
+      "name": "Text.QuotedPrintable",
+      "path": "Text/QuotedPrintable.cinch"
+    },
+    {
+      "name": "Effect.Multipart",
+      "path": "Effect/Multipart.cinch"
+    },
+    {
+      "name": "Text.Pem",
+      "path": "Text/Pem.cinch"
+    },
+    {
+      "name": "Effect.Pem",
+      "path": "Effect/Pem.cinch"
+    },
+    {
+      "name": "Effect.Pty",
+      "path": "Effect/Pty.cinch"
+    },
+    {
+      "name": "Effect.QuotedPrintable",
+      "path": "Effect/QuotedPrintable.cinch"
+    },
+    {
+      "name": "Effect.Rand",
+      "path": "Effect/Rand.cinch"
+    },
+    {
+      "name": "Text.Scan",
+      "path": "Text/Scan.cinch"
+    },
+    {
+      "name": "Effect.Resolv",
+      "path": "Effect/Resolv.cinch"
+    },
+    {
+      "name": "Effect.Scanner.Split",
+      "path": "Effect/Scanner/Split.cinch"
+    },
+    {
+      "name": "Effect.Scanner",
+      "path": "Effect/Scanner.cinch"
+    },
+    {
+      "name": "Text.Sha1",
+      "path": "Text/Sha1.cinch"
+    },
+    {
+      "name": "Effect.Sha1",
+      "path": "Effect/Sha1.cinch"
+    },
+    {
+      "name": "Text.Sha256",
+      "path": "Text/Sha256.cinch"
+    },
+    {
+      "name": "Effect.Sha256",
+      "path": "Effect/Sha256.cinch"
+    },
+    {
+      "name": "Effect.Sha3",
+      "path": "Effect/Sha3.cinch"
+    },
+    {
+      "name": "Effect.Sha512",
+      "path": "Effect/Sha512.cinch"
+    },
+    {
+      "name": "Effect.Signal",
+      "path": "Effect/Signal.cinch"
+    },
+    {
+      "name": "Text.Base64",
+      "path": "Text/Base64.cinch"
+    },
+    {
+      "name": "Text.Smtp",
+      "path": "Text/Smtp.cinch"
+    },
+    {
+      "name": "Effect.Stream.Offset",
+      "path": "Effect/Stream/Offset.cinch"
+    },
+    {
+      "name": "Effect.Stream.Section",
+      "path": "Effect/Stream/Section.cinch"
+    },
+    {
+      "name": "Effect.Test",
+      "path": "Effect/Test.cinch"
+    },
+    {
+      "name": "Effect.Time",
+      "path": "Effect/Time.cinch"
+    },
+    {
+      "name": "Effect.Time.Zone",
+      "path": "Effect/Time/Zone.cinch"
+    },
+    {
+      "name": "Effect.Trace",
+      "path": "Effect/Trace.cinch"
+    },
+    {
+      "name": "Effect.Uuid",
+      "path": "Effect/Uuid.cinch"
+    },
+    {
+      "name": "Image.Color",
+      "path": "Image/Color.cinch"
+    },
+    {
+      "name": "Image.Color.Palette",
+      "path": "Image/Color/Palette.cinch"
+    },
+    {
+      "name": "Image.Raster",
+      "path": "Image/Raster.cinch"
+    },
+    {
+      "name": "Image.Draw",
+      "path": "Image/Draw.cinch"
+    },
+    {
+      "name": "Text.Lzw",
+      "path": "Text/Lzw.cinch"
+    },
+    {
+      "name": "Image.Gif",
+      "path": "Image/Gif.cinch"
+    },
+    {
+      "name": "Image.Jpeg",
+      "path": "Image/Jpeg.cinch"
+    },
+    {
+      "name": "Text.Checksum",
+      "path": "Text/Checksum.cinch"
+    },
+    {
+      "name": "Text.Args",
+      "path": "Text/Args.cinch"
+    },
+    {
+      "name": "Text.Asn1",
+      "path": "Text/Asn1.cinch"
+    },
+    {
+      "name": "Text.Builder",
+      "path": "Text/Builder.cinch"
+    },
+    {
+      "name": "Text.Bzip2",
+      "path": "Text/Bzip2.cinch"
+    },
+    {
+      "name": "Text.Lex",
+      "path": "Text/Lex.cinch"
+    },
+    {
+      "name": "Text.Parse",
+      "path": "Text/Parse.cinch"
+    },
+    {
+      "name": "Text.Csv",
+      "path": "Text/Csv.cinch"
+    },
+    {
+      "name": "Text.Path",
+      "path": "Text/Path.cinch"
+    },
+    {
+      "name": "Text.FilePath",
+      "path": "Text/FilePath.cinch"
+    },
+    {
+      "name": "Text.Html",
+      "path": "Text/Html.cinch"
+    },
+    {
+      "name": "Text.Json",
+      "path": "Text/Json.cinch"
+    },
+    {
+      "name": "Text.Json.Binary32",
+      "path": "Text/Json/Binary32.cinch"
+    },
+    {
+      "name": "Text.Json.Value",
+      "path": "Text/Json/Value.cinch"
+    },
+    {
+      "name": "Text.Json.Codec",
+      "path": "Text/Json/Codec.cinch"
+    },
+    {
+      "name": "Text.Json.Dynamic",
+      "path": "Text/Json/Dynamic.cinch"
+    },
+    {
+      "name": "Text.Json.Legacy",
+      "path": "Text/Json/Legacy.cinch"
+    },
+    {
+      "name": "Text.TextProto",
+      "path": "Text/TextProto.cinch"
+    },
+    {
+      "name": "Text.Time.Scan",
+      "path": "Text/Time/Scan.cinch"
+    },
+    {
+      "name": "Text.Time.Rfc2822",
+      "path": "Text/Time/Rfc2822.cinch"
+    },
+    {
+      "name": "Text.Mail",
+      "path": "Text/Mail.cinch"
+    },
+    {
+      "name": "Text.OptionParser",
+      "path": "Text/OptionParser.cinch"
+    },
+    {
+      "name": "Text.Otlp",
+      "path": "Text/Otlp.cinch"
+    },
+    {
+      "name": "Text.Regex",
+      "path": "Text/Regex.cinch"
+    },
+    {
+      "name": "Text.Shellwords",
+      "path": "Text/Shellwords.cinch"
+    },
+    {
+      "name": "Text.TabWriter",
+      "path": "Text/TabWriter.cinch"
+    },
+    {
+      "name": "Text.Tar",
+      "path": "Text/Tar.cinch"
+    },
+    {
+      "name": "Text.Template",
+      "path": "Text/Template.cinch"
+    },
+    {
+      "name": "Text.Time.Duration",
+      "path": "Text/Time/Duration.cinch"
+    },
+    {
+      "name": "Text.Time.Iso",
+      "path": "Text/Time/Iso.cinch"
+    },
+    {
+      "name": "Text.Time.Rfc9557",
+      "path": "Text/Time/Rfc9557.cinch"
+    },
+    {
+      "name": "Text.Time.Strtime",
+      "path": "Text/Time/Strtime.cinch"
+    },
+    {
+      "name": "Text.Time.Zoned",
+      "path": "Text/Time/Zoned.cinch"
+    },
+    {
+      "name": "Text.Toml",
+      "path": "Text/Toml.cinch"
+    },
+    {
+      "name": "Text.Utf16",
+      "path": "Text/Utf16.cinch"
+    },
+    {
+      "name": "Text.Utf8",
+      "path": "Text/Utf8.cinch"
+    },
+    {
+      "name": "Text.Xml",
+      "path": "Text/Xml.cinch"
+    },
+    {
+      "name": "Text.Yaml",
+      "path": "Text/Yaml.cinch"
+    },
+    {
+      "name": "Crypto.MlDsa",
+      "path": "Crypto/MlDsa.cinch"
+    },
+    {
+      "name": "Crypto.Pkix",
+      "path": "Crypto/Pkix.cinch"
+    },
+    {
+      "name": "Crypto.Rsa",
+      "path": "Crypto/Rsa.cinch"
+    },
+    {
+      "name": "Data.MachO",
+      "path": "Data/MachO.cinch"
+    },
+    {
+      "name": "Data.MapHash",
+      "path": "Data/MapHash.cinch"
+    },
+    {
+      "name": "Data.NetIp",
+      "path": "Data/NetIp.cinch"
+    },
+    {
+      "name": "Crypto.X509",
+      "path": "Crypto/X509.cinch"
+    },
+    {
+      "name": "Crypto.Tls",
+      "path": "Crypto/Tls.cinch"
+    },
+    {
+      "name": "Data.Pe",
+      "path": "Data/Pe.cinch"
+    },
+    {
+      "name": "Data.Sql",
+      "path": "Data/Sql.cinch"
+    },
+    {
+      "name": "Data.SuffixArray",
+      "path": "Data/SuffixArray.cinch"
+    },
+    {
+      "name": "Effect.MapHash",
+      "path": "Effect/MapHash.cinch"
+    },
+    {
+      "name": "Effect.Sql",
+      "path": "Effect/Sql.cinch"
+    },
+    {
+      "name": "Effect.Syslog",
+      "path": "Effect/Syslog.cinch"
+    },
+    {
+      "name": "Effect.Test.Fs",
+      "path": "Effect/Test/Fs.cinch"
+    },
+    {
+      "name": "Effect.Test.Io",
+      "path": "Effect/Test/Io.cinch"
+    },
+    {
+      "name": "Effect.Test.Quick",
+      "path": "Effect/Test/Quick.cinch"
+    },
+    {
+      "name": "Effect.Tls",
+      "path": "Effect/Tls.cinch"
+    },
+    {
+      "name": "Effect.Http",
+      "path": "Effect/Http.cinch"
+    },
+    {
+      "name": "Effect.Smtp",
+      "path": "Effect/Smtp.cinch"
+    },
+    {
+      "name": "Text.Flate",
+      "path": "Text/Flate.cinch"
+    },
+    {
+      "name": "Text.Zlib",
+      "path": "Text/Zlib.cinch"
+    },
+    {
+      "name": "Image.Png",
+      "path": "Image/Png.cinch"
+    },
+    {
+      "name": "Text.Gzip",
+      "path": "Text/Gzip.cinch"
+    },
+    {
+      "name": "Text.Zip",
+      "path": "Text/Zip.cinch"
+    },
+    {
+      "name": "Data.Elf",
+      "path": "Data/Elf.cinch"
+    },
+    {
+      "name": "Effect.Flate",
+      "path": "Effect/Flate.cinch"
+    },
+    {
+      "name": "Text.Gob",
+      "path": "Text/Gob.cinch"
+    },
+    {
+      "name": "Effect.Gob",
+      "path": "Effect/Gob.cinch"
+    },
+    {
+      "name": "Text.HtmlTemplate",
+      "path": "Text/HtmlTemplate.cinch"
+    },
+    {
+      "name": "Text.Http",
+      "path": "Text/Http.cinch"
+    },
+    {
+      "name": "Effect.Expvar",
+      "path": "Effect/Expvar.cinch"
+    },
+    {
+      "name": "Effect.Http.Server",
+      "path": "Effect/Http/Server.cinch"
+    },
+    {
+      "name": "Effect.Http.Util",
+      "path": "Effect/Http/Util.cinch"
+    },
+    {
+      "name": "Effect.HttpTest",
+      "path": "Effect/HttpTest.cinch"
+    },
+    {
+      "name": "Text.Rpc",
+      "path": "Text/Rpc.cinch"
+    },
+    {
+      "name": "Effect.Rpc",
+      "path": "Effect/Rpc.cinch"
+    },
+    {
+      "name": "Text.Strconv",
+      "path": "Text/Strconv.cinch"
+    },
+    {
+      "name": "Text.User",
+      "path": "Text/User.cinch"
+    },
+    {
+      "name": "Effect.User",
+      "path": "Effect/User.cinch"
+    }
+  ],
+  "order": [
+    "Data.Core",
+    "Data.Ordering",
+    "Relation.Eq",
+    "Relation.Ord",
+    "Algebra.Arithmetic",
+    "Algebra.Bits",
+    "Function.Combinators",
+    "Data.Nat",
+    "Data.Int",
+    "Effect.Sequencing",
+    "Data.Option",
+    "Data.Result",
+    "Data.List",
+    "Data.Enum",
+    "Prim.Machine",
+    "Data.Char",
+    "Data.Bool",
+    "Data.Machine",
+    "Data.Bytes",
+    "Data.Map",
+    "Prim.Wide",
+    "Data.String",
+    "Data.Json",
+    "Data.Producer",
+    "Data.Target",
+    "Data.Path",
+    "Effect.Concurrent",
+    "Effect.Concurrent.MVar",
+    "Effect.Clock",
+    "Prim.Sys.Darwin",
+    "Prim.Sys.Linux",
+    "Prim.Sys.Portable",
+    "Prim.Sys",
+    "Effect.Fs",
+    "Effect.Process",
+    "Effect.Io",
+    "Data.FromList",
+    "Data.FromMap",
+    "Text.Show",
+    "Data.Sym",
+    "Prelude",
+    "Algebra.Semigroup",
+    "Algebra.Group",
+    "Algebra.Semiring",
+    "Algebra.Monoid",
+    "Category.Functor",
+    "Category.Applicative",
+    "Category.Monad",
+    "Category.Alternative",
+    "Category.Foldable",
+    "Category.Traversable",
+    "Data.Identity",
+    "Data.Const",
+    "Data.Compose",
+    "Data.NonEmpty",
+    "Data.Sorted",
+    "Data.NonZero",
+    "Data.Ascii",
+    "Data.Set",
+    "Data.Wide",
+    "Data.Hash",
+    "Text.Codec",
+    "Data.HashMap",
+    "Effect.Stm",
+    "Effect.Stm.TMVar",
+    "Effect.Stm.TQueue",
+    "Effect.Stm.TBQueue",
+    "Effect.Stm.TSem",
+    "Data.Bytes.Word",
+    "Crypto.Cipher",
+    "Crypto.Aes",
+    "Crypto.ConstantTime",
+    "Crypto.ChaCha20Poly1305",
+    "Text.Hex",
+    "Crypto.Des",
+    "Data.Bytes.Build",
+    "Text.Digest",
+    "Crypto.Hmac",
+    "Crypto.P256",
+    "Crypto.Ecdsa",
+    "Crypto.Field25519",
+    "Text.Binary",
+    "Text.Sha512",
+    "Crypto.Ed25519",
+    "Crypto.Kdf",
+    "Crypto.X25519",
+    "Crypto.Hpke",
+    "Text.Sha3",
+    "Crypto.MlKem",
+    "Crypto.Rc4",
+    "Data.Array",
+    "Data.Array.Edit",
+    "Data.Array.Packed",
+    "Data.Compare",
+    "Data.Search",
+    "Data.Array.Search",
+    "Data.BigDecimal",
+    "Data.Bytes.Utf8",
+    "Data.Bytes.View",
+    "Data.Unicode.Tables",
+    "Data.Unicode.Kernel",
+    "Data.Bytes.Fields",
+    "Data.Bytes.Search",
+    "Data.Bytes.Split",
+    "Data.ChaCha8",
+    "Data.Columnar",
+    "Text.Cookie",
+    "Text.Punycode",
+    "Text.Url.Error",
+    "Text.Url.Codec",
+    "Text.Url.Scan",
+    "Text.Url.Query",
+    "Text.Url.Userinfo",
+    "Text.Url.Model",
+    "Text.Url.Ip",
+    "Text.Url.Parser",
+    "Text.Url.Resolve",
+    "Text.Url",
+    "Data.CookieJar",
+    "Data.Date",
+    "Data.Float",
+    "Data.Complex",
+    "Data.IpAddr",
+    "Data.Matrix",
+    "Data.Mutable.Array",
+    "Data.Mutable.BTree",
+    "Data.Mutable.BTreeSet",
+    "Data.Mutable.BitSet",
+    "Data.Mutable.Deque",
+    "Data.Mutable.HashTable",
+    "Data.Mutable.HashSet",
+    "Data.Mutable.Heap",
+    "Data.Mutable.IndexMap",
+    "Data.Mutable.LruCache",
+    "Data.Mutable.UnionFind",
+    "Data.Mutable.Var",
+    "Data.Mutable.Vec",
+    "Data.Mutable",
+    "Data.Mutable.HeapView",
+    "Data.Mutable.LinkedList",
+    "Data.Mutable.Map",
+    "Data.Mutable.Map.Float",
+    "Data.Mutable.Map.Optional",
+    "Data.Mutable.Ring",
+    "Data.Rand",
+    "Data.Rational",
+    "Data.StringIo",
+    "Data.Tensor",
+    "Data.Time",
+    "Data.Time.Weekday",
+    "Data.Time.Date",
+    "Data.Time.TimeOfDay",
+    "Data.Time.DateTime",
+    "Data.Time.Duration",
+    "Data.Time.Unit",
+    "Data.Time.Span",
+    "Data.Time.Timestamp",
+    "Data.Time.Arithmetic",
+    "Data.Time.Monotonic",
+    "Data.Time.Offset",
+    "Data.Time.Zone.Types",
+    "Data.Time.Zone.Posix",
+    "Data.Time.Zone",
+    "Data.Time.Zone.Tzif",
+    "Data.Time.Zoned",
+    "Data.Time.Zoned.Arithmetic",
+    "Data.Unicode.Range",
+    "Data.Unicode.Names",
+    "Data.Unicode",
+    "Data.Uuid",
+    "Data.Word",
+    "Effect.Stream",
+    "Text.Adler32",
+    "Effect.Adler32",
+    "Text.Ascii85",
+    "Effect.Ascii85",
+    "Text.Base32",
+    "Effect.Base32",
+    "Text.Base64.Encoding",
+    "Effect.Base64",
+    "Effect.Benchmark",
+    "Text.Binary.Layout",
+    "Effect.Binary",
+    "Effect.Buffered.Internal.Cell",
+    "Effect.Buffered.Core",
+    "Effect.Buffered.Internal.Scan",
+    "Effect.Buffered.Reader",
+    "Effect.Buffered.Writer",
+    "Effect.Buffered",
+    "Effect.Coverage",
+    "Text.Crc32",
+    "Effect.Crc32",
+    "Text.Crc64",
+    "Effect.Crc64",
+    "Effect.Random",
+    "Effect.Crypto",
+    "Text.Csv.Record",
+    "Effect.Csv",
+    "Effect.FileUtils",
+    "Effect.Find",
+    "Text.Fnv",
+    "Text.Fnv.State",
+    "Effect.Fnv",
+    "Effect.Hex",
+    "Effect.Net",
+    "Text.Uri",
+    "Effect.Log",
+    "Text.Md5",
+    "Effect.Md5",
+    "Text.Mime",
+    "Effect.Mime",
+    "Text.Multipart",
+    "Text.QuotedPrintable",
+    "Effect.Multipart",
+    "Text.Pem",
+    "Effect.Pem",
+    "Effect.Pty",
+    "Effect.QuotedPrintable",
+    "Effect.Rand",
+    "Text.Scan",
+    "Effect.Resolv",
+    "Effect.Scanner.Split",
+    "Effect.Scanner",
+    "Text.Sha1",
+    "Effect.Sha1",
+    "Text.Sha256",
+    "Effect.Sha256",
+    "Effect.Sha3",
+    "Effect.Sha512",
+    "Effect.Signal",
+    "Text.Base64",
+    "Text.Smtp",
+    "Effect.Stream.Offset",
+    "Effect.Stream.Section",
+    "Effect.Test",
+    "Effect.Time",
+    "Effect.Time.Zone",
+    "Effect.Trace",
+    "Effect.Uuid",
+    "Image.Color",
+    "Image.Color.Palette",
+    "Image.Raster",
+    "Image.Draw",
+    "Text.Lzw",
+    "Image.Gif",
+    "Image.Jpeg",
+    "Text.Checksum",
+    "Text.Args",
+    "Text.Asn1",
+    "Text.Builder",
+    "Text.Bzip2",
+    "Text.Lex",
+    "Text.Parse",
+    "Text.Csv",
+    "Text.Path",
+    "Text.FilePath",
+    "Text.Html",
+    "Text.Json",
+    "Text.Json.Binary32",
+    "Text.Json.Value",
+    "Text.Json.Codec",
+    "Text.Json.Dynamic",
+    "Text.Json.Legacy",
+    "Text.TextProto",
+    "Text.Time.Scan",
+    "Text.Time.Rfc2822",
+    "Text.Mail",
+    "Text.OptionParser",
+    "Text.Otlp",
+    "Text.Regex",
+    "Text.Shellwords",
+    "Text.TabWriter",
+    "Text.Tar",
+    "Text.Template",
+    "Text.Time.Duration",
+    "Text.Time.Iso",
+    "Text.Time.Rfc9557",
+    "Text.Time.Strtime",
+    "Text.Time.Zoned",
+    "Text.Toml",
+    "Text.Utf16",
+    "Text.Utf8",
+    "Text.Xml",
+    "Text.Yaml",
+    "Crypto.MlDsa",
+    "Crypto.Pkix",
+    "Crypto.Rsa",
+    "Data.MachO",
+    "Data.MapHash",
+    "Data.NetIp",
+    "Crypto.X509",
+    "Crypto.Tls",
+    "Data.Pe",
+    "Data.Sql",
+    "Data.SuffixArray",
+    "Effect.MapHash",
+    "Effect.Sql",
+    "Effect.Syslog",
+    "Effect.Test.Fs",
+    "Effect.Test.Io",
+    "Effect.Test.Quick",
+    "Effect.Tls",
+    "Effect.Http",
+    "Effect.Smtp",
+    "Text.Flate",
+    "Text.Zlib",
+    "Image.Png",
+    "Text.Gzip",
+    "Text.Zip",
+    "Data.Elf",
+    "Effect.Flate",
+    "Text.Gob",
+    "Effect.Gob",
+    "Text.HtmlTemplate",
+    "Text.Http",
+    "Effect.Expvar",
+    "Effect.Http.Server",
+    "Effect.Http.Util",
+    "Effect.HttpTest",
+    "Text.Rpc",
+    "Effect.Rpc",
+    "Text.Strconv",
+    "Text.User",
+    "Effect.User"
+  ]
+}

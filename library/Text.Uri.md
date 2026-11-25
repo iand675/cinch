@@ -2,19 +2,11 @@
 
 URI parsing, rendering, components, and validation/error vocabulary.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Uri</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Uri/source/">View source</a><a href="/packages/search/?q=%2BText.Uri">Search module</a><a href="/reference-sources/Text.Uri.cinch" download="Text.Uri.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Uri`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Text.Uri.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md), [Text.Uri](Text.Uri.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Uri: URI references (RFC 3986) as components, parsed, printed,
 normalized and resolved.
@@ -70,13 +62,15 @@ implement; each is a named boundary, never a silent gap):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (17 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Uri">Uri</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Uri</strong></code></li><li><a class="syn-name" href="#t-UriError">UriError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UriError</strong></code></li><li><a class="syn-name" href="#v-render-uri-error">render-uri-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-uri-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-decode">uri-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-encode">uri-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-fragment">uri-fragment</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-fragment</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-host">uri-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-host-ip">uri-host-ip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-host-ip</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code></li><li><a class="syn-name" href="#v-uri-normalize">uri-normalize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-normalize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code></li><li><a class="syn-name" href="#v-uri-parse">uri-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code></li><li><a class="syn-name" href="#v-uri-path">uri-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-port">uri-port</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-port</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-uri-query">uri-query</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-resolve">uri-resolve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code></li><li><a class="syn-name" href="#v-uri-scheme">uri-scheme</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-scheme</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-to-string">uri-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-uri-userinfo">uri-userinfo</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uri-userinfo</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-557269"></a>
+# Types
 
-## `Uri`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Uri</span></code></pre>
+<article class="doc-entry" id="t-Uri">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Uri</strong></code><span class="doc-sig-links"><a href="#t-Uri" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 The reference and its components.
 
@@ -88,161 +82,96 @@ carries the authority's host text as written, brackets included, so
 brackets; a present-but-empty `host` is the empty authority of
 `file:///x`.
 
-[Source](/reference-sources/Text.Uri.cinch) · line 88
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkUri"><code><strong class="tok-constructor">MkUri</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUri</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>)))))))</code></pre>
-
-<a id="type-5572694572726f72"></a>
-
-## `UriError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UriError</span></code></pre>
+<article class="doc-entry" id="t-UriError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UriError</strong></code><span class="doc-sig-links"><a href="#t-UriError" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 Errors: every malformed reference names the rule it broke.
 
-[Source](/reference-sources/Text.Uri.cinch) · line 124
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPercentEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadScheme</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadPort</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadIpv6Host</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadUtf8</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BadPercentEscape"><code><strong class="tok-constructor">BadPercentEscape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a></code></li><li id="k-BadScheme"><code><strong class="tok-constructor">BadScheme</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a></code></li><li id="k-BadPort"><code><strong class="tok-constructor">BadPort</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a></code></li><li id="k-BadIpv6Host"><code><strong class="tok-constructor">BadIpv6Host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a></code></li><li id="k-BadUtf8"><code><strong class="tok-constructor">BadUtf8</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-72656e6465722d7572692d6572726f72"></a>
+<article class="doc-entry" id="v-render-uri-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-uri-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-uri-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L131" title="View source at line 131">Source</a></span></div>
+</article>
 
-## `render-uri-error`
+<article class="doc-entry" id="v-uri-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L255" title="View source at line 255">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-uri-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-uri-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L239" title="View source at line 239">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Uri.cinch)
+<article class="doc-entry" id="v-uri-fragment">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-fragment</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-fragment" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L115" title="View source at line 115">Source</a></span></div>
+</article>
 
-<a id="value-7572692d6465636f6465"></a>
+<article class="doc-entry" id="v-uri-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-host</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-host" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L99" title="View source at line 99">Source</a></span></div>
+</article>
 
-## `uri-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-decode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d656e636f6465"></a>
-
-## `uri-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-encode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d667261676d656e74"></a>
-
-## `uri-fragment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-fragment</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d686f7374"></a>
-
-## `uri-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d686f73742d6970"></a>
-
-## `uri-host-ip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-host-ip</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
+<article class="doc-entry" id="v-uri-host-ip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-host-ip</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code><span class="doc-sig-links"><a href="#v-uri-host-ip" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L581" title="View source at line 581">Source</a></span></div>
+<div class="doc-body">
 
 The address a host names, when it names one: a bracketed literal is
 an IPv6 address, a bare host that parses as IPv4 is one, and any
 other host (a registered name, or an unbracketed IPv6) is `None`.
 
-[Source](/reference-sources/Text.Uri.cinch) · line 581
+</div>
+</article>
 
-<a id="value-7572692d6e6f726d616c697a65"></a>
+<article class="doc-entry" id="v-uri-normalize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-normalize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code><span class="doc-sig-links"><a href="#v-uri-normalize" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L542" title="View source at line 542">Source</a></span></div>
+</article>
 
-## `uri-normalize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-normalize</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>)</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d7061727365"></a>
-
-## `uri-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">UriError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>))</code></pre>
+<article class="doc-entry" id="v-uri-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-parse</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-UriError" title="Text.Uri.UriError">UriError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code><span class="doc-sig-links"><a href="#v-uri-parse" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L294" title="View source at line 294">Source</a></span></div>
+<div class="doc-body">
 
 Parsing (RFC 3986 appendix B's grammar, with the checks the
 grammar needs and the appendix's regex cannot carry).
 
-[Source](/reference-sources/Text.Uri.cinch) · line 294
+</div>
+</article>
 
-<a id="value-7572692d70617468"></a>
+<article class="doc-entry" id="v-uri-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L107" title="View source at line 107">Source</a></span></div>
+</article>
 
-## `uri-path`
+<article class="doc-entry" id="v-uri-port">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-port</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-uri-port" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L103" title="View source at line 103">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-path</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-uri-query">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-query</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-query" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L111" title="View source at line 111">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Uri.cinch)
+<article class="doc-entry" id="v-uri-resolve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a></code><span class="doc-sig-links"><a href="#v-uri-resolve" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L652" title="View source at line 652">Source</a></span></div>
+</article>
 
-<a id="value-7572692d706f7274"></a>
+<article class="doc-entry" id="v-uri-scheme">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-scheme</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-scheme" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L91" title="View source at line 91">Source</a></span></div>
+</article>
 
-## `uri-port`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-port</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d7175657279"></a>
-
-## `uri-query`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-query</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d7265736f6c7665"></a>
-
-## `uri-resolve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-resolve</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d736368656d65"></a>
-
-## `uri-scheme`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-scheme</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-<a id="value-7572692d746f2d737472696e67"></a>
-
-## `uri-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-to-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-uri-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L451" title="View source at line 451">Source</a></span></div>
+<div class="doc-body">
 
 Printing: the exact inverse of parsing (the round-trip law).
 
-[Source](/reference-sources/Text.Uri.cinch) · line 451
+</div>
+</article>
 
-<a id="value-7572692d75736572696e666f"></a>
-
-## `uri-userinfo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uri-userinfo</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Uri</span>.<span class="tok-constructor">Uri</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Uri.cinch)
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Uri.cinch`. Source SHA-256: `e3098cfb52bdee5813cb985d730d5865cb01c2b687d42464f821b73121bc1749`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<article class="doc-entry" id="v-uri-userinfo">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-userinfo</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-userinfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L95" title="View source at line 95">Source</a></span></div>
+</article>

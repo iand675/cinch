@@ -2,17 +2,11 @@
 
 Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.NonZero</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.NonZero/source/">View source</a><a href="/packages/search/?q=%2BData.NonZero">Search module</a><a href="/reference-sources/Data.NonZero.cinch" download="Data.NonZero.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.NonZero`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
 
-[Download exact module source](/reference-sources/Data.NonZero.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.NonZero: the non-zero number as a refinement (refinement types
 design; decision D151).
@@ -44,50 +38,30 @@ module's product and identity and decides both laws at samples
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-non-zero">non-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">non-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code></li><li><a class="syn-name" href="#v-non-zero-nat">non-zero-nat</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">non-zero-nat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code></li></ul>
+</details>
 
 # Values
 
-<a id="value-6e6f6e2d7a65726f"></a>
-
-## `non-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Int</span>)))</code></pre>
+<article class="doc-entry" id="v-non-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">non-zero</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code><span class="doc-sig-links"><a href="#v-non-zero" title="Permalink">#</a><a href="/packages/stdlib/Data.NonZero/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 The total constructors (refinement types design: the total API).
 
-[Source](/reference-sources/Data.NonZero.cinch) · line 37
+</div>
+</article>
 
-<a id="value-6e6f6e2d7a65726f2d6e6174"></a>
-
-## `non-zero-nat`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-zero-nat</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>)))</code></pre>
-
-[Source](/reference-sources/Data.NonZero.cinch)
+<article class="doc-entry" id="v-non-zero-nat">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">non-zero-nat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-non-zero-nat" title="Permalink">#</a><a href="/packages/stdlib/Data.NonZero/source/#L42" title="View source at line 42">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.NonZero.Monoid_NonZero` | `Algebra.Monoid.Monoid (Algebra.Arithmetic.NonZero Int)` | Implicit |
-| `Data.NonZero.Semigroup_NonZero` | `Algebra.Semigroup.Semigroup (Algebra.Arithmetic.NonZero Int)` | Implicit |
-
-**`Data.NonZero.Monoid_NonZero`**: The multiplicative identity is 1: non-zero, so the transfer
-preserves the refinement (the contrast with `Monoid (NonEmpty a)`,
-whose identity violates non-emptiness). `mconcat` is the class
-default, checked at `NonZero` itself: it composes this instance's
-own methods, so it preserves the refinement by construction.
-**`Data.NonZero.Semigroup_NonZero`**: The multiplicative semigroup on non-zero integers: preserved
-(a non-zero product of non-zeros), associative (both checked
-sample-wise by the law layer). Integer addition does NOT preserve
-non-zerohood and its transfer is rejected by the preservation law
-(asserted in seed/tests/refinements.rs).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonZero.cinch`. Source SHA-256: `d09f99b17ce4e051a2ac0435c0563f094fe8b0fba310ece953a3c67d40f7327a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Monoid_NonZero"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">Implicit · <code>Data.NonZero.Monoid_NonZero</code></span><div class="doc-child-prose">The multiplicative identity is 1: non-zero, so the transfer preserves the refinement (the contrast with Monoid (NonEmpty a), whose identity violates non-emptiness).</div></li>
+<li id="i-Semigroup_NonZero"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a>)</code> <span class="doc-inst-meta">Implicit · <code>Data.NonZero.Semigroup_NonZero</code></span><div class="doc-child-prose">The multiplicative semigroup on non-zero integers: preserved (a non-zero product of non-zeros), associative (both checked sample-wise by the law layer).</div></li>
+</ul>

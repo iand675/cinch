@@ -2,17 +2,11 @@
 
 A counting semaphore for transactions: wait takes a permit or retries, signal returns one.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TSem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TSem/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TSem">Search module</a><a href="/reference-sources/Effect.Stm.TSem.cinch" download="Effect.Stm.TSem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Stm.TSem`. Selected exports may already be in Prelude.
+**Dependencies:** [Effect.Stm](Effect.Stm.md).
 
-[Download exact module source](/reference-sources/Effect.Stm.TSem.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Effect.Stm](Effect.Stm.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Stm.TSem: a counting semaphore of transactions.
 
@@ -29,86 +23,72 @@ Module scheme (design/base-library.md): a concrete type over
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TSem">TSem</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TSem</strong></code></li><li><a class="syn-name" href="#v-tsem-available">tsem-available</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-available</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tsem-new">tsem-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a></code></li><li><a class="syn-name" href="#v-tsem-new-io">tsem-new-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-new-io</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a></code></li><li><a class="syn-name" href="#v-tsem-signal">tsem-signal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-signal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-tsem-signal-n">tsem-signal-n</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-signal-n</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-tsem-try-wait">tsem-try-wait</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-try-wait</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-tsem-wait">tsem-wait</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tsem-wait</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-5453656d"></a>
+# Types
 
-## `TSem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TSem</span></code></pre>
-
-[Source](/reference-sources/Effect.Stm.TSem.cinch)
+<article class="doc-entry" id="t-TSem">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TSem</strong></code><span class="doc-sig-links"><a href="#t-TSem" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L19" title="View source at line 19">Source</a></span></div>
+</article>
 
 # Values
 
-<a id="value-7473656d2d617661696c61626c65"></a>
-
-## `tsem-available`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-available</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-tsem-available">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-available</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tsem-available" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 The permits available at the transaction's instant.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 47
+</div>
+</article>
 
-<a id="value-7473656d2d6e6577"></a>
-
-## `tsem-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-new</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span>))</code></pre>
+<article class="doc-entry" id="v-tsem-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a></code><span class="doc-sig-links"><a href="#v-tsem-new" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 A semaphore with `permits` permits.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 23
+</div>
+</article>
 
-<a id="value-7473656d2d6e65772d696f"></a>
+<article class="doc-entry" id="v-tsem-new-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-new-io</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a></code><span class="doc-sig-links"><a href="#v-tsem-new-io" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L26" title="View source at line 26">Source</a></span></div>
+</article>
 
-## `tsem-new-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-new-io</span> :: (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TSem.cinch)
-
-<a id="value-7473656d2d7369676e616c"></a>
-
-## `tsem-signal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-signal</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-tsem-signal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-signal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tsem-signal" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 Return a permit.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 39
+</div>
+</article>
 
-<a id="value-7473656d2d7369676e616c2d6e"></a>
-
-## `tsem-signal-n`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-signal-n</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-tsem-signal-n">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-signal-n</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tsem-signal-n" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 Return `k` permits at once.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 43
+</div>
+</article>
 
-<a id="value-7473656d2d7472792d77616974"></a>
-
-## `tsem-try-wait`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-try-wait</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-tsem-try-wait">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-try-wait</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-tsem-try-wait" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Take a permit, or answer False when there is none.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 30
+</div>
+</article>
 
-<a id="value-7473656d2d77616974"></a>
-
-## `tsem-wait`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tsem-wait</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TSem</span>.<span class="tok-constructor">TSem</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-tsem-wait">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tsem-wait</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm.TSem/#t-TSem" title="Effect.Stm.TSem.TSem">TSem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tsem-wait" title="Permalink">#</a><a href="/packages/stdlib/Effect.Stm.TSem/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 Take a permit. Waits while there is none.
 
-[Source](/reference-sources/Effect.Stm.TSem.cinch) · line 35
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TSem.cinch`. Source SHA-256: `a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

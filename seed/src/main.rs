@@ -22,6 +22,8 @@ usage:
                                    report the first structural divergence
   cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
   cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
+  cinch doc html <root> [--out-dir <dir>] [--iface-dir <dir>] [--legacy] [--title <text>]
+  cinch doc search <query> [--dir <root>] [--index <json>] [--legacy] [--limit <n>] [--json]
   cinch doc lookup <symbol> [--dir <root>] [--legacy] [--json]
   cinch doc index <root> [--legacy] [--out <json>]
   cinch doc test <root...> [--compiler <cinch>] [--legacy] [--match <text>]

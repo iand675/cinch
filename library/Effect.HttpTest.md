@@ -2,19 +2,11 @@
 
 In-memory HTTP ResponseRecorder, request builder and loopback wire/socket testing helpers.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.HttpTest</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.HttpTest/source/">View source</a><a href="/packages/search/?q=%2BEffect.HttpTest">Search module</a><a href="/reference-sources/Effect.HttpTest.cinch" download="Effect.HttpTest.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.HttpTest`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.Net](Effect.Net.md), [Text.Http](Text.Http.md).
 
-[Download exact module source](/reference-sources/Effect.HttpTest.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.Net](Effect.Net.md), [Text.Http](Text.Http.md).
-
-Non-embedded source closure: [Crypto.Aes](Crypto.Aes.md), [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.Kdf](Crypto.Kdf.md), [Crypto.P256](Crypto.P256.md), [Crypto.Pkix](Crypto.Pkix.md), [Crypto.Rsa](Crypto.Rsa.md), [Crypto.Tls](Crypto.Tls.md), [Crypto.X25519](Crypto.X25519.md), [Crypto.X509](Crypto.X509.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.CookieJar](Data.CookieJar.md), [Data.IpAddr](Data.IpAddr.md), [Data.NetIp](Data.NetIp.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Http](Effect.Http.md), [Effect.Http.Server](Effect.Http.Server.md), [Effect.HttpTest](Effect.HttpTest.md), [Effect.Net](Effect.Net.md), [Effect.Random](Effect.Random.md), [Effect.Stream](Effect.Stream.md), [Effect.Tls](Effect.Tls.md), [Text.Asn1](Text.Asn1.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Binary](Text.Binary.md), [Text.Cookie](Text.Cookie.md), [Text.Digest](Text.Digest.md), [Text.Hex](Text.Hex.md), [Text.Http](Text.Http.md), [Text.Md5](Text.Md5.md), [Text.Pem](Text.Pem.md), [Text.Punycode](Text.Punycode.md), [Text.Sha1](Text.Sha1.md), [Text.Sha256](Text.Sha256.md), [Text.Sha512](Text.Sha512.md), [Text.TextProto](Text.TextProto.md), [Text.Uri](Text.Uri.md), [Text.Url](Text.Url.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 HTTP testing utilities: in-memory ResponseRecorder, synthetic request construction,
 pure and effectful handler recording, in-memory wire roundtrips, and loopback Effect.Net helpers.
@@ -26,243 +18,219 @@ TCP integration tests.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (23 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ResponseRecorder">ResponseRecorder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ResponseRecorder</strong></code></li><li><a class="syn-name" href="#v-httptest-exchange-loopback">httptest-exchange-loopback</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-exchange-loopback</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-httptest-new-recorder">httptest-new-recorder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-new-recorder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-httptest-new-request">httptest-new-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-new-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code></li><li><a class="syn-name" href="#v-httptest-record">httptest-record</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-record</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-httptest-record-mux">httptest-record-mux</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-record-mux</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-httptest-record-writer">httptest-record-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-record-writer</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-httptest-serve-loopback">httptest-serve-loopback</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-serve-loopback</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-httptest-serve-loopback-with">httptest-serve-loopback-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-serve-loopback-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerConfig" title="Effect.Http.Server.HttpServerConfig">HttpServerConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-httptest-serve-wire">httptest-serve-wire</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">httptest-serve-wire</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-recorder-add-header">recorder-add-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-body">recorder-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-recorder-body-string">recorder-body-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-body-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-recorder-code">recorder-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-recorder-del-header">recorder-del-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-del-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-flush">recorder-flush</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-flush</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-flushed">recorder-flushed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-flushed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-recorder-header">recorder-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code></li><li><a class="syn-name" href="#v-recorder-result">recorder-result</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code></li><li><a class="syn-name" href="#v-recorder-set-header">recorder-set-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-set-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-write">recorder-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-write</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-write-header">recorder-write-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-write-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li><li><a class="syn-name" href="#v-recorder-write-string">recorder-write-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">recorder-write-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li></ul>
+</details>
 
-<a id="type-526573706f6e73655265636f72646572"></a>
+# Types
 
-## `ResponseRecorder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ResponseRecorder</span></code></pre>
+<article class="doc-entry" id="t-ResponseRecorder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ResponseRecorder</strong></code><span class="doc-sig-links"><a href="#t-ResponseRecorder" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 Recorder fields in the order listed above.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 36
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResponseRecorder</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ResponseRecorder"><code><strong class="tok-constructor">ResponseRecorder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-68747470746573742d65786368616e67652d6c6f6f706261636b"></a>
-
-## `httptest-exchange-loopback`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-exchange-loopback</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpServerError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-httptest-exchange-loopback">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-exchange-loopback</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-httptest-exchange-loopback" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 Send raw HTTP/1.1 wire bytes to host:port over Effect.Net and read all response bytes until EOF.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 217
+</div>
+</article>
 
-<a id="value-68747470746573742d6e65772d7265636f72646572"></a>
-
-## `httptest-new-recorder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-new-recorder</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span></code></pre>
+<article class="doc-entry" id="v-httptest-new-recorder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-new-recorder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-httptest-new-recorder" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 Create a fresh ResponseRecorder initialized with status 200 and empty headers and body.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 39
+</div>
+</article>
 
-<a id="value-68747470746573742d6e65772d72657175657374"></a>
-
-## `httptest-new-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-new-request</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span>)))</code></pre>
+<article class="doc-entry" id="v-httptest-new-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-new-request</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a></code><span class="doc-sig-links"><a href="#v-httptest-new-request" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 Construct a synthetic incoming HTTP/1.1 request suitable for passing directly to handlers.
 Defaults empty method to "GET", missing host to "example.com", and remote address to "192.0.2.1:1234".
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 151
+</div>
+</article>
 
-<a id="value-68747470746573742d7265636f7264"></a>
-
-## `httptest-record`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-record</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-httptest-record">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-record</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-httptest-record" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L158" title="View source at line 158">Source</a></span></div>
+<div class="doc-body">
 
 Execute an effectful HttpHandler in memory against a request and capture its response in a ResponseRecorder.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 158
+</div>
+</article>
 
-<a id="value-68747470746573742d7265636f72642d6d7578"></a>
-
-## `httptest-record-mux`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-record-mux</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">ServeMux</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-httptest-record-mux">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-record-mux</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-ServeMux" title="Text.Http.ServeMux">ServeMux</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-httptest-record-mux" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 Execute a ServeMux of HttpHandlers in memory against a request and capture the result in a ResponseRecorder.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 164
+</div>
+</article>
 
-<a id="value-68747470746573742d7265636f72642d777269746572"></a>
-
-## `httptest-record-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-record-writer</span> :: ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-httptest-record-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-record-writer</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-httptest-record-writer" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Execute a pure ResponseRecorder-transforming handler against a request without IO effects.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 184
+</div>
+</article>
 
-<a id="value-68747470746573742d73657276652d6c6f6f706261636b"></a>
-
-## `httptest-serve-loopback`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-serve-loopback</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpServerError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-httptest-serve-loopback">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-serve-loopback</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-httptest-serve-loopback" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-body">
 
 Connect to a loopback TCP test peer at host:port, serve HTTP/1.1 with default config, and close the socket.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 203
+</div>
+</article>
 
-<a id="value-68747470746573742d73657276652d6c6f6f706261636b2d77697468"></a>
-
-## `httptest-serve-loopback-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-serve-loopback-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpServerConfig</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpServerError</span> <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-httptest-serve-loopback-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-serve-loopback-with</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerConfig" title="Effect.Http.Server.HttpServerConfig">HttpServerConfig</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-httptest-serve-loopback-with" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L208" title="View source at line 208">Source</a></span></div>
+<div class="doc-body">
 
 Connect to a loopback TCP test peer at host:port, serve HTTP/1.1 with explicit config, and close the socket.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 208
+</div>
+</article>
 
-<a id="value-68747470746573742d73657276652d77697265"></a>
-
-## `httptest-serve-wire`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">httptest-serve-wire</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpHandler</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">Server</span>.<span class="tok-constructor">HttpServerError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-httptest-serve-wire">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">httptest-serve-wire</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpHandler" title="Effect.Http.Server.HttpHandler">HttpHandler</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireRequest" title="Text.Http.HttpWireRequest">HttpWireRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Http.Server/#t-HttpServerError" title="Effect.Http.Server.HttpServerError">HttpServerError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-httptest-serve-wire" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 Perform a full HTTP/1.1 wire serialization, server parsing/dispatch, and response parsing roundtrip in memory.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 188
+</div>
+</article>
 
-<a id="value-7265636f726465722d6164642d686561646572"></a>
-
-## `recorder-add-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-add-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>)))</code></pre>
+<article class="doc-entry" id="v-recorder-add-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-add-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-add-header" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Append a header value on the recorder's staging header map.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 53
+</div>
+</article>
 
-<a id="value-7265636f726465722d626f6479"></a>
-
-## `recorder-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-recorder-body" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
 The concatenated body bytes written to the recorder.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 98
+</div>
+</article>
 
-<a id="value-7265636f726465722d626f64792d737472696e67"></a>
-
-## `recorder-body-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-body-string</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-body-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-body-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-recorder-body-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The recorded body decoded as UTF-8 text (empty string on invalid UTF-8).
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 102
+</div>
+</article>
 
-<a id="value-7265636f726465722d636f6465"></a>
-
-## `recorder-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-code</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-code</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-recorder-code" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L94" title="View source at line 94">Source</a></span></div>
+<div class="doc-body">
 
 The recorded HTTP status code (200 by default).
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 94
+</div>
+</article>
 
-<a id="value-7265636f726465722d64656c2d686561646572"></a>
-
-## `recorder-del-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-del-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-recorder-del-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-del-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-del-header" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Delete a header from the recorder's staging header map.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 59
+</div>
+</article>
 
-<a id="value-7265636f726465722d666c757368"></a>
-
-## `recorder-flush`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-flush</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-flush">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-flush</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-flush" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Mark the recorder as flushed, implicitly writing status 200 if headers have not been written yet.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 87
+</div>
+</article>
 
-<a id="value-7265636f726465722d666c7573686564"></a>
-
-## `recorder-flushed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-flushed</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-flushed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-flushed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-recorder-flushed" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Whether recorder-flush was called.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 108
+</div>
+</article>
 
-<a id="value-7265636f726465722d686561646572"></a>
-
-## `recorder-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpHeader</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpHeader" title="Text.Http.HttpHeader">HttpHeader</a></code><span class="doc-sig-links"><a href="#v-recorder-header" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 Read the recorder's current staging header map.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 43
+</div>
+</article>
 
-<a id="value-7265636f726465722d726573756c74"></a>
-
-## `recorder-result`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-result</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpWireResponse</span>)</code></pre>
+<article class="doc-entry" id="v-recorder-result">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Http/#t-HttpWireResponse" title="Text.Http.HttpWireResponse">HttpWireResponse</a></code><span class="doc-sig-links"><a href="#v-recorder-result" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 Finalize the recorder into an immutable HttpWireResponse using the snapshotted headers.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 112
+</div>
+</article>
 
-<a id="value-7265636f726465722d7365742d686561646572"></a>
-
-## `recorder-set-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-set-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>)))</code></pre>
+<article class="doc-entry" id="v-recorder-set-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-set-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-set-header" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Set a header on the recorder's staging header map.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 47
+</div>
+</article>
 
-<a id="value-7265636f726465722d7772697465"></a>
-
-## `recorder-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-write</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-recorder-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-write</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-write" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 Append body bytes to the recorder, implicitly writing status 200 and detecting Content-Type on the first write.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 72
+</div>
+</article>
 
-<a id="value-7265636f726465722d77726974652d686561646572"></a>
-
-## `recorder-write-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-write-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-recorder-write-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-write-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-write-header" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Record the HTTP status code and snapshot the current headers on the first call; subsequent calls are ignored.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 65
+</div>
+</article>
 
-<a id="value-7265636f726465722d77726974652d737472696e67"></a>
-
-## `recorder-write-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">recorder-write-string</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">HttpTest</span>.<span class="tok-constructor">ResponseRecorder</span>))</code></pre>
+<article class="doc-entry" id="v-recorder-write-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">recorder-write-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.HttpTest/#t-ResponseRecorder" title="Effect.HttpTest.ResponseRecorder">ResponseRecorder</a></code><span class="doc-sig-links"><a href="#v-recorder-write-string" title="Permalink">#</a><a href="/packages/stdlib/Effect.HttpTest/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 Append UTF-8 string bytes to the recorder.
 
-[Source](/reference-sources/Effect.HttpTest.cinch) · line 83
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/HttpTest.cinch`. Source SHA-256: `89e36e2100b642f5a8f5f3efc98bb1b70be82c0953e9bd8e1b0533392fbf497d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

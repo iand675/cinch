@@ -2,19 +2,11 @@
 
 Binary64 complex arithmetic, overflow-safe division, polar conversions, and full elementary, trigonometric, hyperbolic, and inverse functions over Data.Float.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Complex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Complex/source/">View source</a><a href="/packages/search/?q=%2BData.Complex">Search module</a><a href="/reference-sources/Data.Complex.cinch" download="Data.Complex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Complex`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Float](Data.Float.md), [Data.Machine](Data.Machine.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md).
 
-[Download exact module source](/reference-sources/Data.Complex.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Float](Data.Float.md), [Data.Machine](Data.Machine.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md).
-
-Non-embedded source closure: [Data.Complex](Data.Complex.md), [Data.Float](Data.Float.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Complex numbers over the binary64 scalar (`F64`) with full elementary,
 trigonometric, hyperbolic, inverse, polar and classification operations.
@@ -37,449 +29,402 @@ no `Ord` or `Div` instance.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (42 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Complex">Complex</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Complex</strong></code></li><li><a class="syn-name" href="#v-abs">abs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">abs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-acos">acos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">acos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-acosh">acosh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">acosh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-add">add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-arg">arg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">arg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-asin">asin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">asin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-asinh">asinh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">asinh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-atan">atan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-atan-approx">atan-approx</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atan-approx</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-atanh">atanh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atanh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-complex">complex</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">complex</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-complex-inf">complex-inf</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">complex-inf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-complex-nan">complex-nan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">complex-nan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-conj">conj</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">conj</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-conjugate">conjugate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">conjugate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-cos">cos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-cosh">cosh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cosh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-cot">cot</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-div">div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-eq">eq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">eq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-exp">exp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">exp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-from-real">from-real</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-real</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-imag-part">imag-part</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">imag-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-is-inf">is-inf</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-inf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-nan">is-nan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-nan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-log">log</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">log</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-log10">log10</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">log10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-mul">mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-neg">neg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-phase">phase</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">phase</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-polar">polar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">polar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code></li><li><a class="syn-name" href="#v-pow">pow</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pow</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-real-part">real-part</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">real-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-rect">rect</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-sin">sin</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-sinh">sinh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sinh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-sqrt">sqrt</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sqrt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-sub">sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-tan">tan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-tanh">tanh</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tanh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-436f6d706c6578"></a>
+# Types
 
-## `Complex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Complex</span></code></pre>
+<article class="doc-entry" id="t-Complex">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Complex</strong></code><span class="doc-sig-links"><a href="#t-Complex" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 A complex number with binary64 real and imaginary parts.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 37
+<details class="doc-instances"><summary>Instances (5)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-616273"></a>
-
-## `abs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-abs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">abs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-abs" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-body">
 
 The modulus `|a + bi|`, computed overflow- and underflow-safely via `hypot-f64`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 203
+</div>
+</article>
 
-<a id="value-61636f73"></a>
-
-## `acos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">acos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-acos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-acos" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L627" title="View source at line 627">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse circular cosine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 627
+</div>
+</article>
 
-<a id="value-61636f7368"></a>
-
-## `acosh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">acosh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-acosh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acosh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-acosh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L633" title="View source at line 633">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse hyperbolic cosine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 633
+</div>
+</article>
 
-<a id="value-616464"></a>
-
-## `add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-add" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 Componentwise addition `(a + bi) + (c + di)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 124
+</div>
+</article>
 
-<a id="value-617267"></a>
-
-## `arg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-arg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">arg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-arg" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 The four-quadrant argument of a complex number in `[-pi, pi]`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 215
+</div>
+</article>
 
-<a id="value-6173696e"></a>
-
-## `asin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">asin</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-asin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-asin" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L576" title="View source at line 576">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse circular sine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 576
+</div>
+</article>
 
-<a id="value-6173696e68"></a>
-
-## `asinh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">asinh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-asinh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asinh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-asinh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L603" title="View source at line 603">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse hyperbolic sine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 603
+</div>
+</article>
 
-<a id="value-6174616e"></a>
-
-## `atan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-atan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-atan" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L645" title="View source at line 645">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse circular tangent.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 645
+</div>
+</article>
 
-<a id="value-6174616e2d617070726f78"></a>
-
-## `atan-approx`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atan-approx</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-atan-approx">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan-approx</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atan-approx" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L680" title="View source at line 680">Source</a></span></div>
+<div class="doc-body">
 
 Named arctangent approximation over `(-pi/2, pi/2)` retained for compatibility.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 680
+</div>
+</article>
 
-<a id="value-6174616e68"></a>
-
-## `atanh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atanh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-atanh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atanh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-atanh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L674" title="View source at line 674">Source</a></span></div>
+<div class="doc-body">
 
 Complex inverse hyperbolic tangent.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 674
+</div>
+</article>
 
-<a id="value-636f6d706c6578"></a>
-
-## `complex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-complex">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">complex</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-complex" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L42" title="View source at line 42">Source</a></span></div>
+<div class="doc-body">
 
 Construct a complex number from its real and imaginary parts.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 42
+</div>
+</article>
 
-<a id="value-636f6d706c65782d696e66"></a>
-
-## `complex-inf`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex-inf</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span></code></pre>
+<article class="doc-entry" id="v-complex-inf">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">complex-inf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-complex-inf" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 Complex infinity `(+Inf, +Inf)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 104
+</div>
+</article>
 
-<a id="value-636f6d706c65782d6e616e"></a>
-
-## `complex-nan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex-nan</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span></code></pre>
+<article class="doc-entry" id="v-complex-nan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">complex-nan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-complex-nan" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Complex not-a-number `(NaN, NaN)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 108
+</div>
+</article>
 
-<a id="value-636f6e6a"></a>
-
-## `conj`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conj</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-conj">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">conj</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-conj" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 The complex conjugate `a - bi` (alias of `conjugate`).
 
-[Source](/reference-sources/Data.Complex.cinch) · line 199
+</div>
+</article>
 
-<a id="value-636f6e6a7567617465"></a>
-
-## `conjugate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conjugate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-conjugate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">conjugate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-conjugate" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L195" title="View source at line 195">Source</a></span></div>
+<div class="doc-body">
 
 The complex conjugate `a - bi` (reflection across the real axis).
 
-[Source](/reference-sources/Data.Complex.cinch) · line 195
+</div>
+</article>
 
-<a id="value-636f73"></a>
-
-## `cos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-cos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cos</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-cos" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L392" title="View source at line 392">Source</a></span></div>
+<div class="doc-body">
 
 Complex circular cosine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 392
+</div>
+</article>
 
-<a id="value-636f7368"></a>
-
-## `cosh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cosh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-cosh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cosh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-cosh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L416" title="View source at line 416">Source</a></span></div>
+<div class="doc-body">
 
 Complex hyperbolic cosine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 416
+</div>
+</article>
 
-<a id="value-636f74"></a>
-
-## `cot`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cot</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-cot">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cot</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-cot" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L566" title="View source at line 566">Source</a></span></div>
+<div class="doc-body">
 
 Complex circular cotangent.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 566
+</div>
+</article>
 
-<a id="value-646976"></a>
-
-## `div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-div" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 Overflow-safe complex division using Smith's scaling algorithm with C99
 Annex G.5.1 infinity and zero recovery.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 160
+</div>
+</article>
 
-<a id="value-6571"></a>
-
-## `eq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-eq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">eq</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-eq" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L207" title="View source at line 207">Source</a></span></div>
+<div class="doc-body">
 
 Structural equality: componentwise IEEE equality via `feq-f64`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 207
+</div>
+</article>
 
-<a id="value-657870"></a>
-
-## `exp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-exp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-exp" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L235" title="View source at line 235">Source</a></span></div>
+<div class="doc-body">
 
 Complex base-e exponential `e^z`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 235
+</div>
+</article>
 
-<a id="value-66726f6d2d7265616c"></a>
-
-## `from-real`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-real</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-from-real">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-real</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-from-real" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 Lift a real `F64` into `Complex` with zero imaginary part.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 56
+</div>
+</article>
 
-<a id="value-696d61672d70617274"></a>
-
-## `imag-part`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">imag-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-imag-part">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">imag-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-imag-part" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 The imaginary part of a complex number.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 51
+</div>
+</article>
 
-<a id="value-69732d696e66"></a>
-
-## `is-inf`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-inf</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-inf">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-inf</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-inf" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 Report whether either part is an infinity.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 112
+</div>
+</article>
 
-<a id="value-69732d6e616e"></a>
-
-## `is-nan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-nan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-nan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-nan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-nan" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 Report whether either part is NaN and neither part is an infinity.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 116
+</div>
+</article>
 
-<a id="value-6c6f67"></a>
-
-## `log`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-log">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-log" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 Principal natural logarithm `log(|z|) + i * phase(z)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 251
+</div>
+</article>
 
-<a id="value-6c6f673130"></a>
-
-## `log10`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log10</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-log10">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-log10" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L255" title="View source at line 255">Source</a></span></div>
+<div class="doc-body">
 
 Principal base-10 logarithm `log(z) / ln(10)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 255
+</div>
+</article>
 
-<a id="value-6d756c"></a>
-
-## `mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-mul" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 Complex multiplication `(a + bi)(c + di) = (ac - bd) + (ad + bc)i`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 134
+</div>
+</article>
 
-<a id="value-6e6567"></a>
-
-## `neg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-neg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">neg</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-neg" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Componentwise additive inverse `-(a + bi) = -a - bi`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 191
+</div>
+</article>
 
-<a id="value-7068617365"></a>
-
-## `phase`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">phase</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-phase">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">phase</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-phase" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L211" title="View source at line 211">Source</a></span></div>
+<div class="doc-body">
 
 The phase (argument) of a complex number in `[-pi, pi]`, computed via `atan2-f64`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 211
+</div>
+</article>
 
-<a id="value-706f6c6172"></a>
-
-## `polar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">polar</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-constructor">F64</span>))</code></pre>
+<article class="doc-entry" id="v-polar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">polar</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-polar" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L219" title="View source at line 219">Source</a></span></div>
+<div class="doc-body">
 
 Polar representation `(r, theta)` such that `z = r * e^(i * theta)` with `theta` in `[-pi, pi]`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 219
+</div>
+</article>
 
-<a id="value-706f77"></a>
-
-## `pow`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pow</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-pow">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-pow" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L261" title="View source at line 261">Source</a></span></div>
+<div class="doc-body">
 
 Complex exponentiation `x^y`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 261
+</div>
+</article>
 
-<a id="value-7265616c2d70617274"></a>
-
-## `real-part`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">real-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-real-part">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">real-part</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-real-part" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 The real part of a complex number.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 46
+</div>
+</article>
 
-<a id="value-72656374"></a>
-
-## `rect`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rect</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-rect">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rect</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-rect" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L223" title="View source at line 223">Source</a></span></div>
+<div class="doc-body">
 
 Construct a complex number from polar coordinates `(r, theta)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 223
+</div>
+</article>
 
-<a id="value-73696e"></a>
-
-## `sin`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sin</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-sin">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sin</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-sin" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L344" title="View source at line 344">Source</a></span></div>
+<div class="doc-body">
 
 Complex circular sine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 344
+</div>
+</article>
 
-<a id="value-73696e68"></a>
-
-## `sinh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sinh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-sinh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sinh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-sinh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L368" title="View source at line 368">Source</a></span></div>
+<div class="doc-body">
 
 Complex hyperbolic sine.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 368
+</div>
+</article>
 
-<a id="value-73717274"></a>
-
-## `sqrt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sqrt</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-sqrt">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-sqrt" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L288" title="View source at line 288">Source</a></span></div>
+<div class="doc-body">
 
 Principal square root of `z`, with `real-part r >= 0` and `imag-part r` matching the sign of `imag-part z`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 288
+</div>
+</article>
 
-<a id="value-737562"></a>
-
-## `sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+<article class="doc-entry" id="v-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-sub" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L129" title="View source at line 129">Source</a></span></div>
+<div class="doc-body">
 
 Componentwise subtraction `(a + bi) - (c + di)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 129
+</div>
+</article>
 
-<a id="value-74616e"></a>
-
-## `tan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-tan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tan</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-tan" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L531" title="View source at line 531">Source</a></span></div>
+<div class="doc-body">
 
 Complex circular tangent.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 531
+</div>
+</article>
 
-<a id="value-74616e68"></a>
-
-## `tanh`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tanh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+<article class="doc-entry" id="v-tanh">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tanh</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code><span class="doc-sig-links"><a href="#v-tanh" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L549" title="View source at line 549">Source</a></span></div>
+<div class="doc-body">
 
 Complex hyperbolic tangent.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 549
+</div>
+</article>
 
-<a id="value-746f2d737472696e67"></a>
-
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.Complex/source/#L738" title="View source at line 738">Source</a></span></div>
+<div class="doc-body">
 
 Format a complex number in `a+bi` or `a-bi` form.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 738
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Complex.Add_Complex` | `Algebra.Arithmetic.Add Data.Complex.Complex` | Implicit |
-| `Data.Complex.Eq_Complex` | `Relation.Eq.Eq Data.Complex.Complex` | Implicit |
-| `Data.Complex.Mul_Complex` | `Algebra.Arithmetic.Mul Data.Complex.Complex` | Implicit |
-| `Data.Complex.Neg_Complex` | `Algebra.Arithmetic.Neg Data.Complex.Complex` | Implicit |
-| `Data.Complex.Sub_Complex` | `Algebra.Arithmetic.Sub Data.Complex.Complex` | Implicit |
-
-**`Data.Complex.Add_Complex`**: Componentwise addition for `Complex`.
-**`Data.Complex.Eq_Complex`**: Componentwise IEEE equality for `Complex`.
-**`Data.Complex.Mul_Complex`**: Complex multiplication for `Complex`.
-**`Data.Complex.Neg_Complex`**: Componentwise negation for `Complex`.
-**`Data.Complex.Sub_Complex`**: Componentwise subtraction for `Complex`.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Complex.cinch`. Source SHA-256: `a64d315deeb17f8b87b763ce97c337d6514f0826562151432828057fce558f4c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Add_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Add_Complex</code></span><div class="doc-child-prose">Componentwise addition for Complex.</div></li>
+<li id="i-Eq_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Eq_Complex</code></span><div class="doc-child-prose">Componentwise IEEE equality for Complex.</div></li>
+<li id="i-Mul_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Mul_Complex</code></span><div class="doc-child-prose">Complex multiplication for Complex.</div></li>
+<li id="i-Neg_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Neg_Complex</code></span><div class="doc-child-prose">Componentwise negation for Complex.</div></li>
+<li id="i-Sub_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Sub_Complex</code></span><div class="doc-child-prose">Componentwise subtraction for Complex.</div></li>
+</ul>

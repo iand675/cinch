@@ -1,25 +1,24 @@
 # Ownership, regions, and memory reclamation
 
-Two jobs run over the same program and must not be confused. The usage checker decides, before any code runs, whether each value is used the number of times its multiplicity allows, whether a borrow escapes its region, and whether an exclusive borrow overlaps another. Reclamation decides, during code generation, where reference counts are incremented and decremented. A reference-counted representation does not make an affine or linear resource logically duplicable, and a program that checks can still be compiled without any reclamation at all.
+Cinch enforces memory and resource safety through two distinct layers:
+
+1. **Static usage and region checking (type checking).** Before any code runs, the compiler verifies that every binding obeys its multiplicity (`%0`, `%1`, `%aff`, `%many`), that no borrow escapes its region, that exclusive borrows never alias, and that mutations invalidate stale facts.
+2. **Automatic reference-counted reclamation (code generation).** After type checking and optimization, the compiler inserts retain and release operations to reclaim heap storage deterministically without a tracing garbage collector.
+
+Keeping these layers separate means reference counting never weakens static linearity—a `%1` resource cannot be duplicated simply because its runtime representation has a header count—and a program that passes usage checking remains valid even when compiled with reclamation disabled for benchmarking.
 
 # Multiplicities
 
-A parameter's multiplicity is written on the arrow:
+Parameter multiplicities are written between the argument type and the arrow (`name :: T %1 -> U`):
 
-```text
-name :: T %1 -> U
-```
+| Annotation | Name | Rule |
+| --- | --- | --- |
+| `%0` | Erased | Never used computationally; occupies no runtime storage. |
+| `%1` | Linear | Used exactly once along every control-flow path. |
+| `%aff` | Affine | Used at most once along every path; may be dropped. |
+| `%many` | Unrestricted | Used zero, one, or many times (default for ordinary parameters). |
 
-| Marked | Name | Obligation | Refusal when broken |
-| --- | --- | --- | --- |
-| `%0` | erased | Never used in the body. Has no runtime representation. | `` multiplicity %0: x is erased and must never be used, but is used 1 time(s) `` |
-| `%1` | linear | Used exactly once on every admitted path. | `` multiplicity %1: x must be used exactly once on every path, but is used 2 time(s) `` |
-| `%aff` | affine | Used at most once; may be dropped. | `` multiplicity %aff: x must be used at most once, but is used 2 time(s) `` |
-| `%many` | unrestricted | Used any number of times. | none for repeated use |
-
-An unannotated parameter is `%many`. An unannotated `Thunk` parameter is `%aff`, because forcing is the use and a thunk may be dropped instead.
-
-Each multiplicity in a program that checks:
+An unannotated parameter defaults to `%many`, except `Thunk` parameters, which default to `%aff` because forcing consumes a thunk.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -42,7 +41,7 @@ module Main where
     then 0 else 1
 ```
 
-A `%1` value used twice:
+Violating a binding's multiplicity—directly or through `let` aliases—is rejected statically:
 
 <!-- cinch:reject contains="is used 2 time(s)" -->
 ```cinch
@@ -54,12 +53,6 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:7: multiplicity %1: x must be used exactly once on every path, but is used 2 time(s) (in Main.cinch)
-```
-
-The same obligation applies through an alias. A `let` does not reset the count:
-
 <!-- cinch:reject contains="is used 2 time(s)" -->
 ```cinch
 module Main where
@@ -69,8 +62,6 @@ module Main where
   main :: Int
   main = 0
 ```
-
-A `%1` value that is never used:
 
 <!-- cinch:reject contains="is never used" -->
 ```cinch
@@ -82,12 +73,6 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:11: multiplicity %1: value must be used exactly once on every path, but is never used (in Main.cinch)
-```
-
-A `%0` value used at all:
-
 <!-- cinch:reject contains="is erased and must never be used" -->
 ```cinch
 module Main where
@@ -97,12 +82,6 @@ module Main where
   main :: Int
   main = 0
 ```
-
-```text
-cinch: 3:9: multiplicity %0: x is erased and must never be used, but is used 1 time(s) (in Main.cinch)
-```
-
-An `%aff` value used twice:
 
 <!-- cinch:reject contains="is used 2 time(s)" -->
 ```cinch
@@ -114,13 +93,9 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:9: multiplicity %aff: x must be used at most once, but is used 2 time(s) (in Main.cinch)
-```
+# Path-sensitive usage and place projections
 
-# Path-sensitive counting
-
-Branch alternatives are separate paths, and each path is counted on its own. One use in `then` and one use in `else` is one use per path; a linear value is not consumed twice.
+Usage is tracked **per control-flow path**, not summed across mutually exclusive branches. Consuming a `%1` value once in `then` and once in `else` (or once in every `case` arm) satisfies `%1`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -137,7 +112,7 @@ module Main where
   main = if pickIf True 3 == 3 && pickCase False 4 == 4 then 0 else 1
 ```
 
-Counting is not a total over the whole body. Using a `%1` value in one branch and discarding it in another leaves a path where it is unused, and the diagnostic reports the range:
+Using a `%1` value on one branch while dropping it on another leaves a path with zero uses and is rejected:
 
 <!-- cinch:reject contains="unused on some path" -->
 ```cinch
@@ -149,13 +124,7 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:13: multiplicity %1: x must be used exactly once on every path, but is used 0 to 1 time(s) (unused on some path) (in Main.cinch)
-```
-
-# Places and projections
-
-Uses are counted per place, not per variable. Two projections of disjoint fields consume a `%1` record once, which is what makes an update in place expressible:
+Usage is also tracked **per field place**, not merely per variable. Reading disjoint fields of a `%1` record consumes the record once, enabling linear functional updates:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -172,7 +141,7 @@ module Main where
            if r.base == 1 && r.delta == 3 then 0 else 1
 ```
 
-Consuming the same place twice stacks uses and breaks the obligation:
+Reading the same field place twice violates `%1`:
 
 <!-- cinch:reject contains="is used 2 time(s)" -->
 ```cinch
@@ -188,13 +157,13 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 7:9: multiplicity %1: c must be used exactly once on every path, but is used 2 time(s) (in Main.cinch)
-```
+# Captures: lambdas, thunks, tasks, and resumptions
 
-# Captured values keep their multiplicity
+Every construct that defers or transfers execution respects the multiplicities of the values it captures.
 
-A value placed inside a lambda body is used an unknown number of times, so a `%1` value cannot be captured there:
+## Lambdas and thunks
+
+An ordinary closure may be invoked zero or many times, so it cannot capture a `%1` value from an enclosing scope, nor may a `%1`-annotated lambda drop its parameter:
 
 <!-- cinch:reject contains="used under a lambda or thunk body" -->
 ```cinch
@@ -206,12 +175,6 @@ module Main where
   main = ((\(token) -> (\u -> case token of { Token value -> value }) ()) :: Token %1 -> Int) (Token 42)
 ```
 
-```text
-cinch: 5:14: multiplicity %1: token must be used exactly once on every path, but is used under a lambda or thunk body (zero or unboundedly many times) (in Main.cinch)
-```
-
-The same rule covers a lambda that drops its `%1` parameter:
-
 <!-- cinch:reject contains="is never used" -->
 ```cinch
 module Main where
@@ -222,11 +185,7 @@ module Main where
   main = ((\token -> 0) :: Token %1 -> Int) (Token 42)
 ```
 
-```text
-cinch: 5:14: multiplicity %1: token must be used exactly once on every path, but is never used (in Main.cinch)
-```
-
-A lambda can itself be annotated `%1`. Its parameter is then owned inside the body and used exactly once there, which makes an inline linear function usable:
+A lambda whose own parameter is annotated `%1` may consume it once inside its body:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -241,7 +200,7 @@ module Main where
     in if a + b == 41 then 0 else 1
 ```
 
-Thunks follow the same discipline. A thunk marked `%1` must be forced exactly once, and an unannotated thunk is `%aff`:
+A `Thunk` annotated `%1` must be forced exactly once on every path (while an unannotated `Thunk` is `%aff`):
 
 <!-- cinch:reject contains="is used 2 time(s)" -->
 ```cinch
@@ -253,12 +212,6 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:14: multiplicity %1: t must be used exactly once on every path, but is used 2 time(s) (in Main.cinch)
-```
-
-A `%1` thunk forced on one branch at a time is accepted:
-
 <!-- cinch:run exit=0 -->
 ```cinch
 module Main where
@@ -269,7 +222,9 @@ module Main where
   main = if forceBranch True (delay (\u -> 5)) == 5 then 0 else 1
 ```
 
-A task capture transfers a `%1` value into the task exactly once. The transfer is visible to the usage checker at the capture site, so one spawn can consume it:
+## Task boundaries
+
+Spawning a structured task transfers a `%1` value exactly once into the child task:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -288,7 +243,7 @@ module Main where
     Err e -> 2
 ```
 
-Two tasks capturing the same `%1` value would consume it twice:
+Every capture crossing a task boundary must be one of: a `Copy` value, a shared `Ref`, or a `%1` value transferred to a single task. Capturing a `%1` value in two tasks, sending an exclusive `Mut` borrow across a task boundary, or sharing a non-`Copy` mutable buffer without shareable evidence is rejected:
 
 <!-- cinch:reject contains="used 2 time(s)" -->
 ```cinch
@@ -303,8 +258,6 @@ module Main where
     joinAllOrCancel s h h2
 ```
 
-Task captures face a second rule: a capture must be `Copy`, a shared `Ref`, or transferred exactly once. An exclusive borrow cannot cross, and a mutable buffer without shareable evidence is refused:
-
 <!-- cinch:reject contains="exclusive `Mut` borrow cannot cross a task boundary" -->
 ```cinch
 module Main where
@@ -317,10 +270,6 @@ module Main where
     joinAllOrCancel s h
 ```
 
-```text
-cinch: 7:38: an exclusive `Mut` borrow cannot cross a task boundary: m holds one (concurrency specification, section 3) (in Main.cinch)
-```
-
 <!-- cinch:reject contains="without shareable evidence" -->
 ```cinch
 module Main where
@@ -330,35 +279,9 @@ module Main where
     joinAllOrCancel s h
 ```
 
-```text
-cinch: 4:40: a task capture must be `Copy`, a shared `Ref`, or transferred exactly once: b is shared across tasks without shareable evidence (concurrency specification, section 3) (in Main.cinch)
-```
+## Effect resumptions
 
-A resumption is one-shot, and its captures keep their multiplicities. Resuming twice duplicates the continuation and is refused:
-
-<!-- cinch:reject contains="must be used exactly once" -->
-```cinch
-module Main where
-  effect Poke where
-    poke :: Unit ->{Poke} Int
-
-  consume :: Int %1 -> Int
-  consume x = x
-
-  run :: Int %1 -> Int
-  run lin = handle poke () + consume lin with (handler Poke where
-    return x -> x
-    poke u resume k -> k 1 + k 2)
-
-  main :: Int
-  main = 0
-```
-
-```text
-cinch: 11:19: multiplicity %1: k must be used exactly once on every path, but is used 2 time(s) (in Main.cinch)
-```
-
-Resuming exactly once consumes the capture exactly once, and the handler checks:
+A handler continuation `k` is one-shot by construction (`%aff` by default, promoted to `%1` whenever the handled computation captures a `%1` value). Resuming once consumes a linear capture cleanly; resuming twice is rejected in both cases:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -378,7 +301,23 @@ module Main where
   main = if run 5 == 6 then 0 else 1
 ```
 
-A capture that holds nothing linear is still one-shot. A second `resume` in a handler with no linear capture reports the at-most-once obligation instead:
+<!-- cinch:reject contains="must be used exactly once" -->
+```cinch
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+
+  consume :: Int %1 -> Int
+  consume x = x
+
+  run :: Int %1 -> Int
+  run lin = handle poke () + consume lin with (handler Poke where
+    return x -> x
+    poke u resume k -> k 1 + k 2)
+
+  main :: Int
+  main = 0
+```
 
 <!-- cinch:reject contains="must be used at most once" -->
 ```cinch
@@ -392,13 +331,9 @@ module Main where
     poke u resume k -> k 1 + k 2)
 ```
 
-```text
-cinch: 8:19: multiplicity %aff: k must be used at most once, but is used 2 time(s) (in Main.cinch)
-```
+# `Copy` and `copyOut`
 
-# Copy and `copyOut`
-
-`Copy` is a compiler-known structural property with instances decided by structure: machine scalars, and immutable aggregates of `Copy` fields. It is not a user-extensible class:
+`Copy` is a compiler-known structural property satisfied by machine scalars and immutable aggregates whose fields are all `Copy`. User code cannot declare or override `Copy`:
 
 <!-- cinch:reject contains="compiler-known class" -->
 ```cinch
@@ -410,11 +345,7 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 2:13: Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it cannot be declared (in Main.cinch)
-```
-
-`copyOut` turns an admitted copyable place or borrow into an owned value. Copying needs evidence, and a generic context does not have it unless it asks:
+`copyOut` produces an owned copy from a borrow or copyable place. In generic code, copying a type parameter `a` requires an explicit `using (copy :: Copy a)` constraint:
 
 <!-- cinch:reject contains="no Copy evidence" -->
 ```cinch
@@ -426,11 +357,7 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:29: no Copy evidence for a#844 (copying needs a Copy type or a `using (copy :: Copy a)` constraint) (in Main.cinch)
-```
-
-With the constraint in scope, a filter over a borrowed list copies each element out and rebuilds an owned list:
+With `Copy a` in scope, a function can traverse a borrowed structure and copy out matching elements:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -456,7 +383,7 @@ module Main where
     Cons2 a (Cons2 b (Cons2 c rest)) -> 4
 ```
 
-`copyOut` cannot launder a linear argument into multiple uses, because copying a `%1` binder is itself the duplication the multiplicity forbids:
+`copyOut` never bypasses linearity: applying `copyOut` to a `%1` binder is rejected because duplicating a linear value violates `%1`:
 
 <!-- cinch:reject contains="cannot be duplicated" -->
 ```cinch
@@ -468,13 +395,14 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:21: multiplicity %1: copyOut would copy x, but a value bound %1 cannot be duplicated (copying needs a %many binder or a borrow) (in Main.cinch)
-```
-
 # Shared and exclusive borrows
 
-`Ref r a` is a shared borrow of `a` in region `r`; `Mut r a` is an exclusive borrow of the same region. `borrow` introduces a shared borrow, `mutBorrow` an exclusive one, and `copyOut` reads a value out through either. A borrow is consumed inside its region:
+Borrows are indexed by a static region parameter `r`:
+
+- **`Ref r a`** — a shared, read-only borrow of `a` in region `r`, introduced by `borrow`.
+- **`Mut r a`** — an exclusive, mutable borrow of `a` in region `r`, introduced by `mutBorrow` and updated with `refSet`.
+
+`copyOut` reads a `Copy` value out of either borrow form, and pattern matching on a borrowed aggregate binds borrows of its fields in the same region:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -485,8 +413,6 @@ module Main where
   main :: Int
   main = if peek (borrow 41) == 42 then 0 else 1
 ```
-
-Matching a borrowed aggregate binds references to its fields, and a result may be a borrow of the same region:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -504,7 +430,11 @@ module Main where
   main = if copyOut (firstOr (borrow 0) (borrow (Cons2 5 Nil2))) == 5 then 0 else 1
 ```
 
-A borrow never outlives its region. A returned `Ref` whose region is a scope inside the function is refused:
+## Region confinement, uniqueness, and evidence invalidation
+
+Three static invariants protect borrows:
+
+1. **No region escape.** A borrow cannot be returned from the scope that owns its region, nor captured inside a closure or thunk that can outlive that region:
 
 <!-- cinch:reject contains="region escape" -->
 ```cinch
@@ -516,12 +446,6 @@ module Main where
   main = ignore (let ~y = 2 in demand y)
 ```
 
-```text
-cinch: 6:18: region escape: a borrow, memo cell or Eval effect of region r#13 leaves its scope in Ref r#13 Int (in Main.cinch)
-```
-
-A closure that could outlive the region cannot capture the borrow either:
-
 <!-- cinch:reject contains="may outlive region" -->
 ```cinch
 module Main where
@@ -532,11 +456,7 @@ module Main where
   main = ignore (let ~y = 2 in delay (\u -> copyOut (demand y)))
 ```
 
-```text
-cinch: 6:61: region escape: y is captured in a lambda that may outlive region r#13 (in Main.cinch)
-```
-
-Uniqueness is enforced lexically: at most one live `Mut` per region, and no `Ref` of that region while it is live.
+2. **Exclusive uniqueness.** At most one `Mut` borrow may be live for a given region at once, and no `Ref` of that same region may coexist with it (`Mut region Nat -> Ref region Nat -> Nat` is rejected with the same aliasing error):
 
 <!-- cinch:reject contains="exclusive borrows are unique" -->
 ```cinch
@@ -548,13 +468,7 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 3:10: region region#844: exclusive borrows are unique; b would alias another live borrow of region#844 (in Main.cinch)
-```
-
-The same refusal names the shared borrow in a mixed signature, so `Mut region Nat -> Ref region Nat -> Nat` is rejected with the same message.
-
-A write through an exclusive borrow invalidates evidence facts about the previous contents. The refusal names both the derivation and the write:
+3. **Write-driven evidence invalidation.** Writing through a `Mut` borrow with `refSet` invalidates any proof or refinement facts previously derived about that region's contents. Continuing to use pre-write evidence is rejected as stale:
 
 <!-- cinch:reject contains="stale evidence" -->
 ```cinch
@@ -571,11 +485,7 @@ module Main where
   main = 0
 ```
 
-```text
-cinch: 7:31: stale evidence: evidence about the contents of `region#844` derived at 5:11 is invalidated by the write at 6:17 (in Main.cinch)
-```
-
-Re-deriving after the write is what makes the same shape check, and a read through the borrow observes the new contents:
+Re-checking the predicate after the write establishes fresh evidence over the updated contents:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -594,21 +504,18 @@ module Main where
   main = prog (mutBorrow 3)
 ```
 
-# Reclamation is code generation
+# Automatic reference-counted reclamation
 
-Nothing above proves anything about memory. The checker's obligations are about use counts, regions and evidence; the runtime's obligations are about counts. Keeping them apart explains both of these facts: a program can check and still be built without reclamation, and a build can report leaks without any program error.
+After type checking and Core optimization, the compiler inserts reference-counting operations automatically using an owned/borrowed calling and binding discipline:
 
-| Question | Decided by | Where |
-| --- | --- | --- |
-| May this value be used here, and how many times? | Usage checker | `seed/src/check_terms.rs` |
-| Does this borrow outlive its region? | Region escape check | `seed/src/check.rs` |
-| Where does a retain or a release go? | The `rc` pass over `Core` | `seed/src/rc.rs` |
-| What does a count word mean? | Runtime header encoding | `seed/runtime/src/block_kinds.rs` |
-| Was storage released? | Runtime counters | `CINCH_ALLOC_STATS`, `CINCH_LEAK_CHECK` |
+- **Minimal retains.** An owned binding with `n` owned uses along a path receives `n - 1` retains; a binding that goes dead on a path is released at the start of that path. Pattern-matching a value borrows its fields rather than retaining them unless a field is later used as owned.
+- **Fast local paths and safe cross-task sharing.** Thread-local heap blocks use non-atomic reference count updates on the fast path. Values published across task boundaries transition to atomic reference counting so whichever task drops the final reference frees the block safely. Static immortal blocks skip counting altogether.
+- **Immediate unboxed integers.** Small mathematical integers (`Nat` in `0 ..= 2^63 - 1` and `Int` in `-2^62 ..= 2^62 - 1`) are represented as immediate tagged words and never allocate or touch reference counts.
+- **Constant-stack teardown.** Heap blocks containing child pointers carry pointer maps so cascading releases run iteratively rather than recursively; freeing deeply nested structures such as million-element lists uses `O(1)` stack space.
 
-The insertion pass runs on the residual program after `core::optimize` and before code generation. Its placement rules are stated in the [reclamation design](../design/reclamation.md) section 4 and implemented in `seed/src/rc.rs`: every counted binder is owned or borrowed, an owned variable with n owned uses on a path gets n-1 retains, a variable dead on a path is released at the start of that path, and constructor fields bound by a `case` are borrowed loads that are retained only when used as owned. `cinch_dup` and `cinch_drop` are emitted inline as header tests rather than as calls. The emitted release for an owned word loads the header atomically, shifts the count bits to the top of the word, and compares against one: a count above one is decremented and stored back with a plain store, a count of one calls `cinch_drop_slow`, a count of zero is an immortal block and does nothing, and a negative count is a block shared across tasks and goes to `cinch_drop_mt`. Blocks whose fields can contain objects carry pointer maps, which reclamation follows to release children iteratively rather than recursively, so releasing a million-cell list uses constant stack.
+## Comparing against un-reclaimed builds
 
-`CINCH_RECLAIM=0` in the **compiler environment** removes that insertion. Compare the two builds of one program:
+Passing `--no-reclaim` (or setting `CINCH_RECLAIM=0` in the compiler environment) omits retain/release insertion during code generation. Because this is a compile-time switch, it produces a separate binary for benchmarking or debugging without changing static ownership checking:
 
 ```text
 $ cinch build Main.cinch -o example
@@ -621,27 +528,12 @@ $ echo $?
 74
 ```
 
-The second build releases nothing: 1916 value blocks are still live when `main` returns, so the leak check reports them and returns exit code 74. Both builds check, and both would refuse a duplicated `%1` value. `CINCH_RECLAIM=0` is a comparison and baseline switch, not a recommended application memory mode, and it is not a runtime flag: it changes generated code, so it cannot retroactively change an already built executable.
+## Runtime diagnostics and limits
 
-Reclamation of shared task captures uses the same counts with an atomic form: a block whose count went negative is shared across tasks, and whichever task drops the last reference frees it. Small mathematical integers do not reach the allocator at all: a `Nat` in `0 ..= 2^63 - 1` or an `Int` in `-2^62 ..= 2^62 - 1` is an immediate word, so reference counting skips it.
+Compiled executables honor runtime environment variables for allocation accounting (`CINCH_ALLOC_STATS`), leak detection (`CINCH_LEAK_CHECK`, exiting `74` if any mortal blocks remain after `main`), header validation and freed-block quarantine (`CINCH_RC_DEBUG`), heap caps (`CINCH_HEAP_LIMIT`, default 8 GiB), and stack reservation (`CINCH_STACK_SIZE`, default 1 GiB). Heap or stack exhaustion terminates with exit status `73`.
 
-# Runtime diagnostics and limits
+See [allocators and heap customization](25-allocators.md#environment-variables) for exact formats, examples, and measurement caveats (debug poisoning intentionally retains quarantined memory).
 
-| Variable | Read by | Meaning |
-| --- | --- | --- |
-| `CINCH_ALLOC_STATS=1` | Running program | Print cumulative and live allocation counters at exit. |
-| `CINCH_LEAK_CHECK=1` | Running program | Report live mortal blocks after `main`; exit 74 when any remain. |
-| `CINCH_RC_DEBUG=1` | Running program | Poison and quarantine freed blocks, and validate headers on every count operation. |
-| `CINCH_HEAP_LIMIT=n[K\|M\|G]` | Running program | Bound live accounted heap; default 8 GiB, `0` disables the cap. |
-| `CINCH_STACK_SIZE=n[K\|M\|G]` | Running program | Reserved program-thread stack; zero or unparsable keeps 1 GiB. |
-| `CINCH_RECLAIM=0` | Compiler | Skip retain and release insertion. |
+# Planned extensions
 
-Suffixes use binary multiples. Exhaustion is a defined process exit (73, `cinch: exhausted: heap (<n> bytes)` or `cinch: exhausted: stack`), not a successful value or a caught `Result` error. A failed leak check is exit 74. Debug poisoning intentionally retains memory and changes measurements; compare performance with the debug modes disabled.
-
-[Allocators and heap customization](25-allocators.md) has the formats each variable accepts, one observed run per variable, and the boundary between this implemented accounting layer and the planned replaceable allocator.
-
-# What is planned
-
-<span class="support-tag support-tag--planned">Coming soon</span> the [allocator design](../design/allocators.md) and the [layout and specialization design](../design/layouts-and-specialization.md) describe selected future directions for allocation, representation and proven bounds, including `#[fip]` and bounded allocation assertions. Their APIs must be marked planned until accepted by the Rust implementation. Current explicit layout attributes are documented in [type layout](24-type-layout.md), and the implemented allocation assertions in [safety assertions](22-safety-assertions-and-llvm.md).
-
-Implementation: `check_terms.rs`, `check.rs`, `rc.rs`, `core.rs`, runtime `block.rs`, `rc.rs`, `heap.rs`, `stack.rs`; suites: `ownership.rs`, `concurrency.rs`, `effects.rs`, `evidence_invalidation.rs`, `reclamation.rs`, `reclamation_tasks.rs`, `alloc_accounting.rs`, `exhaustion.rs`. Design: [ownership and usage](../design/ownership-and-usage.md), [reclamation](../design/reclamation.md).
+<span class="support-tag support-tag--planned">Coming soon</span> Replaceable allocators, scoped arenas, functional-in-place (`#[fip]`) reuse guarantees, and statically proven allocation bounds are planned (see [allocators](25-allocators.md)). For currently available layout attributes and safety assertions, see [type layout](24-type-layout.md) and [safety assertions](22-safety-assertions-and-llvm.md).

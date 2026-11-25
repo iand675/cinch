@@ -2,17 +2,11 @@
 
 The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.FromList</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.FromList/source/">View source</a><a href="/packages/search/?q=%2BData.FromList">Search module</a><a href="/reference-sources/Data.FromList.cinch" download="Data.FromList.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.FromList`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Core](Data.Core.md).
 
-[Download exact module source](/reference-sources/Data.FromList.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Core](Data.Core.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.FromList: the collection-literal construction class.
 
@@ -24,15 +18,15 @@ Data.Set).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-FromList">FromList</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromList</strong> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-FromList-from-list">from-list</a><code class="syn-sig"><strong class="tok-variable">from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-46726f6d4c697374"></a>
-
-## `FromList`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code></pre>
+<article class="doc-entry" id="c-FromList">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">FromList</strong> <span class="tok-variable">c</span> <span class="tok-variable">e</span></code><span class="doc-sig-links"><a href="#c-FromList" title="Permalink">#</a><a href="/packages/stdlib/Data.FromList/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Collection literals (surface grammar local amendments, section 10):
 `[a, b, c]` desugars to `from-list` at the expected type's `FromList
@@ -40,16 +34,7 @@ c e` instance and `{k => v}` to `from-map` over a `List (k, v)` of
 pairs at the expected type's `FromMap m k v` instance; unconstrained
 they default to `List` and `Map`. Instances opt in per container.
 
-[Source](/reference-sources/Data.FromList.cinch) · line 19
-
-<a id="method-46726f6d4c6973742e66726f6d2d6c697374"></a>
-
-## `FromList.from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">FromList</span>.<span class="tok-constructor">FromList</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">e</span>) -&gt; <span class="tok-variable">c</span>)</code></pre>
-
-
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/FromList.cinch`. Source SHA-256: `62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-FromList-from-list"><div class="doc-method-row"><code><strong class="tok-variable">from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">c</span> <span class="tok-variable">e</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <span class="tok-variable">c</span> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#m-FromList-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.FromList/source/#L20">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (4)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Array/#instances">Data.Array</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Set/#instances">Data.Set</a></span></li></ul></details>
+</div>
+</article>

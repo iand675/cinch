@@ -2,19 +2,11 @@
 
 Civil date values, validation, parsing/formatting, and calendar calculations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Date</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Date/source/">View source</a><a href="/packages/search/?q=%2BData.Date">Search module</a><a href="/reference-sources/Data.Date.cinch" download="Data.Date.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Date`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.Date.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Data.Date](Data.Date.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Date: the proleptic Gregorian calendar date.
 
@@ -70,141 +62,123 @@ P34 `Clock` capability").
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (18 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Date">Date</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Date</strong></code></li><li><a class="syn-name" href="#t-DateParseError">DateParseError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DateParseError</strong></code></li><li><a class="syn-name" href="#v-add-days">add-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-cmp">cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-date">date</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-day">day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-day-of-week">day-of-week</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">day-of-week</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-day-of-year">day-of-year</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">day-of-year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-days-in-month">days-in-month</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">days-in-month</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-diff-days">diff-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">diff-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-from-epoch-days">from-epoch-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-epoch-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-from-string">from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-DateParseError" title="Data.Date.DateParseError">DateParseError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-is-leap-year">is-leap-year</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-leap-year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-month">month</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">month</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sub-days">sub-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-to-epoch-days">to-epoch-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-epoch-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-year">year</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code></li></ul>
+</details>
 
-<a id="type-44617465"></a>
+# Types
 
-## `Date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Date</span></code></pre>
+<article class="doc-entry" id="t-Date">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Date</strong></code><span class="doc-sig-links"><a href="#t-Date" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 The calendar date: year, month, day of month. Not exported (the
 validity invariant above; `date` is the only constructor).
 
-[Source](/reference-sources/Data.Date.cinch) · line 78
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Date"><code><strong class="tok-constructor">Date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (4)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)))</code></pre>
-
-<a id="type-4461746550617273654572726f72"></a>
-
-## `DateParseError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DateParseError</span></code></pre>
+<article class="doc-entry" id="t-DateParseError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DateParseError</strong></code><span class="doc-sig-links"><a href="#t-DateParseError" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 The literal reader's errors, one per refusal: the text is not a
 date at all (`[-]dddd-MM-DD`), or the fields name no date. A parse
 never yields a partially trusted value, so there is no third case.
 
-[Source](/reference-sources/Data.Date.cinch) · line 84
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADate</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidDate</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-NotADate"><code><strong class="tok-constructor">NotADate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-DateParseError" title="Data.Date.DateParseError">DateParseError</a></code></li><li id="k-InvalidDate"><code><strong class="tok-constructor">InvalidDate</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-DateParseError" title="Data.Date.DateParseError">DateParseError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6164642d64617973"></a>
-
-## `add-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-add-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-add-days" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 `n` days later (crossing month and year boundaries by construction).
 
-[Source](/reference-sources/Data.Date.cinch) · line 184
+</div>
+</article>
 
-<a id="value-636d70"></a>
+<article class="doc-entry" id="v-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-cmp" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L197" title="View source at line 197">Source</a></span></div>
+</article>
 
-## `cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
-
-[Source](/reference-sources/Data.Date.cinch)
-
-<a id="value-64617465"></a>
-
-## `date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))))</code></pre>
+<article class="doc-entry" id="v-date">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L95" title="View source at line 95">Source</a></span></div>
+<div class="doc-body">
 
 The only constructor: month 1..=12, day 1..=that month's length.
 `None` is the refusal for every other field combination, so an
 out-of-range `Date` has no representation.
 
-[Source](/reference-sources/Data.Date.cinch) · line 95
+</div>
+</article>
 
-<a id="value-646179"></a>
+<article class="doc-entry" id="v-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">day</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-day" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L111" title="View source at line 111">Source</a></span></div>
+</article>
 
-## `day`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Date.cinch)
-
-<a id="value-6461792d6f662d7765656b"></a>
-
-## `day-of-week`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-week</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-day-of-week">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">day-of-week</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-day-of-week" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L211" title="View source at line 211">Source</a></span></div>
+<div class="doc-body">
 
 The weekday, 0 for Sunday through 6 for Saturday (Ruby's `wday`).
 1970-01-01 (day 0) is a Thursday, hence the +4; the modulo is
 floored so the pre-epoch days land in range too.
 
-[Source](/reference-sources/Data.Date.cinch) · line 211
+</div>
+</article>
 
-<a id="value-6461792d6f662d79656172"></a>
-
-## `day-of-year`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-day-of-year">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">day-of-year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-day-of-year" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-body">
 
 1 on January 1, the year's length on December 31.
 
-[Source](/reference-sources/Data.Date.cinch) · line 203
+</div>
+</article>
 
-<a id="value-646179732d696e2d6d6f6e7468"></a>
-
-## `days-in-month`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">days-in-month</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-days-in-month">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">days-in-month</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-days-in-month" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 The month's length in `y`: 31, 30, 29 or 28. A month outside
 1..=12 is 0 (out of the calendar; `date` refuses it before this
 is consulted with one).
 
-[Source](/reference-sources/Data.Date.cinch) · line 127
+</div>
+</article>
 
-<a id="value-646966662d64617973"></a>
-
-## `diff-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff-days</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>))</code></pre>
+<article class="doc-entry" id="v-diff-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">diff-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-diff-days" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-body">
 
 The days elapsed from the first argument to the second: `diff-days
 start finish`, negative when `finish` precedes `start`. The exact
 inverse of `add-days`/`sub-days` in both directions.
 
-[Source](/reference-sources/Data.Date.cinch) · line 194
+</div>
+</article>
 
-<a id="value-66726f6d2d65706f63682d64617973"></a>
-
-## `from-epoch-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-days</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
+<article class="doc-entry" id="v-from-epoch-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-epoch-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-from-epoch-days" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 The inverse: every `Int` is a day, so the result is total. The
 fields come out of the decomposition already in range (the
 construction is the proof), so the private constructor is used
 directly rather than routing through `date`'s `Option`.
 
-[Source](/reference-sources/Data.Date.cinch) · line 169
+</div>
+</article>
 
-<a id="value-66726f6d2d737472696e67"></a>
-
-## `from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">DateParseError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-DateParseError" title="Data.Date.DateParseError">DateParseError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-from-string" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L241" title="View source at line 241">Source</a></span></div>
+<div class="doc-body">
 
 Strict ISO 8601: an optional `-`, at least four year digits, and
 two-digit month and day separated by `-`, with nothing before or
@@ -212,43 +186,36 @@ after. `NotADate` is the shape refusal (`2024-2-9`, `junk`, a
 trailing time part); `InvalidDate` is the fields refusal
 (`2023-02-29`, month 13, day 0).
 
-[Source](/reference-sources/Data.Date.cinch) · line 241
+</div>
+</article>
 
-<a id="value-69732d6c6561702d79656172"></a>
-
-## `is-leap-year`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-leap-year</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-leap-year">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-leap-year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-leap-year" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-body">
 
 The Gregorian leap rule, total over `Int` (the proleptic calendar
 defines it for every year, including year 0 and the negative
 ones). Ruby's `Date.gregorian_leap?` is the same predicate.
 
-[Source](/reference-sources/Data.Date.cinch) · line 118
+</div>
+</article>
 
-<a id="value-6d6f6e7468"></a>
+<article class="doc-entry" id="v-month">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">month</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-month" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L107" title="View source at line 107">Source</a></span></div>
+</article>
 
-## `month`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">month</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Date.cinch)
-
-<a id="value-7375622d64617973"></a>
-
-## `sub-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub-days</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-sub-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-sub-days" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 `n` days earlier.
 
-[Source](/reference-sources/Data.Date.cinch) · line 188
+</div>
+</article>
 
-<a id="value-746f2d65706f63682d64617973"></a>
-
-## `to-epoch-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-days</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-to-epoch-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-epoch-days</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-to-epoch-days" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-body">
 
 The day number of `d` counted from 1970-01-01 (negative before it).
 This is the shifted-era decomposition (days-from-civil), which is
@@ -256,36 +223,22 @@ exactly the calendar's month term plus the year term; the era and
 year-of-era steps use FLOORED division so the decomposition stays
 at a non-negative remainder for the negative years too.
 
-[Source](/reference-sources/Data.Date.cinch) · line 153
+</div>
+</article>
 
-<a id="value-746f2d737472696e67"></a>
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L227" title="View source at line 227">Source</a></span></div>
+</article>
 
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Date.cinch)
-
-<a id="value-79656172"></a>
-
-## `year`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.Date.cinch)
+<article class="doc-entry" id="v-year">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">year</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-year" title="Permalink">#</a><a href="/packages/stdlib/Data.Date/source/#L103" title="View source at line 103">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Date.Eq_Date` | `Relation.Eq.Eq Data.Date.Date` | Implicit |
-| `Data.Date.Ord_Date` | `Relation.Ord.Ord Data.Date.Date` | Implicit |
-
-**`Data.Date.Eq_Date`**: Instances (the class spellings of `cmp`; instances live with their
-type per design/base-library.md).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Date.cinch`. Source SHA-256: `5ab1002e8509257ef7fdfaf392112954771bc4163276747a213e8dd5aadf661e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_Date"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Date.Eq_Date</code></span><div class="doc-child-prose">Instances (the class spellings of cmp; instances live with their type per design/base-library.md).</div></li>
+<li id="i-Ord_Date"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Date.Ord_Date</code></span></li>
+</ul>

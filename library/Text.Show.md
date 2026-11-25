@@ -2,17 +2,11 @@
 
 Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Show</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Show/source/">View source</a><a href="/packages/search/?q=%2BText.Show">Search module</a><a href="/reference-sources/Text.Show.cinch" download="Text.Show.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Show`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Text.Show.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Show: rendering values as `String`.
 
@@ -40,62 +34,45 @@ text through string literals, which ordinary terms now carry.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Show">Show</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Show</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Show-show">show</a><code class="syn-sig"><strong class="tok-variable">show</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-char-string">char-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">char-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-int-to-string">int-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">int-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-nat-digit-count">nat-digit-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-digit-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-digits-into">nat-digits-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-digits-into</strong> :: <span class="tok-variable">arg1</span> + <span class="tok-variable">arg3</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-nat-to-string">nat-to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-pow10">pow10</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pow10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-53686f77"></a>
-
-## `Show`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Show</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Text.Show.cinch)
-
-<a id="method-53686f772e73686f77"></a>
-
-## `Show.show`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">show</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Show</span>.<span class="tok-constructor">Show</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-
+<article class="doc-entry" id="c-Show">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Show</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Show" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Show-show"><div class="doc-method-row"><code><strong class="tok-variable">show</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#m-Show-show" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L36">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (16)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Addr" title="Data.NetIp.Addr">Addr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-AddrPort" title="Data.NetIp.AddrPort">AddrPort</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-NetIpError" title="Data.NetIp.NetIpError">NetIpError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Prefix" title="Data.NetIp.Prefix">Prefix</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlError" title="Data.Sql.SqlError">SqlError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlIsolation" title="Data.Sql.SqlIsolation">SqlIsolation</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlValue" title="Data.Sql.SqlValue">SqlValue</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-636861722d737472696e67"></a>
+<article class="doc-entry" id="v-char-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">char-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-char-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L76" title="View source at line 76">Source</a></span></div>
+</article>
 
-## `char-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-string</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Show.cinch)
-
-<a id="value-696e742d746f2d737472696e67"></a>
-
-## `int-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-to-string</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-int-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">int-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-int-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-body">
 
 Signed decimal for `Int`, built from bignum division so values
 beyond i64 format correctly: the magnitude is a `Nat` (`0 - x` for
 a negative `x`) and renders as one, after a raw ASCII 45 byte for
 the sign.
 
-[Source](/reference-sources/Text.Show.cinch) · line 113
+</div>
+</article>
 
-<a id="value-6e61742d64696769742d636f756e74"></a>
+<article class="doc-entry" id="v-nat-digit-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-digit-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-digit-count" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L99" title="View source at line 99">Source</a></span></div>
+</article>
 
-## `nat-digit-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-digit-count</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Show.cinch)
-
-<a id="value-6e61742d6469676974732d696e746f"></a>
-
-## `nat-digits-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-digits-into</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-variable">arg3</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>))))</code></pre>
+<article class="doc-entry" id="v-nat-digits-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-digits-into</strong> :: <span class="tok-variable">arg1</span> + <span class="tok-variable">arg3</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-nat-digits-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 Decimal formatting: digits are raw ASCII bytes (48..=57), so no
 character literals are needed. The low `k` digits of `n` fill
@@ -104,45 +81,26 @@ digit from the front as `n / 10^(k - 1)` would rebuild the power and
 divide the whole number at every digit, quadratic in `k`. The span
 lies inside the buffer, and each digit is `48 + n % 10 <= 57`.
 
-[Source](/reference-sources/Text.Show.cinch) · line 89
+</div>
+</article>
 
-<a id="value-6e61742d746f2d737472696e67"></a>
+<article class="doc-entry" id="v-nat-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-nat-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L102" title="View source at line 102">Source</a></span></div>
+</article>
 
-## `nat-to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-string</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Show.cinch)
-
-<a id="value-706f773130"></a>
-
-## `pow10`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pow10</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Show.cinch)
+<article class="doc-entry" id="v-pow10">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow10</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-pow10" title="Permalink">#</a><a href="/packages/stdlib/Text.Show/source/#L96" title="View source at line 96">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Text.Show.Show_Bool` | `Text.Show.Show Bool` | Implicit |
-| `Text.Show.Show_Char` | `Text.Show.Show Char` | Implicit |
-| `Text.Show.Show_Int` | `Text.Show.Show Int` | Implicit |
-| `Text.Show.Show_Nat` | `Text.Show.Show Nat` | Implicit |
-| `Text.Show.Show_Ordering` | `Text.Show.Show Data.Ordering.Ordering` | Implicit |
-| `Text.Show.Show_String` | `Text.Show.Show Data.String.String` | Implicit |
-
-**`Text.Show.Show_Bool`**: The fixed text: each renders as its literal constructor spelling
-(probed in seed/tests/string_literals.rs).
-**`Text.Show.Show_Nat`**: The decimal rendering agrees with the concrete conversions below
-(the class's law shape: `show` is the rendering; asserted over
-sample values in seed/tests/prelude_split.rs).
-**`Text.Show.Show_String`**: The raw text: `String` renders as itself (no quoting in the
-bootstrap).
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Show.cinch`. Source SHA-256: `482adc06340f899b8664bfbf7804b45d74db5e200f657faa12a8eb5b66de76e8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Show_Bool"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Bool</code></span><div class="doc-child-prose">The fixed text: each renders as its literal constructor spelling (probed in seed/tests/stringliterals.rs).</div></li>
+<li id="i-Show_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Char</code></span></li>
+<li id="i-Show_Int"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Int</code></span></li>
+<li id="i-Show_Nat"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Nat</code></span><div class="doc-child-prose">The decimal rendering agrees with the concrete conversions below (the class's law shape: show is the rendering; asserted over sample values in seed/tests/preludesplit.rs).</div></li>
+<li id="i-Show_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Ordering</code></span></li>
+<li id="i-Show_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_String</code></span><div class="doc-child-prose">The raw text: String renders as itself (no quoting in the bootstrap).</div></li>
+</ul>

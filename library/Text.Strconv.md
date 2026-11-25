@@ -2,19 +2,11 @@
 
 Explicit-base and width-aware integer codecs, exact decimal and hexadecimal float parsing and formatting, complex parsing/formatting and Go string/rune quoting.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Strconv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Strconv/source/">View source</a><a href="/packages/search/?q=%2BText.Strconv">Search module</a><a href="/reference-sources/Text.Strconv.cinch" download="Text.Strconv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Strconv`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Float](Data.Float.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Relation.Eq](Relation.Eq.md), [Text.Builder](Text.Builder.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Strconv.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Float](Data.Float.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Relation.Eq](Relation.Eq.md), [Text.Builder](Text.Builder.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Float](Data.Float.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Builder](Text.Builder.md), [Text.Strconv](Text.Strconv.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Conversions between strings, byte buffers, and basic scalar values:
 booleans, signed and unsigned machine integers in bases 2 through 36 (plus
@@ -31,562 +23,499 @@ prefixes.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (53 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-StrconvError">StrconvError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StrconvError</strong></code></li><li><a class="syn-name" href="#v-append-bool">append-bool</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-float32">append-float32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-float64">append-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-int">append-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote">append-quote</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote-rune">append-quote-rune</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote-rune</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote-rune-to-ascii">append-quote-rune-to-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote-rune-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote-rune-to-graphic">append-quote-rune-to-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote-rune-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote-to-ascii">append-quote-to-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-quote-to-graphic">append-quote-to-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-quote-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-append-uint">append-uint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">append-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-atoi">atoi</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atoi</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-atoi-with-clamp">atoi-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">atoi-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-can-backquote">can-backquote</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">can-backquote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-format-bool">format-bool</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-complex128">format-complex128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-complex128</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-complex64">format-complex64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-complex64</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-float32">format-float32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-float64">format-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-int">format-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-format-uint">format-uint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-int-size">int-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">int-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-is-graphic">is-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-is-print">is-print</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-print</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-itoa">itoa</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">itoa</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-parse-bool">parse-bool</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-parse-complex128">parse-complex128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-complex128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code></li><li><a class="syn-name" href="#v-parse-complex128-with-clamp">parse-complex128-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-complex128-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-parse-complex64">parse-complex64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-complex64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>)</code></li><li><a class="syn-name" href="#v-parse-complex64-with-clamp">parse-complex64-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-complex64-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-parse-float32">parse-float32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code></li><li><a class="syn-name" href="#v-parse-float32-with-clamp">parse-float32-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-float32-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-parse-float64">parse-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-parse-float64-with-clamp">parse-float64-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-float64-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-parse-int">parse-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-parse-int-with-clamp">parse-int-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-int-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-parse-uint">parse-uint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-parse-uint-with-clamp">parse-uint-with-clamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-uint-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code></li><li><a class="syn-name" href="#v-quote">quote</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-bytes">quote-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-bytes-to-ascii">quote-bytes-to-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-bytes-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-bytes-to-graphic">quote-bytes-to-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-bytes-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-rune">quote-rune</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-rune</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-rune-to-ascii">quote-rune-to-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-rune-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-rune-to-graphic">quote-rune-to-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-rune-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-to-ascii">quote-to-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quote-to-graphic">quote-to-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quote-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quoted-prefix">quoted-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-strconv-error-message">strconv-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">strconv-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-unquote">unquote</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unquote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-unquote-bytes">unquote-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unquote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-unquote-char">unquote-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unquote-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li></ul>
+</details>
 
-<a id="type-537472636f6e764572726f72"></a>
+# Types
 
-## `StrconvError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">StrconvError</span></code></pre>
+<article class="doc-entry" id="t-StrconvError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">StrconvError</strong></code><span class="doc-sig-links"><a href="#t-StrconvError" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Why a string conversion failed.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 55
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StrconvSyntax</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StrconvRange</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StrconvBadBase</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StrconvBadBitSize</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">StrconvBadFormat</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-StrconvSyntax"><code><strong class="tok-constructor">StrconvSyntax</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code></li><li id="k-StrconvRange"><code><strong class="tok-constructor">StrconvRange</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code></li><li id="k-StrconvBadBase"><code><strong class="tok-constructor">StrconvBadBase</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code></li><li id="k-StrconvBadBitSize"><code><strong class="tok-constructor">StrconvBadBitSize</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code></li><li id="k-StrconvBadFormat"><code><strong class="tok-constructor">StrconvBadFormat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Strconv/#instances">Text.Strconv</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-617070656e642d626f6f6c"></a>
-
-## `append-bool`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-bool</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-bool">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-bool" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L219" title="View source at line 219">Source</a></span></div>
+<div class="doc-body">
 
 Append "true" or "false" to a byte buffer, returning a fresh buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 219
+</div>
+</article>
 
-<a id="value-617070656e642d666c6f61743332"></a>
-
-## `append-float32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-float32</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-append-float32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-float32" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L726" title="View source at line 726">Source</a></span></div>
+<div class="doc-body">
 
 Append the formatted binary32 string to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 726
+</div>
+</article>
 
-<a id="value-617070656e642d666c6f61743634"></a>
-
-## `append-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-float64</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bytes</span>)))))</code></pre>
+<article class="doc-entry" id="v-append-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-float64" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L720" title="View source at line 720">Source</a></span></div>
+<div class="doc-body">
 
 Append the formatted binary64 string to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 720
+</div>
+</article>
 
-<a id="value-617070656e642d696e74"></a>
-
-## `append-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-int</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-append-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-int" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L442" title="View source at line 442">Source</a></span></div>
+<div class="doc-body">
 
 Append the base-b representation of a signed 64-bit integer to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 442
+</div>
+</article>
 
-<a id="value-617070656e642d71756f7465"></a>
-
-## `append-quote`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1552" title="View source at line 1552">Source</a></span></div>
+<div class="doc-body">
 
 Append the double-quoted literal of a string to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1552
+</div>
+</article>
 
-<a id="value-617070656e642d71756f74652d72756e65"></a>
-
-## `append-quote-rune`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote-rune</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote-rune">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote-rune</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote-rune" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1583" title="View source at line 1583">Source</a></span></div>
+<div class="doc-body">
 
 Append the single-quoted literal of a character to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1583
+</div>
+</article>
 
-<a id="value-617070656e642d71756f74652d72756e652d746f2d6173636969"></a>
-
-## `append-quote-rune-to-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote-rune-to-ascii</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote-rune-to-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote-rune-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote-rune-to-ascii" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1587" title="View source at line 1587">Source</a></span></div>
+<div class="doc-body">
 
 Append the ASCII-only single-quoted literal of a character to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1587
+</div>
+</article>
 
-<a id="value-617070656e642d71756f74652d72756e652d746f2d67726170686963"></a>
-
-## `append-quote-rune-to-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote-rune-to-graphic</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote-rune-to-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote-rune-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote-rune-to-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1591" title="View source at line 1591">Source</a></span></div>
+<div class="doc-body">
 
 Append the graphic-preserving single-quoted literal of a character to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1591
+</div>
+</article>
 
-<a id="value-617070656e642d71756f74652d746f2d6173636969"></a>
-
-## `append-quote-to-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote-to-ascii</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote-to-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote-to-ascii" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1556" title="View source at line 1556">Source</a></span></div>
+<div class="doc-body">
 
 Append the ASCII-only double-quoted literal of a string to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1556
+</div>
+</article>
 
-<a id="value-617070656e642d71756f74652d746f2d67726170686963"></a>
-
-## `append-quote-to-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-quote-to-graphic</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-append-quote-to-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-quote-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-quote-to-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1560" title="View source at line 1560">Source</a></span></div>
+<div class="doc-body">
 
 Append the graphic-preserving double-quoted literal of a string to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1560
+</div>
+</article>
 
-<a id="value-617070656e642d75696e74"></a>
-
-## `append-uint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">append-uint</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-append-uint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">append-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-append-uint" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L451" title="View source at line 451">Source</a></span></div>
+<div class="doc-body">
 
 Append the base-b representation of an unsigned 64-bit integer to a byte buffer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 451
+</div>
+</article>
 
-<a id="value-61746f69"></a>
-
-## `atoi`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atoi</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-atoi">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atoi</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-atoi" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L392" title="View source at line 392">Source</a></span></div>
+<div class="doc-body">
 
 Parse a base-10 64-bit signed integer.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 392
+</div>
+</article>
 
-<a id="value-61746f692d776974682d636c616d70"></a>
-
-## `atoi-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atoi-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))</code></pre>
+<article class="doc-entry" id="v-atoi-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atoi-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-atoi-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L388" title="View source at line 388">Source</a></span></div>
+<div class="doc-body">
 
 Parse a base-10 64-bit signed integer, returning the clamped value alongside any error.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 388
+</div>
+</article>
 
-<a id="value-63616e2d6261636b71756f7465"></a>
-
-## `can-backquote`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">can-backquote</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-can-backquote">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">can-backquote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-can-backquote" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1595" title="View source at line 1595">Source</a></span></div>
+<div class="doc-body">
 
 Report whether a string can be represented unchanged as a single-line backquoted literal without control characters other than tab.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1595
+</div>
+</article>
 
-<a id="value-666f726d61742d626f6f6c"></a>
-
-## `format-bool`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-bool</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-format-bool">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-bool" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Format a boolean as "true" or "false".
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 215
+</div>
+</article>
 
-<a id="value-666f726d61742d636f6d706c6578313238"></a>
-
-## `format-complex128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-complex128</span> :: ((<span class="tok-constructor">F64</span>, <span class="tok-constructor">F64</span>) -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-format-complex128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-complex128</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-complex128" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1406" title="View source at line 1406">Source</a></span></div>
+<div class="doc-body">
 
 Format a 128-bit complex number (real, imag) as "(a+bi)".
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1406
+</div>
+</article>
 
-<a id="value-666f726d61742d636f6d706c65783634"></a>
-
-## `format-complex64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-complex64</span> :: ((<span class="tok-constructor">F32</span>, <span class="tok-constructor">F32</span>) -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-format-complex64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-complex64</strong> :: (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-complex64" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1415" title="View source at line 1415">Source</a></span></div>
+<div class="doc-body">
 
 Format a 64-bit complex number (real, imag) as "(a+bi)".
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1415
+</div>
+</article>
 
-<a id="value-666f726d61742d666c6f61743332"></a>
-
-## `format-float32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-float32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-format-float32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-float32" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L702" title="View source at line 702">Source</a></span></div>
+<div class="doc-body">
 
 Format a binary32 floating-point value according to format specifier and precision.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 702
+</div>
+</article>
 
-<a id="value-666f726d61742d666c6f61743634"></a>
-
-## `format-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-float64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-format-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-float64" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L684" title="View source at line 684">Source</a></span></div>
+<div class="doc-body">
 
 Format a binary64 floating-point value according to format specifier and precision.
 Supported formats: 'b', 'e', 'E', 'f', 'g', 'G', 'x', 'X'. Negative precision selects shortest round-trip digits.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 684
+</div>
+</article>
 
-<a id="value-666f726d61742d696e74"></a>
-
-## `format-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-int</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-format-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-int" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L426" title="View source at line 426">Source</a></span></div>
+<div class="doc-body">
 
 Format a signed 64-bit integer in the given base (2..36) using lowercase letters a..z.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 426
+</div>
+</article>
 
-<a id="value-666f726d61742d75696e74"></a>
-
-## `format-uint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format-uint</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-format-uint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format-uint" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L420" title="View source at line 420">Source</a></span></div>
+<div class="doc-body">
 
 Format an unsigned 64-bit integer in the given base (2..36) using lowercase letters a..z.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 420
+</div>
+</article>
 
-<a id="value-696e742d73697a65"></a>
-
-## `int-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">int-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-int-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">int-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-int-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Size in bits of the default machine integer width used when bit size 0 is requested.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 51
+</div>
+</article>
 
-<a id="value-69732d67726170686963"></a>
-
-## `is-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-graphic</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1432" title="View source at line 1432">Source</a></span></div>
+<div class="doc-body">
 
 Report whether a Unicode scalar is a Unicode graphic character (categories L, M, N, P, S, and Zs).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1432
+</div>
+</article>
 
-<a id="value-69732d7072696e74"></a>
-
-## `is-print`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-print</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-is-print">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-print</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-print" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1428" title="View source at line 1428">Source</a></span></div>
+<div class="doc-body">
 
 Report whether a Unicode scalar is printable (letters, marks, numbers, punctuation, symbols, and ASCII space).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1428
+</div>
+</article>
 
-<a id="value-69746f61"></a>
-
-## `itoa`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">itoa</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-itoa">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">itoa</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-itoa" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L435" title="View source at line 435">Source</a></span></div>
+<div class="doc-body">
 
 Format a signed 64-bit integer in base 10.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 435
+</div>
+</article>
 
-<a id="value-70617273652d626f6f6c"></a>
-
-## `parse-bool`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bool</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-parse-bool">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-parse-bool" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L208" title="View source at line 208">Source</a></span></div>
+<div class="doc-body">
 
 Parse a boolean string accepting 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 208
+</div>
+</article>
 
-<a id="value-70617273652d636f6d706c6578313238"></a>
-
-## `parse-complex128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-complex128</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> (<span class="tok-constructor">F64</span>, <span class="tok-constructor">F64</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-complex128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-complex128</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-parse-complex128" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1354" title="View source at line 1354">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 128-bit complex number of the form N, Ni, or N±Ni (optionally parenthesized).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1354
+</div>
+</article>
 
-<a id="value-70617273652d636f6d706c65783132382d776974682d636c616d70"></a>
-
-## `parse-complex128-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-complex128-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">F64</span>, <span class="tok-constructor">F64</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-complex128-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-complex128-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-complex128-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1326" title="View source at line 1326">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 128-bit complex number (pair of F64), returning clamped components alongside StrconvRange on overflow.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1326
+</div>
+</article>
 
-<a id="value-70617273652d636f6d706c65783634"></a>
-
-## `parse-complex64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-complex64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> (<span class="tok-constructor">F32</span>, <span class="tok-constructor">F32</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-complex64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-complex64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>)</code><span class="doc-sig-links"><a href="#v-parse-complex64" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1388" title="View source at line 1388">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 64-bit complex number of the form N, Ni, or N±Ni (optionally parenthesized).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1388
+</div>
+</article>
 
-<a id="value-70617273652d636f6d706c657836342d776974682d636c616d70"></a>
-
-## `parse-complex64-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-complex64-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">F32</span>, <span class="tok-constructor">F32</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-complex64-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-complex64-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> ((<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-complex64-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1360" title="View source at line 1360">Source</a></span></div>
+<div class="doc-body">
 
 Parse a 64-bit complex number (pair of F32), returning clamped components alongside StrconvRange on overflow.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1360
+</div>
+</article>
 
-<a id="value-70617273652d666c6f61743332"></a>
-
-## `parse-float32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-float32</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">F32</span>))</code></pre>
+<article class="doc-entry" id="v-parse-float32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-parse-float32" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1316" title="View source at line 1316">Source</a></span></div>
+<div class="doc-body">
 
 Parse a binary32 floating-point number with exact single-rounding IEEE-754 semantics.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1316
+</div>
+</article>
 
-<a id="value-70617273652d666c6f617433322d776974682d636c616d70"></a>
-
-## `parse-float32-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-float32-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">F32</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-float32-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-float32-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-float32-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1304" title="View source at line 1304">Source</a></span></div>
+<div class="doc-body">
 
 Parse a binary32 float, returning ±Inf alongside StrconvRange on overflow.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1304
+</div>
+</article>
 
-<a id="value-70617273652d666c6f61743634"></a>
-
-## `parse-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-float64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">F64</span>))</code></pre>
+<article class="doc-entry" id="v-parse-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-parse-float64" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1298" title="View source at line 1298">Source</a></span></div>
+<div class="doc-body">
 
 Parse a binary64 floating-point number (decimal, hexadecimal, NaN, or ±Inf/Infinity).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1298
+</div>
+</article>
 
-<a id="value-70617273652d666c6f617436342d776974682d636c616d70"></a>
-
-## `parse-float64-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-float64-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">F64</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-float64-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-float64-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-float64-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1286" title="View source at line 1286">Source</a></span></div>
+<div class="doc-body">
 
 Parse a binary64 float, returning ±Inf alongside StrconvRange on overflow.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1286
+</div>
+</article>
 
-<a id="value-70617273652d696e74"></a>
-
-## `parse-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-int</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">I64</span>))))</code></pre>
+<article class="doc-entry" id="v-parse-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-int</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-parse-int" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L382" title="View source at line 382">Source</a></span></div>
+<div class="doc-body">
 
 Parse a signed integer in the given base (0, or 2..36) and bit size (0..64).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 382
+</div>
+</article>
 
-<a id="value-70617273652d696e742d776974682d636c616d70"></a>
-
-## `parse-int-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-int-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))))</code></pre>
+<article class="doc-entry" id="v-parse-int-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-int-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-int-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L350" title="View source at line 350">Source</a></span></div>
+<div class="doc-body">
 
 Parse a signed integer, returning both the value (clamped to the bit-size minimum or maximum on overflow) and any error.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 350
+</div>
+</article>
 
-<a id="value-70617273652d75696e74"></a>
-
-## `parse-uint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-uint</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">U64</span>))))</code></pre>
+<article class="doc-entry" id="v-parse-uint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-uint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-parse-uint" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L344" title="View source at line 344">Source</a></span></div>
+<div class="doc-body">
 
 Parse an unsigned integer in the given base (0, or 2..36) and bit size (0..64).
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 344
+</div>
+</article>
 
-<a id="value-70617273652d75696e742d776974682d636c616d70"></a>
-
-## `parse-uint-with-clamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-uint-with-clamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">U64</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span>)))))</code></pre>
+<article class="doc-entry" id="v-parse-uint-with-clamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-uint-with-clamp</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a>)</code><span class="doc-sig-links"><a href="#v-parse-uint-with-clamp" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L338" title="View source at line 338">Source</a></span></div>
+<div class="doc-body">
 
 Parse an unsigned integer, returning both the value (clamped to the bit-size maximum on overflow) and any error.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 338
+</div>
+</article>
 
-<a id="value-71756f7465"></a>
-
-## `quote`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1540" title="View source at line 1540">Source</a></span></div>
+<div class="doc-body">
 
 Return a double-quoted string literal escaping control and non-printable characters.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1540
+</div>
+</article>
 
-<a id="value-71756f74652d6279746573"></a>
-
-## `quote-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1528" title="View source at line 1528">Source</a></span></div>
+<div class="doc-body">
 
 Return a double-quoted literal representing raw bytes, escaping control, non-printable, and invalid UTF-8 bytes.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1528
+</div>
+</article>
 
-<a id="value-71756f74652d62797465732d746f2d6173636969"></a>
-
-## `quote-bytes-to-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-bytes-to-ascii</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-bytes-to-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-bytes-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-bytes-to-ascii" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1532" title="View source at line 1532">Source</a></span></div>
+<div class="doc-body">
 
 Return an ASCII-only double-quoted literal representing raw bytes.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1532
+</div>
+</article>
 
-<a id="value-71756f74652d62797465732d746f2d67726170686963"></a>
-
-## `quote-bytes-to-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-bytes-to-graphic</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-bytes-to-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-bytes-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-bytes-to-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1536" title="View source at line 1536">Source</a></span></div>
+<div class="doc-body">
 
 Return a double-quoted literal preserving Unicode graphic characters and escaping non-graphic or invalid bytes.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1536
+</div>
+</article>
 
-<a id="value-71756f74652d72756e65"></a>
-
-## `quote-rune`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-rune</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-rune">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-rune</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-rune" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1571" title="View source at line 1571">Source</a></span></div>
+<div class="doc-body">
 
 Return a single-quoted character literal representing a Unicode scalar.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1571
+</div>
+</article>
 
-<a id="value-71756f74652d72756e652d746f2d6173636969"></a>
-
-## `quote-rune-to-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-rune-to-ascii</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-rune-to-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-rune-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-rune-to-ascii" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1575" title="View source at line 1575">Source</a></span></div>
+<div class="doc-body">
 
 Return an ASCII-only single-quoted character literal representing a Unicode scalar.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1575
+</div>
+</article>
 
-<a id="value-71756f74652d72756e652d746f2d67726170686963"></a>
-
-## `quote-rune-to-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-rune-to-graphic</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-rune-to-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-rune-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-rune-to-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1579" title="View source at line 1579">Source</a></span></div>
+<div class="doc-body">
 
 Return a single-quoted character literal preserving Unicode graphic scalars.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1579
+</div>
+</article>
 
-<a id="value-71756f74652d746f2d6173636969"></a>
-
-## `quote-to-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-to-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-to-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-to-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-to-ascii" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1544" title="View source at line 1544">Source</a></span></div>
+<div class="doc-body">
 
 Return a double-quoted ASCII-only string literal escaping non-ASCII and non-printable characters.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1544
+</div>
+</article>
 
-<a id="value-71756f74652d746f2d67726170686963"></a>
-
-## `quote-to-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quote-to-graphic</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quote-to-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quote-to-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quote-to-graphic" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1548" title="View source at line 1548">Source</a></span></div>
+<div class="doc-body">
 
 Return a double-quoted string literal preserving Unicode graphic characters and escaping non-graphic characters.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1548
+</div>
+</article>
 
-<a id="value-71756f7465642d707265666978"></a>
-
-## `quoted-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-prefix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quoted-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1757" title="View source at line 1757">Source</a></span></div>
+<div class="doc-body">
 
 Return the verbatim quoted string literal at the prefix of `s`.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1757
+</div>
+</article>
 
-<a id="value-737472636f6e762d6572726f722d6d657373616765"></a>
-
-## `strconv-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">strconv-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-strconv-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">strconv-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-strconv-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 Human-readable message describing a conversion error.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 82
+</div>
+</article>
 
-<a id="value-756e71756f7465"></a>
-
-## `unquote`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unquote</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-unquote">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unquote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-unquote" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1778" title="View source at line 1778">Source</a></span></div>
+<div class="doc-body">
 
 Interpret a single-quoted, double-quoted, or backquoted literal as a UTF-8 string.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1778
+</div>
+</article>
 
-<a id="value-756e71756f74652d6279746573"></a>
-
-## `unquote-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unquote-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-unquote-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unquote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-unquote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1768" title="View source at line 1768">Source</a></span></div>
+<div class="doc-body">
 
 Interpret a single-quoted, double-quoted, or backquoted literal, returning its exact unescaped bytes.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1768
+</div>
+</article>
 
-<a id="value-756e71756f74652d63686172"></a>
-
-## `unquote-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unquote-char</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Strconv</span>.<span class="tok-constructor">StrconvError</span> (<span class="tok-constructor">Char</span>, <span class="tok-constructor">Bool</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
+<article class="doc-entry" id="v-unquote-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unquote-char</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-unquote-char" title="Permalink">#</a><a href="/packages/stdlib/Text.Strconv/source/#L1684" title="View source at line 1684">Source</a></span></div>
+<div class="doc-body">
 
 Decode the first character or byte escape in a quoted literal body.
 Returns the decoded character, whether it requires multibyte UTF-8 encoding, and the remaining tail string.
 
-[Source](/reference-sources/Text.Strconv.cinch) · line 1684
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Text.Strconv.Eq_StrconvError` | `Relation.Eq.Eq Text.Strconv.StrconvError` | Implicit |
-
-**`Text.Strconv.Eq_StrconvError`**: Structural equality for conversion errors.
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Strconv.cinch`. Source SHA-256: `ef4be6a731b2d78ca1dfcdb09fde897400ebb27958d36ba4c7d77e7b8ec5edeb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<ul class="doc-module-instances">
+<li id="i-Eq_StrconvError"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Strconv.Eq_StrconvError</code></span><div class="doc-child-prose">Structural equality for conversion errors.</div></li>
+</ul>

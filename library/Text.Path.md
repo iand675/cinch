@@ -2,19 +2,11 @@
 
 Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Path</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Path/source/">View source</a><a href="/packages/search/?q=%2BText.Path">Search module</a><a href="/reference-sources/Text.Path.cinch" download="Text.Path.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Text.Path`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Text.Path.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-Non-embedded source closure: [Text.Path](Text.Path.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Portable lexical operations and shell patterns for slash-separated UTF-8 paths.
 Only / separates components; backslashes, drive letters and NUL are ordinary
@@ -26,146 +18,132 @@ Complete scans use portable 16-byte SIMD lanes with bounded loads and exact tail
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-PathPattern">PathPattern</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PathPattern</strong></code></li><li><a class="syn-name" href="#t-PathPatternError">PathPatternError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PathPatternError</strong></code></li><li><a class="syn-name" href="#v-path-base">path-base</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-base</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-clean">path-clean</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-clean</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-dir">path-dir</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-dir</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-ext">path-ext</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-ext</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-is-absolute">path-is-absolute</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-is-absolute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-path-join">path-join</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-match">path-match</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-match</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-path-pattern">path-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPattern" title="Text.Path.PathPattern">PathPattern</a></code></li><li><a class="syn-name" href="#v-path-pattern-error-message">path-pattern-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-pattern-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-path-pattern-match">path-pattern-match</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-pattern-match</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPattern" title="Text.Path.PathPattern">PathPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-path-split">path-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">path-split</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code></li></ul>
+</details>
 
-<a id="type-506174685061747465726e"></a>
+# Types
 
-## `PathPattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PathPattern</span></code></pre>
+<article class="doc-entry" id="t-PathPattern">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PathPattern</strong></code><span class="doc-sig-links"><a href="#t-PathPattern" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L334" title="View source at line 334">Source</a></span></div>
+<div class="doc-body">
 
 An immutable, fully checked shell pattern reusable across independent path names.
 
-[Source](/reference-sources/Text.Path.cinch) · line 334
+</div>
+</article>
 
-<a id="type-506174685061747465726e4572726f72"></a>
-
-## `PathPatternError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PathPatternError</span></code></pre>
+<article class="doc-entry" id="t-PathPatternError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PathPatternError</strong></code><span class="doc-sig-links"><a href="#t-PathPatternError" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L314" title="View source at line 314">Source</a></span></div>
+<div class="doc-body">
 
 A shell pattern contains an incomplete escape or malformed Unicode range class.
 
-[Source](/reference-sources/Text.Path.cinch) · line 314
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPathPattern</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPatternError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidPathPattern"><code><strong class="tok-constructor">InvalidPathPattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-706174682d62617365"></a>
-
-## `path-base`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-base</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-base">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-base</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-base" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L206" title="View source at line 206">Source</a></span></div>
+<div class="doc-body">
 
 Return the final nonempty component, / for slash-only paths, and . for empty input.
 
-[Source](/reference-sources/Text.Path.cinch) · line 206
+</div>
+</article>
 
-<a id="value-706174682d636c65616e"></a>
-
-## `path-clean`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-clean</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-clean">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-clean</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-clean" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L235" title="View source at line 235">Source</a></span></div>
+<div class="doc-body">
 
 Lexically collapse separators and dot components; an empty result becomes .
 Rooted parent components stop at /; leading relative parent components are retained.
 
-[Source](/reference-sources/Text.Path.cinch) · line 235
+</div>
+</article>
 
-<a id="value-706174682d646972"></a>
-
-## `path-dir`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-dir</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-dir">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-dir</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-dir" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L219" title="View source at line 219">Source</a></span></div>
+<div class="doc-body">
 
 Return the cleaned directory portion, using . when no directory is present.
 
-[Source](/reference-sources/Text.Path.cinch) · line 219
+</div>
+</article>
 
-<a id="value-706174682d657874"></a>
-
-## `path-ext`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-ext</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-ext">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-ext</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-ext" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L230" title="View source at line 230">Source</a></span></div>
+<div class="doc-body">
 
 Return the final dot and following bytes of the last component, or empty text.
 Leading dots count as extensions; a path ending in / has no extension.
 
-[Source](/reference-sources/Text.Path.cinch) · line 230
+</div>
+</article>
 
-<a id="value-706174682d69732d6162736f6c757465"></a>
-
-## `path-is-absolute`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-is-absolute</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-path-is-absolute">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-is-absolute</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-path-is-absolute" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Whether a path starts with /; no normalization or filesystem lookup is performed.
 
-[Source](/reference-sources/Text.Path.cinch) · line 202
+</div>
+</article>
 
-<a id="value-706174682d6a6f696e"></a>
-
-## `path-join`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-join</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-join">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-join</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-join" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L307" title="View source at line 307">Source</a></span></div>
+<div class="doc-body">
 
 Join nonempty path elements with / and clean the result; all-empty input returns empty text.
 Later absolute-looking elements do not discard preceding elements.
 
-[Source](/reference-sources/Text.Path.cinch) · line 307
+</div>
+</article>
 
-<a id="value-706174682d6d61746368"></a>
-
-## `path-match`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-match</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPatternError</span> <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-path-match">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-match</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-path-match" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L506" title="View source at line 506">Source</a></span></div>
+<div class="doc-body">
 
 Check and match a shell pattern against the entire UTF-8 path name.
 
-[Source](/reference-sources/Text.Path.cinch) · line 506
+</div>
+</article>
 
-<a id="value-706174682d7061747465726e"></a>
-
-## `path-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPatternError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPattern</span>))</code></pre>
+<article class="doc-entry" id="v-path-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPattern" title="Text.Path.PathPattern">PathPattern</a></code><span class="doc-sig-links"><a href="#v-path-pattern" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L346" title="View source at line 346">Source</a></span></div>
+<div class="doc-body">
 
 Parse a complete pattern, rejecting malformed suffixes even when an earlier term cannot match.
 
-[Source](/reference-sources/Text.Path.cinch) · line 346
+</div>
+</article>
 
-<a id="value-706174682d7061747465726e2d6572726f722d6d657373616765"></a>
-
-## `path-pattern-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-pattern-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPatternError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-path-pattern-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-pattern-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPatternError" title="Text.Path.PathPatternError">PathPatternError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-path-pattern-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L319" title="View source at line 319">Source</a></span></div>
+<div class="doc-body">
 
 Render the stable malformed-pattern diagnostic.
 
-[Source](/reference-sources/Text.Path.cinch) · line 319
+</div>
+</article>
 
-<a id="value-706174682d7061747465726e2d6d61746368"></a>
-
-## `path-pattern-match`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-pattern-match</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-path-pattern-match">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-pattern-match</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Path/#t-PathPattern" title="Text.Path.PathPattern">PathPattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-path-pattern-match" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L502" title="View source at line 502">Source</a></span></div>
+<div class="doc-body">
 
 Match a reusable checked pattern against an entire path name.
 Pattern state and path text remain immutable across repeated calls.
 
-[Source](/reference-sources/Text.Path.cinch) · line 502
+</div>
+</article>
 
-<a id="value-706174682d73706c6974"></a>
-
-## `path-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">path-split</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-path-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">path-split</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-path-split" title="Permalink">#</a><a href="/packages/stdlib/Text.Path/source/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 Split immediately after the final slash, preserving repeated and trailing separators.
 
-[Source](/reference-sources/Text.Path.cinch) · line 213
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Path.cinch`. Source SHA-256: `850705b99461fccd2e8fc0bc88e28a7bd3b873ae694998c4496e8f0b5a770fb7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

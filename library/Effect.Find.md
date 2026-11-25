@@ -2,19 +2,11 @@
 
 Filesystem walking/search utilities with the module's traversal and error policy.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Find</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Find/source/">View source</a><a href="/packages/search/?q=%2BEffect.Find">Search module</a><a href="/reference-sources/Effect.Find.cinch" download="Effect.Find.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Find`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.List](Data.List.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
 
-[Download exact module source](/reference-sources/Effect.Find.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.List](Data.List.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
-
-Non-embedded source closure: [Effect.Find](Effect.Find.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Find: the recursive directory walk (P40, the Ruby `Find`
 port named in design/stdlib-parity-ruby.md's OS-utilities sweep).
@@ -72,60 +64,51 @@ system's vocabulary, and `Effect.Fs` is the capability walked here.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (4 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Step">Step</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong></code></li><li><a class="syn-name" href="#v-find">find</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Find/#t-Step" title="Effect.Find.Step">Step</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code></li><li><a class="syn-name" href="#v-find-dirs">find-dirs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find-dirs</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code></li><li><a class="syn-name" href="#v-find-files">find-files</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find-files</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code></li></ul>
+</details>
 
-<a id="type-53746570"></a>
+# Types
 
-## `Step`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span></code></pre>
+<article class="doc-entry" id="t-Step">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong></code><span class="doc-sig-links"><a href="#t-Step" title="Permalink">#</a><a href="/packages/stdlib/Effect.Find/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 What the visitor decides about the entry it is shown.
 
-[Source](/reference-sources/Effect.Find.cinch) · line 66
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Continue</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Find</span>.<span class="tok-constructor">Step</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Prune</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Find</span>.<span class="tok-constructor">Step</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Stop</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Find</span>.<span class="tok-constructor">Step</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Continue"><code><strong class="tok-constructor">Continue</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Find/#t-Step" title="Effect.Find.Step">Step</a></code></li><li id="k-Prune"><code><strong class="tok-constructor">Prune</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Find/#t-Step" title="Effect.Find.Step">Step</a></code></li><li id="k-Stop"><code><strong class="tok-constructor">Stop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Find/#t-Step" title="Effect.Find.Step">Step</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-66696e64"></a>
-
-## `find`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Find</span>.<span class="tok-constructor">Step</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>))))</code></pre>
+<article class="doc-entry" id="v-find">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Find/#t-Step" title="Effect.Find.Step">Step</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code><span class="doc-sig-links"><a href="#v-find" title="Permalink">#</a><a href="/packages/stdlib/Effect.Find/source/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-body">
 
 The subtree beneath `root`, pre-order, reporting the paths the
 visitor's decisions leave in the walk (see the header for the
 order guarantee and the decisions).
 
-[Source](/reference-sources/Effect.Find.cinch) · line 148
+</div>
+</article>
 
-<a id="value-66696e642d64697273"></a>
-
-## `find-dirs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-dirs</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)))</code></pre>
+<article class="doc-entry" id="v-find-dirs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find-dirs</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code><span class="doc-sig-links"><a href="#v-find-dirs" title="Permalink">#</a><a href="/packages/stdlib/Effect.Find/source/#L158" title="View source at line 158">Source</a></span></div>
+<div class="doc-body">
 
 Every directory beneath `root` (the root included when it is one),
 pre-order.
 
-[Source](/reference-sources/Effect.Find.cinch) · line 158
+</div>
+</article>
 
-<a id="value-66696e642d66696c6573"></a>
-
-## `find-files`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-files</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)))</code></pre>
+<article class="doc-entry" id="v-find-files">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find-files</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Path/#t-Path" title="Data.Path.Path">Path</a>)</code><span class="doc-sig-links"><a href="#v-find-files" title="Permalink">#</a><a href="/packages/stdlib/Effect.Find/source/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-body">
 
 Every file beneath `root` (the root itself only when it is one),
 pre-order, descending through every directory.
 
-[Source](/reference-sources/Effect.Find.cinch) · line 153
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Find.cinch`. Source SHA-256: `8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

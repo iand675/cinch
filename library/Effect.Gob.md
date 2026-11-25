@@ -2,19 +2,11 @@
 
 Streaming Go gob encoders and decoders over Effect.Stream preserving type IDs across multi-message streams.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Gob</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Gob/source/">View source</a><a href="/packages/search/?q=%2BEffect.Gob">Search module</a><a href="/reference-sources/Effect.Gob.cinch" download="Effect.Gob.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Effect.Gob`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Gob](Text.Gob.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Effect.Gob.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Gob](Text.Gob.md), [Text.Show](Text.Show.md).
-
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Effect.Gob](Effect.Gob.md), [Effect.Stream](Effect.Stream.md), [Text.Gob](Text.Gob.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Streaming gob binary encoders and decoders over Effect.Stream byte handles.
 Encoders and decoders preserve transmitted user type IDs across multiple
@@ -26,160 +18,139 @@ are never closed or flushed.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-GobDecoder">GobDecoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobDecoder</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#t-GobEncoder">GobEncoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobEncoder</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#t-GobStreamError">GobStreamError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobStreamError</strong></code></li><li><a class="syn-name" href="#v-gob-stream-decode">gob-stream-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-decode</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-gob-stream-decode-all">gob-stream-decode-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-decode-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>)), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-gob-stream-decoder">gob-stream-decoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-gob-stream-decoder-source">gob-stream-decoder-source</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder-source</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-gob-stream-decoder-state">gob-stream-decoder-state</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder-state</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobDecoderState" title="Text.Gob.GobDecoderState">GobDecoderState</a></code></li><li><a class="syn-name" href="#v-gob-stream-encode">gob-stream-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-encode</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-gob-stream-encode-all">gob-stream-encode-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-encode-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-gob-stream-encoder">gob-stream-encoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-gob-stream-encoder-sink">gob-stream-encoder-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder-sink</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-gob-stream-encoder-state">gob-stream-encoder-state</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder-state</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobEncoderState" title="Text.Gob.GobEncoderState">GobEncoderState</a></code></li><li><a class="syn-name" href="#v-gob-stream-error-message">gob-stream-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gob-stream-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-476f624465636f646572"></a>
+# Types
 
-## `GobDecoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">GobDecoder</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-GobDecoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobDecoder</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-GobDecoder" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Immutable streaming gob decoder pairing a ByteReader with persistent wire-type state.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 55
+</div>
+</article>
 
-<a id="type-476f62456e636f646572"></a>
-
-## `GobEncoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">GobEncoder</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-GobEncoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobEncoder</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-GobEncoder" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Immutable streaming gob encoder pairing a ByteWriter with persistent type-ID state.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 50
+</div>
+</article>
 
-<a id="type-476f6253747265616d4572726f72"></a>
-
-## `GobStreamError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">GobStreamError</span></code></pre>
+<article class="doc-entry" id="t-GobStreamError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GobStreamError</strong></code><span class="doc-sig-links"><a href="#t-GobStreamError" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 Named errors produced by streaming gob encoders and decoders.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 29
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GobStreamEndOfInput</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GobStreamInputFailure</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GobStreamOutputFailure</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GobStreamFormatFailure</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-GobStreamEndOfInput"><code><strong class="tok-constructor">GobStreamEndOfInput</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a></code></li><li id="k-GobStreamInputFailure"><code><strong class="tok-constructor">GobStreamInputFailure</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a></code></li><li id="k-GobStreamOutputFailure"><code><strong class="tok-constructor">GobStreamOutputFailure</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a></code></li><li id="k-GobStreamFormatFailure"><code><strong class="tok-constructor">GobStreamFormatFailure</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobError" title="Text.Gob.GobError">GobError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-676f622d73747265616d2d6465636f6465"></a>
-
-## `gob-stream-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-decode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobType</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobValue</span>)), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-gob-stream-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-decode</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-gob-stream-decode" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Decode the next value from the gob stream, updating persistent wire-type state.
 Returns GobStreamEndOfInput at clean EOF before the next message.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 215
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d6465636f64652d616c6c"></a>
-
-## `gob-stream-decode-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-decode-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobType</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobValue</span>))), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-gob-stream-decode-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-decode-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>)), <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-gob-stream-decode-all" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L228" title="View source at line 228">Source</a></span></div>
+<div class="doc-body">
 
 Decode all remaining values from the gob stream until clean EOF.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 228
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d6465636f646572"></a>
-
-## `gob-stream-decoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-decoder</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-gob-stream-decoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-gob-stream-decoder" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 Create a new streaming gob decoder over the given ByteReader.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 74
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d6465636f6465722d736f75726365"></a>
-
-## `gob-stream-decoder-source`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-decoder-source</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-gob-stream-decoder-source">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder-source</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-gob-stream-decoder-source" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 Extract the underlying advanced ByteReader from a streaming gob decoder.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 78
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d6465636f6465722d7374617465"></a>
-
-## `gob-stream-decoder-state`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-decoder-state</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoder</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobDecoderState</span>)</code></pre>
+<article class="doc-entry" id="v-gob-stream-decoder-state">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-decoder-state</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobDecoder" title="Effect.Gob.GobDecoder">GobDecoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobDecoderState" title="Text.Gob.GobDecoderState">GobDecoderState</a></code><span class="doc-sig-links"><a href="#v-gob-stream-decoder-state" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 Extract the persistent GobDecoderState from a streaming gob decoder.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 83
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d656e636f6465"></a>
-
-## `gob-stream-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-encode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobType</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobValue</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>)))))</code></pre>
+<article class="doc-entry" id="v-gob-stream-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-encode</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-gob-stream-encode" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 Encode one typed value onto the stream, reusing previously transmitted type IDs.
 Type-mismatch errors fail before touching the sink or advancing encoder state.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 117
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d656e636f64652d616c6c"></a>
-
-## `gob-stream-encode-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-encode-all</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobType</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobValue</span>)) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-gob-stream-encode-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-encode-all</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobType" title="Text.Gob.GobType">GobType</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobValue" title="Text.Gob.GobValue">GobValue</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-gob-stream-encode-all" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Encode every (GobType, GobValue) pair onto the stream, reusing transmitted type IDs.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 136
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d656e636f646572"></a>
-
-## `gob-stream-encoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-encoder</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-gob-stream-encoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-gob-stream-encoder" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-body">
 
 Create a new streaming gob encoder over the given ByteWriter.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 60
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d656e636f6465722d73696e6b"></a>
-
-## `gob-stream-encoder-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-encoder-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-gob-stream-encoder-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder-sink</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-gob-stream-encoder-sink" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-body">
 
 Extract the underlying advanced ByteWriter from a streaming gob encoder.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 64
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d656e636f6465722d7374617465"></a>
-
-## `gob-stream-encoder-state`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-encoder-state</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoder</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobEncoderState</span>)</code></pre>
+<article class="doc-entry" id="v-gob-stream-encoder-state">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-encoder-state</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobEncoder" title="Effect.Gob.GobEncoder">GobEncoder</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Gob/#t-GobEncoderState" title="Text.Gob.GobEncoderState">GobEncoderState</a></code><span class="doc-sig-links"><a href="#v-gob-stream-encoder-state" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Extract the persistent GobEncoderState from a streaming gob encoder.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 69
+</div>
+</article>
 
-<a id="value-676f622d73747265616d2d6572726f722d6d657373616765"></a>
-
-## `gob-stream-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gob-stream-error-message</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Gob</span>.<span class="tok-constructor">GobStreamError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-gob-stream-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gob-stream-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Gob/#t-GobStreamError" title="Effect.Gob.GobStreamError">GobStreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-gob-stream-error-message" title="Permalink">#</a><a href="/packages/stdlib/Effect.Gob/source/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 Render a human-readable diagnostic message for a GobStreamError.
 
-[Source](/reference-sources/Effect.Gob.cinch) · line 40
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Gob.cinch`. Source SHA-256: `075a8f1d670f1a9775ea580d2579de883389f007277b37f927e2a3d319107942`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

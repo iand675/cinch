@@ -2,19 +2,11 @@
 
 A double-ended queue as a power-of-two ring buffer: amortised O(1) push and pop at both ends and O(1) indexing.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Deque</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Deque/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Deque">Search module</a><a href="/reference-sources/Data.Mutable.Deque.cinch" download="Data.Mutable.Deque.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Mutable.Deque`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.Deque.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-Non-embedded source closure: [Data.Mutable.Deque](Data.Mutable.Deque.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.Deque: the double-ended queue (Rust `VecDeque`, a ring
 buffer rather than C++'s segmented `std::deque`).
@@ -43,179 +35,124 @@ compiler's `slots.rs`); none of them leaves the module.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (19 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Deque">Deque</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Deque</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-back">deque-back</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-capacity">deque-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-deque-clear">deque-clear</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-deque-fold">deque-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-deque-for-each">deque-for-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-deque-from-list">deque-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-front">deque-front</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-get">deque-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-is-empty">deque-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-deque-length">deque-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-deque-new">deque-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-pop-back">deque-pop-back</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-pop-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-pop-front">deque-pop-front</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-pop-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-push-back">deque-push-back</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-push-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-deque-push-front">deque-push-front</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-push-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-deque-set">deque-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-deque-to-list">deque-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deque-with-capacity">deque-with-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deque-with-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-4465717565"></a>
+# Types
 
-## `Deque`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Deque</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Deque">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Deque</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Deque" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 The header: `head` at word 0 and `len` at word 1, and one cell
 holding the current ring.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 46
+</div>
+</article>
 
 # Values
 
-<a id="value-64657175652d6261636b"></a>
+<article class="doc-entry" id="v-deque-back">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-back" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L185" title="View source at line 185">Source</a></span></div>
+</article>
 
-## `deque-back`
+<article class="doc-entry" id="v-deque-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-deque-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L138" title="View source at line 138">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-back</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d6361706163697479"></a>
-
-## `deque-capacity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d636c656172"></a>
-
-## `deque-clear`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-clear</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-deque-clear">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-clear</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-deque-clear" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L210" title="View source at line 210">Source</a></span></div>
+<div class="doc-body">
 
 Drop every element; the capacity stays.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 210
+</div>
+</article>
 
-<a id="value-64657175652d666f6c64"></a>
-
-## `deque-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-deque-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-fold</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-deque-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-body">
 
 A left fold front to back through a pure function.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 251
+</div>
+</article>
 
-<a id="value-64657175652d666f722d65616368"></a>
-
-## `deque-for-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-for-each</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-deque-for-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-deque-for-each" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 Run an action front to back; the ring, head and length are re-read
 at every step.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 262
+</div>
+</article>
 
-<a id="value-64657175652d66726f6d2d6c697374"></a>
+<article class="doc-entry" id="v-deque-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-from-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L224" title="View source at line 224">Source</a></span></div>
+</article>
 
-## `deque-from-list`
+<article class="doc-entry" id="v-deque-front">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-front" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L182" title="View source at line 182">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-deque-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-get" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L193" title="View source at line 193">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
+<article class="doc-entry" id="v-deque-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-is-empty</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-deque-is-empty" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L135" title="View source at line 135">Source</a></span></div>
+</article>
 
-<a id="value-64657175652d66726f6e74"></a>
+<article class="doc-entry" id="v-deque-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-deque-length" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L132" title="View source at line 132">Source</a></span></div>
+</article>
 
-## `deque-front`
+<article class="doc-entry" id="v-deque-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-new" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L116" title="View source at line 116">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-front</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-deque-pop-back">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-pop-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-pop-back" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L172" title="View source at line 172">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
+<article class="doc-entry" id="v-deque-pop-front">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-pop-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-pop-front" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L160" title="View source at line 160">Source</a></span></div>
+</article>
 
-<a id="value-64657175652d676574"></a>
+<article class="doc-entry" id="v-deque-push-back">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-push-back</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-deque-push-back" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L143" title="View source at line 143">Source</a></span></div>
+</article>
 
-## `deque-get`
+<article class="doc-entry" id="v-deque-push-front">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-push-front</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-deque-push-front" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L151" title="View source at line 151">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d69732d656d707479"></a>
-
-## `deque-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d6c656e677468"></a>
-
-## `deque-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d6e6577"></a>
-
-## `deque-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d706f702d6261636b"></a>
-
-## `deque-pop-back`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-pop-back</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d706f702d66726f6e74"></a>
-
-## `deque-pop-front`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-pop-front</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d707573682d6261636b"></a>
-
-## `deque-push-back`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-push-back</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d707573682d66726f6e74"></a>
-
-## `deque-push-front`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-push-front</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.Deque.cinch)
-
-<a id="value-64657175652d736574"></a>
-
-## `deque-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-deque-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-set</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-deque-set" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 Replace element `i`: `False` (and nothing written) when out of range.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 201
+</div>
+</article>
 
-<a id="value-64657175652d746f2d6c697374"></a>
-
-## `deque-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-deque-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L238" title="View source at line 238">Source</a></span></div>
+<div class="doc-body">
 
 Front to back.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 238
+</div>
+</article>
 
-<a id="value-64657175652d776974682d6361706163697479"></a>
-
-## `deque-with-capacity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deque-with-capacity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Deque</span>.<span class="tok-constructor">Deque</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-deque-with-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deque-with-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Deque" title="Data.Mutable.Deque.Deque">Deque</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-deque-with-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Deque/source/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-body">
 
 An empty deque with room for `n` elements (rounded up to a power of
 two) before its first growth.
 
-[Source](/reference-sources/Data.Mutable.Deque.cinch) · line 121
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Deque.cinch`. Source SHA-256: `3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+</div>
+</article>

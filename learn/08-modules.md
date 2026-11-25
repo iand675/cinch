@@ -156,7 +156,7 @@ The rules that apply are the same: `doubled` is exported, `import Helper` makes 
 
 Every program sees the curated `Prelude` without importing anything, which is why `Nat`, `List`, `main` and `string-to-bytes` work in a file whose only import is another local module. That facade deliberately does not name everything: `Category.Foldable`'s class methods, `Data.NonZero`'s constructors, `Data.NonEmpty`'s constructor and `Text.Show`'s class all need an explicit import of their home, as chapters 5, 6 and 7 showed. A name that is absent from the facade is not absent from the library.
 
-Some library modules ship as source rather than being embedded in the compiler. For those, the module's source and its non-embedded dependencies have to sit beside the entry file, using the copying instructions in the [library guide](../library/00-index.md). An `import` never reaches the network: it resolves through the three rules above and then, for an embedded name, through the compiler's own copies.
+Every standard library module ships in the toolchain's `cinch/stdlib` package (`.cinchpkg`) and resolves on demand with a plain `import`—for example `import Data.Rational`, `import Text.Json`, or `import Crypto.Aes`—checked against its `.cinchif`/`.cpk` interface closure. See the [stdlib reference](../library/00-index.md) for the full module directory. An `import` never reaches the network: it resolves through local files, installed packages in `vendor/`, and then the toolchain's `cinch/stdlib` package.
 
 # What the compiler enforces
 

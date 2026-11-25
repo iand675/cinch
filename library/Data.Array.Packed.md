@@ -2,135 +2,71 @@
 
 Packed scalar constructors for Array. The element format travels with the buffer, so generic reads and updates keep it.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Array.Packed</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Array.Packed/source/">View source</a><a href="/packages/search/?q=%2BData.Array.Packed">Search module</a><a href="/reference-sources/Data.Array.Packed.cinch" download="Data.Array.Packed.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-Import with `import Data.Array.Packed`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Array](Data.Array.md), [Data.Core](Data.Core.md).
 
-[Download exact module source](/reference-sources/Data.Array.Packed.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Array](Data.Array.md), [Data.Core](Data.Core.md).
-
-Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Array.Packed](Data.Array.Packed.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Packed scalar constructors. Result is an ordinary Array: the element
 format travels with the buffer, so generic reads and updates preserve it.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-array-from-chars">array-from-chars</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-chars</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-array-from-f32s">array-from-f32s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-f32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code></li><li><a class="syn-name" href="#v-array-from-f64s">array-from-f64s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-f64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-array-from-i16s">array-from-i16s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-i16s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code></li><li><a class="syn-name" href="#v-array-from-i32s">array-from-i32s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-i32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-array-from-i64s">array-from-i64s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-i64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-array-from-i8s">array-from-i8s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-i8s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code></li><li><a class="syn-name" href="#v-array-from-isizes">array-from-isizes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-isizes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code></li><li><a class="syn-name" href="#v-array-from-u16s">array-from-u16s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-u16s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-array-from-u32s">array-from-u32s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-u32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-array-from-u64s">array-from-u64s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-u64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-array-from-u8s">array-from-u8s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-u8s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code></li><li><a class="syn-name" href="#v-array-from-usizes">array-from-usizes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-usizes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-61727261792d66726f6d2d6368617273"></a>
+<article class="doc-entry" id="v-array-from-chars">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-chars</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-array-from-chars" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L18" title="View source at line 18">Source</a></span></div>
+</article>
 
-## `array-from-chars`
+<article class="doc-entry" id="v-array-from-f32s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-f32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-array-from-f32s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L16" title="View source at line 16">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-chars</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-array-from-f64s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-f64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-array-from-f64s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L17" title="View source at line 17">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Array.Packed.cinch)
+<article class="doc-entry" id="v-array-from-i16s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-i16s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code><span class="doc-sig-links"><a href="#v-array-from-i16s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L9" title="View source at line 9">Source</a></span></div>
+</article>
 
-<a id="value-61727261792d66726f6d2d66333273"></a>
+<article class="doc-entry" id="v-array-from-i32s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-i32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-array-from-i32s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L10" title="View source at line 10">Source</a></span></div>
+</article>
 
-## `array-from-f32s`
+<article class="doc-entry" id="v-array-from-i64s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-i64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-array-from-i64s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L11" title="View source at line 11">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">F32</span>))</code></pre>
+<article class="doc-entry" id="v-array-from-i8s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-i8s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code><span class="doc-sig-links"><a href="#v-array-from-i8s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L8" title="View source at line 8">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Array.Packed.cinch)
+<article class="doc-entry" id="v-array-from-isizes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-isizes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code><span class="doc-sig-links"><a href="#v-array-from-isizes" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L20" title="View source at line 20">Source</a></span></div>
+</article>
 
-<a id="value-61727261792d66726f6d2d66363473"></a>
+<article class="doc-entry" id="v-array-from-u16s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-u16s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-array-from-u16s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L13" title="View source at line 13">Source</a></span></div>
+</article>
 
-## `array-from-f64s`
+<article class="doc-entry" id="v-array-from-u32s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-u32s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-array-from-u32s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L14" title="View source at line 14">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-f64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">F64</span>))</code></pre>
+<article class="doc-entry" id="v-array-from-u64s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-u64s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-array-from-u64s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L15" title="View source at line 15">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Array.Packed.cinch)
+<article class="doc-entry" id="v-array-from-u8s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-u8s</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-array-from-u8s" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L12" title="View source at line 12">Source</a></span></div>
+</article>
 
-<a id="value-61727261792d66726f6d2d69313673"></a>
-
-## `array-from-i16s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i16s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I16</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d69333273"></a>
-
-## `array-from-i32s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d69363473"></a>
-
-## `array-from-i64s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d693873"></a>
-
-## `array-from-i8s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-i8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I8</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">I8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d6973697a6573"></a>
-
-## `array-from-isizes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-isizes</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Isize</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Isize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d75313673"></a>
-
-## `array-from-u16s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u16s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U16</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U16</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d75333273"></a>
-
-## `array-from-u32s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u32s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U32</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U32</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d75363473"></a>
-
-## `array-from-u64s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u64s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U64</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d753873"></a>
-
-## `array-from-u8s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-u8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">U8</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-<a id="value-61727261792d66726f6d2d7573697a6573"></a>
-
-## `array-from-usizes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-usizes</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Usize</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-constructor">Usize</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.Packed.cinch)
-
-# Reference provenance
-
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Array/Packed.cinch`. Source SHA-256: `799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+<article class="doc-entry" id="v-array-from-usizes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-usizes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-array-from-usizes" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L19" title="View source at line 19">Source</a></span></div>
+</article>
