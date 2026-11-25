@@ -323,6 +323,13 @@ pub(super) const COMPUTE_DECLARES: &[&str] = &[
     "declare i64 @cinch_array_zip_with_packed(i64, i64, i64, i64)",
     "declare i64 @cinch_array_foldl_packed(i64, i64, i64)",
     "declare i64 @cinch_array_zip_binop_f32(i64, i64, i64)",
+    "declare i64 @cinch_array_zip_binop_f64(i64, i64, i64)",
+    "declare i64 @cinch_array_fill_f32(i64, i64)",
+    "declare i64 @cinch_array_fill_f64(i64, i64)",
+    "declare i64 @cinch_array_scale_f64(i64, i64)",
+    "declare i64 @cinch_array_row_broadcast_f32(i64, i64, i64)",
+    "declare i64 @cinch_array_scatter_add_f32(i64, i64, i64, i64)",
+    "declare i64 @cinch_array_stencil2d_adjoint_f32(i64, i64, i64, i64, i64, i64, i64)",
     "declare i64 @cinch_array_zip_binop_i32(i64, i64, i64)",
     "declare i64 @cinch_array_map_unary_f32(i64, i64, i64)",
     "declare i64 @cinch_array_reduce_i32(i64, i64)",
@@ -717,6 +724,47 @@ pub(super) fn emit_compute(
         DeviceReportBytes => {
             let out = rt_call(b, "cinch_device_report_bytes", &[arg(0)]);
             ret(b, &out);
+        }
+        FillF32 => {
+            let n = nat(b, 0);
+            let out = rt_call(b, "cinch_array_fill_f32", &[n, arg(1)]);
+            ret(b, &out);
+        }
+        FillF64 => {
+            let n = nat(b, 0);
+            let out = rt_call(b, "cinch_array_fill_f64", &[n, arg(1)]);
+            ret(b, &out);
+        }
+        ZipBinopF64 => {
+            let out = rt_call(b, "cinch_array_zip_binop_f64", &[arg(0), arg(1), arg(2)]);
+            ret_opt_nz(b, out);
+        }
+        ScaleF64 => {
+            let out = rt_call(b, "cinch_array_scale_f64", &[arg(0), arg(1)]);
+            ret(b, &out);
+        }
+        RowBroadcastF32 => {
+            let r = nat(b, 1);
+            let c = nat(b, 2);
+            let out = rt_call(b, "cinch_array_row_broadcast_f32", &[arg(0), r, c]);
+            ret(b, &out);
+        }
+        ScatterAddF32 => {
+            let n = nat(b, 0);
+            let out = rt_call(b, "cinch_array_scatter_add_f32", &[n, arg(1), arg(2), arg(3)]);
+            ret(b, &out);
+        }
+        Stencil2DAdjointF32 => {
+            let f = nat(b, 1);
+            let h = nat(b, 2);
+            let w = nat(b, 3);
+            let steps = nat(b, 6);
+            let out = rt_call(
+                b,
+                "cinch_array_stencil2d_adjoint_f32",
+                &[arg(0), f, h, w, arg(4), arg(5), steps],
+            );
+            ret_opt_nz(b, out);
         }
     }
 }

@@ -1,0 +1,144 @@
+-- Data.AD: forward-mode (JVP) and reverse-mode (VJP) automatic differentiation,
+-- matching Futhark's `jvp`, `jvp2`, `vjp`, and `vjp2` semantics, plus
+-- differentiable transcendental math and parallel array adjoint helpers.
+module Data.AD where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Compute
+  import Data.Nat
+  import Data.Int
+  import Data.Bool
+  import Data.Machine
+
+  export jvp2, jvp, vjp2, vjp
+  export deriv-f32, deriv-f64
+  export grad-f32, grad-f64
+  export value-and-grad-f32, value-and-grad-f64
+  export hvp-f32, hvp-f64
+  export sin-f32, cos-f32, exp-f32, log-f32, tanh-f32
+  export sin-f64, cos-f64, exp-f64, log-f64, tanh-f64
+  export array-fill-f32, array-fill-f64
+  export array-zip-binop-f64, array-scale-f64
+  export array-row-broadcast-f32, array-scatter-add-f32, array-stencil2d-adjoint-f32
+
+  -- Compiler-lowered Core-IR automatic differentiation primitives.
+  -- `jvp2 f x dx` computes `(f x, D f(x) · dx)` in forward mode.
+  -- `vjp2 f x dy` computes `(f x, D f(x)^T · dy)` in reverse mode.
+  foreign import ccall "cinch.ad.jvp2" jvp2 :: forall a b. (a -> b) -> a -> a -> (b, b)
+  foreign import ccall "cinch.ad.vjp2" vjp2 :: forall a b. (a -> b) -> a -> b -> (b, a)
+
+  -- Parallel array AD runtime helpers (also used directly by the AD pass).
+  foreign import ccall "cinch.runtime.arrayFillF32" array-fill-f32 :: Nat -> F32 -> Array F32
+  foreign import ccall "cinch.runtime.arrayFillF64" array-fill-f64 :: Nat -> F64 -> Array F64
+  foreign import ccall "cinch.runtime.arrayZipBinopF64" array-zip-binop-f64 :: Array F64 -> Array F64 -> I64 -> Option (Array F64)
+  foreign import ccall "cinch.runtime.arrayScaleF64" array-scale-f64 :: Array F64 -> F64 -> Array F64
+  foreign import ccall "cinch.runtime.arrayRowBroadcastF32" array-row-broadcast-f32 :: Array F32 -> Nat -> Nat -> Array F32
+  foreign import ccall "cinch.runtime.arrayScatterAddF32" array-scatter-add-f32 :: Nat -> Array I32 -> Array F32 -> I64 -> Array F32
+  foreign import ccall "cinch.runtime.arrayStencil2DAdjointF32" array-stencil2d-adjoint-f32 :: Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)
+
+  -- Differentiable transcendental primitives backed by LLVM math intrinsics.
+  prim sin-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.sin.f32(float %0)
+      ret float %r
+    }
+
+  prim cos-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.cos.f32(float %0)
+      ret float %r
+    }
+
+  prim exp-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.exp.f32(float %0)
+      ret float %r
+    }
+
+  prim log-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.log.f32(float %0)
+      ret float %r
+    }
+
+  prim sin-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.sin.f64(double %0)
+      ret double %r
+    }
+
+  prim cos-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.cos.f64(double %0)
+      ret double %r
+    }
+
+  prim exp-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.exp.f64(double %0)
+      ret double %r
+    }
+
+  prim log-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.log.f64(double %0)
+      ret double %r
+    }
+
+  -- Numerically stable hyperbolic tangent (differentiates automatically to any order).
+  tanh-f32 :: F32 -> F32
+  tanh-f32 x =
+    if fge-f32 x 0.0
+      then
+        let e = exp-f32 (neg-f32 (mul-f32 2.0 x))
+        in div-f32 (sub-f32 1.0 e) (add-f32 1.0 e)
+      else
+        let e = exp-f32 (mul-f32 2.0 x)
+        in div-f32 (sub-f32 e 1.0) (add-f32 e 1.0)
+
+  tanh-f64 :: F64 -> F64
+  tanh-f64 x =
+    if fge-f64 x 0.0
+      then
+        let e = exp-f64 (neg-f64 (mul-f64 2.0 x))
+        in div-f64 (sub-f64 1.0 e) (add-f64 1.0 e)
+      else
+        let e = exp-f64 (mul-f64 2.0 x)
+        in div-f64 (sub-f64 e 1.0) (add-f64 e 1.0)
+
+  -- Forward-mode directional derivative (Jacobian-vector product).
+  jvp :: forall a b. (a -> b) -> a -> a -> b
+  jvp f x dx = case jvp2 f x dx of
+    (_, dy) -> dy
+
+  -- Reverse-mode adjoint (vector-Jacobian product).
+  vjp :: forall a b. (a -> b) -> a -> b -> a
+  vjp f x dy = case vjp2 f x dy of
+    (_, dx) -> dx
+
+  -- Single-variable scalar derivatives (forward mode).
+  deriv-f32 :: (F32 -> F32) -> F32 -> F32
+  deriv-f32 f x = jvp f x 1.0
+
+  deriv-f64 :: (F64 -> F64) -> F64 -> F64
+  deriv-f64 f x = jvp f x 1.0
+
+  -- Scalar-output gradients (reverse mode).
+  grad-f32 :: forall a. (a -> F32) -> a -> a
+  grad-f32 f x = vjp f x 1.0
+
+  grad-f64 :: forall a. (a -> F64) -> a -> a
+  grad-f64 f x = vjp f x 1.0
+
+  value-and-grad-f32 :: forall a. (a -> F32) -> a -> (F32, a)
+  value-and-grad-f32 f x = vjp2 f x 1.0
+
+  value-and-grad-f64 :: forall a. (a -> F64) -> a -> (F64, a)
+  value-and-grad-f64 f x = vjp2 f x 1.0
+
+  -- Forward-over-reverse Hessian-vector products: H(f)(x) · v = J_x(grad f)(x) · v.
+  hvp-f32 :: forall a. (a -> F32) -> a -> a -> a
+  hvp-f32 f x v = jvp (\z -> vjp f z 1.0) x v
+
+  hvp-f64 :: forall a. (a -> F64) -> a -> a -> a
+  hvp-f64 f x v = jvp (\z -> vjp f z 1.0) x v

@@ -5,6 +5,7 @@
 //!
 //! Scope of this bootstrap slice is documented in `seed/README.md`.
 
+pub mod ad;
 pub mod analysis;
 mod applications;
 pub mod arrays;

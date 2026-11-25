@@ -3534,7 +3534,8 @@ pub fn package_variants(
         // The variant's residual program: the same specialization path
         // the build takes (supercompilation and JIT specification
         // section 5: the driving bounds are profile parameters).
-        let (program, _opt) = crate::specialize::optimize(&program, profile)?;
+        let (mut program, _opt) = crate::specialize::optimize(&program, profile)?;
+        crate::ad::lower_program(&mut program)?;
         let program = crate::rc::insert(program, profile)?;
         let program = stack_alloc(program, profile, &DriverOptions::default());
         let ir = crate::codegen::emit_for(profile, &program)?;
@@ -6074,6 +6075,10 @@ pub fn driver_with_profile_opts(
         (program, opt, Vec::new())
     };
     trace_driver_phase(phase_trace, "optimization.end");
+    // Core-IR forward-mode (JVP) and reverse-mode (VJP) automatic differentiation
+    // (`seed/src/ad.rs`). Runs before Typed Array IR optimization so differentiated
+    // array programs participate in fusion, scheduling, and storage planning.
+    crate::ad::lower_program(&mut program)?;
     // Typed Array IR optimization, schedule planning, storage planning, and
     // compile-time GPU target diagnostics (`seed/src/array_ir.rs`).
     let array_target = opts.resolved_array_target();
@@ -6518,7 +6523,8 @@ pub fn run_program_objects(
     profile: &crate::core::TargetProfile,
     objects: &[&str],
 ) -> Result<i32> {
-    let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(program, profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, profile)?;
     let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;
@@ -6622,7 +6628,8 @@ pub fn run_source_objects(src: &str, objects: &[&str]) -> Result<i32> {
 pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<()> {
     let profile = crate::core::TargetProfile::native();
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
-    let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, &profile)?;
     let program = stack_alloc(program, &profile, &DriverOptions::default());
     let ir = codegen::emit_for(&profile, &program)?;
@@ -6646,7 +6653,8 @@ pub fn run_program_io(
     profile: &crate::core::TargetProfile,
     input: &[u8],
 ) -> Result<(i32, String)> {
-    let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let (mut program, _opt) = crate::specialize::optimize(program, profile)?;
+    crate::ad::lower_program(&mut program)?;
     let program = crate::rc::insert_closed(program, profile)?;
     let program = stack_alloc(program, profile, &DriverOptions::default());
     let ir = codegen::emit_for(profile, &program)?;

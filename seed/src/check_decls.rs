@@ -17,6 +17,7 @@ fn prim_scheme(op: PrimOp) -> Scheme {
     let mut scheme = Scheme::mono(ty);
     match op {
         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
+        PrimOp::Ad { op, .. } => scheme.params = op.params(),
         PrimOp::ArrayCompute { op, .. } => scheme.params = op.params(),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
         PrimOp::MVar { op, .. } => scheme.params = op.params(),
@@ -3797,13 +3798,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
+                        let kind = if matches!(op, PrimOp::Ad { .. } | PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
+                            let repr_result = matches!(op, PrimOp::Ad { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),

@@ -754,6 +754,10 @@ fn emit_module(
     out.push_str("declare double @llvm.fabs.f64(double)\n");
     out.push_str("declare float @llvm.sqrt.f32(float)\n");
     out.push_str("declare double @llvm.sqrt.f64(double)\n");
+    for f in ["sin", "cos", "exp", "log"] {
+        out.push_str(&format!("declare float @llvm.{f}.f32(float)\n"));
+        out.push_str(&format!("declare double @llvm.{f}.f64(double)\n"));
+    }
     out.push_str("declare float @llvm.copysign.f32(float, float)\n");
     out.push_str("declare double @llvm.copysign.f64(double, double)\n");
     for f in ["floor", "ceil", "trunc", "round", "roundeven"] {
@@ -2370,6 +2374,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
         crate::repr::repr_of(result, &params, &SigTypes, &mut |_| {}).subst(classes)
     };
     match op {
+        PrimOp::Ad { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
         PrimOp::ArrayCompute { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
@@ -2387,6 +2392,14 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
 pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
     use ConcOp::*;
     match op {
+        PrimOp::Ad { op, classes } => {
+            let params = op.params();
+            op.sig()
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
         PrimOp::Array {
             op,
             classes,
@@ -7552,6 +7565,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
     let op = op.resolve_widths(cx.usize_bits);
     use PrimOp::*;
     match op {
+        Ad { op, .. } => {
+            panic!("internal error: unlowered AD primitive `{}` reached codegen", op.name());
+        }
         Array {
             op: array_op,
             classes,
@@ -9356,6 +9372,10 @@ fn prim_llvm_intrinsic_declares(program: &Program, so_far: &str) -> Vec<String> 
             || sym.starts_with("llvm.bitreverse.")
             || sym.starts_with("llvm.fabs.")
             || sym.starts_with("llvm.sqrt.")
+            || sym.starts_with("llvm.sin.")
+            || sym.starts_with("llvm.cos.")
+            || sym.starts_with("llvm.exp.")
+            || sym.starts_with("llvm.log.")
             || sym.starts_with("llvm.floor.")
             || sym.starts_with("llvm.ceil.")
             || sym.starts_with("llvm.trunc.")

@@ -223,10 +223,18 @@ pub enum ArrayComputeOp {
     DeviceStencil2DF32,
     DeviceSpmvCsrF32,
     DeviceReportBytes,
+    // Automatic differentiation parallel array helpers
+    FillF32,
+    FillF64,
+    ZipBinopF64,
+    ScaleF64,
+    RowBroadcastF32,
+    ScatterAddF32,
+    Stencil2DAdjointF32,
 }
 
 impl ArrayComputeOp {
-    pub const ALL: [Self; 66] = [
+    pub const ALL: [Self; 73] = [
         Self::TabulateU8,
         Self::TabulateI32,
         Self::TabulateU32,
@@ -293,6 +301,13 @@ impl ArrayComputeOp {
         Self::DeviceStencil2DF32,
         Self::DeviceSpmvCsrF32,
         Self::DeviceReportBytes,
+        Self::FillF32,
+        Self::FillF64,
+        Self::ZipBinopF64,
+        Self::ScaleF64,
+        Self::RowBroadcastF32,
+        Self::ScatterAddF32,
+        Self::Stencil2DAdjointF32,
     ];
 
     pub fn name(self) -> &'static str {
@@ -363,6 +378,13 @@ impl ArrayComputeOp {
             Self::DeviceStencil2DF32 => "deviceStencil2DF32",
             Self::DeviceSpmvCsrF32 => "deviceSpmvCsrF32",
             Self::DeviceReportBytes => "deviceReportBytes",
+            Self::FillF32 => "arrayFillF32",
+            Self::FillF64 => "arrayFillF64",
+            Self::ZipBinopF64 => "arrayZipBinopF64",
+            Self::ScaleF64 => "arrayScaleF64",
+            Self::RowBroadcastF32 => "arrayRowBroadcastF32",
+            Self::ScatterAddF32 => "arrayScatterAddF32",
+            Self::Stencil2DAdjointF32 => "arrayStencil2DAdjointF32",
         }
     }
 
@@ -483,6 +505,16 @@ impl ArrayComputeOp {
                 i64t,
             ),
             Self::DeviceReportBytes => (vec![i64t], bytes),
+            Self::FillF32 => (vec![Ty::Nat, f32t.clone()], arr(f32t)),
+            Self::FillF64 => (vec![Ty::Nat, f64t.clone()], arr(f64t)),
+            Self::ZipBinopF64 => (vec![arr(f64t.clone()), arr(f64t.clone()), i64t], opt(arr(f64t))),
+            Self::ScaleF64 => (vec![arr(f64t.clone()), f64t.clone()], arr(f64t)),
+            Self::RowBroadcastF32 => (vec![arr(f32t.clone()), Ty::Nat, Ty::Nat], arr(f32t)),
+            Self::ScatterAddF32 => (vec![Ty::Nat, arr(i32t), arr(f32t.clone()), i64t], arr(f32t)),
+            Self::Stencil2DAdjointF32 => (
+                vec![arr(f32t.clone()), Ty::Nat, Ty::Nat, Ty::Nat, arr(f32t.clone()), i64t, Ty::Nat],
+                opt(arr(f32t)),
+            ),
         }
     }
 
@@ -492,12 +524,14 @@ impl ArrayComputeOp {
             Self::ZipWithI32
                 | Self::ZipWithF32
                 | Self::ZipBinopF32
+                | Self::ZipBinopF64
                 | Self::ZipBinopI32
                 | Self::RowReduceF32
                 | Self::RowReduceI32
                 | Self::HistogramBatchU8
                 | Self::Stencil2DU8
                 | Self::Stencil2DF32
+                | Self::Stencil2DAdjointF32
                 | Self::PackStrided1D
                 | Self::PackStrided2D
                 | Self::DeviceDownloadU8

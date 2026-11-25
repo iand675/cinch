@@ -1052,8 +1052,41 @@ impl ParOp {
     }
 }
 
+/// Automatic differentiation primitives (lowered to pure Core by `crate::ad`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AdOp {
+    /// Forward-mode JVP returning `(primal, tangent)`: `(a -> b) -> a -> a -> (b, b)`.
+    Jvp2,
+    /// Reverse-mode VJP returning `(primal, cotangent)`: `(a -> b) -> a -> b -> (b, a)`.
+    Vjp2,
+}
+
+impl AdOp {
+    pub fn name(self) -> &'static str {
+        match self {
+            AdOp::Jvp2 => "jvp2",
+            AdOp::Vjp2 => "vjp2",
+        }
+    }
+
+    pub fn params(self) -> Vec<String> {
+        vec!["a".into(), "b".into()]
+    }
+
+    pub fn sig(self) -> (Vec<Ty>, Ty) {
+        let a = Ty::Param("a".into());
+        let b = Ty::Param("b".into());
+        match self {
+            AdOp::Jvp2 => (vec![Ty::fun(a.clone(), b.clone()), a.clone(), a], Ty::Tuple(vec![b.clone(), b])),
+            AdOp::Vjp2 => (vec![Ty::fun(a.clone(), b.clone()), a.clone(), b.clone()], Ty::Tuple(vec![b, a])),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
+    /// Automatic differentiation (`jvp2`/`vjp2`), lowered to pure Core before array IR & RC.
+    Ad { op: AdOp, classes: [Class; 2] },
     /// Immutable typed arrays, specialized by element representation.
     Array { op: crate::arrays::ArrayOp, classes: [Class; 2], packed: Option<Scalar> },
     /// Data-parallel packed array compute & device operations preserved through Typed Array IR.
@@ -1210,6 +1243,13 @@ impl PrimOp {
 
     /// The intrinsic symbol names recognised on `foreign import ccall`.
     pub fn from_symbol(sym: &str) -> Option<PrimOp> {
+        if let Some(name) = sym.strip_prefix("cinch.ad.") {
+            return match name {
+                "jvp2" => Some(Self::Ad { op: AdOp::Jvp2, classes: [Class::Param(0), Class::Param(1)] }),
+                "vjp2" => Some(Self::Ad { op: AdOp::Vjp2, classes: [Class::Param(0), Class::Param(1)] }),
+                _ => None,
+            };
+        }
         if let Some(name) = sym.strip_prefix("cinch.runtime.") {
             for op in crate::arrays::ArrayOp::ALL {
                 if name == op.name() {
@@ -1374,6 +1414,7 @@ impl PrimOp {
     pub fn symbol(self) -> String {
         use PrimOp::*;
         let n = match self {
+            Ad { op, .. } => return format!("cinch.ad.{}", op.name()),
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             ArrayCompute { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
@@ -1475,6 +1516,7 @@ impl PrimOp {
     pub fn arity(self) -> usize {
         use PrimOp::*;
         match self {
+            Ad { op, .. } => op.sig().0.len(),
             Array { op, packed, .. } => op.sig(packed).0.len(),
             ArrayCompute { op, .. } => op.sig().0.len(),
             Stm { op, .. } => op.sig().0.len(),
@@ -1557,6 +1599,7 @@ impl PrimOp {
         // success payload otherwise.
         let res = |t: Ty| Ty::Adt(crate::known::RESULT.into(), vec![i64t.clone(), t]);
         match self {
+            Ad { op, .. } => op.sig(),
             Array { op, packed, .. } => op.sig(packed),
             ArrayCompute { op, .. } => op.sig(),
             Stm { op, .. } => op.sig(),

@@ -3216,6 +3216,219 @@ pub unsafe extern "C" fn cinch_array_copy_out_raw(a: i64, dst: *mut u8, max_byte
 }
 
 // ---------------------------------------------------------------------------
+// Automatic Differentiation (AD) parallel array helpers
+// ---------------------------------------------------------------------------
+
+/// Fill a packed `Array F32` of length `n` with `val` (adjoint of `reduce-f32`, zero tangent).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_fill_f32(n: i64, val_bits: i64) -> i64 {
+    let len = n.max(0) as usize;
+    let v = f32::from_bits(val_bits as u32);
+    let out = unsafe { arrays::alloc_uninit_packed(len as i64, FMT_F32) };
+    let dst = unsafe { slice_f32_mut(out) };
+    let d_ptr = dst.as_mut_ptr() as usize;
+    parallel_chunks(len, 8192, |_, _, lo, hi| {
+        let d = unsafe { std::slice::from_raw_parts_mut(d_ptr as *mut f32, len) };
+        for i in lo..hi {
+            d[i] = v;
+        }
+    });
+    out
+}
+
+/// Fill a packed `Array F64` of length `n` with `val` (adjoint of `reduce-f64`, zero tangent).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_fill_f64(n: i64, val_bits: i64) -> i64 {
+    let len = n.max(0) as usize;
+    let v = f64::from_bits(val_bits as u64);
+    let out = unsafe { arrays::alloc_uninit_packed(len as i64, FMT_F64) };
+    let dst = unsafe { slice_f64_mut(out) };
+    let d_ptr = dst.as_mut_ptr() as usize;
+    parallel_chunks(len, 8192, |_, _, lo, hi| {
+        let d = unsafe { std::slice::from_raw_parts_mut(d_ptr as *mut f64, len) };
+        for i in lo..hi {
+            d[i] = v;
+        }
+    });
+    out
+}
+
+/// Parallel elementwise binary op on two packed `Array F64` buffers (returns 0 on length mismatch).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_zip_binop_f64(a: i64, b: i64, binop: i64) -> i64 {
+    let xs = unsafe { slice_f64(a) };
+    let ys = unsafe { slice_f64(b) };
+    if xs.len() != ys.len() {
+        return 0;
+    }
+    let n = xs.len();
+    let out = unsafe { arrays::alloc_uninit_packed(n as i64, FMT_F64) };
+    let dst = unsafe { slice_f64_mut(out) };
+    let d_ptr = dst.as_mut_ptr() as usize;
+    parallel_chunks(n, 8192, |_, _, lo, hi| {
+        let d = unsafe { std::slice::from_raw_parts_mut(d_ptr as *mut f64, n) };
+        match binop {
+            BINOP_ADD => for i in lo..hi { d[i] = xs[i] + ys[i]; },
+            BINOP_SUB => for i in lo..hi { d[i] = xs[i] - ys[i]; },
+            BINOP_MUL => for i in lo..hi { d[i] = xs[i] * ys[i]; },
+            BINOP_DIV => for i in lo..hi { d[i] = xs[i] / ys[i]; },
+            _ => for i in lo..hi { d[i] = xs[i] + ys[i]; },
+        }
+    });
+    out
+}
+
+/// Parallel scalar multiplication `c * a` on a packed `Array F64`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_scale_f64(a: i64, scalar_bits: i64) -> i64 {
+    let xs = unsafe { slice_f64(a) };
+    let c = f64::from_bits(scalar_bits as u64);
+    let n = xs.len();
+    let out = unsafe { arrays::alloc_uninit_packed(n as i64, FMT_F64) };
+    let dst = unsafe { slice_f64_mut(out) };
+    let d_ptr = dst.as_mut_ptr() as usize;
+    parallel_chunks(n, 8192, |_, _, lo, hi| {
+        let d = unsafe { std::slice::from_raw_parts_mut(d_ptr as *mut f64, n) };
+        for i in lo..hi {
+            d[i] = c * xs[i];
+        }
+    });
+    out
+}
+
+/// Adjoint of `arrayRowReduceF32`: broadcast `rows` cotangents across `cols` elements each.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_row_broadcast_f32(v: i64, rows: i64, cols: i64) -> i64 {
+    let xs = unsafe { slice_f32(v) };
+    let r = rows.max(0) as usize;
+    let c = cols.max(0) as usize;
+    let total = r.saturating_mul(c);
+    let out = unsafe { arrays::alloc_uninit_packed(total as i64, FMT_F32) };
+    if total == 0 || xs.len() < r {
+        if total > 0 {
+            for slot in unsafe { slice_f32_mut(out) }.iter_mut() {
+                *slot = 0.0;
+            }
+        }
+        return out;
+    }
+    let dst = unsafe { slice_f32_mut(out) };
+    let d_ptr = dst.as_mut_ptr() as usize;
+    parallel_chunks(r, 64, |_, _, rlo, rhi| {
+        let d = unsafe { std::slice::from_raw_parts_mut(d_ptr as *mut f32, total) };
+        for row in rlo..rhi {
+            let val = xs[row];
+            let base = row * c;
+            for col in 0..c {
+                d[base + col] = val;
+            }
+        }
+    });
+    out
+}
+
+/// Adjoint of `arrayGatherF32`: scatter-add `vals` into a zero-initialized `Array F32` of length `n`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_scatter_add_f32(
+    n: i64,
+    indices: i64,
+    vals: i64,
+    policy: i64,
+) -> i64 {
+    let len = n.max(0) as usize;
+    let idx = unsafe { slice_i32(indices) };
+    let vs = unsafe { slice_f32(vals) };
+    let out = unsafe { arrays::alloc_uninit_packed(len as i64, FMT_F32) };
+    let dst = unsafe { slice_f32_mut(out) };
+    for slot in dst.iter_mut() {
+        *slot = 0.0;
+    }
+    if len == 0 {
+        return out;
+    }
+    let m = idx.len().min(vs.len());
+    for i in 0..m {
+        if let Some(pos) = resolve_edge(i64::from(idx[i]), len, policy) {
+            dst[pos] += vs[i];
+        }
+    }
+    out
+}
+
+/// Exact mathematical transpose/adjoint of `cinch_array_stencil2d_f32` for all 4 edge policies
+/// and arbitrary step counts `steps`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_array_stencil2d_adjoint_f32(
+    dy_arr: i64,
+    frames: i64,
+    height: i64,
+    width: i64,
+    weights_arr: i64,
+    edge_policy: i64,
+    steps: i64,
+) -> i64 {
+    let f = frames.max(0) as usize;
+    let h = height.max(0) as usize;
+    let w = width.max(0) as usize;
+    let total = f.saturating_mul(h).saturating_mul(w);
+    let dy_in = unsafe { slice_f32(dy_arr) };
+    if dy_in.len() != total {
+        return 0;
+    }
+    let w_slice = unsafe { slice_f32(weights_arr) };
+    if w_slice.len() != 9 {
+        return 0;
+    }
+    let mut weights = [0.0f32; 9];
+    weights.copy_from_slice(w_slice);
+    let nsteps = steps.max(0) as usize;
+    let out = unsafe { arrays::alloc_uninit_packed(total as i64, FMT_F32) };
+    if nsteps == 0 || total == 0 {
+        if total > 0 {
+            unsafe { slice_f32_mut(out) }.copy_from_slice(dy_in);
+        }
+        return out;
+    }
+    let fp = h * w;
+    let mut cur = dy_in.to_vec();
+    let mut next = vec![0.0f32; total];
+    for _ in 0..nsteps {
+        for slot in next.iter_mut() {
+            *slot = 0.0;
+        }
+        let n_ptr = next.as_mut_ptr() as usize;
+        let c_ptr = cur.as_ptr() as usize;
+        parallel_chunks(f, 1, |_, _, flo, fhi| {
+            let src_all = unsafe { std::slice::from_raw_parts(c_ptr as *const f32, total) };
+            let dst_all = unsafe { std::slice::from_raw_parts_mut(n_ptr as *mut f32, total) };
+            for fr in flo..fhi {
+                let base = fr * fp;
+                let src = &src_all[base..base + fp];
+                let dst = &mut dst_all[base..base + fp];
+                for y in 0..h {
+                    let yi = y as i64;
+                    for x in 0..w {
+                        let xi = x as i64;
+                        let g = src[y * w + x];
+                        for dy in -1..=1i64 {
+                            let Some(ry) = resolve_edge(yi + dy, h, edge_policy) else { continue };
+                            for dx in -1..=1i64 {
+                                let Some(rx) = resolve_edge(xi + dx, w, edge_policy) else { continue };
+                                let wt = weights[((dy + 1) * 3 + (dx + 1)) as usize];
+                                dst[ry * w + rx] += wt * g;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        std::mem::swap(&mut cur, &mut next);
+    }
+    unsafe { slice_f32_mut(out) }.copy_from_slice(&cur);
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests: Reference Evaluator vs Multicore CPU agreement across all ops
 // ---------------------------------------------------------------------------
 
