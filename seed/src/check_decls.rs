@@ -2309,6 +2309,27 @@ impl Checker {
                 ),
             ],
         );
+        // `data Same a b where Refl :: Same a a`: built-in poly-kinded
+        // propositional equality witness (returned by `sing-eq`). `Refl` is a
+        // static nullary block (zero runtime allocation) and matching it
+        // refines `a ~ b`.
+        self.register_family(
+            "Same",
+            vec![
+                ("a".to_string(), ParamKind::Type),
+                ("b".to_string(), ParamKind::Type),
+            ],
+            vec![(
+                "Refl".to_string(),
+                0,
+                Vec::new(),
+                Vec::new(),
+                vec![
+                    Ty::Param("a".to_string().into()),
+                    Ty::Param("a".to_string().into()),
+                ],
+            )],
+        );
         self.install_index_values();
     }
 
@@ -3114,6 +3135,7 @@ impl Checker {
         let mut lhs_tys = Vec::with_capacity(rewritten.len());
         for (i, arg) in rewritten.iter().enumerate() {
             let ty = match param_kinds.get(i) {
+                Some(ParamKind::Val(Ty::Bool)) => self.conv_promoted(arg, &pat_vars, Some(&Ty::Bool))?,
                 Some(ParamKind::Val(vty)) => {
                     Ty::Idx(Box::new(self.conv_idx(arg, &pat_vars, vty)?))
                 }
@@ -3521,6 +3543,20 @@ impl Checker {
         // core specification section 2).
         self.predeclare_nominal_heads(&module, &flat)?;
 
+        // Pre-index ordinary equations by function name so pure functions can
+        // be compiled into the native compile-time evaluator as soon as their
+        // signature is checked (allowing later signatures in the same module to
+        // call them at the type level).
+        let mut module_eqs_by_name: HashMap<String, Vec<ast::Equation>> = HashMap::new();
+        for (_, decl) in &flat {
+            if let ast::Decl::Equation { modifier: None, eq } = decl {
+                module_eqs_by_name
+                    .entry(eq.name.text.clone())
+                    .or_default()
+                    .push(eq.clone());
+            }
+        }
+
         for (decl_attrs, d) in &flat {
             // A parameterized module carries its parameters into every
             // definition, which the compile-time and evidence fragments do
@@ -3673,6 +3709,11 @@ impl Checker {
                         self.deferred_headers.insert(key, (d.clone(), decl_attrs.clone()));
                     } else {
                         let scheme = self.collect_value_header(&module, d, decl_attrs)?;
+                        if ordinary {
+                            if let Some(fn_eqs) = module_eqs_by_name.get(&name.text) {
+                                self.try_register_promoted_fn(&module, &name.text, &scheme, fn_eqs);
+                            }
+                        }
                         schemes.insert(name.text.clone(), scheme);
                     }
                 }
@@ -3756,6 +3797,12 @@ impl Checker {
                     eqs.push((eq.name.text.clone(), eq.clone()));
                 }
                 ast::Decl::Foreign(f) => {
+                    if PrimOp::from_symbol(&f.symbol).is_none() {
+                        self.promoted_rejections.insert(
+                            format!("{module}.{}", f.name.text),
+                            "foreign function cannot be promoted to the type level".into(),
+                        );
+                    }
                     let set = self.validate_attr_site(decl_attrs, AttrSite::ForeignDecl)?;
                     if f.abi != "ccall" {
                         return Err(Error::at(
@@ -4393,6 +4440,9 @@ impl Checker {
                     };
                     if idx_carrier.is_some() {
                         self.idx_type_families.insert(identity.clone());
+                    }
+                    if let Some(dty) = &data_return_kind {
+                        self.data_type_family_returns.insert(identity.clone(), dty.clone());
                     }
                     // Register the empty rule set first so recursive equations
                     // know this head is a type family during overlap/conversion.
@@ -5898,6 +5948,11 @@ impl Checker {
                 .unwrap_or(false);
             if name != "main" && !bound_by_import && !equation_names.contains(name.as_str()) {
                 return Err(Error::plain(format!("missing defining equation for {name}")));
+            }
+        }
+        for (name, scheme) in &schemes {
+            if let Some(fn_eqs) = module_eqs_by_name.get(name) {
+                self.try_register_promoted_fn(&module, name, scheme, fn_eqs);
             }
         }
         for (name, scheme) in schemes {

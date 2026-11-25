@@ -169,6 +169,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
         Ty::Param(n) => match params.iter().position(|p| p == n) {
             Some(i) => Class::Param(i as u16),
             None if n.starts_with("$gadt_t_") => Class::Obj,
+            None if n.starts_with("$sing_") => Class::Raw,
             None => {
                 miss(ty);
                 Class::Raw
@@ -190,6 +191,17 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
                     Class::Raw
                 }
             },
+            // Zero-cost runtime singleton: `Sing T x` has the exact same runtime
+            // representation and reference-counting class as its carrier `T`.
+            "Sing" => match args.as_slice() {
+                [carrier, _] => repr_of(carrier, params, types, miss),
+                _ => {
+                    miss(ty);
+                    Class::Raw
+                }
+            },
+            // Built-in poly-kinded equality witness (`Refl` is a static nullary block).
+            "Same" => Class::Obj,
             // Capability evidence and structured-concurrency handles are
             // runtime-owned words.
             "Io" | "Scope" | "Task" | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"

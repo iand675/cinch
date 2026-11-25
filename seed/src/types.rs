@@ -1059,10 +1059,14 @@ impl Spell for ITerm {
             }
             ITerm::Bin(op, a, b) => write!(f, "({} {op} {})", s.of(&**a), s.of(&**b)),
             ITerm::TyFamily(name, args) => {
+                let display = name
+                    .as_str()
+                    .strip_prefix(crate::promote::PROMOTED_FN_PREFIX)
+                    .unwrap_or(name.as_str());
                 if args.is_empty() {
-                    write!(f, "{name}")
+                    write!(f, "{display}")
                 } else {
-                    write!(f, "({name}")?;
+                    write!(f, "({display}")?;
                     for a in args {
                         write!(f, " {}", s.of(a))?;
                     }
@@ -3557,7 +3561,26 @@ impl Spell for Ty {
                         write!(f, "refined ({}) {}", s.of(&p), s.of(base))
                     };
                 }
-                let display_head = t.strip_prefix("ctor:").unwrap_or(t.as_str());
+                // Zero-cost runtime singleton prints as `Sing <val>` (hiding the internal carrier).
+                if let (true, [_, val]) = (t == "Sing", args.as_slice()) {
+                    return if needs_parens_as_argument(val) {
+                        write!(f, "Sing ({})", s.of(val))
+                    } else {
+                        write!(f, "Sing {}", s.of(val))
+                    };
+                }
+                // Promoted `Bool` literals.
+                if t == crate::promote::PROMOTED_TRUE && args.is_empty() {
+                    return write!(f, "True");
+                }
+                if t == crate::promote::PROMOTED_FALSE && args.is_empty() {
+                    return write!(f, "False");
+                }
+                let display_head = t
+                    .strip_prefix("ctor:")
+                    .or_else(|| t.strip_prefix(crate::promote::PROMOTED_FN_PREFIX))
+                    .or_else(|| t.strip_prefix(crate::promote::PROMOTED_FNREF_PREFIX))
+                    .unwrap_or(t.as_str());
                 s.nominal(f, display_head)?;
                 for a in args {
                     if needs_parens_as_argument(a) {
@@ -4171,6 +4194,8 @@ pub struct Unifier {
     /// `Type`-returning and `Nat`/index-returning). Shared by `Arc` so
     /// cloning a `Unifier` is O(1).
     type_families: std::sync::Arc<HashMap<String, TypeFamilyRuleSet>>,
+    /// Native compile-time evaluator for promoted pure functions.
+    promoted: crate::promote::PromotedEnv,
 }
 
 /// The right-hand side of a compiled type family equation.
@@ -4853,6 +4878,19 @@ impl Unifier {
         self.type_families.get(identity)
     }
 
+    /// Register a promoted pure function for native compile-time evaluation.
+    pub fn register_promoted_fn(&mut self, func: crate::promote::PromotedFn) {
+        self.promoted.register(func);
+    }
+
+    pub fn promoted_fn(&self, identity: &str) -> Option<&crate::promote::PromotedFn> {
+        self.promoted.get(identity)
+    }
+
+    pub fn promoted_env(&self) -> &crate::promote::PromotedEnv {
+        &self.promoted
+    }
+
     fn match_family_rule(&self, identity: &str, args: &[Ty]) -> Option<TypeFamilyRhs> {
         let set = self.type_families.get(identity)?;
         if args.len() != set.arity {
@@ -4889,7 +4927,7 @@ impl Unifier {
     }
 
     fn reduce_type_family_head(&self, mut ty: Ty) -> Ty {
-        if self.type_families.is_empty() {
+        if self.type_families.is_empty() && self.promoted.is_empty() {
             return ty;
         }
         let mut fuel = TYPE_FAMILY_FUEL;
@@ -4904,6 +4942,21 @@ impl Unifier {
                         continue;
                     }
                     return Ty::Adt(head.clone(), zargs);
+                }
+                Ty::Adt(ref head, ref args) => {
+                    if let Some(fn_id) = head.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+                        let zargs: Vec<Ty> = args.iter().map(|a| self.zonk(a)).collect();
+                        let unchanged = Ty::Adt(head.clone(), zargs.clone());
+                        if let Some(next) = self.promoted.eval_to_ty(fn_id, &zargs) {
+                            if next != unchanged {
+                                ty = next;
+                                fuel -= 1;
+                                continue;
+                            }
+                        }
+                        return unchanged;
+                    }
+                    return cur;
                 }
                 other => return other,
             }
@@ -4979,7 +5032,19 @@ impl Unifier {
         map: &mut dyn FnMut(&Ty) -> Ty,
         fuel: u32,
     ) -> ITerm {
-        if fuel == 0 || self.type_families.is_empty() {
+        if fuel == 0 {
+            return ITerm::TyFamily(name.clone(), zargs);
+        }
+        if let Some(fn_id) = name.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+            if let Some(next) = self.promoted.eval_to_iterm(fn_id, &zargs) {
+                let unchanged = ITerm::TyFamily(name.clone(), zargs.clone());
+                if next != unchanged {
+                    return self.resolve_idx_types_fuel(&next, map, fuel - 1).normalize();
+                }
+            }
+            return ITerm::TyFamily(name.clone(), zargs);
+        }
+        if self.type_families.is_empty() {
             return ITerm::TyFamily(name.clone(), zargs);
         }
         if let Some(TypeFamilyRhs::Idx(next)) = self.match_family_rule(name.as_str(), &zargs) {
@@ -5436,6 +5501,17 @@ impl Unifier {
                 let zargs: Vec<Ty> = args.iter().map(z).collect();
                 if fuel > 0 && !self.type_families.is_empty() && self.type_families.contains_key(t.as_str()) {
                     return self.zonk_family_fuel(t, zargs, map, fuel);
+                }
+                if fuel > 0 {
+                    if let Some(fn_id) = t.as_str().strip_prefix(crate::promote::PROMOTED_FN_PREFIX) {
+                        let unchanged = Ty::Adt(t.clone(), zargs.clone());
+                        if let Some(next) = self.promoted.eval_to_ty(fn_id, &zargs) {
+                            if next != unchanged {
+                                return self.zonk_in(&next, map, fuel - 1);
+                            }
+                        }
+                        return unchanged;
+                    }
                 }
                 Ty::Adt(t.clone(), zargs)
             }

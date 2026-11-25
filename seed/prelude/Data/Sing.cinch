@@ -1,0 +1,92 @@
+-- Data.Sing: first-class promoted functions and zero-cost runtime singletons.
+--
+-- `Sing`, `Same`, `Refl`, `sing`, `from-sing`, `with-sing`, and `sing-eq` are
+-- built directly into the Cinch compiler:
+-- - `Sing x` has the exact same runtime word and reference-counting class as
+--   the carrier type of `x` (zero wrapper allocation, zero tag overhead).
+-- - `from-sing` is a zero-cost identity (no-op).
+-- - `with-sing v (\s -> body)` compiles to `let s = v in body` (zero copy,
+--   zero closure allocation) with compile-time skolem-escape checking.
+-- - Pure functions defined here are automatically compiled for native Rust
+--   compile-time evaluation AND direct zero-cost singleton lifting.
+
+module Data.Sing where
+
+  import Data.Core
+  import Data.List
+  import Data.Nat
+
+  export dims-product, dims-rank, dims-append, dims-reverse
+  export dims-transpose2, dims-tail, dims-init, dims-scale, dims-strides
+  export list-append, cast-same, sym-same, trans-same
+
+  -- Propositional equality combinators over built-in `Same` / `Refl`.
+  cast-same :: forall a b. Same a b -> a -> b
+  cast-same eq x = case eq of
+    Refl -> x
+
+  sym-same :: forall a b. Same a b -> Same b a
+  sym-same eq = case eq of
+    Refl -> Refl
+
+  trans-same :: forall a b c. Same a b -> Same b c -> Same a c
+  trans-same ab bc = case ab of
+    Refl -> bc
+
+  -- Polymorphic pure list append — works on `[Nat]`, `[(Nat, Type)]`, etc.!
+  list-append :: forall a. List a -> List a -> List a
+  list-append xs ys = case xs of
+    Nil -> ys
+    Cons h t -> Cons h (list-append t ys)
+
+  -- Ordinary pure Cinch functions — usable at the value level, at the type
+  -- level, and directly on zero-cost `Sing` values with zero duplication.
+
+  dims-product :: List Nat -> Nat
+  dims-product xs = case xs of
+    Nil -> 1
+    Cons d rest -> d * dims-product rest
+
+  dims-rank :: List Nat -> Nat
+  dims-rank xs = case xs of
+    Nil -> 0
+    Cons _ rest -> 1 + dims-rank rest
+
+  dims-append :: List Nat -> List Nat -> List Nat
+  dims-append xs ys = case xs of
+    Nil -> ys
+    Cons h t -> Cons h (dims-append t ys)
+
+  dims-rev-acc :: List Nat -> List Nat -> List Nat
+  dims-rev-acc xs acc = case xs of
+    Nil -> acc
+    Cons h t -> dims-rev-acc t (Cons h acc)
+
+  dims-reverse :: List Nat -> List Nat
+  dims-reverse xs = dims-rev-acc xs Nil
+
+  dims-transpose2 :: List Nat -> List Nat
+  dims-transpose2 xs = case xs of
+    Cons a (Cons b rest) -> Cons b (Cons a rest)
+    other -> other
+
+  dims-tail :: List Nat -> List Nat
+  dims-tail xs = case xs of
+    Nil -> Nil
+    Cons _ rest -> rest
+
+  dims-init :: List Nat -> List Nat
+  dims-init xs = case xs of
+    Nil -> Nil
+    Cons _ Nil -> Nil
+    Cons h rest -> Cons h (dims-init rest)
+
+  dims-scale :: Nat -> List Nat -> List Nat
+  dims-scale factor xs = case xs of
+    Nil -> Nil
+    Cons h t -> Cons (h * factor) (dims-scale factor t)
+
+  dims-strides :: List Nat -> List Nat
+  dims-strides xs = case xs of
+    Nil -> Nil
+    Cons _ rest -> Cons (dims-product rest) (dims-strides rest)

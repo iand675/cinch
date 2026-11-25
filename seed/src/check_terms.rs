@@ -1198,6 +1198,14 @@ impl Checker {
                         }
                     }
                 }
+                // Zero-cost singleton builtins (`from-sing`, `with-sing`, `sing-eq`)
+                // and direct singleton-lifted calls to promoted functions/ctors/ops.
+                if let Some(res) = self.try_sing_builtin_app(env, f, args, None, *span) {
+                    return res;
+                }
+                if let Some(res) = self.try_infer_sing_lifted_app(env, f, args, *span) {
+                    return res;
+                }
                 // Structured concurrency (concurrency specification,
                 // section 2): the one-shot body and scope confinement of
                 // `withScope`, `spawn` and `joinAllOrCancel`.
@@ -2292,6 +2300,17 @@ impl Checker {
         if let Ty::Forall(scheme) = expected {
             return self.check_poly_intro(env, term, scheme);
         }
+        // Bidirectional checking against zero-cost `Sing carrier val` (`sing`,
+        // literals, constructors, lists, tuples).
+        if let Ty::Adt(ref name, ref sargs) = self.uni.zonk(expected) {
+            if name == "Sing" && sargs.len() == 2 {
+                if let Some(res) =
+                    self.try_check_against_sing(env, term, &sargs[0], &sargs[1], term.span())
+                {
+                    return res;
+                }
+            }
+        }
         // Constructor applications are type-directed: the expected type
         // solves the constructor's index parameters before its arguments
         // are checked, and erased evidence arguments never reach runtime.
@@ -2309,13 +2328,21 @@ impl Checker {
                 return Ok(core);
             }
             ast::Term::App(f, args, span) => {
-                if let ast::Term::Con(p) = &**f {
-                    let want = self.uni.zonk(expected);
-                    let (core, ty) = self.ctor_app(env, p, args, &want, *span)?;
-                    self.uni
-                        .unify(&ty, &want)
+                if let Some(res) = self.try_sing_builtin_app(env, f, args, Some(expected), *span) {
+                    let (core, ty) = res?;
+                    self.unify_arg(&ty, expected)
                         .map_err(|m| Error::at(term.span(), m))?;
                     return Ok(core);
+                }
+                if let ast::Term::Con(p) = &**f {
+                    let want = self.uni.zonk(expected);
+                    if !matches!(&want, Ty::Adt(n, _) if n == "Sing") {
+                        let (core, ty) = self.ctor_app(env, p, args, &want, *span)?;
+                        self.uni
+                            .unify(&ty, &want)
+                            .map_err(|m| Error::at(term.span(), m))?;
+                        return Ok(core);
+                    }
                 }
             }
             _ => {}
@@ -9119,6 +9146,11 @@ impl Checker {
                     CBranch::weighted(fw, f),
                 ))
             }
+            Ty::Adt(ref name, ref sargs) if name == "Sing" && sargs.len() == 2 => {
+                let carrier = sargs[0].clone();
+                let val = sargs[1].clone();
+                self.compile_sing_rows(rows, cols, types, expected, ctx_span, uncovered, carrier, val)
+            }
             Ty::Adt(_, ty_args) => {
                 let info = self.lookup_known_type(&type_name_str(&inner_ty))?.clone();
                 let ty_args = ty_args.clone();
@@ -10411,30 +10443,42 @@ impl Checker {
             .collect();
         let mut ty_refinements: HashMap<String, Ty> = HashMap::new();
         let mut idx_refinements: HashMap<String, ITerm> = HashMap::new();
-        for (a, b) in res.iter().zip(ty_args.iter()) {
-            if is_data_instance {
-                if let Err(outcome) = self.match_data_instance_arg(
-                    a,
-                    b,
-                    &local_ty_metas,
-                    &local_idx_metas,
-                    &mut ty_refinements,
-                    &mut idx_refinements,
-                ) {
-                    self.uni.rollback_to(trial);
-                    return Ok(outcome);
-                }
-            } else {
-                if self.uni.unify(a, b).is_ok() {
-                    continue;
-                }
-                let za = self.uni.zonk(a);
-                let zb = self.uni.zonk(b);
+        if v.module == "<builtin>" && v.name == "Refl" && ty_args.len() == 2 {
+            if let Err(outcome) = self.match_refl_eq(
+                &ty_args[0],
+                &ty_args[1],
+                &mut ty_refinements,
+                &mut idx_refinements,
+            ) {
                 self.uni.rollback_to(trial);
-                if idx_ground(&za) && idx_ground(&zb) {
-                    return Ok(CtorMatch::Refuted);
+                return Ok(outcome);
+            }
+        } else {
+            for (a, b) in res.iter().zip(ty_args.iter()) {
+                if is_data_instance {
+                    if let Err(outcome) = self.match_data_instance_arg(
+                        a,
+                        b,
+                        &local_ty_metas,
+                        &local_idx_metas,
+                        &mut ty_refinements,
+                        &mut idx_refinements,
+                    ) {
+                        self.uni.rollback_to(trial);
+                        return Ok(outcome);
+                    }
+                } else {
+                    if self.uni.unify(a, b).is_ok() {
+                        continue;
+                    }
+                    let za = self.uni.zonk(a);
+                    let zb = self.uni.zonk(b);
+                    self.uni.rollback_to(trial);
+                    if idx_ground(&za) && idx_ground(&zb) {
+                        return Ok(CtorMatch::Refuted);
+                    }
+                    return Ok(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)));
                 }
-                return Ok(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)));
             }
         }
         // An inversion guess like `?k + 1 = 0` solves with `?k := -1`,
@@ -10484,8 +10528,18 @@ impl Checker {
 fn ty_heads_conflict(a: &Ty, b: &Ty, uni: &Unifier) -> bool {
     match (a, b) {
         (Ty::Meta(_), _) | (_, Ty::Meta(_)) | (Ty::Param(_), _) | (_, Ty::Param(_)) => false,
-        (Ty::Adt(n1, _), _) if uni.is_type_family(n1.as_str()) => false,
-        (_, Ty::Adt(n2, _)) if uni.is_type_family(n2.as_str()) => false,
+        (Ty::Adt(n1, _), _)
+            if uni.is_type_family(n1.as_str())
+                || n1.as_str().starts_with(crate::promote::PROMOTED_FN_PREFIX) =>
+        {
+            false
+        }
+        (_, Ty::Adt(n2, _))
+            if uni.is_type_family(n2.as_str())
+                || n2.as_str().starts_with(crate::promote::PROMOTED_FN_PREFIX) =>
+        {
+            false
+        }
         (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) => {
             if n1 != n2 || a1.len() != a2.len() {
                 true
