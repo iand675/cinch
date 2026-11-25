@@ -777,31 +777,11 @@
     },
     {
       "classes": "",
-      "symbol": "Data.Machine.eq-i64"
-    },
-    {
-      "classes": "",
-      "symbol": "Data.Machine.eq-u64"
-    },
-    {
-      "classes": "",
       "symbol": "Data.Machine.is-infinite-f64"
     },
     {
       "classes": "",
       "symbol": "Data.Machine.is-na-nf64"
-    },
-    {
-      "classes": "",
-      "symbol": "Data.Machine.le-i64"
-    },
-    {
-      "classes": "",
-      "symbol": "Data.Machine.lt-i64"
-    },
-    {
-      "classes": "",
-      "symbol": "Data.Machine.wrapping-mul-u64"
     },
     {
       "classes": "",

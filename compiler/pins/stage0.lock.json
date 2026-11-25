@@ -1,9 +1,9 @@
 {
-  "description": "2026-11-15 seed before the tailcc apply-stub regression, with mapped packages and validated string views.",
+  "description": "2026-11-25 main (PR #16) seed with Data.Wide, mapped packages, validated string views, tail_conv disabled, and unsound Bytes !invariant.load removed.",
   "patch": "compiler/seed/stage0.patch",
-  "patch_sha256": "ffb9faea66d20fce6631256e64bb328d9a0bbafe8b8e702aef9bc493b484dec0",
-  "revision": "cd04d7a27d3e88c4a6709874f2b3fde4d0e6b4e7",
+  "patch_sha256": "ae905f0eacb1fb16ef695f7030ae862bd492022022c88c610fe1c923ec66694b",
+  "revision": "897d845c5fa839c89131b581d89d8d78e5738280",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "b00e9e040fb7dd07fc039e931fa61de1076aa06f79d6de39861c66f4e2903198"
+  "source_sha256": "a2c9e0199ab43acb09d818f7a8bc8e958cd12ebd42e3f4aeb3154cafe7f81143"
 }

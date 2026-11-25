@@ -2450,7 +2450,7 @@ module Bootstrap.RuntimeIr where
         cat [payload-l, ":"],
         cat ["  ", p, " = inttoptr i64 %arg0 to ptr"]], p)) in
     let (w6, blen) = fresh w5 "%v" in
-    let w7 = line w6 (cat ["  ", blen, " = load i64, ptr ", payload, ", align 8, !invariant.load !0, !tbaa !3"]) in
+    let w7 = line w6 (cat ["  ", blen, " = load i64, ptr ", payload, ", align 8, !tbaa !3"]) in
     let w8 = (if is-len then w7 else
       let (c0, access-l) = fresh w7 "bacc" in
       let (c1, in-range) = (if width == 1 then
@@ -2474,7 +2474,7 @@ module Bootstrap.RuntimeIr where
       let ptr-align = if program-wasm32 (writer-program e2) then "4" else "8" in
       let loaded-ptr = emit-lines e2 [
         cat ["  ", data-at, " = getelementptr i8, ptr ", payload, ", i64 8"],
-        cat ["  ", dptr, " = load ptr, ptr ", data-at, ", align ", ptr-align, ", !invariant.load !0, !tbaa !3"],
+        cat ["  ", dptr, " = load ptr, ptr ", data-at, ", align ", ptr-align, ", !tbaa !3"],
         cat ["  ", at, " = getelementptr i8, ptr ", dptr, ", i64 ", idx-word]] in
       if is-write then
         if width == 1 then
