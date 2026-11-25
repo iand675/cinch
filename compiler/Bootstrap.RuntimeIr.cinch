@@ -1511,8 +1511,10 @@ module Bootstrap.RuntimeIr where
     CPolyElim sp ty value args -> poly-project definitions locals w sp ty value args
     CCase sp ty value alternatives -> case fold-known-case definitions locals w value alternatives of
       Some folded -> folded
-      None -> case expression definitions locals w value of
-        (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
+      None -> case fuse-array-case definitions locals w sp value alternatives of
+        Some fused -> fused
+        None -> case expression definitions locals w value of
+          (ready, word) -> case-value definitions locals ready (core-type value) word alternatives
     CPrimitive sp ty op args -> primitive definitions locals w sp ty op args
     CProved sp ty evidence body -> expression definitions locals w body
     CRefine sp ty evidence body -> expression definitions locals w body
@@ -1786,7 +1788,19 @@ module Bootstrap.RuntimeIr where
     else if operation == 22 || operation == 24 || operation == 27 then [1, 0]
     else if operation == 23 then [1, 0, 0]
     else if operation == 25 then [1, 0, 1, 0, 0]
-    else if operation == 26 then [1, 0, 0] else [1]
+    else if operation == 26 then [1, 0, 0]
+    else if operation >= 30 && operation <= 33 then [2, 1]
+    else if operation == 34 || operation == 35 || operation == 38 then [1, 1, 0]
+    else if operation == 36 || operation == 37 || operation == 42 then [1, 0]
+    else if operation == 39 then [1, 1]
+    else if operation == 40 then [1, 2, 2, 0]
+    else if operation == 41 || operation == 48 then [1, 0, 0]
+    else if operation == 43 then [1, 2]
+    else if operation == 44 then [1, 2, 2, 2, 1, 0, 0, 2]
+    else if operation == 45 then [1, 1, 1, 1, 0]
+    else if operation == 46 then [0]
+    else if operation == 47 then [1, 2, 2, 2, 2]
+    else if operation == 49 then [1, 0, 0, 0] else [1]
   array-symbol :: String -> List Nat -> String
   array-symbol name classes = specialized-name name classes
   array-call :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> (Writer, String)
@@ -1867,8 +1881,161 @@ module Bootstrap.RuntimeIr where
         (described, word) -> array-null-option described sp "@cinch_columnar_zip" "" ["%arg0", "%arg1", word])
     else if operation == 17 || operation == 18 then array-null-option w sp "@cinch_columnar_child" "" ["%arg0", if operation == 18 then "1" else "0"]
     else if operation == 19 then array-null-option w sp "@cinch_columnar_array" "" ["%arg0"]
+    else if operation >= 30 then array-compute-lower w sp operation storage
     else if operation >= 20 then slot-lower w operation element
     else unsupported w sp "unknown checked array operation"
+  array-compute-lower :: Writer -> Span -> Nat -> String -> (Writer, String)
+  array-compute-lower w sp operation storage =
+    if operation >= 30 && operation <= 33 then (case call w "@cinch_nat_to_len" ["%arg0"] of (ready, count) -> call ready "@cinch_array_tabulate_packed" [count, "%arg1", storage])
+    else if operation == 34 then array-null-option w sp "@cinch_array_zip_binop_f32" "" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 35 then array-null-option w sp "@cinch_array_zip_binop_i32" "" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 36 then call w "@cinch_array_reduce_f32" ["%arg0", "%arg1"]
+    else if operation == 37 then call w "@cinch_array_reduce_i32" ["%arg0", "%arg1"]
+    else if operation == 38 then call w "@cinch_array_dot_f32" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 39 then call w "@cinch_array_dot_i32" ["%arg0", "%arg1"]
+    else if operation == 40 then (case call w "@cinch_nat_to_len" ["%arg1"] of (r1, m) -> case call r1 "@cinch_nat_to_len" ["%arg2"] of (r2, n) -> array-null-option r2 sp "@cinch_array_row_reduce_f32" "" ["%arg0", m, n, "%arg3"])
+    else if operation == 41 then call w "@cinch_array_scan_i32" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 42 then call w "@cinch_array_filter_i32_gt" ["%arg0", "%arg1"]
+    else if operation == 43 then (case call w "@cinch_nat_to_len" ["%arg1"] of (r1, bins) -> call r1 "@cinch_array_histogram_u8" ["%arg0", bins])
+    else if operation == 44 then (case call w "@cinch_nat_to_len" ["%arg1"] of (r1, f) -> case call r1 "@cinch_nat_to_len" ["%arg2"] of (r2, h) -> case call r2 "@cinch_nat_to_len" ["%arg3"] of (r3, wd) -> case call r3 "@cinch_nat_to_len" ["%arg7"] of (r4, steps) -> array-null-option r4 sp "@cinch_array_stencil2d_u8" "" ["%arg0", f, h, wd, "%arg4", "%arg5", "%arg6", steps])
+    else if operation == 45 then call w "@cinch_array_spmv_csr_f32" ["%arg0", "%arg1", "%arg2", "%arg3", "%arg4"]
+    else if operation == 46 then call w "@cinch_array_set_exec_mode" ["%arg0"]
+    else if operation == 47 then (case call w "@cinch_nat_to_len" ["%arg1"] of (r1, f) -> case call r1 "@cinch_nat_to_len" ["%arg2"] of (r2, h) -> case call r2 "@cinch_nat_to_len" ["%arg3"] of (r3, wd) -> case call r3 "@cinch_nat_to_len" ["%arg4"] of (r4, bins) -> array-null-option r4 sp "@cinch_array_histogram_batch_u8" "" ["%arg0", f, h, wd, bins])
+    else if operation == 48 then call w "@cinch_array_map_unary_f32" ["%arg0", "%arg1", "%arg2"]
+    else if operation == 49 then call w "@cinch_array_fused_map_reduce_f32" ["%arg0", "%arg1", "%arg2", "%arg3"]
+    else unsupported w sp "unknown checked array compute operation"
+  -- Producer-consumer fusion for packed array operations, resolving thin
+  -- single-clause wrappers and imported helper functions before lowering.
+  resolve-param-term :: List CorePattern -> List CoreTerm -> CoreTerm -> Option CoreTerm
+  resolve-param-term patterns args term = case term of
+    CLocal sp ty id name actuals -> lookup-param-term patterns args id
+    CInt sp ty digits -> Some term
+    other -> None
+  lookup-param-term :: List CorePattern -> List CoreTerm -> Nat -> Option CoreTerm
+  lookup-param-term patterns args wanted = case (patterns, args) of
+    (Cons (CPVar sp ty id name) rest, Cons val more) -> if id == wanted then Some val else lookup-param-term rest more wanted
+    other -> None
+  resolve-param-terms :: List CorePattern -> List CoreTerm -> List CoreTerm -> Option (List CoreTerm)
+  resolve-param-terms patterns args items = case items of
+    Nil -> Some Nil
+    Cons first rest -> case resolve-param-term patterns args first of
+      None -> None
+      Some mapped -> case resolve-param-terms patterns args rest of
+        None -> None
+        Some tail -> Some (Cons mapped tail)
+  resolve-array-op :: Writer -> Nat -> CoreTerm -> Option (String, List CoreTerm)
+  resolve-array-op w depth term = case call-spine term Nil of
+    None -> None
+    Some (name, actuals, args) ->
+      if same name "cinch.runtime.arrayZipBinopF32" || same name "cinch.runtime.arrayZipBinopI32" || same name "cinch.runtime.arrayReduceF32" || same name "cinch.runtime.arrayReduceI32" then Some (name, args)
+      else if depth == 0 then None
+      else case worker-definition name w of
+        None -> None
+        Some d -> case inline-body-shape d of
+          None -> None
+          Some (patterns, body) -> if list-length args /= list-length patterns then None else case resolve-array-op w (depth - 1) body of
+            None -> None
+            Some (inner-name, inner-args) -> case resolve-param-terms patterns args inner-args of
+              None -> None
+              Some mapped -> Some (inner-name, mapped)
+  option-alt-some :: CorePattern -> Option Nat
+  option-alt-some pat = case pat of
+    CPConstructor sp ty name actuals owner (CPField fsp (CPVar vsp vty id vname) (CPDone dsp)) ->
+      if same name (global-data-core-some) then Some id else None
+    other -> None
+  option-alt-none :: CorePattern -> Bool
+  option-alt-none pat = case pat of
+    CPConstructor sp ty name actuals owner (CPDone dsp) -> same name (global-data-core-none)
+    other -> False
+  extract-option-alts :: CoreTerm -> Option (Nat, CoreTerm, CoreTerm)
+  extract-option-alts alts = case alts of
+    CAlternative sp1 p1 b1 (CAlternative sp2 p2 b2 (CAlternativesEnd sp3)) ->
+      (case option-alt-some p1 of
+        Some id -> if option-alt-none p2 then Some (id, b1, b2) else None
+        None -> case option-alt-some p2 of
+          Some id -> if option-alt-none p1 then Some (id, b2, b1) else None
+          None -> None)
+    other -> None
+  is-int-const :: CoreTerm -> String -> Bool
+  is-int-const term expected = case term of
+    CInt sp ty digits -> same digits expected
+    other -> False
+  is-local-id :: CoreTerm -> Nat -> Bool
+  is-local-id term wanted = case term of
+    CLocal sp ty id name actuals -> id == wanted
+    other -> False
+  fuse-array-case :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> Option (Writer, String)
+  fuse-array-case definitions locals w sp scrutinee alts = case extract-option-alts alts of
+    None -> None
+    Some (some-id, some-body, none-body) -> case resolve-array-op w 4 scrutinee of
+      None -> None
+      Some (prod-name, prod-args) -> case resolve-array-op w 4 some-body of
+        None -> None
+        Some (cons-name, cons-args) ->
+          if same prod-name "cinch.runtime.arrayZipBinopF32" && same cons-name "cinch.runtime.arrayReduceF32" then
+            (case (prod-args, cons-args) of
+              ([arg-a, arg-b, op-term], [arg-p, mode-term]) ->
+                if is-int-const op-term "2" && is-local-id arg-p some-id && not (term-uses some-id mode-term) then
+                  Some (emit-fused-dot-f32 definitions locals w arg-a arg-b mode-term none-body)
+                else None
+              other -> None)
+          else if same prod-name "cinch.runtime.arrayZipBinopI32" && same cons-name "cinch.runtime.arrayReduceI32" then
+            (case (prod-args, cons-args) of
+              ([arg-a, arg-b, op-term], [arg-p, red-term]) ->
+                if is-int-const op-term "2" && is-int-const red-term "0" && is-local-id arg-p some-id then
+                  Some (emit-fused-dot-i32 definitions locals w arg-a arg-b none-body)
+                else None
+              other -> None)
+          else None
+  emit-fused-dot-f32 :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
+  emit-fused-dot-f32 definitions locals w arg-a arg-b mode-term none-body =
+    let noted = line w "  ; cinch-array-fusion: fused arrayZipBinopF32(MUL) -> arrayReduceF32 into @cinch_array_dot_f32 (eliminated product Array F32)" in
+    case expression definitions locals noted arg-a of
+      (wa, va) -> case expression definitions locals wa arg-b of
+        (wb, vb) -> case expression definitions locals wb mode-term of
+          (wm, vm) -> case call wm "@cinch_array_len" [va] of
+            (wl1, la) -> case call wl1 "@cinch_array_len" [vb] of
+              (wl2, lb) ->
+                let (w1, slot) = fresh wl2 "%ptr" in
+                let (w2, eq) = fresh w1 "%v" in
+                let (w3, ok-lbl) = fresh w2 "fuseok" in
+                let (w4, bad-lbl) = fresh w3 "fusebad" in
+                let (w5, end-lbl) = fresh w4 "fusedone" in
+                let split = line (line (line w5 (cat ["  ", slot, " = alloca i64"])) (cat ["  ", eq, " = icmp eq i64 ", la, ", ", lb])) (cat ["  br i1 ", eq, ", label %", ok-lbl, ", label %", bad-lbl]) in
+                case call (line split (cat [ok-lbl, ":"])) "@cinch_array_dot_f32" [va, vb, vm] of
+                  (wdot, vdot) ->
+                    let wdot-clean = count-line False vb (count-line False va wdot) in
+                    let wbad-start = line (line (line wdot-clean (cat ["  store i64 ", vdot, ", ptr ", slot])) (cat ["  br label %", end-lbl])) (cat [bad-lbl, ":"]) in
+                    let wbad-clean = count-line False vb (count-line False va wbad-start) in
+                    case expression definitions locals wbad-clean none-body of
+                      (wnone, vnone) ->
+                        let wjoin = line (line (line wnone (cat ["  store i64 ", vnone, ", ptr ", slot])) (cat ["  br label %", end-lbl])) (cat [end-lbl, ":"]) in
+                        let (wfin, vres) = fresh wjoin "%v" in
+                        (line wfin (cat ["  ", vres, " = load i64, ptr ", slot]), vres)
+  emit-fused-dot-i32 :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
+  emit-fused-dot-i32 definitions locals w arg-a arg-b none-body =
+    let noted = line w "  ; cinch-array-fusion: fused arrayZipBinopI32(MUL) -> arrayReduceI32(ADD_WRAP) into @cinch_array_dot_i32 (eliminated product Array I32)" in
+    case expression definitions locals noted arg-a of
+      (wa, va) -> case expression definitions locals wa arg-b of
+        (wb, vb) -> case call wb "@cinch_array_len" [va] of
+          (wl1, la) -> case call wl1 "@cinch_array_len" [vb] of
+            (wl2, lb) ->
+              let (w1, slot) = fresh wl2 "%ptr" in
+              let (w2, eq) = fresh w1 "%v" in
+              let (w3, ok-lbl) = fresh w2 "fuseok" in
+              let (w4, bad-lbl) = fresh w3 "fusebad" in
+              let (w5, end-lbl) = fresh w4 "fusedone" in
+              let split = line (line (line w5 (cat ["  ", slot, " = alloca i64"])) (cat ["  ", eq, " = icmp eq i64 ", la, ", ", lb])) (cat ["  br i1 ", eq, ", label %", ok-lbl, ", label %", bad-lbl]) in
+              case call (line split (cat [ok-lbl, ":"])) "@cinch_array_dot_i32" [va, vb] of
+                (wdot, vdot) ->
+                  let wdot-clean = count-line False vb (count-line False va wdot) in
+                  let wbad-start = line (line (line wdot-clean (cat ["  store i64 ", vdot, ", ptr ", slot])) (cat ["  br label %", end-lbl])) (cat [bad-lbl, ":"]) in
+                  let wbad-clean = count-line False vb (count-line False va wbad-start) in
+                  case expression definitions locals wbad-clean none-body of
+                    (wnone, vnone) ->
+                      let wjoin = line (line (line wnone (cat ["  store i64 ", vnone, ", ptr ", slot])) (cat ["  br label %", end-lbl])) (cat [end-lbl, ":"]) in
+                      let (wfin, vres) = fresh wjoin "%v" in
+                      (line wfin (cat ["  ", vres, " = load i64, ptr ", slot]), vres)
   -- The mutable slot family (seed/src/slots.rs and slots_codegen.rs,
   -- the same IR): a slot array is an Array block with a word format, the
   -- length at payload word 1 and the elements from word 2. The worker owns
@@ -6482,7 +6649,7 @@ module Bootstrap.RuntimeIr where
     "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
-    "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
+    "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_array_tabulate_packed(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_f32(i64, i64, i64)\ndeclare i64 @cinch_array_zip_binop_i32(i64, i64, i64)\ndeclare i64 @cinch_array_map_unary_f32(i64, i64, i64)\ndeclare i64 @cinch_array_reduce_f32(i64, i64)\ndeclare i64 @cinch_array_reduce_i32(i64, i64)\ndeclare i64 @cinch_array_dot_f32(i64, i64, i64)\ndeclare i64 @cinch_array_dot_i32(i64, i64)\ndeclare i64 @cinch_array_fused_map_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_row_reduce_f32(i64, i64, i64, i64)\ndeclare i64 @cinch_array_scan_i32(i64, i64, i64)\ndeclare i64 @cinch_array_filter_i32_gt(i64, i64)\ndeclare i64 @cinch_array_histogram_u8(i64, i64)\ndeclare i64 @cinch_array_histogram_batch_u8(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_stencil2d_u8(i64, i64, i64, i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_spmv_csr_f32(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_array_set_exec_mode(i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_stm_state(i64)\ndeclare i64 @cinch_stm_publish(i64, i64)\ndeclare i64 @cinch_stm_wait_begin(i64)\ndeclare i64 @cinch_stm_wait_park(i64)\ndeclare i64 @cinch_stm_wait_cancel(i64)\ndeclare i64 @cinch_stm_wake(i64)\ndeclare i64 @cinch_stm_yield(i64)\n",
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",

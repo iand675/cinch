@@ -1,0 +1,405 @@
+-- Data.Array.Compute: shape-indexed views, explicit numerical reduction
+-- contracts, data-parallel array primitives, and library algorithms (dot
+-- product, radix sort, CSR SpMV, batched 2D stencil + histogram).
+module Data.Array.Compute where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Tensor
+  import Data.Nat
+  import Data.Int
+  import Data.Bool
+  import Data.Machine
+  import Data.Bytes
+  import Relation.Ord
+  import Algebra.Arithmetic
+
+  export FloatMode, FloatExactTree, FloatRelaxed
+  export IntReducer, ReduceAddWrap, ReduceMulWrap, ReduceMin, ReduceMax, ReduceBitAnd, ReduceBitOr, ReduceBitXor
+  export EdgePolicy, EdgeClamp, EdgeZero, EdgeMirror, EdgeWrap
+  export View1, View2, View3, BoundedView1, bounded-view1, view1-of, view1-data, view1-offset, view1-len, view1-stride, view1-is-contiguous
+  export view1-slice, view1-pack, view1-get-fin
+  export view2-of, view2-from-tensor, view2-data, view2-offset, view2-rows, view2-cols, view2-stride-r, view2-stride-c
+  export view2-transpose, view2-is-contiguous, view2-reshape-shared, view2-pack
+  export view3-of, view3-from-tensor, view3-data, view3-frames, view3-height, view3-width
+  export array-tabulate-u8, array-tabulate-i32, array-tabulate-u32, array-tabulate-f32, array-tabulate-f64
+  export array-map-u8, array-map-i32, array-map-u32, array-map-f32, array-map-f64
+  export array-zip-with-i32, array-zip-with-f32
+  export array-foldl-i32, array-foldl-f32
+  export array-zip-binop-f32, array-zip-binop-i32, array-map-unary-f32
+  export array-reduce-i32, array-reduce-u32, array-reduce-i64, array-reduce-f32, array-reduce-f64
+  export array-dot-f32, array-dot-f64, array-dot-i32, array-strided-dot-f32, array-fused-map-reduce-f32
+  export array-row-reduce-f32, array-row-reduce-i32
+  export array-scan-i32, array-scan-u32
+  export array-filter-i32-gt, array-filter-i32
+  export array-gather-f32, array-gather-i32
+  export array-scatter-unique-u32, array-scatter-combine-i32
+  export array-histogram-u8, array-histogram-u32, array-histogram-batch-u8
+  export array-stencil2d-u8, array-stencil2d-f32
+  export array-segmented-reduce-f32, array-spmv-csr-f32
+  export array-pack-strided-d1, array-pack-strided-d2
+  export array-set-exec-mode, array-last-report-bytes
+  export float-mode-code, int-reducer-code, edge-policy-code
+  export dot-view1-f32, dot-view1-i32, row-reduce-view2-f32, row-reduce-view2-i32
+  export filter-view1-i32-gt
+  export radix-sort-u32, spmv-csr-composed-f32, stencil-histogram-batch-u8
+
+  -- Foreign runtime primitives preserved through Typed Array IR optimization.
+  foreign import ccall "cinch.runtime.arrayTabulateU8" array-tabulate-u8 :: Nat -> (Nat -> U8) -> Array U8
+  foreign import ccall "cinch.runtime.arrayTabulateI32" array-tabulate-i32 :: Nat -> (Nat -> I32) -> Array I32
+  foreign import ccall "cinch.runtime.arrayTabulateU32" array-tabulate-u32 :: Nat -> (Nat -> U32) -> Array U32
+  foreign import ccall "cinch.runtime.arrayTabulateF32" array-tabulate-f32 :: Nat -> (Nat -> F32) -> Array F32
+  foreign import ccall "cinch.runtime.arrayTabulateF64" array-tabulate-f64 :: Nat -> (Nat -> F64) -> Array F64
+
+  foreign import ccall "cinch.runtime.arrayMapU8" array-map-u8 :: (U8 -> U8) -> Array U8 -> Array U8
+  foreign import ccall "cinch.runtime.arrayMapI32" array-map-i32 :: (I32 -> I32) -> Array I32 -> Array I32
+  foreign import ccall "cinch.runtime.arrayMapU32" array-map-u32 :: (U32 -> U32) -> Array U32 -> Array U32
+  foreign import ccall "cinch.runtime.arrayMapF32" array-map-f32 :: (F32 -> F32) -> Array F32 -> Array F32
+  foreign import ccall "cinch.runtime.arrayMapF64" array-map-f64 :: (F64 -> F64) -> Array F64 -> Array F64
+
+  foreign import ccall "cinch.runtime.arrayZipWithI32" array-zip-with-i32 :: (I32 -> I32 -> I32) -> Array I32 -> Array I32 -> Option (Array I32)
+  foreign import ccall "cinch.runtime.arrayZipWithF32" array-zip-with-f32 :: (F32 -> F32 -> F32) -> Array F32 -> Array F32 -> Option (Array F32)
+
+  foreign import ccall "cinch.runtime.arrayFoldlI32" array-foldl-i32 :: (I32 -> I32 -> I32) -> I32 -> Array I32 -> I32
+  foreign import ccall "cinch.runtime.arrayFoldlF32" array-foldl-f32 :: (F32 -> F32 -> F32) -> F32 -> Array F32 -> F32
+
+  foreign import ccall "cinch.runtime.arrayZipBinopF32" array-zip-binop-f32 :: Array F32 -> Array F32 -> I64 -> Option (Array F32)
+  foreign import ccall "cinch.runtime.arrayZipBinopI32" array-zip-binop-i32 :: Array I32 -> Array I32 -> I64 -> Option (Array I32)
+  foreign import ccall "cinch.runtime.arrayMapUnaryF32" array-map-unary-f32 :: Array F32 -> I64 -> F32 -> Array F32
+
+  foreign import ccall "cinch.runtime.arrayReduceI32" array-reduce-i32 :: Array I32 -> I64 -> I32
+  foreign import ccall "cinch.runtime.arrayReduceU32" array-reduce-u32 :: Array U32 -> I64 -> U32
+  foreign import ccall "cinch.runtime.arrayReduceI64" array-reduce-i64 :: Array I64 -> I64 -> I64
+  foreign import ccall "cinch.runtime.arrayReduceF32" array-reduce-f32 :: Array F32 -> I64 -> F32
+  foreign import ccall "cinch.runtime.arrayReduceF64" array-reduce-f64 :: Array F64 -> I64 -> F64
+
+  foreign import ccall "cinch.runtime.arrayDotF32" array-dot-f32 :: Array F32 -> Array F32 -> I64 -> F32
+  foreign import ccall "cinch.runtime.arrayDotF64" array-dot-f64 :: Array F64 -> Array F64 -> I64 -> F64
+  foreign import ccall "cinch.runtime.arrayDotI32" array-dot-i32 :: Array I32 -> Array I32 -> I32
+  foreign import ccall "cinch.runtime.arrayStridedDotF32" array-strided-dot-f32 :: Array F32 -> Nat -> Nat -> Array F32 -> Nat -> Nat -> Nat -> I64 -> F32
+  foreign import ccall "cinch.runtime.arrayFusedMapReduceF32" array-fused-map-reduce-f32 :: Array F32 -> I64 -> F32 -> I64 -> F32
+
+  foreign import ccall "cinch.runtime.arrayRowReduceF32" array-row-reduce-f32 :: Array F32 -> Nat -> Nat -> I64 -> Option (Array F32)
+  foreign import ccall "cinch.runtime.arrayRowReduceI32" array-row-reduce-i32 :: Array I32 -> Nat -> Nat -> I64 -> Option (Array I32)
+
+  foreign import ccall "cinch.runtime.arrayScanI32" array-scan-i32 :: Array I32 -> I64 -> Bool -> Array I32
+  foreign import ccall "cinch.runtime.arrayScanU32" array-scan-u32 :: Array U32 -> I64 -> Bool -> Array U32
+
+  foreign import ccall "cinch.runtime.arrayFilterI32Gt" array-filter-i32-gt :: Array I32 -> I32 -> Array I32
+  foreign import ccall "cinch.runtime.arrayFilterI32" array-filter-i32 :: (I32 -> Bool) -> Array I32 -> Array I32
+
+  foreign import ccall "cinch.runtime.arrayGatherF32" array-gather-f32 :: Array F32 -> Array I32 -> I64 -> Array F32
+  foreign import ccall "cinch.runtime.arrayGatherI32" array-gather-i32 :: Array I32 -> Array I32 -> I64 -> Array I32
+
+  foreign import ccall "cinch.runtime.arrayScatterUniqueU32" array-scatter-unique-u32 :: Array U32 -> Array U32 -> Array U32 -> Array U32
+  foreign import ccall "cinch.runtime.arrayScatterCombineI32" array-scatter-combine-i32 :: Array I32 -> Array I32 -> Array I32 -> I64 -> Array I32
+
+  foreign import ccall "cinch.runtime.arrayHistogramU8" array-histogram-u8 :: Array U8 -> Nat -> Array U32
+  foreign import ccall "cinch.runtime.arrayHistogramU32" array-histogram-u32 :: Array U32 -> Nat -> Array U32
+  foreign import ccall "cinch.runtime.arrayHistogramBatchU8" array-histogram-batch-u8 :: Array U8 -> Nat -> Nat -> Nat -> Nat -> Option (Array U32)
+
+  foreign import ccall "cinch.runtime.arrayStencil2DU8" array-stencil2d-u8 :: Array U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Option (Array U8)
+  foreign import ccall "cinch.runtime.arrayStencil2DF32" array-stencil2d-f32 :: Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)
+
+  foreign import ccall "cinch.runtime.arraySegmentedReduceF32" array-segmented-reduce-f32 :: Array F32 -> Array U32 -> I64 -> Array F32
+  foreign import ccall "cinch.runtime.arraySpmvCsrF32" array-spmv-csr-f32 :: Array F32 -> Array U32 -> Array U32 -> Array F32 -> I64 -> Array F32
+
+  foreign import ccall "cinch.runtime.arrayPackStrided1D" array-pack-strided-d1 :: forall a. Array a -> Nat -> Nat -> Nat -> Option (Array a)
+  foreign import ccall "cinch.runtime.arrayPackStrided2D" array-pack-strided-d2 :: forall a. Array a -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (Array a)
+
+  foreign import ccall "cinch.runtime.arraySetExecMode" array-set-exec-mode :: I64 -> Unit
+  foreign import ccall "cinch.runtime.arrayLastReportBytes" array-last-report-bytes :: Unit -> Bytes
+
+  -- Explicit numerical semantics contracts.
+  data FloatMode where
+    FloatExactTree :: FloatMode
+    FloatRelaxed :: FloatMode
+
+  data IntReducer where
+    ReduceAddWrap :: IntReducer
+    ReduceMulWrap :: IntReducer
+    ReduceMin :: IntReducer
+    ReduceMax :: IntReducer
+    ReduceBitAnd :: IntReducer
+    ReduceBitOr :: IntReducer
+    ReduceBitXor :: IntReducer
+
+  data EdgePolicy where
+    EdgeClamp :: EdgePolicy
+    EdgeZero :: EdgePolicy
+    EdgeMirror :: EdgePolicy
+    EdgeWrap :: EdgePolicy
+
+  float-mode-code :: FloatMode -> I64
+  float-mode-code m = case m of
+    FloatExactTree -> 10
+    FloatRelaxed -> 11
+
+  int-reducer-code :: IntReducer -> I64
+  int-reducer-code r = case r of
+    ReduceAddWrap -> 0
+    ReduceMulWrap -> 1
+    ReduceMin -> 2
+    ReduceMax -> 3
+    ReduceBitAnd -> 4
+    ReduceBitOr -> 5
+    ReduceBitXor -> 6
+
+  edge-policy-code :: EdgePolicy -> I64
+  edge-policy-code p = case p of
+    EdgeClamp -> 0
+    EdgeZero -> 1
+    EdgeMirror -> 2
+    EdgeWrap -> 3
+
+  -- Shape-indexed strided views over immutable contiguous `Array a` buffers.
+  -- Constructors are module-private so every `View1 n a` / `View2 m n a` /
+  -- `View3 f h w a` carries a checked dimension witness.
+  data View1 (n :: Nat) a where
+    MkView1 :: Array a -> Nat -> Nat -> Nat -> View1 n a
+
+  data View2 (m :: Nat) (n :: Nat) a where
+    MkView2 :: Array a -> Nat -> Nat -> Nat -> Nat -> Nat -> View2 m n a
+
+  data View3 (f :: Nat) (h :: Nat) (w :: Nat) a where
+    MkView3 :: Array a -> Nat -> Nat -> Nat -> View3 f h w a
+
+  view1-of :: forall a. (n :: Nat) -> Array a -> Option (View1 n a)
+  view1-of n buf = if array-length buf == n then Some (MkView1 buf 0 n 1) else None
+
+  view1-data :: forall (n :: Nat) a. View1 n a -> Array a
+  view1-data v = case v of MkView1 d off len st -> d
+
+  view1-offset :: forall (n :: Nat) a. View1 n a -> Nat
+  view1-offset v = case v of MkView1 d off len st -> off
+
+  view1-len :: forall (n :: Nat) a. View1 n a -> Nat
+  view1-len v = case v of MkView1 d off len st -> len
+
+  view1-stride :: forall (n :: Nat) a. View1 n a -> Nat
+  view1-stride v = case v of MkView1 d off len st -> st
+
+  view1-is-contiguous :: forall (n :: Nat) a. View1 n a -> Bool
+  view1-is-contiguous v = case v of
+    MkView1 d off len st -> off == 0 && st == 1 && array-length d == len
+
+  -- Zero-copy strided slice of a 1D view.
+  view1-slice :: forall (n :: Nat) a. View1 n a -> Nat -> (k :: Nat) -> Nat -> Option (View1 k a)
+  view1-slice v start k step = case v of
+    MkView1 d off len st ->
+      if k == 0 then Some (MkView1 d (off + start * st) 0 (st * step))
+      else if start + (k - 1) * step < len then Some (MkView1 d (off + start * st) k (st * step))
+      else None
+
+  -- Pack a strided 1D view into a contiguous `Array a` (zero-copy if already contiguous).
+  view1-pack :: forall (n :: Nat) a. View1 n a -> Option (View1 n a)
+  view1-pack v = case v of
+    MkView1 d off len st -> case array-pack-strided-d1 d off len st of
+      None -> None
+      Some packed -> Some (MkView1 packed 0 len 1)
+
+  -- Safe indexed read through Cinch's `Fin n` bounded index witness.
+  view1-get-fin :: forall (n :: Nat) a. View1 n a -> Fin n -> Option a
+  view1-get-fin v idx = case idx of
+    Fin i bound -> case v of
+      MkView1 d off len st -> array-get d (off + i * st)
+
+  view2-of :: forall a. (m :: Nat) -> (n :: Nat) -> Array a -> Option (View2 m n a)
+  view2-of m n buf = if m * n == array-length buf then Some (MkView2 buf 0 m n n 1) else None
+
+  -- Dynamic `Tensor a` entry point -> statically shape-indexed `View2 m n a`.
+  view2-from-tensor :: forall a. (m :: Nat) -> (n :: Nat) -> Tensor a -> Option (View2 m n a)
+  view2-from-tensor m n t =
+    let s = tensor-shape t
+    in if array-length s == 2
+       then case array-get s 0 of
+         None -> None
+         Some r -> case array-get s 1 of
+           None -> None
+           Some c -> if r == m && c == n then Some (MkView2 (tensor-data t) 0 m n n 1) else None
+       else None
+
+  view2-data :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Array a
+  view2-data v = case v of MkView2 d off r c sr sc -> d
+
+  view2-offset :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Nat
+  view2-offset v = case v of MkView2 d off r c sr sc -> off
+
+  view2-rows :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Nat
+  view2-rows v = case v of MkView2 d off r c sr sc -> r
+
+  view2-cols :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Nat
+  view2-cols v = case v of MkView2 d off r c sr sc -> c
+
+  view2-stride-r :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Nat
+  view2-stride-r v = case v of MkView2 d off r c sr sc -> sr
+
+  view2-stride-c :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Nat
+  view2-stride-c v = case v of MkView2 d off r c sr sc -> sc
+
+  -- Zero-copy 2D transpose: swaps dimensions and strides without allocating!
+  view2-transpose :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> View2 n m a
+  view2-transpose v = case v of
+    MkView2 d off r c sr sc -> MkView2 d off c r sc sr
+
+  view2-is-contiguous :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Bool
+  view2-is-contiguous v = case v of
+    MkView2 d off r c sr sc -> off == 0 && sc == 1 && sr == c && array-length d == r * c
+
+  -- Reshape shares storage without copying ONLY when the view is contiguous;
+  -- non-contiguous views (e.g. after transpose) return None until `view2-pack`.
+  view2-reshape-shared :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> (r :: Nat) -> (c :: Nat) -> Option (View2 r c a)
+  view2-reshape-shared v r c = case v of
+    MkView2 d off mr mc sr sc ->
+      if off == 0 && sc == 1 && sr == mc && mr * mc == r * c
+      then Some (MkView2 d 0 r c c 1)
+      else None
+
+  -- Explicitly pack a strided/transposed 2D view into contiguous row-major storage.
+  view2-pack :: forall (m :: Nat) (n :: Nat) a. View2 m n a -> Option (View2 m n a)
+  view2-pack v = case v of
+    MkView2 d off r c sr sc -> case array-pack-strided-d2 d off r c sr sc of
+      None -> None
+      Some packed -> Some (MkView2 packed 0 r c c 1)
+
+  view3-of :: forall a. (f :: Nat) -> (h :: Nat) -> (w :: Nat) -> Array a -> Option (View3 f h w a)
+  view3-of f h w buf = if f * h * w == array-length buf then Some (MkView3 buf f h w) else None
+
+  view3-from-tensor :: forall a. (f :: Nat) -> (h :: Nat) -> (w :: Nat) -> Tensor a -> Option (View3 f h w a)
+  view3-from-tensor f h w t =
+    let s = tensor-shape t
+    in if array-length s == 3
+       then case array-get s 0 of
+         None -> None
+         Some df -> case array-get s 1 of
+           None -> None
+           Some dh -> case array-get s 2 of
+             None -> None
+             Some dw -> if df == f && dh == h && dw == w then Some (MkView3 (tensor-data t) f h w) else None
+       else None
+
+  view3-data :: forall (f :: Nat) (h :: Nat) (w :: Nat) a. View3 f h w a -> Array a
+  view3-data v = case v of MkView3 d f h w -> d
+
+  view3-frames :: forall (f :: Nat) (h :: Nat) (w :: Nat) a. View3 f h w a -> Nat
+  view3-frames v = case v of MkView3 d f h w -> f
+
+  view3-height :: forall (f :: Nat) (h :: Nat) (w :: Nat) a. View3 f h w a -> Nat
+  view3-height v = case v of MkView3 d f h w -> h
+
+  view3-width :: forall (f :: Nat) (h :: Nat) (w :: Nat) a. View3 f h w a -> Nat
+  view3-width v = case v of MkView3 d f h w -> w
+
+  -- Shape-checked dot product: requires two vectors of equal static length `n`!
+  -- Contiguous inputs compose zip-mul + reduce (fused by Typed Array IR to
+  -- allocate ZERO product vector); strided/aliased views use zero-copy strided dot.
+  dot-view1-f32 :: forall (n :: Nat). View1 n F32 -> View1 n F32 -> FloatMode -> F32
+  dot-view1-f32 a b mode =
+    let mc = float-mode-code mode
+    in if view1-is-contiguous a && view1-is-contiguous b
+       then case array-zip-binop-f32 (view1-data a) (view1-data b) 2 of
+         None -> i64-to-f32 0
+         Some prod -> array-reduce-f32 prod mc
+       else array-strided-dot-f32 (view1-data a) (view1-offset a) (view1-stride a) (view1-data b) (view1-offset b) (view1-stride b) (view1-len a) mc
+
+  dot-view1-i32 :: forall (n :: Nat). View1 n I32 -> View1 n I32 -> I32
+  dot-view1-i32 a b =
+    case array-zip-binop-i32 (view1-data a) (view1-data b) 2 of
+      None -> wrapping-i64-to-i32 0
+      Some prod -> array-reduce-i32 prod 0
+
+  -- Shape-checked row reduction: `View2 m n F32 -> Option (View1 m F32)`.
+  row-reduce-view2-f32 :: forall (m :: Nat) (n :: Nat). View2 m n F32 -> FloatMode -> Option (View1 m F32)
+  row-reduce-view2-f32 mat mode = case view2-pack mat of
+    None -> None
+    Some contig -> case array-row-reduce-f32 (view2-data contig) (view2-rows contig) (view2-cols contig) (float-mode-code mode) of
+      None -> None
+      Some reduced -> Some (MkView1 reduced 0 (view2-rows contig) 1)
+
+  row-reduce-view2-i32 :: forall (m :: Nat) (n :: Nat). View2 m n I32 -> IntReducer -> Option (View1 m I32)
+  row-reduce-view2-i32 mat red = case view2-pack mat of
+    None -> None
+    Some contig -> case array-row-reduce-i32 (view2-data contig) (view2-rows contig) (view2-cols contig) (int-reducer-code red) of
+      None -> None
+      Some reduced -> Some (MkView1 reduced 0 (view2-rows contig) 1)
+
+  -- Compacted 1D view carrying an erased proof witness that `k <= n`.
+  data BoundedView1 (k :: Nat) (n :: Nat) a where
+    MkBoundedView1 :: View1 k a -> (k <= n) -> BoundedView1 k n a
+
+  bounded-view1 :: forall (k :: Nat) (n :: Nat) a. BoundedView1 k n a -> View1 k a
+  bounded-view1 bv = case bv of
+    MkBoundedView1 v _ -> v
+
+  -- Stable filter returning `Sigma (k :: Nat)` with a `View1 k I32` and
+  -- erased proof witness that `k <= n`!
+  filter-view1-i32-gt :: forall (n :: Nat). View1 n I32 -> I32 -> Option (Sigma (k :: Nat). BoundedView1 k n I32)
+  filter-view1-i32-gt v thr = case view1-pack v of
+    None -> None
+    Some contig ->
+      let out = array-filter-i32-gt (view1-data contig) thr
+          k = array-length out
+      in case decide (k <= n) of
+        No _ -> None
+        Yes le-proof -> Some (k, MkBoundedView1 (MkView1 out 0 k 1) le-proof)
+
+  -- Idiomatic CSR SpMV composed from `gather`, `zip-with mul`, and
+  -- `segmented-reduce` (automatically fused by Typed Array IR into zero-temp
+  -- `arraySpmvCsrF32`!).
+  spmv-csr-composed-f32 :: Array F32 -> Array I32 -> Array U32 -> Array F32 -> FloatMode -> Array F32
+  spmv-csr-composed-f32 vals cols row-ptr x mode =
+    let gathered = array-gather-f32 x cols 1
+    in case array-zip-binop-f32 vals gathered 2 of
+      None -> array-from-f32s []
+      Some prods -> array-segmented-reduce-f32 prods row-ptr (float-mode-code mode)
+
+  -- Batched `frames x height x width` 2D stencil followed by per-frame
+  -- histogram, returning `View2 frames bins U32`.
+  stencil-histogram-batch-u8 :: forall (f :: Nat) (h :: Nat) (w :: Nat).
+    View3 f h w U8 -> Array I32 -> I32 -> EdgePolicy -> Nat -> (bins :: Nat) -> Option (View2 f bins U32)
+  stencil-histogram-batch-u8 img weights divisor edge steps bins =
+    case array-stencil2d-u8 (view3-data img) (view3-frames img) (view3-height img) (view3-width img) weights divisor (edge-policy-code edge) steps of
+      None -> None
+      Some blurred ->
+        case array-histogram-batch-u8 blurred (view3-frames img) (view3-height img) (view3-width img) bins of
+          None -> None
+          Some counts -> Some (MkView2 counts 0 (view3-frames img) bins bins 1)
+
+  -- Radix sort (32-bit unsigned) built purely from our parallel array
+  -- primitives (`map`, `histogram`, `scan` exclusive, `scatter-unique`) so
+  -- library code exercises the exact same compilation path as user code!
+  radix-sort-u32 :: Array U32 -> Array U32
+  radix-sort-u32 xs =
+    let p0 = radix-pass-u32 xs 0
+        p1 = radix-pass-u32 p0 8
+        p2 = radix-pass-u32 p1 16
+    in radix-pass-u32 p2 24
+
+  radix-pass-u32 :: Array U32 -> U32 -> Array U32
+  radix-pass-u32 xs shift =
+    let n = array-length xs
+        keys = array-map-u32 (\v -> bit-and-u32 (wrapping-shr-u32 v shift) (wrapping-i64-to-u32 255)) xs
+        counts = array-histogram-u32 keys 256
+        offsets = array-scan-u32 counts 0 False
+        zeros1 = array-tabulate-u32 n (\_ -> wrapping-i64-to-u32 0)
+        zeros2 = array-tabulate-u32 n (\_ -> wrapping-i64-to-u32 0)
+        dest-idx = radix-compute-dests keys offsets 0 n zeros1
+    in array-scatter-unique-u32 zeros2 dest-idx xs
+
+  radix-compute-dests :: Array U32 -> Array U32 -> Nat -> Nat -> Array U32 -> Array U32
+  radix-compute-dests keys offsets i n out =
+    if i >= n then out
+    else case array-get keys i of
+      None -> out
+      Some b ->
+        let bi = u32-to-nat b
+        in case array-get offsets bi of
+          None -> out
+          Some pos ->
+            let next-off = case array-set offsets bi (wrapping-add-u32 pos (wrapping-i64-to-u32 1)) of
+                  None -> offsets
+                  Some updated -> updated
+                next-out = case array-set out i pos of
+                  None -> out
+                  Some updated -> updated
+            in radix-compute-dests keys next-off (i + 1) n next-out

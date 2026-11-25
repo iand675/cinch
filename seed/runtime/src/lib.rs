@@ -578,6 +578,8 @@ pub mod block;
 mod cycle;
 pub mod bytes;
 pub mod arrays;
+pub mod par_arrays;
+pub mod metal;
 pub mod coop;
 /// Operating-system entropy filling; unavailable on freestanding targets.
 #[cfg(not(target_os = "unknown"))]

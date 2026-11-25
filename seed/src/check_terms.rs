@@ -619,7 +619,7 @@ impl Checker {
         op: &'static str,
     ) -> Result<()> {
         let many_shot = op != "parBoth";
-        let mut captures = self.callback_captures(core, op, span)?;
+        let mut captures = self.callback_captures(core, op, span, dicts)?;
         let mut seen = HashSet::new();
         while let Some(local) = captures.pop() {
             let origin = self.value_aliases.get(&local).copied().unwrap_or(local);
@@ -652,6 +652,7 @@ impl Checker {
         core: &ECore,
         op: &'static str,
         span: ast::Span,
+        dicts: &[(LocalId, ClassApp)],
     ) -> Result<Vec<LocalId>> {
         let mut captures = Vec::new();
         match core {
@@ -680,7 +681,24 @@ impl Checker {
                 let origin = self.value_aliases.get(local).copied().unwrap_or(*local);
                 match self.local_closure_captures.get(&origin) {
                     Some(known) => Ok(known.clone()),
-                    None => Err(Error::at(span, self.callback_refusal(op, Some(origin)))),
+                    None => {
+                        // A forwarded function parameter is accepted ONLY when
+                        // explicit `Kernel` evidence for its type is in scope
+                        // (`using (k :: Kernel (a -> b)) => ...`), preserving
+                        // exact call-site callback refusals otherwise.
+                        if let Some(binding) = self.obligations.get(&origin) {
+                            let ty = self.uni.zonk(&binding.ty);
+                            if matches!(ty, Ty::Fun(..))
+                                && dicts.iter().any(|(_, c)| {
+                                    c.class == "Kernel"
+                                        && c.args.iter().any(|a| self.uni.zonk(a) == ty)
+                                })
+                            {
+                                return Ok(vec![origin]);
+                            }
+                        }
+                        Err(Error::at(span, self.callback_refusal(op, Some(origin))))
+                    }
                 }
             }
             _ => Err(Error::at(span, self.callback_refusal(op, None))),

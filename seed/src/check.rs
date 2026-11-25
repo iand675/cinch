@@ -4960,7 +4960,7 @@ impl Checker {
     /// runtime evidence words and the `Copy` marker is the unit word;
     /// every other dictionary is a counted block.
     pub(crate) fn dict_class(class: &str) -> crate::repr::Class {
-        if is_capability_class(class) || class == "Copy" {
+        if is_capability_class(class) || class == "Copy" || class == "Kernel" {
             crate::repr::Class::Raw
         } else {
             crate::repr::Class::Obj
@@ -5540,7 +5540,7 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
                 || self.value_may_hide_scope(cod, seen, fuel - 1),
             Ty::Adt(name, args) => {
-                if is_capability_class(name) || name == "Scope" || name == "Copy" { return false; }
+                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "Kernel" { return false; }
                 if name == "Task" { return true; }
                 if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
@@ -5615,7 +5615,14 @@ impl Checker {
             // and guardedness design, section 6), so like a thunk it is
             // not duplicable evidence.
             Ty::Later(_) => transferring,
-            Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => transferring,
+            Ty::Fun(_, _, _, _) => {
+                transferring
+                    || (usage == StructuralUsage::Share
+                        && scope.iter().any(|(_, c)| {
+                            c.class == "Kernel" && c.args.iter().any(|a| a == ty)
+                        }))
+            }
+            Ty::Pi { .. } | Ty::Handler { .. } => transferring,
             // A polymorphic value is a dictionary of closures: like a
             // function, it is not duplicable evidence.
             Ty::Forall(_) => transferring,
@@ -6847,9 +6854,63 @@ impl Checker {
         None
     }
 
+    /// Structural `Kernel` evidence for callback forwarding into reusable
+    /// parallel/device functions: accepts function types whose effect row is
+    /// parallel-safe (`{}` or `{Diverge}`) and whose parameter/result types
+    /// carry no `Mut` borrow or `Lazy` memo cell.
+    pub(crate) fn kernel_structural<B>(
+        &self,
+        ty: &Ty,
+        scope: &[(B, ClassApp)],
+    ) -> std::result::Result<(), String> {
+        if scope
+            .iter()
+            .any(|(_, c)| c.class == "Kernel" && c.args.iter().any(|a| a == ty))
+        {
+            return Ok(());
+        }
+        match ty {
+            Ty::Fun(dom, _, row, cod) => {
+                if let Some(bad) = row.labels.iter().find(|l| l.head.as_str() != "Diverge") {
+                    return Err(format!(
+                        "effect `{bad}` in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                if !matches!(row.tail, RowTail::Closed) {
+                    return Err(format!(
+                        "open effect row in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                if crate::types::mentions_memo(dom) || crate::types::mentions_memo(cod) {
+                    return Err(format!(
+                        "`Lazy` memo cell in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                let mut borrows = Vec::new();
+                borrow_regions(dom, &mut borrows);
+                borrow_regions(cod, &mut borrows);
+                if borrows.iter().any(|(_, is_mut)| *is_mut) {
+                    return Err(format!(
+                        "exclusive `Mut` borrow in `{ty}` prevents Kernel / parallel execution"
+                    ));
+                }
+                Ok(())
+            }
+            _ => Err(format!(
+                "Kernel evidence requires a function type (a -> b), got `{ty}`"
+            )),
+        }
+    }
+
     fn signature_at(&self, owner: &str, name: &str) -> Option<SigInfo> {
-        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Io") {
-            let (name, parameter) = if name == "Io" { ("Io", "r") } else { ("Copy", "a") };
+        if owner == "<builtin>" && matches!(name, "Copy" | "Share" | "Kernel" | "Io") {
+            let (name, parameter) = if name == "Io" {
+                ("Io", "r")
+            } else if name == "Kernel" {
+                ("Kernel", "a")
+            } else {
+                ("Copy", "a")
+            };
             return Some(SigInfo {
                 module: "<builtin>".into(), name: name.into(),
                 params: vec![parameter.into()], param_kinds: vec![ParamKind::Type],
@@ -6900,7 +6961,7 @@ impl Checker {
                 // section 3). It is not user-extensible. `Io` is the
                 // runtime capability head (decision D21): its instances
                 // are runtime objects supplied lexically, never declared.
-                if matches!(*name, "Copy" | "Share" | "Io") {
+                if matches!(*name, "Copy" | "Share" | "Kernel" | "Io") {
                     return Ok(self.signature_at("<builtin>", name).unwrap());
                 }
                 self.sigs
@@ -8123,7 +8184,7 @@ impl Checker {
                 } else {
                     let class = resolver.uni.zonk_class(&request.class);
                     if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
-                        && class.class != "Copy" && !is_capability_class(&class.class) {
+                        && class.class != "Copy" && class.class != "Kernel" && !is_capability_class(&class.class) {
                         self.declaration_needs_headers.set(true);
                         return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
                     }

@@ -4733,6 +4733,17 @@ pub struct DriverOptions {
     /// its percentage and the payload bytes the refused allocations carry
     /// (design/stack-allocation.md section 8).
     pub escape_report: bool,
+    /// `--array-report` (`CINCH_ARRAY_REPORT=1`): print the Typed Array IR
+    /// optimization report (fusions, eliminated allocations, schedules,
+    /// storage plans, GPU diagnostics).
+    pub array_report: bool,
+    /// `--array-report-json`: emit the Typed Array IR report as JSON on stderr.
+    pub array_report_json: bool,
+    /// `--array-target <cpu|metal|metal-required>`: target execution model for
+    /// Typed Array IR planning and compile-time GPU diagnostics.
+    pub array_target: Option<String>,
+    /// Optional path to write the Array IR JSON report for automated inspection.
+    pub array_report_out: Option<PathBuf>,
     /// `--no-reclaim`: build the leak-everything baseline, the same profile
     /// `CINCH_RECLAIM=0` selects, as a command-line word. Nothing is
     /// counted, so no ownership operation is emitted and every block the
@@ -4765,6 +4776,20 @@ impl DriverOptions {
     /// `CINCH_ESCAPE_REPORT=1` (design/stack-allocation.md section 8).
     pub fn escape_report(&self) -> bool {
         self.escape_report || std::env::var_os("CINCH_ESCAPE_REPORT").is_some()
+    }
+
+    pub fn array_report(&self) -> bool {
+        self.array_report || std::env::var_os("CINCH_ARRAY_REPORT").is_some()
+    }
+
+    pub fn resolved_array_target(&self) -> crate::array_ir::ArrayTarget {
+        let raw = self
+            .array_target
+            .clone()
+            .or_else(|| std::env::var("CINCH_ARRAY_TARGET").ok());
+        raw.as_deref()
+            .and_then(crate::array_ir::ArrayTarget::from_str)
+            .unwrap_or(crate::array_ir::ArrayTarget::Cpu)
     }
 
     /// The simplifier budget these flags select: the pass cap, whether
@@ -6047,6 +6072,18 @@ pub fn driver_with_profile_opts(
         (program, opt, Vec::new())
     };
     trace_driver_phase(phase_trace, "optimization.end");
+    // Typed Array IR optimization, schedule planning, storage planning, and
+    // compile-time GPU target diagnostics (`seed/src/array_ir.rs`).
+    let array_target = opts.resolved_array_target();
+    let array_report = crate::array_ir::optimize_program(&mut program, array_target)?;
+    if let Some(ref report_path) = opts.array_report_out {
+        let _ = std::fs::write(report_path, array_report.format_json());
+    }
+    if opts.array_report_json && !array_report.is_empty() {
+        eprintln!("{}", array_report.format_json());
+    } else if opts.array_report() && !array_report.is_empty() {
+        eprint!("{}", array_report.format_text());
+    }
     // Dead-unit elimination (design/stack-allocation.md section 7.4): after
     // inlining, whose copies leave a callee with no call site, and before
     // reference counting, so the removal is not paid for. `check` prunes

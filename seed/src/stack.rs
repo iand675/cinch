@@ -857,6 +857,16 @@ fn primitive_requires_heap_argument(op: PrimOp, position: usize) -> bool {
             | ArrayOp::Rows | ArrayOp::Columns | ArrayOp::Row | ArrayOp::Left
             | ArrayOp::Right | ArrayOp::Leaf => false,
         },
+        PrimOp::ArrayCompute { op, .. } => {
+            use crate::arrays::ArrayComputeOp::*;
+            match op {
+                TabulateU8 | TabulateI32 | TabulateU32 | TabulateF32 | TabulateF64 => position == 1,
+                MapU8 | MapI32 | MapU32 | MapF32 | MapF64
+                | ZipWithI32 | ZipWithF32 | FoldlI32 | FoldlF32 | FilterPackedI32 => position == 0,
+                ScatterUniqueU32 | ScatterCombineI32 | PackStrided1D | PackStrided2D => position == 0,
+                _ => false,
+            }
+        }
         PrimOp::Stm { op, .. } => matches!(op, crate::stm::StmOp::CellNew
             | crate::stm::StmOp::CellCast | crate::stm::StmOp::CellAddr) && position == 0,
         PrimOp::Slots { op: crate::slots::SlotOp::Write, .. } => position == 2,

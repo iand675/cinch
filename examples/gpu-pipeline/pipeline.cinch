@@ -1,0 +1,69 @@
+-- Idiomatic Cinch source for the batched grayscale stencil -> histogram
+-- numerical pipeline (`frames x height x width` -> `frames x bins`).
+--
+-- The same shape-checked pipeline runs on:
+--   1. Multicore CPU via `stencil-histogram-batch-u8` (`View3 f h w U8 -> View2 f bins U32`)
+--   2. Apple Metal GPU via `device-stencil-histogram-u8` with 1 upload,
+--      resident ping-pong stencil + per-frame histogram in a single command
+--      buffer, and 1 download of only the histogram counts.
+module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Device
+  import Data.Machine
+  import Data.Bytes
+  import Data.Result
+
+  blur-weights :: Array I32
+  blur-weights = array-from-i32s
+    [ wrapping-i64-to-i32 1, wrapping-i64-to-i32 2, wrapping-i64-to-i32 1
+    , wrapping-i64-to-i32 2, wrapping-i64-to-i32 4, wrapping-i64-to-i32 2
+    , wrapping-i64-to-i32 1, wrapping-i64-to-i32 2, wrapping-i64-to-i32 1
+    ]
+
+  -- Run the full pipeline on the Metal GPU: upload once, stencil + histogram
+  -- resident on device, download only the `frames x 256` histogram counts.
+  run-gpu-batch :: Device -> Array U8 -> Nat -> Nat -> Nat -> Nat -> Result (Array U32) DeviceError
+  run-gpu-batch dev batch frames h w steps =
+    case device-upload dev batch of
+      Err e -> Err e
+      Ok d-in ->
+        case device-stencil-histogram-u8 dev d-in frames h w blur-weights (wrapping-i64-to-i32 16) EdgeClamp steps 256 of
+          Err e ->
+            let _ = ignore (device-buffer-free d-in)
+            in Err e
+          Ok d-hist ->
+            let res = device-download-u32 dev d-hist
+                _ = ignore (device-buffer-free d-in)
+                _ = ignore (device-buffer-free d-hist)
+            in res
+
+  main :: Int
+  main =
+    let frames = (64 :: Nat)
+        h = (64 :: Nat)
+        w = (64 :: Nat)
+        total = frames * h * w
+        imgs = array-tabulate-u8 total (\i ->
+          if i <= 100000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 37)
+          else wrapping-i64-to-u8 0)
+    in case device-open-metal-required () of
+      Err _ -> 1
+      Ok dev ->
+        case run-gpu-batch dev imgs frames h w 3 of
+          Err _ ->
+            let _ = ignore (device-close dev) in 2
+          Ok gpu-hist ->
+            let _ = ignore (device-close dev)
+            in case view3-of frames h w imgs of
+              None -> 3
+              Some v3 -> case stencil-histogram-batch-u8 v3 blur-weights (wrapping-i64-to-i32 16) EdgeClamp 3 256 of
+                None -> 4
+                Some cpu-v2 ->
+                  let cpu-hist = view2-data cpu-v2
+                      g0 = case array-get gpu-hist 0 of Some x -> u32-to-i64 x; None -> (-1)
+                      c0 = case array-get cpu-hist 0 of Some x -> u32-to-i64 x; None -> (-2)
+                      g200 = case array-get gpu-hist 200 of Some x -> u32-to-i64 x; None -> (-1)
+                      c200 = case array-get cpu-hist 200 of Some x -> u32-to-i64 x; None -> (-2)
+                  in if array-length gpu-hist == frames * 256 && g0 == c0 && g200 == c200 then 0 else 5

@@ -1,0 +1,168 @@
+-- Data.Device: host/device boundary for resident buffers, Metal GPU and
+-- multicore CPU execution, synchronization, and failure reporting.
+module Data.Device where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Compute
+  import Data.Nat
+  import Data.Int
+  import Data.Bool
+  import Data.Bytes
+  import Data.Result
+
+  export Device, DeviceBuffer, DeviceError
+  export DeviceNoHardware, DeviceInvalidHandle, DeviceOutOfMemory, DeviceCompileFailed, DeviceExecutionFailed, DeviceInvalidShape
+  export device-open-cpu, device-open-metal, device-open-metal-required, device-close, device-reset-telemetry
+  export device-upload, device-download-u8, device-download-u32, device-download-i32, device-download-f32
+  export device-buffer-free, device-buffer-bytes
+  export device-dot-f32, device-scan-i32, device-filter-i32-gt, device-row-reduce-f32
+  export device-stencil-histogram-u8, device-stencil2d-f32, device-spmv-csr-f32
+  export device-report-bytes
+
+  foreign import ccall "cinch.runtime.deviceOpen" rt-device-open :: I64 -> I64
+  foreign import ccall "cinch.runtime.deviceClose" rt-device-close :: I64 -> I64
+  foreign import ccall "cinch.runtime.deviceResetTelemetry" rt-device-reset :: I64 -> I64
+  foreign import ccall "cinch.runtime.deviceUploadArray" rt-device-upload :: forall a. I64 -> Array a -> I64
+  foreign import ccall "cinch.runtime.deviceDownloadU8" rt-device-download-u8 :: I64 -> I64 -> Option (Array U8)
+  foreign import ccall "cinch.runtime.deviceDownloadU32" rt-device-download-u32 :: I64 -> I64 -> Option (Array U32)
+  foreign import ccall "cinch.runtime.deviceDownloadI32" rt-device-download-i32 :: I64 -> I64 -> Option (Array I32)
+  foreign import ccall "cinch.runtime.deviceDownloadF32" rt-device-download-f32 :: I64 -> I64 -> Option (Array F32)
+  foreign import ccall "cinch.runtime.deviceBufferFree" rt-device-buffer-free :: I64 -> I64
+  foreign import ccall "cinch.runtime.deviceBufferBytes" rt-device-buffer-bytes :: I64 -> I64
+  foreign import ccall "cinch.runtime.deviceDotF32" rt-device-dot-f32 :: I64 -> I64 -> I64 -> Nat -> I64 -> Option F32
+  foreign import ccall "cinch.runtime.deviceScanI32" rt-device-scan-i32 :: I64 -> I64 -> Nat -> Bool -> I64
+  foreign import ccall "cinch.runtime.deviceFilterI32Gt" rt-device-filter-i32-gt :: I64 -> I64 -> Nat -> I32 -> I64
+  foreign import ccall "cinch.runtime.deviceRowReduceF32" rt-device-row-reduce-f32 :: I64 -> I64 -> Nat -> Nat -> I64
+  foreign import ccall "cinch.runtime.deviceStencilHistogramU8" rt-device-stencil-hist-u8 :: I64 -> I64 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Nat -> I64
+  foreign import ccall "cinch.runtime.deviceStencil2DF32" rt-device-stencil2d-f32 :: I64 -> I64 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> I64
+  foreign import ccall "cinch.runtime.deviceSpmvCsrF32" rt-device-spmv-csr-f32 :: I64 -> I64 -> I64 -> I64 -> I64 -> Nat -> Nat -> I64 -> I64
+  foreign import ccall "cinch.runtime.deviceReportBytes" rt-device-report-bytes :: I64 -> Bytes
+
+  data Device where
+    MkDevice :: I64 -> Device
+
+  data DeviceBuffer a where
+    MkDeviceBuffer :: I64 -> DeviceBuffer a
+
+  data DeviceError where
+    DeviceNoHardware :: DeviceError
+    DeviceInvalidHandle :: DeviceError
+    DeviceOutOfMemory :: DeviceError
+    DeviceCompileFailed :: DeviceError
+    DeviceExecutionFailed :: DeviceError
+    DeviceInvalidShape :: DeviceError
+
+  decode-error :: I64 -> DeviceError
+  decode-error code =
+    if code == (-1) then DeviceNoHardware
+    else if code == (-2) then DeviceInvalidHandle
+    else if code == (-3) then DeviceOutOfMemory
+    else if code == (-4) then DeviceCompileFailed
+    else if code == (-5) then DeviceExecutionFailed
+    else DeviceInvalidShape
+
+  device-handle :: Device -> I64
+  device-handle d = case d of MkDevice h -> h
+
+  buffer-handle :: forall a. DeviceBuffer a -> I64
+  buffer-handle b = case b of MkDeviceBuffer h -> h
+
+  device-open-cpu :: Unit -> Result DeviceError Device
+  device-open-cpu unit =
+    let h = rt-device-open 0
+    in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+
+  device-open-metal :: Unit -> Result DeviceError Device
+  device-open-metal unit =
+    let h = rt-device-open 1
+    in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+
+  device-open-metal-required :: Unit -> Result DeviceError Device
+  device-open-metal-required unit =
+    let h = rt-device-open 2
+    in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+
+  device-close :: Device -> Result DeviceError Unit
+  device-close d =
+    let r = rt-device-close (device-handle d)
+    in if r == 0 then Ok () else Err (decode-error r)
+
+  device-reset-telemetry :: Device -> Result DeviceError Unit
+  device-reset-telemetry d =
+    let r = rt-device-reset (device-handle d)
+    in if r == 0 then Ok () else Err (decode-error r)
+
+  device-upload :: forall a. Device -> Array a -> Result DeviceError (DeviceBuffer a)
+  device-upload d arr =
+    let h = rt-device-upload (device-handle d) arr
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-download-u8 :: Device -> DeviceBuffer U8 -> Result DeviceError (Array U8)
+  device-download-u8 d b = case rt-device-download-u8 (device-handle d) (buffer-handle b) of
+    None -> Err DeviceInvalidHandle
+    Some arr -> Ok arr
+
+  device-download-u32 :: Device -> DeviceBuffer U32 -> Result DeviceError (Array U32)
+  device-download-u32 d b = case rt-device-download-u32 (device-handle d) (buffer-handle b) of
+    None -> Err DeviceInvalidHandle
+    Some arr -> Ok arr
+
+  device-download-i32 :: Device -> DeviceBuffer I32 -> Result DeviceError (Array I32)
+  device-download-i32 d b = case rt-device-download-i32 (device-handle d) (buffer-handle b) of
+    None -> Err DeviceInvalidHandle
+    Some arr -> Ok arr
+
+  device-download-f32 :: Device -> DeviceBuffer F32 -> Result DeviceError (Array F32)
+  device-download-f32 d b = case rt-device-download-f32 (device-handle d) (buffer-handle b) of
+    None -> Err DeviceInvalidHandle
+    Some arr -> Ok arr
+
+  device-buffer-free :: forall a. DeviceBuffer a -> Result DeviceError Unit
+  device-buffer-free b =
+    let r = rt-device-buffer-free (buffer-handle b)
+    in if r == 0 then Ok () else Err (decode-error r)
+
+  device-buffer-bytes :: forall a. DeviceBuffer a -> Result DeviceError I64
+  device-buffer-bytes b =
+    let n = rt-device-buffer-bytes (buffer-handle b)
+    in if n >= 0 then Ok n else Err (decode-error n)
+
+  device-dot-f32 :: Device -> DeviceBuffer F32 -> DeviceBuffer F32 -> Nat -> FloatMode -> Result DeviceError F32
+  device-dot-f32 d a b n mode = case rt-device-dot-f32 (device-handle d) (buffer-handle a) (buffer-handle b) n (float-mode-code mode) of
+    None -> Err DeviceExecutionFailed
+    Some v -> Ok v
+
+  device-scan-i32 :: Device -> DeviceBuffer I32 -> Nat -> Bool -> Result DeviceError (DeviceBuffer I32)
+  device-scan-i32 d b n inclusive =
+    let h = rt-device-scan-i32 (device-handle d) (buffer-handle b) n inclusive
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-filter-i32-gt :: Device -> DeviceBuffer I32 -> Nat -> I32 -> Result DeviceError (DeviceBuffer I32)
+  device-filter-i32-gt d b n thr =
+    let h = rt-device-filter-i32-gt (device-handle d) (buffer-handle b) n thr
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-row-reduce-f32 :: Device -> DeviceBuffer F32 -> Nat -> Nat -> Result DeviceError (DeviceBuffer F32)
+  device-row-reduce-f32 d b rows cols =
+    let h = rt-device-row-reduce-f32 (device-handle d) (buffer-handle b) rows cols
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  -- Complete resident Metal GPU pipeline: `steps` ping-pong 2D stencil
+  -- iterations followed directly by batched histogram in ONE command buffer!
+  device-stencil-histogram-u8 :: Device -> DeviceBuffer U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> EdgePolicy -> Nat -> Nat -> Result DeviceError (DeviceBuffer U32)
+  device-stencil-histogram-u8 d img frames height width weights divisor edge steps bins =
+    let h = rt-device-stencil-hist-u8 (device-handle d) (buffer-handle img) frames height width weights divisor (edge-policy-code edge) steps bins
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-stencil2d-f32 :: Device -> DeviceBuffer F32 -> Nat -> Nat -> Nat -> Array F32 -> EdgePolicy -> Nat -> Result DeviceError (DeviceBuffer F32)
+  device-stencil2d-f32 d img frames height width weights edge steps =
+    let h = rt-device-stencil2d-f32 (device-handle d) (buffer-handle img) frames height width weights (edge-policy-code edge) steps
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-spmv-csr-f32 :: Device -> DeviceBuffer F32 -> DeviceBuffer U32 -> DeviceBuffer U32 -> DeviceBuffer F32 -> Nat -> Nat -> FloatMode -> Result DeviceError (DeviceBuffer F32)
+  device-spmv-csr-f32 d vals cols row-ptr x rows nnz mode =
+    let h = rt-device-spmv-csr-f32 (device-handle d) (buffer-handle vals) (buffer-handle cols) (buffer-handle row-ptr) (buffer-handle x) rows nnz (float-mode-code mode)
+    in if h > 0 then Ok (MkDeviceBuffer h) else Err (decode-error h)
+
+  device-report-bytes :: Device -> Bytes
+  device-report-bytes d = rt-device-report-bytes (device-handle d)

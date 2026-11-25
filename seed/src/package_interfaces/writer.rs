@@ -467,6 +467,7 @@ mod tests {
             symbol: root.identity.clone(),
             total_body: Some(CheckedGraph::check(vec![root, helper]).unwrap()),
             keyed_ordering: None,
+            kernel: None,
             scheme: "Nat -> Nat".into(),
             resolved: Some(ResolvedScheme {
                 scheme: "Nat -> Nat".into(),

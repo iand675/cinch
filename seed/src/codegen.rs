@@ -711,6 +711,20 @@ fn emit_module(
     if reg
         .prims
         .iter()
+        .any(|op| matches!(op, PrimOp::ArrayCompute { .. }))
+        || program
+            .fns
+            .iter()
+            .any(|f| matches!(f.prim, Some(PrimOp::ArrayCompute { .. })))
+    {
+        for decl in arrays_codegen::COMPUTE_DECLARES {
+            out.push_str(decl);
+            out.push('\n');
+        }
+    }
+    if reg
+        .prims
+        .iter()
         .any(|op| matches!(op, PrimOp::Par { .. }))
     {
         let prefix = if cx.coop_tasks { "cinch_coop_par" } else { "cinch_par" };
@@ -2357,6 +2371,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
     };
     match op {
         PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
+        PrimOp::ArrayCompute { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
@@ -2379,6 +2394,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
         } => {
             let params = op.params(packed);
             op.sig(packed)
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
+        PrimOp::ArrayCompute { op, classes } => {
+            let params = op.params();
+            op.sig()
                 .0
                 .iter()
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
@@ -2457,6 +2480,13 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
     if let PrimOp::Array { op, classes, .. } = op {
         return if op.returns_option() {
             vec![op.result_class(classes)]
+        } else {
+            vec![]
+        };
+    }
+    if let PrimOp::ArrayCompute { op, .. } = op {
+        return if op.returns_option() {
+            vec![op.option_payload_class()]
         } else {
             vec![]
         };
@@ -7527,6 +7557,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             classes,
             packed,
         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
+        ArrayCompute { op: compute_op, .. } => {
+            arrays_codegen::emit_compute(b, reg, name, op, compute_op)
+        }
         Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
         MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
         Stm { op: stm_op, classes } => {

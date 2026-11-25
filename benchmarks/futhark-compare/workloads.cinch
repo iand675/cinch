@@ -1,0 +1,49 @@
+-- Equivalent Cinch benchmark workloads matching `workloads.fut`
+-- (same shapes, same numerical contracts, fused through Typed Array IR).
+module Workloads where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Machine
+
+  export dot-f32-composed, dot-i32-composed, scan-i32-incl, filter-i32-gt
+  export histogram-u8, stencil2d-f32-steps, stencil-histogram-batch, spmv-csr-f32
+
+  -- 1. Dot product written idiomatically as zip-with multiply + reduce
+  -- (automatically fused by Typed Array IR to zero-temp `arrayDotF32`/`arrayDotI32`).
+  dot-f32-composed :: Array F32 -> Array F32 -> FloatMode -> F32
+  dot-f32-composed xs ys mode = case array-zip-binop-f32 xs ys 2 of
+    None -> i64-to-f32 0
+    Some prods -> array-reduce-f32 prods (float-mode-code mode)
+
+  dot-i32-composed :: Array I32 -> Array I32 -> I32
+  dot-i32-composed xs ys = case array-zip-binop-i32 xs ys 2 of
+    None -> wrapping-i64-to-i32 0
+    Some prods -> array-reduce-i32 prods 0
+
+  -- 2. Inclusive prefix scan and stable compaction
+  scan-i32-incl :: Array I32 -> Array I32
+  scan-i32-incl xs = array-scan-i32 xs 0 True
+
+  filter-i32-gt :: Array I32 -> I32 -> Array I32
+  filter-i32-gt xs thr = array-filter-i32-gt xs thr
+
+  -- 3. 256-bin histogram over U8
+  histogram-u8 :: Array U8 -> Array U32
+  histogram-u8 xs = array-histogram-u8 xs 256
+
+  -- 4a. Multi-step 2D 3x3 F32 stencil (EdgeClamp, 2-buffer ping-pong)
+  stencil2d-f32-steps :: Array F32 -> Nat -> Nat -> Array F32 -> Nat -> Option (Array F32)
+  stencil2d-f32-steps img h w ws steps = array-stencil2d-f32 img 1 h w ws 0 steps
+
+  -- 4b. Target pipeline: batched frames x h x w U8 -> 3x3 EdgeClamp stencil -> per-frame 256-bin histogram
+  stencil-histogram-batch :: forall (f :: Nat) (h :: Nat) (w :: Nat).
+    View3 f h w U8 -> Array I32 -> I32 -> Nat -> Option (View2 f 256 U32)
+  stencil-histogram-batch imgs ws divisor steps =
+    stencil-histogram-batch-u8 imgs ws divisor EdgeClamp steps 256
+
+  -- 5. CSR Sparse Matrix-Vector Multiplication with empty rows
+  -- (composed gather + zip-mul + segmented-reduce, fused by Typed Array IR to `arraySpmvCsrF32`).
+  spmv-csr-f32 :: Array F32 -> Array I32 -> Array U32 -> Array F32 -> FloatMode -> Array F32
+  spmv-csr-f32 vals cols row-ptr x mode =
+    spmv-csr-composed-f32 vals cols row-ptr x mode

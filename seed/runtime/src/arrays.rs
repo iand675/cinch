@@ -63,6 +63,39 @@ pub(crate) unsafe fn array(len: i64, format: i64) -> i64 {
     p as usize as i64
 }
 
+pub(crate) fn elem_width(format: i64) -> usize {
+    width(format)
+}
+
+pub(crate) unsafe fn data_ptr(a: i64) -> *mut u8 {
+    unsafe { payload(a, block::KIND_ARRAY).add(2).cast::<u8>() }
+}
+
+pub(crate) unsafe fn is_exclusive(a: i64) -> bool {
+    unsafe { exclusive(a) }
+}
+
+/// Allocate a fresh packed raw-scalar array without redundant zero-fill when
+/// the caller immediately writes every element.
+pub(crate) unsafe fn alloc_uninit_packed(len: i64, format: i64) -> i64 {
+    if len < 0 || format & 0x100 == 0 || !matches!(width(format), 1 | 2 | 4 | 8) {
+        corrupt();
+    }
+    let bytes = (len as usize)
+        .checked_mul(width(format))
+        .and_then(|n| n.checked_add(16))
+        .unwrap_or_else(|| crate::heap::request_too_large(usize::MAX));
+    let p =
+        unsafe { block::allocate(bytes, block::KIND_ARRAY, block::RC_FRESH, false) }.cast::<i64>();
+    unsafe {
+        p.write(format);
+        p.add(1).write(len);
+    }
+    #[cfg(test)]
+    crate::cycle::register_array(p as usize, format);
+    p as usize as i64
+}
+
 pub(crate) unsafe fn format(a: i64) -> i64 {
     unsafe { field(a, block::KIND_ARRAY, 0) }
 }

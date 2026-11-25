@@ -17,6 +17,7 @@ fn prim_scheme(op: PrimOp) -> Scheme {
     let mut scheme = Scheme::mono(ty);
     match op {
         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
+        PrimOp::ArrayCompute { op, .. } => scheme.params = op.params(),
         PrimOp::Stm { op, .. } => scheme.params = op.params(),
         PrimOp::MVar { op, .. } => scheme.params = op.params(),
         PrimOp::Slots { op, .. } => scheme.params = op.params(),
@@ -3685,13 +3686,13 @@ impl Checker {
                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
                         }
                         let rendered = render_scheme(&s);
-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
+                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
                             let (args, result) = op.sig();
                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
                             // A cell read answers the value's own class,
                             // which the unit's copies resolve per vector;
                             // every array operation answers a block.
-                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
+                            let repr_result = matches!(op, PrimOp::ArrayCompute { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
                             self.fns.push(FnDef {
                                 id: fn_id(&module, &f.name.text),
@@ -17830,10 +17831,30 @@ impl Checker {
                         let scheme = resolved.as_ref().and_then(|_| self.interface_source_schemes
                             .get(&(d.module.clone(), d.name.clone())).and_then(|source| source.display.clone()))
                             .unwrap_or_else(|| render_scheme(&v.scheme));
+                        let is_array_or_kernel_export = !matches!(
+                            module,
+                            "Prelude" | "Data.Core" | "Data.Array" | "Data.Array.Packed" | "Data.Tensor" | "Data.Columnar"
+                        ) && (scheme.contains("Kernel ")
+                            || scheme.contains("View1 ")
+                            || scheme.contains("View2 ")
+                            || scheme.contains("View3 ")
+                            || scheme.contains("Device")
+                            || (scheme.contains("Array ") && !module.starts_with("Data.")));
+                        let kernel = if is_array_or_kernel_export {
+                            let info = crate::array_ir::analyze_scheme_kernel_eligibility(&scheme, None, None);
+                            Some(crate::interface::KernelEligibilityExport {
+                                cpu_parallel: info.cpu_parallel,
+                                gpu_metal: info.gpu_metal,
+                                blocker: info.blocker,
+                            })
+                        } else {
+                            None
+                        };
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             total_body: self.interface_value_body(v),
                             keyed_ordering: resolved.as_ref().and_then(|resolved| self.interface_keyed_ordering(v, resolved)),
+                            kernel,
                             scheme,
                             resolved,
                             symbol: format!("{}.{}", d.module, d.name),

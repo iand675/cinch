@@ -101,6 +101,8 @@ mod c {
         pub(super) fn ptsname_r(fd: i32, buf: *mut u8, len: usize) -> i32;
         pub(super) fn getenv(name: *const u8) -> *const u8;
         pub(super) fn atexit(f: extern "C" fn()) -> i32;
+        pub(super) fn dlopen(path: *const u8, mode: i32) -> *mut c_void;
+        pub(super) fn dlsym(handle: *mut c_void, symbol: *const u8) -> *mut c_void;
         // This platform's per-thread `errno` slot (`__errno_location`
         // elsewhere).
         pub(super) fn __error() -> *mut i32;
@@ -313,4 +315,19 @@ pub(crate) fn ptsname(fd: i64, buf: &mut [u8]) -> (i64, i64) {
 
 pub(crate) fn ioctl(fd: i64, request: u64, arg: *const u8) -> (i64, i64) {
     pair(i64::from(unsafe { c::ioctl(fd as i32, request, arg) }))
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic frameworks (Metal / Objective-C runtime on Darwin)
+// ---------------------------------------------------------------------------
+
+/// `RTLD_LAZY | RTLD_GLOBAL` on Darwin (`0x1 | 0x8`).
+const RTLD_LAZY_GLOBAL: i32 = 0x1 | 0x8;
+
+pub(crate) fn dlopen(path_nul: &[u8]) -> *mut c_void {
+    unsafe { c::dlopen(path_nul.as_ptr(), RTLD_LAZY_GLOBAL) }
+}
+
+pub(crate) fn dlsym(handle: *mut c_void, sym_nul: &[u8]) -> *mut c_void {
+    unsafe { c::dlsym(handle, sym_nul.as_ptr()) }
 }

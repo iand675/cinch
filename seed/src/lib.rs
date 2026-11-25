@@ -8,6 +8,7 @@
 pub mod analysis;
 mod applications;
 pub mod arrays;
+pub mod array_ir;
 pub mod ast;
 pub mod cabi;
 pub mod check;

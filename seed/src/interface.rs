@@ -380,6 +380,15 @@ pub fn topo_order(
 }
 
 
+/// Exported kernel eligibility recorded in `.cinchif` so library authors can
+/// ship reusable parallel and GPU-eligible operations.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct KernelEligibilityExport {
+    pub cpu_parallel: bool,
+    pub gpu_metal: bool,
+    pub blocker: Option<String>,
+}
+
 /// An exported value: a rendered scheme plus its linker symbol and arity.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ValueExport {
@@ -388,6 +397,8 @@ pub struct ValueExport {
     /// association and any result refinements must be checked by the consumer.
     pub total_body: Option<crate::total::CheckedGraph>,
     pub keyed_ordering: Option<KeyedOrderingBody>,
+    /// Exported parallel/GPU kernel eligibility metadata (present on array/kernel modules).
+    pub kernel: Option<KernelEligibilityExport>,
     /// Canonical rendering of the scheme (quantifiers, `using` context,
     /// type with effect rows).
     pub scheme: String,
@@ -956,6 +967,16 @@ impl Iface {
                             ("greater_slot", ordering.greater_slot.into()),
                         ]));
                     }
+                    if let Some(ref k) = v.kernel {
+                        let mut ko = BTreeMap::from([
+                            ("cpu_parallel".to_string(), JsonValue::Bool(k.cpu_parallel)),
+                            ("gpu_metal".to_string(), JsonValue::Bool(k.gpu_metal)),
+                        ]);
+                        if let Some(ref reason) = k.blocker {
+                            ko.insert("blocker".to_string(), reason.into());
+                        }
+                        row.insert("kernel".into(), JsonValue::Obj(ko));
+                    }
                     JsonValue::Obj(row)
                 }),
             ),
@@ -1306,7 +1327,8 @@ impl Iface {
             let arity = field_num(o, "arity")?;
             let total_body = field_total_body(o, resolved.is_some(), &symbol, arity)?;
             let keyed_ordering = field_keyed_ordering(o, resolved.is_some(), arity)?;
-            let value = ValueExport { name, scheme, resolved, symbol, arity, total_body, keyed_ordering };
+            let kernel = field_kernel_eligibility(o)?;
+            let value = ValueExport { name, scheme, resolved, symbol, arity, total_body, keyed_ordering, kernel };
             values.push(value);
         }
         let mut types = Vec::new();
@@ -2008,6 +2030,35 @@ fn read_instance_method_bodies(object: &BTreeMap<String, JsonValue>) -> Result<V
     Ok(bodies)
 }
 
+fn field_kernel_eligibility(
+    o: &BTreeMap<String, JsonValue>,
+) -> Result<Option<KernelEligibilityExport>, ParseError> {
+    let Some(val) = o.get("kernel") else {
+        return Ok(None);
+    };
+    if matches!(val, JsonValue::Null) {
+        return Ok(None);
+    }
+    let ko = val.as_object().map_err(|_| ParseError("kernel eligibility must be an object".into()))?;
+    let cpu_parallel = ko
+        .get("cpu_parallel")
+        .ok_or_else(|| ParseError("kernel.cpu_parallel missing".into()))?
+        .as_bool()?;
+    let gpu_metal = ko
+        .get("gpu_metal")
+        .ok_or_else(|| ParseError("kernel.gpu_metal missing".into()))?
+        .as_bool()?;
+    let blocker = match ko.get("blocker") {
+        None | Some(JsonValue::Null) => None,
+        Some(v) => Some(v.as_str()?.to_string()),
+    };
+    Ok(Some(KernelEligibilityExport {
+        cpu_parallel,
+        gpu_metal,
+        blocker,
+    }))
+}
+
 fn field_keyed_ordering(o: &BTreeMap<String, JsonValue>, resolved: bool, arity: u64) -> Result<Option<KeyedOrderingBody>, ParseError> {
     let Some(body) = o.get("keyed_ordering") else { return Ok(None) };
     let body = body.as_object()?;
@@ -2574,6 +2625,7 @@ mod tests {
         f.exports.values.push(ValueExport {
             total_body: None,
             keyed_ordering: None,
+            kernel: None,
             name: "main".into(),
             scheme: "Int".into(),
             resolved: None,
@@ -2583,6 +2635,7 @@ mod tests {
         f.exports.values.push(ValueExport {
             total_body: None,
             keyed_ordering: None,
+            kernel: None,
             name: "plus".into(),
             scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
             resolved: None,

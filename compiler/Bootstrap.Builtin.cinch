@@ -573,6 +573,26 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.arrayFromListChar" == 0 then Some (0, 260, "List Char -> Array Char")
     else if string-compare symbol "cinch.runtime.arrayFromListUsize" == 0 then Some (0, 264, "List Usize -> Array Usize")
     else if string-compare symbol "cinch.runtime.arrayFromListIsize" == 0 then Some (0, 392, "List Isize -> Array Isize")
+    else if string-compare symbol "cinch.runtime.arrayTabulateF32" == 0 then Some (30, 260, "Nat -> (Nat -> F32) -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayTabulateU8" == 0 then Some (31, 257, "Nat -> (Nat -> U8) -> Array U8")
+    else if string-compare symbol "cinch.runtime.arrayTabulateI32" == 0 then Some (32, 388, "Nat -> (Nat -> I32) -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayTabulateU32" == 0 then Some (33, 260, "Nat -> (Nat -> U32) -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayZipBinopF32" == 0 then Some (34, 260, "Array F32 -> Array F32 -> I64 -> Option (Array F32)")
+    else if string-compare symbol "cinch.runtime.arrayZipBinopI32" == 0 then Some (35, 388, "Array I32 -> Array I32 -> I64 -> Option (Array I32)")
+    else if string-compare symbol "cinch.runtime.arrayReduceF32" == 0 then Some (36, 260, "Array F32 -> I64 -> F32")
+    else if string-compare symbol "cinch.runtime.arrayReduceI32" == 0 then Some (37, 388, "Array I32 -> I64 -> I32")
+    else if string-compare symbol "cinch.runtime.arrayDotF32" == 0 then Some (38, 260, "Array F32 -> Array F32 -> I64 -> F32")
+    else if string-compare symbol "cinch.runtime.arrayDotI32" == 0 then Some (39, 388, "Array I32 -> Array I32 -> I32")
+    else if string-compare symbol "cinch.runtime.arrayRowReduceF32" == 0 then Some (40, 260, "Array F32 -> Nat -> Nat -> I64 -> Option (Array F32)")
+    else if string-compare symbol "cinch.runtime.arrayScanI32" == 0 then Some (41, 388, "Array I32 -> I64 -> Bool -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayFilterI32Gt" == 0 then Some (42, 388, "Array I32 -> I32 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayHistogramU8" == 0 then Some (43, 257, "Array U8 -> Nat -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayStencil2DU8" == 0 then Some (44, 257, "Array U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Option (Array U8)")
+    else if string-compare symbol "cinch.runtime.arraySpmvCsrF32" == 0 then Some (45, 260, "Array F32 -> Array I32 -> Array U32 -> Array F32 -> I64 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arraySetExecMode" == 0 then Some (46, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.arrayHistogramBatchU8" == 0 then Some (47, 257, "Array U8 -> Nat -> Nat -> Nat -> Nat -> Option (Array U32)")
+    else if string-compare symbol "cinch.runtime.arrayMapUnaryF32" == 0 then Some (48, 260, "Array F32 -> I64 -> F32 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayFusedMapReduceF32" == 0 then Some (49, 260, "Array F32 -> I64 -> F32 -> I64 -> F32")
     else None
   array-extern :: Nat -> String
   array-extern operation =
@@ -599,6 +619,23 @@ module Bootstrap.Builtin where
     else if operation == 20 then "cinch_slots_new"
     else if operation == 25 then "cinch_slots_move"
     else if operation == 26 then "cinch_slots_clear"
+    else if operation == 30 || operation == 31 || operation == 32 || operation == 33 then "cinch_array_tabulate_packed"
+    else if operation == 34 then "cinch_array_zip_binop_f32"
+    else if operation == 35 then "cinch_array_zip_binop_i32"
+    else if operation == 36 then "cinch_array_reduce_f32"
+    else if operation == 37 then "cinch_array_reduce_i32"
+    else if operation == 38 then "cinch_array_dot_f32"
+    else if operation == 39 then "cinch_array_dot_i32"
+    else if operation == 40 then "cinch_array_row_reduce_f32"
+    else if operation == 41 then "cinch_array_scan_i32"
+    else if operation == 42 then "cinch_array_filter_i32_gt"
+    else if operation == 43 then "cinch_array_histogram_u8"
+    else if operation == 44 then "cinch_array_stencil2d_u8"
+    else if operation == 45 then "cinch_array_spmv_csr_f32"
+    else if operation == 46 then "cinch_array_set_exec_mode"
+    else if operation == 47 then "cinch_array_histogram_batch_u8"
+    else if operation == 48 then "cinch_array_map_unary_f32"
+    else if operation == 49 then "cinch_array_fused_map_reduce_f32"
     else ""
 
   builtin-syntax-metadata :: String -> Option Json

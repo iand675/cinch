@@ -1056,6 +1056,8 @@ impl ParOp {
 pub enum PrimOp {
     /// Immutable typed arrays, specialized by element representation.
     Array { op: crate::arrays::ArrayOp, classes: [Class; 2], packed: Option<Scalar> },
+    /// Data-parallel packed array compute & device operations preserved through Typed Array IR.
+    ArrayCompute { op: crate::arrays::ArrayComputeOp, classes: [Class; 2] },
     /// Transactional variable cells (`cinch.runtime.stm*`; runtime ABI,
     /// `cinch_stm_cell_new`), specialized by the value's representation
     /// (`crate::stm`).
@@ -1214,6 +1216,11 @@ impl PrimOp {
                     return Some(Self::Array { op, classes: [Class::Param(0), Class::Param(1)], packed: None });
                 }
             }
+            for op in crate::arrays::ArrayComputeOp::ALL {
+                if name == op.name() {
+                    return Some(Self::ArrayCompute { op, classes: [Class::Param(0), Class::Param(1)] });
+                }
+            }
             for scalar in Scalar::ALL {
                 if name == format!("arrayFromList{}", scalar.name()) {
                     return Some(Self::Array { op: crate::arrays::ArrayOp::FromList, classes: [Class::Raw; 2], packed: Some(scalar) });
@@ -1368,6 +1375,7 @@ impl PrimOp {
         use PrimOp::*;
         let n = match self {
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
+            ArrayCompute { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
             MVar { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
@@ -1468,6 +1476,7 @@ impl PrimOp {
         use PrimOp::*;
         match self {
             Array { op, packed, .. } => op.sig(packed).0.len(),
+            ArrayCompute { op, .. } => op.sig().0.len(),
             Stm { op, .. } => op.sig().0.len(),
             MVar { op, .. } => op.sig().0.len(),
             Slots { op, .. } => op.sig().0.len(),
@@ -1549,6 +1558,7 @@ impl PrimOp {
         let res = |t: Ty| Ty::Adt(crate::known::RESULT.into(), vec![i64t.clone(), t]);
         match self {
             Array { op, packed, .. } => op.sig(packed),
+            ArrayCompute { op, .. } => op.sig(),
             Stm { op, .. } => op.sig(),
             MVar { op, .. } => op.sig(),
             Slots { op, .. } => op.sig(),
