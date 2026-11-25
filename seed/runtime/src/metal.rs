@@ -44,6 +44,8 @@ pub const DEVICE_KIND_AUTO: i64 = 8;
 pub const DEVICE_KIND_OPENCL: i64 = 9;
 pub const DEVICE_KIND_CUDA: i64 = 10;
 pub const DEVICE_KIND_HIP: i64 = 11;
+pub const DEVICE_KIND_WEBGPU: i64 = 12;
+pub const DEVICE_KIND_WEBGPU_REQUIRED: i64 = 13;
 
 pub const DEV_OK: i64 = 0;
 pub const DEV_ERR_NO_DEVICE: i64 = -1;
@@ -1060,6 +1062,7 @@ struct ResidentBuffer {
     ocl_buf: Option<crate::opencl::OpenClBuffer>,
     cuda_buf: Option<crate::cuda::CudaBuffer>,
     hip_buf: Option<crate::hip::HipBuffer>,
+    webgpu_buf: Option<crate::webgpu::WebGpuBuffer>,
     cpu_buf: Vec<u8>,
 }
 
@@ -1074,6 +1077,7 @@ impl ResidentBuffer {
             ocl_buf: None,
             cuda_buf: None,
             hip_buf: None,
+            webgpu_buf: None,
             cpu_buf,
         })
     }
@@ -1088,6 +1092,7 @@ impl ResidentBuffer {
             ocl_buf: Some(buf),
             cuda_buf: None,
             hip_buf: None,
+            webgpu_buf: None,
             cpu_buf: Vec::new(),
         })
     }
@@ -1102,6 +1107,7 @@ impl ResidentBuffer {
             ocl_buf: None,
             cuda_buf: Some(buf),
             hip_buf: None,
+            webgpu_buf: None,
             cpu_buf: Vec::new(),
         })
     }
@@ -1116,6 +1122,22 @@ impl ResidentBuffer {
             ocl_buf: None,
             cuda_buf: None,
             hip_buf: Some(buf),
+            webgpu_buf: None,
+            cpu_buf: Vec::new(),
+        })
+    }
+
+    fn new_webgpu(ctx_id: i64, buf: crate::webgpu::WebGpuBuffer) -> Arc<Self> {
+        let bytes = buf.bytes;
+        Arc::new(Self {
+            ctx_id,
+            bytes,
+            #[cfg(target_os = "macos")]
+            mtl_buf: null_mut(),
+            ocl_buf: None,
+            cuda_buf: None,
+            hip_buf: None,
+            webgpu_buf: Some(buf),
             cpu_buf: Vec::new(),
         })
     }
@@ -1145,6 +1167,7 @@ struct DeviceCtx {
     ocl: Option<crate::opencl::OpenClState>,
     cuda: Option<crate::cuda::CudaState>,
     hip: Option<crate::hip::HipState>,
+    webgpu: Option<crate::webgpu::WebGpuState>,
     /// Retained buffers kept alive until command completion.
     in_flight: Vec<Arc<ResidentBuffer>>,
     telemetry: DeviceTelemetry,
@@ -1216,6 +1239,7 @@ impl DeviceCtx {
             ocl: None,
             cuda: None,
             hip: None,
+            webgpu: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         })
@@ -1239,6 +1263,7 @@ impl DeviceCtx {
             ocl: None,
             cuda: None,
             hip: None,
+            webgpu: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         }
@@ -1263,6 +1288,7 @@ impl DeviceCtx {
             ocl: Some(state),
             cuda: None,
             hip: None,
+            webgpu: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         })
@@ -1283,6 +1309,7 @@ impl DeviceCtx {
             ocl: None,
             cuda: Some(state),
             hip: None,
+            webgpu: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         })
@@ -1303,6 +1330,28 @@ impl DeviceCtx {
             ocl: None,
             cuda: None,
             hip: Some(state),
+            webgpu: None,
+            in_flight: Vec::new(),
+            telemetry: DeviceTelemetry::default(),
+        })
+    }
+
+    fn open_webgpu() -> Result<Self, String> {
+        let state = crate::webgpu::WebGpuState::open()?;
+        let device_name = state.device_name.clone();
+        Ok(Self {
+            backend: "webgpu",
+            device_name,
+            #[cfg(target_os = "macos")]
+            mtl_device: null_mut(),
+            #[cfg(target_os = "macos")]
+            mtl_queue: null_mut(),
+            #[cfg(target_os = "macos")]
+            pipelines: HashMap::new(),
+            ocl: None,
+            cuda: None,
+            hip: None,
+            webgpu: Some(state),
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         })
@@ -1333,6 +1382,7 @@ impl DeviceCtx {
             ocl_buf: None,
             cuda_buf: None,
             hip_buf: None,
+            webgpu_buf: None,
             cpu_buf: Vec::new(),
         }))
     }
@@ -1381,6 +1431,8 @@ fn get_buf(buf_id: i64) -> Option<Arc<ResidentBuffer>> {
 /// - `9`: OpenCL with CPU fallback (`opencl`)
 /// - `10`: CUDA with CPU fallback (`cuda`)
 /// - `11`: HIP with CPU fallback (`hip`)
+/// - `12`: WebGPU with CPU fallback (`webgpu` / `wasm-webgpu`)
+/// - `13`: WebGPU required (`webgpu-required` / `wasm-webgpu-required`)
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_device_open(kind: i64) -> i64 {
     let ctx = match kind {
@@ -1425,8 +1477,19 @@ pub extern "C" fn cinch_device_open(kind: i64) -> i64 {
             Ok(c) => c,
             Err(_) => return DEV_ERR_NO_DEVICE,
         },
+        DEVICE_KIND_WEBGPU => DeviceCtx::open_webgpu().unwrap_or_else(|_| DeviceCtx::open_cpu()),
+        DEVICE_KIND_WEBGPU_REQUIRED => match DeviceCtx::open_webgpu() {
+            Ok(c) => c,
+            Err(_) => return DEV_ERR_NO_DEVICE,
+        },
         DEVICE_KIND_AUTO => {
-            #[cfg(target_os = "macos")]
+            #[cfg(target_arch = "wasm32")]
+            if let Ok(c) = DeviceCtx::open_webgpu() {
+                c
+            } else {
+                DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::Seq)
+            }
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "macos"))]
             if let Ok(c) = DeviceCtx::open_metal() {
                 c
             } else if let Ok(c) = DeviceCtx::open_opencl() {
@@ -1434,7 +1497,7 @@ pub extern "C" fn cinch_device_open(kind: i64) -> i64 {
             } else {
                 DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::IspcSimd)
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "macos")))]
             if let Ok(c) = DeviceCtx::open_cuda() {
                 c
             } else if let Ok(c) = DeviceCtx::open_hip() {
@@ -1569,6 +1632,17 @@ pub unsafe extern "C" fn cinch_device_upload_raw(
                 return DEV_ERR_OUT_OF_MEMORY;
             }
         }
+    } else if let Some(ref wgpu) = ctx.webgpu {
+        match wgpu.upload(src_ptr, bytes) {
+            Ok(b) => {
+                ctx.telemetry.note_alloc(bytes);
+                ResidentBuffer::new_webgpu(ctx_id, b)
+            }
+            Err(e) => {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_OUT_OF_MEMORY;
+            }
+        }
     } else {
         let mut v = vec![0u8; bytes];
         if bytes > 0 && !src_ptr.is_null() {
@@ -1630,6 +1704,11 @@ pub unsafe extern "C" fn cinch_device_download_raw(
             }
         } else if let (Some(hip), Some(hb)) = (&ctx.hip, &buf.hip_buf) {
             if let Err(e) = hip.download(hb, dst_ptr, bytes) {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_EXECUTION_FAILED;
+            }
+        } else if let (Some(wgpu), Some(wb)) = (&ctx.webgpu, &buf.webgpu_buf) {
+            if let Err(e) = wgpu.download(wb, dst_ptr, bytes) {
                 ctx.telemetry.last_error = e;
                 return DEV_ERR_EXECUTION_FAILED;
             }
@@ -1891,11 +1970,12 @@ pub unsafe extern "C" fn cinch_device_dot_f32(
         }
     }
 
-    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    // OpenCL / CUDA / HIP / WebGPU / CPU (seq, cpu, ispc) dispatch
     let DeviceCtx {
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -1930,6 +2010,20 @@ pub unsafe extern "C" fn cinch_device_dot_f32(
     }
     if let (Some(hip), Some(ba), Some(bb)) = (hip.as_mut(), buf_a.hip_buf.as_ref(), buf_b.hip_buf.as_ref()) {
         return match hip.dot_f32(ba, bb, n, exact, telemetry) {
+            Ok(res) => {
+                if !out_f32_ptr.is_null() {
+                    unsafe { *out_f32_ptr = res };
+                }
+                DEV_OK
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ba), Some(bb)) = (webgpu.as_mut(), buf_a.webgpu_buf.as_ref(), buf_b.webgpu_buf.as_ref()) {
+        return match wgpu.dot_f32(ba, bb, n, exact, telemetry) {
             Ok(res) => {
                 if !out_f32_ptr.is_null() {
                     unsafe { *out_f32_ptr = res };
@@ -2091,11 +2185,12 @@ pub unsafe extern "C" fn cinch_device_scan_i32(
         return register_buf(out_buf);
     }
 
-    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    // OpenCL / CUDA / HIP / WebGPU / CPU (seq, cpu, ispc) dispatch
     let DeviceCtx {
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -2129,6 +2224,18 @@ pub unsafe extern "C" fn cinch_device_scan_i32(
             Ok(out) => {
                 drop(ctx);
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ib)) = (webgpu.as_mut(), in_buf.webgpu_buf.as_ref()) {
+        return match wgpu.scan_i32(ib, n, inclusive != 0, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -2297,12 +2404,13 @@ pub unsafe extern "C" fn cinch_device_filter_i32_gt(
         return register_buf(out_buf);
     }
 
-    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    // OpenCL / CUDA / HIP / WebGPU / CPU (seq, cpu, ispc) dispatch
     let mut ctx = ctx_arc.lock().unwrap_or_else(|e| e.into_inner());
     let DeviceCtx {
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -2345,6 +2453,21 @@ pub unsafe extern "C" fn cinch_device_filter_i32_gt(
                     unsafe { *out_len_ptr = k as i64 };
                 }
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ib)) = (webgpu.as_mut(), in_buf.webgpu_buf.as_ref()) {
+        return match wgpu.filter_i32_gt(ib, n, threshold as i32, telemetry) {
+            Ok((out, k)) => {
+                drop(ctx);
+                if !out_len_ptr.is_null() {
+                    unsafe { *out_len_ptr = k as i64 };
+                }
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -2629,11 +2752,12 @@ pub unsafe extern "C" fn cinch_device_stencil_histogram_u8(
         return register_buf(out_hist);
     }
 
-    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    // OpenCL / CUDA / HIP / WebGPU / CPU (seq, cpu, ispc) dispatch
     let DeviceCtx {
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -2673,6 +2797,20 @@ pub unsafe extern "C" fn cinch_device_stencil_histogram_u8(
             Ok(out) => {
                 drop(ctx);
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ib)) = (webgpu.as_mut(), in_buf.webgpu_buf.as_ref()) {
+        return match wgpu.stencil_histogram_u8(
+            ib, f, h, w, ws, divisor as i32, edge_policy as u32, nsteps, bins, telemetry,
+        ) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -2849,6 +2987,7 @@ pub unsafe extern "C" fn cinch_device_stencil2d_f32(
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -2882,6 +3021,18 @@ pub unsafe extern "C" fn cinch_device_stencil2d_f32(
             Ok(out) => {
                 drop(ctx);
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ib)) = (webgpu.as_mut(), in_buf.webgpu_buf.as_ref()) {
+        return match wgpu.stencil2d_f32(ib, f, h, w, ws, edge_policy as u32, nsteps, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -3028,6 +3179,7 @@ pub unsafe extern "C" fn cinch_device_spmv_csr_f32(
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -3079,6 +3231,24 @@ pub unsafe extern "C" fn cinch_device_spmv_csr_f32(
             Ok(out) => {
                 drop(ctx);
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(bv), Some(bc), Some(br), Some(bx)) = (
+        webgpu.as_mut(),
+        vals.webgpu_buf.as_ref(),
+        cols.webgpu_buf.as_ref(),
+        row_ptr.webgpu_buf.as_ref(),
+        x.webgpu_buf.as_ref(),
+    ) {
+        return match wgpu.spmv_csr_f32(bv, bc, br, bx, r, nz, exact, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -3210,6 +3380,7 @@ pub unsafe extern "C" fn cinch_device_row_reduce_f32(
         ref mut ocl,
         ref mut cuda,
         ref mut hip,
+        ref mut webgpu,
         ref mut telemetry,
         backend,
         ..
@@ -3243,6 +3414,18 @@ pub unsafe extern "C" fn cinch_device_row_reduce_f32(
             Ok(out) => {
                 drop(ctx);
                 register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(wgpu), Some(ib)) = (webgpu.as_mut(), in_buf.webgpu_buf.as_ref()) {
+        return match wgpu.row_reduce_f32(ib, r, c, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_webgpu(ctx_id, out))
             }
             Err(e) => {
                 telemetry.last_error = e;
@@ -3505,8 +3688,9 @@ pub unsafe extern "C" fn cinch_device_available_backends_cstr(
     let ocl_ok = crate::opencl::is_available();
     let cuda_ok = crate::cuda::is_available();
     let hip_ok = crate::hip::is_available();
+    let webgpu_ok = crate::webgpu::is_available();
     let json = format!(
-        "{{\"seq\":true,\"cpu\":true,\"ispc\":true,\"metal\":{metal_ok},\"opencl\":{ocl_ok},\"cuda\":{cuda_ok},\"hip\":{hip_ok}}}"
+        "{{\"seq\":true,\"cpu\":true,\"ispc\":true,\"metal\":{metal_ok},\"opencl\":{ocl_ok},\"cuda\":{cuda_ok},\"hip\":{hip_ok},\"webgpu\":{webgpu_ok}}}"
     );
     let b = json.as_bytes();
     if !out_ptr.is_null() && out_cap > 0 {
@@ -3542,6 +3726,7 @@ pub unsafe extern "C" fn cinch_device_backend_source_cstr(
         DEVICE_KIND_OPENCL | DEVICE_KIND_OPENCL_REQUIRED => crate::opencl::BUILTIN_OPENCL_SOURCE,
         DEVICE_KIND_CUDA | DEVICE_KIND_CUDA_REQUIRED => crate::cuda::BUILTIN_CUDA_SOURCE,
         DEVICE_KIND_HIP | DEVICE_KIND_HIP_REQUIRED => crate::hip::BUILTIN_HIP_SOURCE,
+        DEVICE_KIND_WEBGPU | DEVICE_KIND_WEBGPU_REQUIRED => crate::webgpu::BUILTIN_WGSL_SOURCE,
         DEVICE_KIND_ISPC_SIMD => crate::simd_cpu::BUILTIN_ISPC_SOURCE,
         _ => return DEV_ERR_INVALID_HANDLE,
     };
@@ -3923,11 +4108,17 @@ mod tests {
             cinch_device_close(ctx);
         }
 
-        // CUDA & HIP required return DEV_ERR_NO_DEVICE cleanly on macOS (no NVIDIA/ROCm GPU)
+        // CUDA, HIP & WebGPU required return DEV_ERR_NO_DEVICE cleanly on native macOS
         assert_eq!(cinch_device_open(DEVICE_KIND_CUDA_REQUIRED), DEV_ERR_NO_DEVICE);
         assert_eq!(cinch_device_open(DEVICE_KIND_HIP_REQUIRED), DEV_ERR_NO_DEVICE);
+        assert_eq!(cinch_device_open(DEVICE_KIND_WEBGPU_REQUIRED), DEV_ERR_NO_DEVICE);
 
-        // Introspection API lists all 7 backends and exports non-empty kernel sources
+        // Non-required WebGPU falls back cleanly to CPU on native macOS
+        let wgpu_fb = cinch_device_open(DEVICE_KIND_WEBGPU);
+        assert!(wgpu_fb > 0, "DEVICE_KIND_WEBGPU fallback failed ({wgpu_fb})");
+        cinch_device_close(wgpu_fb);
+
+        // Introspection API lists all 8 backends and exports non-empty kernel sources
         let mut avail_buf = vec![0u8; 512];
         let n_avail = unsafe { cinch_device_available_backends_cstr(avail_buf.as_mut_ptr(), avail_buf.len()) };
         assert!(n_avail > 0);
@@ -3939,12 +4130,14 @@ mod tests {
         assert!(avail.contains("\"opencl\":true"), "{avail}");
         assert!(avail.contains("\"cuda\":false"), "{avail}");
         assert!(avail.contains("\"hip\":false"), "{avail}");
+        assert!(avail.contains("\"webgpu\":false"), "{avail}");
 
         for (kind, needle) in [
             (DEVICE_KIND_METAL_REQUIRED, "dot_f32_exact_block"),
             (DEVICE_KIND_OPENCL_REQUIRED, "__kernel void stencil2d_u8_tiled"),
             (DEVICE_KIND_CUDA_REQUIRED, "__global__ void spmv_csr_f32_warp"),
             (DEVICE_KIND_HIP_REQUIRED, "#include <hip/hip_runtime.h>"),
+            (DEVICE_KIND_WEBGPU_REQUIRED, "@compute @workgroup_size(256, 1, 1)"),
             (DEVICE_KIND_ISPC_SIMD, "export uniform float dot_f32_relaxed_ispc"),
         ] {
             let mut src_buf = vec![0u8; 32768];

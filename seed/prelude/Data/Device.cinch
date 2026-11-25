@@ -13,13 +13,14 @@ module Data.Device where
   export Device, DeviceBuffer, DeviceError, DeviceBackend
   export BackendCpu, BackendSeq, BackendIspc, BackendMetal, BackendMetalRequired
   export BackendOpenCl, BackendOpenClRequired, BackendCuda, BackendCudaRequired
-  export BackendHip, BackendHipRequired, BackendAuto
+  export BackendHip, BackendHipRequired, BackendWebGpu, BackendWebGpuRequired, BackendAuto
   export DeviceNoHardware, DeviceInvalidHandle, DeviceOutOfMemory, DeviceCompileFailed, DeviceExecutionFailed, DeviceInvalidShape
   export device-open, device-open-seq, device-open-cpu, device-open-ispc
   export device-open-metal, device-open-metal-required
   export device-open-opencl, device-open-opencl-required
   export device-open-cuda, device-open-cuda-required
-  export device-open-hip, device-open-hip-required, device-open-auto
+  export device-open-hip, device-open-hip-required
+  export device-open-webgpu, device-open-webgpu-required, device-open-auto
   export device-close, device-reset-telemetry
   export device-upload, device-download-u8, device-download-u32, device-download-i32, device-download-f32
   export device-buffer-free, device-buffer-bytes
@@ -88,6 +89,8 @@ module Data.Device where
     BackendOpenCl :: DeviceBackend
     BackendCuda :: DeviceBackend
     BackendHip :: DeviceBackend
+    BackendWebGpu :: DeviceBackend
+    BackendWebGpuRequired :: DeviceBackend
 
   backend-code :: DeviceBackend -> I64
   backend-code b = case b of
@@ -103,6 +106,8 @@ module Data.Device where
     BackendOpenCl -> 9
     BackendCuda -> 10
     BackendHip -> 11
+    BackendWebGpu -> 12
+    BackendWebGpuRequired -> 13
 
   device-open :: DeviceBackend -> Result DeviceError Device
   device-open b =
@@ -141,6 +146,12 @@ module Data.Device where
 
   device-open-hip-required :: Unit -> Result DeviceError Device
   device-open-hip-required unit = device-open BackendHipRequired
+
+  device-open-webgpu :: Unit -> Result DeviceError Device
+  device-open-webgpu unit = device-open BackendWebGpu
+
+  device-open-webgpu-required :: Unit -> Result DeviceError Device
+  device-open-webgpu-required unit = device-open BackendWebGpuRequired
 
   device-open-auto :: Unit -> Result DeviceError Device
   device-open-auto unit = device-open BackendAuto

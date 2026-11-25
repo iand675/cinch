@@ -64,6 +64,10 @@ pub enum ArrayTarget {
     Wasm,
     /// WebAssembly multicore (equivalent to `futhark wasm-multicore`).
     WasmMulticore,
+    /// WebAssembly + WebGPU (WGSL compute shaders + JS host bridge, CPU fallback).
+    WebGpu,
+    /// WebAssembly + WebGPU required (compile-time refusal on unsupported ops / f64).
+    WebGpuRequired,
 }
 
 impl ArrayTarget {
@@ -84,12 +88,14 @@ impl ArrayTarget {
             "pyopencl" => Some(Self::PyOpenCl),
             "wasm" => Some(Self::Wasm),
             "wasm-multicore" => Some(Self::WasmMulticore),
+            "webgpu" | "wasm-webgpu" => Some(Self::WebGpu),
+            "webgpu-required" | "wasm-webgpu-required" => Some(Self::WebGpuRequired),
             _ => None,
         }
     }
 
     pub fn all_names() -> &'static str {
-        "seq, c, cpu, multicore, ispc, metal, metal-required, opencl, opencl-required, cuda, cuda-required, hip, hip-required, python, pyopencl, wasm, wasm-multicore"
+        "seq, c, cpu, multicore, ispc, metal, metal-required, opencl, opencl-required, cuda, cuda-required, hip, hip-required, python, pyopencl, wasm, wasm-multicore, webgpu, webgpu-required, wasm-webgpu, wasm-webgpu-required"
     }
 
     pub fn name(self) -> &'static str {
@@ -109,6 +115,8 @@ impl ArrayTarget {
             Self::PyOpenCl => "pyopencl",
             Self::Wasm => "wasm",
             Self::WasmMulticore => "wasm-multicore",
+            Self::WebGpu => "webgpu",
+            Self::WebGpuRequired => "webgpu-required",
         }
     }
 
@@ -124,14 +132,24 @@ impl ArrayTarget {
                 | Self::Hip
                 | Self::HipRequired
                 | Self::PyOpenCl
+                | Self::WebGpu
+                | Self::WebGpuRequired
         )
     }
 
     pub fn is_gpu_required(self) -> bool {
         matches!(
             self,
-            Self::MetalRequired | Self::OpenClRequired | Self::CudaRequired | Self::HipRequired
+            Self::MetalRequired
+                | Self::OpenClRequired
+                | Self::CudaRequired
+                | Self::HipRequired
+                | Self::WebGpuRequired
         )
+    }
+
+    pub fn is_webgpu(self) -> bool {
+        matches!(self, Self::WebGpu | Self::WebGpuRequired)
     }
 
     pub fn kernel_language(self) -> &'static str {
@@ -140,6 +158,7 @@ impl ArrayTarget {
             Self::OpenCl | Self::OpenClRequired | Self::PyOpenCl => "OpenCL C",
             Self::Cuda | Self::CudaRequired => "CUDA C++",
             Self::Hip | Self::HipRequired => "HIP C++",
+            Self::WebGpu | Self::WebGpuRequired => "WebGPU WGSL",
             Self::Ispc => "ISPC",
             Self::Python => "Python",
             Self::Wasm | Self::WasmMulticore => "WebAssembly",
@@ -230,6 +249,25 @@ impl ArrayOptReport {
             out.push('\n');
         }
         out
+    }
+
+    /// Generate a standalone ES module Wasm + WebGPU JS host bridge (`<out>.webgpu.mjs`)
+    /// embedding the built-in runtime WGSL kernels plus any specialized WGSL kernels
+    /// emitted for this program.
+    pub fn format_webgpu_js_bridge(&self) -> String {
+        const BUILTIN_WGSL: &str = include_str!("../runtime/src/webgpu_builtin.wgsl");
+        const BRIDGE_TEMPLATE: &str = include_str!("../runtime/src/webgpu_bridge.mjs");
+        let extra = self.format_kernels_source();
+        let mut wgsl = BUILTIN_WGSL.to_string();
+        if !extra.trim().is_empty() {
+            wgsl.push_str("\n// --- Program-specific specialized WGSL kernels ---\n");
+            wgsl.push_str(&extra);
+        }
+        let escaped = wgsl
+            .replace('\\', "\\\\")
+            .replace('`', "\\`")
+            .replace("${", "\\${");
+        BRIDGE_TEMPLATE.replace("__CINCH_WGSL_PLACEHOLDER__", &escaped)
     }
 
     pub fn format_text(&self) -> String {
@@ -1038,6 +1076,21 @@ fn analyze_expr(
 ) {
     if let Some((op, _name, args)) = idx.match_call(expr) {
         use ArrayComputeOp::*;
+        if target.is_webgpu()
+            && matches!(
+                op,
+                TabulateF64 | MapF64 | ReduceF64 | DotF64 | FillF64 | ZipBinopF64 | ScaleF64
+            )
+        {
+            report.gpu_diagnostics.push(GpuDiagnostic {
+                unit: unit.to_string(),
+                category: "representation".to_string(),
+                reason: format!(
+                    "`{}` operates on 64-bit `F64` elements, which core WebGPU WGSL does not support (`f64` is absent from WGSL 1.0); use `F32` arrays for WebGPU execution",
+                    op.name()
+                ),
+            });
+        }
         let (elem, shape, contract, buf_use) = match op {
             DotF32 => (
                 "F32",
@@ -1136,19 +1189,32 @@ fn analyze_expr(
             DeviceStencilHistogramU8 => {
                 let steps = args.get(8).and_then(const_int);
                 let launches = steps.map(|s| format!("{s} (stencil) + 1 (histogram)")).unwrap_or_else(|| "steps + 1".into());
+                let (policy, temps, reuse) = if target.is_webgpu() {
+                    (
+                        "webgpu-adaptive(many-small-frames 1-WG/frame vs few-large-frames tiled-privatized)".to_string(),
+                        "2 resident GPUBuffers (ping-pong) + 1 output hist GPUBuffer".to_string(),
+                        "histogram consumes resident stencil GPUBuffer on GPUDevice queue without host round-trip".to_string(),
+                    )
+                } else {
+                    (
+                        "metal-adaptive(many-small-frames 1-TG/frame vs few-large-frames tiled-privatized)".to_string(),
+                        "2 resident MTLBuffers (ping-pong) + 1 output hist MTLBuffer".to_string(),
+                        "histogram consumes resident stencil MTLBuffer in the same MTLCommandBuffer".to_string(),
+                    )
+                };
                 report.schedules.push(ScheduleRecord {
                     unit: unit.to_string(),
                     op: op.name().to_string(),
-                    policy: "metal-adaptive(many-small-frames 1-TG/frame vs few-large-frames tiled-privatized)".to_string(),
+                    policy,
                     numerical_mode: "integer-clamped-u8+wrapping-u32".to_string(),
                 });
                 report.storage.push(StorageRecord {
                     unit: unit.to_string(),
                     op: op.name().to_string(),
                     kernel_launches: launches,
-                    temp_buffers: "2 resident MTLBuffers (ping-pong) + 1 output hist MTLBuffer".to_string(),
+                    temp_buffers: temps,
                     host_device_copies: "0 intermediate (1 upload before, 1 download after)".to_string(),
-                    reuse_note: "histogram consumes resident stencil MTLBuffer in the same MTLCommandBuffer".to_string(),
+                    reuse_note: reuse,
                 });
                 ("U8->U32", "3D(frames x h x w)", "integer-clamped-u8+wrapping-u32".to_string(), "device-resident-chained")
             }
@@ -1384,9 +1450,10 @@ fn emit_kernel_for_op(
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let suffix = match op {
-        ArrayComputeOp::DotF32 => "dot_f32",
+        ArrayComputeOp::DotF32 | ArrayComputeOp::DeviceDotF32 => "dot_f32",
         ArrayComputeOp::FusedMapReduceF32 => "map_reduce_f32",
         ArrayComputeOp::DeviceStencilHistogramU8 | ArrayComputeOp::Stencil2DU8 => "stencil2d_u8",
+        ArrayComputeOp::Stencil2DF32 | ArrayComputeOp::DeviceStencil2DF32 => "stencil2d_f32",
         ArrayComputeOp::SpmvCsrF32 | ArrayComputeOp::DeviceSpmvCsrF32 => "spmv_csr_f32",
         ArrayComputeOp::RowReduceF32 | ArrayComputeOp::DeviceRowReduceF32 => "row_reduce_f32",
         ArrayComputeOp::ScanI32 | ArrayComputeOp::DeviceScanI32 => "scan_i32",
@@ -1454,6 +1521,143 @@ fn emit_kernel_for_op(
             let name = format!("cinch_wasm_{safe_unit}_{suffix}");
             let src = format!("// Target: {mode} (freestanding WebAssembly linear memory kernel `{name}`)\n");
             Some(("WebAssembly", name, src))
+        }
+        ArrayTarget::WebGpu | ArrayTarget::WebGpuRequired => {
+            let name = format!("cinch_wgsl_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_a: array<f32>;\n\
+                     @group(0) @binding(1) var<storage, read> {name}_b: array<f32>;\n\
+                     @group(0) @binding(2) var<storage, read_write> {name}_out: array<f32>;\n\
+                     @group(0) @binding(3) var<uniform> {name}_n: vec4<u32>;\n\
+                     var<workgroup> {name}_sh: array<f32, 256>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>, @builtin(num_workgroups) nwg: vec3<u32>) {{\n\
+                       var acc: f32 = 0.0;\n\
+                       var i = gid.x;\n\
+                       let step = nwg.x * 256u;\n\
+                       loop {{ if (i >= {name}_n.x) {{ break; }} acc = acc + {name}_a[i] * {name}_b[i]; i = i + step; }}\n\
+                       {name}_sh[lid.x] = acc;\n\
+                       workgroupBarrier();\n\
+                       var s: u32 = 128u;\n\
+                       loop {{ if (s == 0u) {{ break; }} if (lid.x < s) {{ {name}_sh[lid.x] = {name}_sh[lid.x] + {name}_sh[lid.x + s]; }} workgroupBarrier(); s = s >> 1u; }}\n\
+                       if (lid.x == 0u) {{ {name}_out[wid.x] = {name}_sh[0]; }}\n\
+                     }}\n"
+                ),
+                "map_reduce_f32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_in: array<f32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_out: array<f32>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_n: vec4<u32>;\n\
+                     var<workgroup> {name}_sh: array<f32, 256>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {{\n\
+                       var v: f32 = 0.0;\n\
+                       if (gid.x < {name}_n.x) {{ v = {name}_in[gid.x]; }}\n\
+                       {name}_sh[lid.x] = v;\n\
+                       workgroupBarrier();\n\
+                       var s: u32 = 128u;\n\
+                       loop {{ if (s == 0u) {{ break; }} if (lid.x < s) {{ {name}_sh[lid.x] = {name}_sh[lid.x] + {name}_sh[lid.x + s]; }} workgroupBarrier(); s = s >> 1u; }}\n\
+                       if (lid.x == 0u) {{ {name}_out[wid.x] = {name}_sh[0]; }}\n\
+                     }}\n"
+                ),
+                "stencil2d_u8" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_src: array<u32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_hist: array<atomic<u32>>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_dims: vec4<u32>;\n\
+                     var<workgroup> {name}_bins: array<atomic<u32>, 256>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {{\n\
+                       atomicStore(&{name}_bins[lid.x], 0u);\n\
+                       workgroupBarrier();\n\
+                       let frame = wid.x;\n\
+                       if (frame < {name}_dims.x) {{\n\
+                         let fp = {name}_dims.y;\n\
+                         let base = frame * fp;\n\
+                         var i = lid.x;\n\
+                         loop {{ if (i >= fp) {{ break; }} let w = {name}_src[(base + i) >> 2u]; let b = (w >> (((base + i) & 3u) * 8u)) & 255u; if (b < {name}_dims.z) {{ atomicAdd(&{name}_bins[b], 1u); }} i = i + 256u; }}\n\
+                       }}\n\
+                       workgroupBarrier();\n\
+                       if (frame < {name}_dims.x && lid.x < {name}_dims.z) {{ atomicAdd(&{name}_hist[frame * {name}_dims.z + lid.x], atomicLoad(&{name}_bins[lid.x])); }}\n\
+                     }}\n"
+                ),
+                "stencil2d_f32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_in: array<f32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_out: array<f32>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_dims: vec4<u32>;\n\
+                     @compute @workgroup_size(16, 16, 1)\n\
+                     fn {name}(@builtin(global_invocation_id) gid: vec3<u32>) {{\n\
+                       if (gid.z >= {name}_dims.x || gid.y >= {name}_dims.y || gid.x >= {name}_dims.z) {{ return; }}\n\
+                       let idx = gid.z * {name}_dims.y * {name}_dims.z + gid.y * {name}_dims.z + gid.x;\n\
+                       {name}_out[idx] = {name}_in[idx];\n\
+                     }}\n"
+                ),
+                "spmv_csr_f32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_vals: array<f32>;\n\
+                     @group(0) @binding(1) var<storage, read> {name}_cols: array<i32>;\n\
+                     @group(0) @binding(2) var<storage, read> {name}_row_ptr: array<i32>;\n\
+                     @group(0) @binding(3) var<storage, read> {name}_x: array<f32>;\n\
+                     @group(0) @binding(4) var<storage, read_write> {name}_y: array<f32>;\n\
+                     @group(0) @binding(5) var<uniform> {name}_dims: vec4<u32>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(global_invocation_id) gid: vec3<u32>) {{\n\
+                       let row = gid.x;\n\
+                       if (row >= {name}_dims.x) {{ return; }}\n\
+                       var acc: f32 = 0.0;\n\
+                       let start = u32({name}_row_ptr[row]);\n\
+                       let end = u32({name}_row_ptr[row + 1u]);\n\
+                       for (var k = start; k < end; k = k + 1u) {{ acc = acc + {name}_vals[k] * {name}_x[u32({name}_cols[k])]; }}\n\
+                       {name}_y[row] = acc;\n\
+                     }}\n"
+                ),
+                "row_reduce_f32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_in: array<f32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_out: array<f32>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_dims: vec4<u32>;\n\
+                     var<workgroup> {name}_sh: array<f32, 256>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {{\n\
+                       let row = wid.x;\n\
+                       var acc: f32 = 0.0;\n\
+                       if (row < {name}_dims.x) {{\n\
+                         let base = row * {name}_dims.y;\n\
+                         var j = lid.x;\n\
+                         loop {{ if (j >= {name}_dims.y) {{ break; }} acc = acc + {name}_in[base + j]; j = j + 256u; }}\n\
+                       }}\n\
+                       {name}_sh[lid.x] = acc;\n\
+                       workgroupBarrier();\n\
+                       var s: u32 = 128u;\n\
+                       loop {{ if (s == 0u) {{ break; }} if (lid.x < s) {{ {name}_sh[lid.x] = {name}_sh[lid.x] + {name}_sh[lid.x + s]; }} workgroupBarrier(); s = s >> 1u; }}\n\
+                       if (row < {name}_dims.x && lid.x == 0u) {{ {name}_out[row] = {name}_sh[0]; }}\n\
+                     }}\n"
+                ),
+                "scan_i32" => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_in: array<i32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_out: array<i32>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_dims: vec4<u32>;\n\
+                     var<workgroup> {name}_sh: array<i32, 256>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(local_invocation_id) lid: vec3<u32>, @builtin(workgroup_id) wid: vec3<u32>) {{\n\
+                       let gid = wid.x * 256u + lid.x;\n\
+                       var v: i32 = 0;\n\
+                       if (gid < {name}_dims.x) {{ v = {name}_in[gid]; }}\n\
+                       {name}_sh[lid.x] = v;\n\
+                       workgroupBarrier();\n\
+                       var off: u32 = 1u;\n\
+                       loop {{ if (off >= 256u) {{ break; }} var add: i32 = 0; if (lid.x >= off) {{ add = {name}_sh[lid.x - off]; }} workgroupBarrier(); {name}_sh[lid.x] = {name}_sh[lid.x] + add; workgroupBarrier(); off = off << 1u; }}\n\
+                       if (gid < {name}_dims.x) {{ {name}_out[gid] = {name}_sh[lid.x]; }}\n\
+                     }}\n"
+                ),
+                _ => format!(
+                    "@group(0) @binding(0) var<storage, read> {name}_in: array<i32>;\n\
+                     @group(0) @binding(1) var<storage, read_write> {name}_out: array<i32>;\n\
+                     @group(0) @binding(2) var<uniform> {name}_dims: vec4<u32>;\n\
+                     @compute @workgroup_size(256, 1, 1)\n\
+                     fn {name}(@builtin(global_invocation_id) gid: vec3<u32>) {{\n\
+                       if (gid.x < {name}_dims.x) {{ {name}_out[gid.x] = {name}_in[gid.x]; }}\n\
+                     }}\n"
+                ),
+            };
+            Some(("WebGPU WGSL", name, src))
         }
         ArrayTarget::Seq | ArrayTarget::Cpu => None,
     }

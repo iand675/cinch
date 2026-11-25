@@ -695,7 +695,265 @@ fn cinch_program_runs_live_on_opencl_ispc_seq_and_handles_missing_cuda_hip() {
         ok-mtl = expect72 (run-dot BackendMetalRequired)
         no-cuda = expect-no-hw (device-open-cuda-required ())
         no-hip = expect-no-hw (device-open-hip-required ())
-    in if ok-seq && ok-cpu && ok-ispc && ok-ocl && ok-mtl && no-cuda && no-hip then 0 else 1
+        ok-wgpu-fb = expect72 (run-dot BackendWebGpu)
+        no-wgpu = expect-no-hw (device-open-webgpu-required ())
+    in if ok-seq && ok-cpu && ok-ispc && ok-ocl && ok-mtl && no-cuda && no-hip && ok-wgpu-fb && no-wgpu then 0 else 1
 "#,
     );
+}
+
+#[test]
+fn webgpu_wasm_backend_wgsl_codegen_diagnostics_and_bridge() {
+    let src = r#"module Main where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Device
+  import Data.Machine
+  import Data.Result
+
+  ignore :: forall a. a -> Unit
+  ignore _ = ()
+
+  fused-dot :: Array F32 -> Array F32 -> F32
+  fused-dot xs ys =
+    case array-zip-binop-f32 xs ys 2 of
+      None -> 0.0
+      Some prod -> array-reduce-f32 prod (float-mode-code FloatRelaxed)
+
+  main :: Int
+  main =
+    let xs = array-from-f32s [1, 2, 3, 4]
+        ys = array-from-f32s [5, 6, 7, 8]
+        d = fused-dot xs ys
+    in case device-open-webgpu () of
+      Err _ -> 1
+      Ok dev ->
+        let _ = ignore (device-close dev)
+        in if saturating-f32-to-i64 d == 70 then 0 else 1
+"#;
+    let mut sources = SOURCES.to_vec();
+    sources.push(("Main.cinch", src));
+    let dir = common::project("dp_webgpu_wasm", &sources);
+
+    // 1. Emit WGSL shaders + JSON report via `--array-target=webgpu`
+    let rep_path = dir.join("webgpu.json");
+    let wgsl_path = dir.join("kernels.wgsl");
+    let mut opts = cinch::driver::DriverOptions::default();
+    opts.array_target = Some("webgpu".to_string());
+    opts.array_report_out = Some(rep_path.clone());
+    opts.array_kernels_out = Some(wgsl_path.clone());
+    cinch::driver::driver_opts(
+        cinch::driver::Mode::EmitIr,
+        &dir.join("Main.cinch"),
+        Some(&dir.join("prog.ll")),
+        &opts,
+    )
+    .expect("webgpu emit-ir failed");
+
+    let rep = std::fs::read_to_string(&rep_path).unwrap();
+    let wgsl = std::fs::read_to_string(&wgsl_path).unwrap();
+    assert!(rep.contains("\"target\":\"webgpu\""), "{rep}");
+    assert!(rep.contains("\"kernel_language\":\"WebGPU WGSL\""), "{rep}");
+    assert!(rep.contains("DotF32"), "expected fused DotF32 in report: {rep}");
+    assert!(wgsl.contains("@compute @workgroup_size(256, 1, 1)"), "{wgsl}");
+    assert!(wgsl.contains("var<storage, read>"), "{wgsl}");
+    assert!(wgsl.contains("var<storage, read_write>"), "{wgsl}");
+    assert!(wgsl.contains("workgroupBarrier()"), "{wgsl}");
+    assert!(wgsl.contains("cinch_wgsl_"), "{wgsl}");
+
+    // 2. Emit standalone Wasm + WebGPU ES module JS bridge via `--array-target=wasm-webgpu`
+    //    AND emit freestanding `wasm32-unknown-unknown` LLVM IR.
+    let mjs_path = dir.join("prog.webgpu.mjs");
+    let wasm_ll_path = dir.join("prog_wasm32.ll");
+    let mut wopts = cinch::driver::DriverOptions::default();
+    wopts.target = Some("wasm32-unknown-unknown".to_string());
+    wopts.array_target = Some("wasm-webgpu".to_string());
+    wopts.array_kernels_out = Some(mjs_path.clone());
+    cinch::driver::driver_opts(
+        cinch::driver::Mode::EmitIr,
+        &dir.join("Main.cinch"),
+        Some(&wasm_ll_path),
+        &wopts,
+    )
+    .expect("wasm32 + wasm-webgpu emit-ir failed");
+
+    let wasm_ll = std::fs::read_to_string(&wasm_ll_path).unwrap();
+    assert!(
+        wasm_ll.contains("target triple = \"wasm32-unknown-unknown\""),
+        "expected wasm32 target triple"
+    );
+    assert!(
+        wasm_ll.contains("cinch_device_open"),
+        "expected cinch_device_open call in wasm32 IR"
+    );
+
+    let mjs = std::fs::read_to_string(&mjs_path).unwrap();
+    assert!(mjs.contains("export class CinchWebGpuHost"), "{mjs}");
+    assert!(mjs.contains("export function createCinchWebGpuImports"), "{mjs}");
+    assert!(mjs.contains("export async function loadCinchWebGpuWasm"), "{mjs}");
+    assert!(mjs.contains("navigator?.gpu"), "{mjs}");
+    assert!(mjs.contains("cinch_webgpu_dot_f32"), "{mjs}");
+    assert!(mjs.contains("cinch_webgpu_stencil_hist_u8"), "{mjs}");
+    assert!(mjs.contains("fn dot_f32_relaxed"), "{mjs}");
+    assert!(mjs.contains("fn stencil2d_u8_step"), "{mjs}");
+    assert!(mjs.contains("cinch_wgsl_"), "{mjs}");
+
+    // If `node` is installed, verify JS syntax and execute a mock GPUDevice smoke test!
+    if let Ok(check) = std::process::Command::new("node")
+        .arg("--check")
+        .arg(&mjs_path)
+        .output()
+    {
+        assert!(
+            check.status.success(),
+            "node --check failed on emitted .webgpu.mjs:\n{}",
+            String::from_utf8_lossy(&check.stderr)
+        );
+        let smoke = dir.join("smoke_webgpu.mjs");
+        let smoke_src = format!(
+            r#"import {{ CinchWebGpuHost, createCinchWebGpuImports, CINCH_WGSL_SOURCE }} from {:?};
+if (!CINCH_WGSL_SOURCE.includes("fn dot_f32_relaxed")) throw new Error("missing WGSL");
+const dispatches = [];
+const mockDevice = {{
+  createShaderModule: ({{ code }}) => ({{ code }}),
+  createComputePipeline: ({{ compute }}) => ({{
+    entryPoint: compute.entryPoint,
+    getBindGroupLayout: () => ({{}}),
+  }}),
+  createBindGroup: (desc) => desc,
+  createBuffer: ({{ size, usage }}) => ({{
+    size, usage, data: new Uint8Array(size), destroyed: false,
+    destroy() {{ this.destroyed = true; }},
+    async mapAsync() {{}},
+    getMappedRange() {{ return this.data.buffer; }},
+    unmap() {{}},
+  }}),
+  createCommandEncoder: () => ({{
+    clearBuffer() {{}},
+    copyBufferToBuffer(src, so, dst, d_o, len) {{
+      dst.data.set(src.data.subarray(so, so + len), d_o);
+    }},
+    beginComputePass: () => ({{
+      _pipe: null,
+      setPipeline(p) {{ this._pipe = p; }},
+      setBindGroup() {{}},
+      dispatchWorkgroups(x, y, z) {{ dispatches.push([this._pipe.entryPoint, x, y, z]); }},
+      end() {{}},
+    }}),
+    finish: () => ({{}}),
+  }}),
+  queue: {{
+    writeBuffer(buf, off, src) {{
+      const bytes = src instanceof Uint8Array ? src : new Uint8Array(src.buffer, src.byteOffset, src.byteLength);
+      buf.data.set(bytes, off);
+    }},
+    submit() {{}},
+  }},
+}};
+const host = new CinchWebGpuHost(mockDevice, {{ description: "mock-webgpu" }});
+const b0 = host.uploadBytes(new Uint8Array(new Float32Array([1, 2, 3, 4]).buffer));
+const r0 = host.rowReduceF32(b0, 2, 2);
+const s0 = host.stencilHistogramU8(b0, 1, 4, 4, new Int32Array([0,0,0,0,1,0,0,0,0]), 1, 0, 2, 256);
+const mem = new WebAssembly.Memory({{ initial: 1 }});
+const imps = createCinchWebGpuImports(host, () => mem, {{ jspi: false }});
+if (imps.cinch_webgpu.cinch_webgpu_available() !== 1) throw new Error("available != 1");
+if (imps.cinch_webgpu.cinch_webgpu_open() !== 1) throw new Error("open != 1");
+host.freeBuffer(b0);
+host.freeBuffer(r0);
+host.freeBuffer(s0);
+if (dispatches.length < 4) throw new Error("expected >= 4 dispatches, got " + dispatches.length);
+if (dispatches[0][0] !== "row_reduce_f32_inner") throw new Error("unexpected dispatch[0]: " + dispatches[0][0]);
+if (dispatches[1][0] !== "stencil2d_u8_step") throw new Error("unexpected dispatch[1]: " + dispatches[1][0]);
+if (dispatches[3][0] !== "hist_u8_many_small_frames") throw new Error("unexpected dispatch[3]: " + dispatches[3][0]);
+"#,
+            mjs_path.to_string_lossy()
+        );
+        std::fs::write(&smoke, smoke_src).unwrap();
+        let run = std::process::Command::new("node")
+            .arg(&smoke)
+            .output()
+            .expect("node smoke failed to spawn");
+        assert!(
+            run.status.success(),
+            "WebGPU JS host bridge smoke test failed:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&run.stdout),
+            String::from_utf8_lossy(&run.stderr)
+        );
+    }
+    common::cleanup(&dir);
+
+    // 3. `webgpu-required` / `wasm-webgpu-required` MUST reject F64 arrays (core WGSL lacks f64)
+    let f64_src = r#"module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Machine
+
+  bad-f64 :: Array F64 -> Array F64 -> F64
+  bad-f64 xs ys = array-dot-f64 xs ys 0
+
+  main :: Int
+  main =
+    let xs = array-from-f64s [1.0, 2.0]
+        ys = array-from-f64s [3.0, 4.0]
+        d = bad-f64 xs ys
+    in if saturating-f64-to-i64 d == 11 then 0 else 1
+"#;
+    let mut f64_sources = SOURCES.to_vec();
+    f64_sources.push(("Main.cinch", f64_src));
+    let f64_dir = common::project("dp_webgpu_reject_f64", &f64_sources);
+    for req_target in ["webgpu-required", "wasm-webgpu-required"] {
+        let mut ropts = cinch::driver::DriverOptions::default();
+        ropts.array_target = Some(req_target.to_string());
+        let err = cinch::driver::driver_opts(
+            cinch::driver::Mode::EmitIr,
+            &f64_dir.join("Main.cinch"),
+            Some(&f64_dir.join("bad_f64.ll")),
+            &ropts,
+        )
+        .expect_err(&format!("{req_target} should reject F64 array ops"));
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("WebGPU WGSL") && msg.contains("F64") && msg.contains("representation"),
+            "{req_target} unexpected error: {msg}"
+        );
+    }
+    common::cleanup(&f64_dir);
+
+    // 4. `webgpu-required` MUST also reject sequential `array-foldl-f32`
+    let fold_src = r#"module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Machine
+
+  bad-fold :: Array F32 -> F32
+  bad-fold xs = array-foldl-f32 (\a b -> add-f32 a b) 0.0 xs
+
+  main :: Int
+  main =
+    let xs = array-from-f32s [1.0, 2.0]
+        s = bad-fold xs
+    in if saturating-f32-to-i64 s == 3 then 0 else 1
+"#;
+    let mut fold_sources = SOURCES.to_vec();
+    fold_sources.push(("Main.cinch", fold_src));
+    let fold_dir = common::project("dp_webgpu_reject_fold", &fold_sources);
+    let mut fopts = cinch::driver::DriverOptions::default();
+    fopts.array_target = Some("webgpu-required".to_string());
+    let err = cinch::driver::driver_opts(
+        cinch::driver::Mode::EmitIr,
+        &fold_dir.join("Main.cinch"),
+        Some(&fold_dir.join("bad_fold.ll")),
+        &fopts,
+    )
+    .expect_err("webgpu-required should reject array-foldl-f32");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("WebGPU WGSL") && msg.contains("ordered sequential fold"),
+        "webgpu-required fold unexpected error: {msg}"
+    );
+    common::cleanup(&fold_dir);
 }

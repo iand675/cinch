@@ -583,6 +583,7 @@ pub mod metal;
 pub mod opencl;
 pub mod cuda;
 pub mod hip;
+pub mod webgpu;
 pub mod simd_cpu;
 pub mod coop;
 /// Operating-system entropy filling; unavailable on freestanding targets.
