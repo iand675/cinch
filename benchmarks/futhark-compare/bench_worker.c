@@ -346,7 +346,17 @@ int main(int argc, char **argv) {
 
     int is_fut = (strncmp(backend, "futhark-", 8) == 0);
     int is_cinch_cpu = (strcmp(backend, "cinch-cpu") == 0 || strcmp(backend, "cinch-cpu-exact") == 0);
-    int is_cinch_metal = (strcmp(backend, "cinch-metal") == 0 || strcmp(backend, "cinch-metal-exact") == 0);
+    int64_t cinch_dev_kind = -1;
+    if (strcmp(backend, "cinch-metal") == 0 || strcmp(backend, "cinch-metal-exact") == 0) {
+        cinch_dev_kind = CINCH_BACKEND_METAL_REQUIRED;
+    } else if (strcmp(backend, "cinch-opencl") == 0 || strcmp(backend, "cinch-opencl-exact") == 0) {
+        cinch_dev_kind = CINCH_BACKEND_OPENCL_REQUIRED;
+    } else if (strcmp(backend, "cinch-ispc") == 0 || strcmp(backend, "cinch-ispc-exact") == 0) {
+        cinch_dev_kind = CINCH_BACKEND_ISPC_SIMD;
+    } else if (strcmp(backend, "cinch-seq") == 0 || strcmp(backend, "cinch-seq-exact") == 0) {
+        cinch_dev_kind = CINCH_BACKEND_CPU_SEQ;
+    }
+    int is_cinch_metal = (cinch_dev_kind >= 0);
     int exact_float = (strstr(backend, "-exact") != NULL);
 
     FutApi fut;
@@ -374,9 +384,9 @@ int main(int argc, char **argv) {
             return 5;
         }
     } else if (is_cinch_metal) {
-        dev = cinch_device_open(CINCH_BACKEND_METAL_REQUIRED);
+        dev = cinch_device_open(cinch_dev_kind);
         if (dev < 0) {
-            fprintf(stderr, "Metal GPU unavailable: %lld\n", (long long)dev);
+            fprintf(stderr, "Cinch backend '%s' unavailable: %lld\n", backend, (long long)dev);
             return 6;
         }
     } else if (!is_cinch_cpu) {

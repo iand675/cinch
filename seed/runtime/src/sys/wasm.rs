@@ -193,3 +193,11 @@ pub(super) fn unlockpt(_fd: i64) -> (i64, i64) {
 pub(super) fn ptsname(_fd: i64, _buf: &mut [u8]) -> (i64, i64) {
     unsupported()
 }
+
+pub(super) fn dlopen(_path_nul: &[u8]) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
+pub(super) fn dlsym(_handle: *mut c_void, _sym_nul: &[u8]) -> *mut c_void {
+    std::ptr::null_mut()
+}

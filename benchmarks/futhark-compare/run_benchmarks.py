@@ -25,8 +25,16 @@ BUILD_DIR = BENCH_DIR / "build"
 WORKER = BUILD_DIR / "bench_worker"
 CINCH_BIN = ROOT / "seed" / "target" / "release" / "cinch"
 
-BACKENDS_ALL = ["futhark-c", "futhark-mc", "futhark-ocl", "cinch-cpu", "cinch-metal"]
-BACKENDS_FLOAT_EXACT = ["futhark-c", "futhark-mc", "futhark-ocl", "cinch-cpu", "cinch-cpu-exact", "cinch-metal", "cinch-metal-exact"]
+BACKENDS_ALL = [
+    "futhark-c", "cinch-seq",
+    "futhark-mc", "cinch-cpu", "cinch-ispc",
+    "futhark-ocl", "cinch-opencl", "cinch-metal",
+]
+BACKENDS_FLOAT_EXACT = [
+    "futhark-c", "cinch-seq",
+    "futhark-mc", "cinch-cpu", "cinch-cpu-exact", "cinch-ispc",
+    "futhark-ocl", "cinch-opencl", "cinch-opencl-exact", "cinch-metal", "cinch-metal-exact",
+]
 
 CASES = [
     # (workload, size, label, backends, check_kind)
@@ -151,8 +159,12 @@ def verify_case(rows, check_kind):
         exact_pair = None
         cpu_ex = next((r for r in valid if r["backend"] == "cinch-cpu-exact"), None)
         gpu_ex = next((r for r in valid if r["backend"] == "cinch-metal-exact"), None)
+        ocl_ex = next((r for r in valid if r["backend"] == "cinch-opencl-exact"), None)
         if cpu_ex and gpu_ex:
-            exact_pair = (cpu_ex["result_val"] == gpu_ex["result_val"])
+            exact_pair = (
+                cpu_ex["result_val"] == gpu_ex["result_val"]
+                and (ocl_ex is None or ocl_ex["result_val"] == cpu_ex["result_val"])
+            )
         for r in valid[1:]:
             diff = abs(r["result_val"] - ref["result_val"])
             denom = max(1.0, abs(ref["result_val"]))
@@ -161,7 +173,7 @@ def verify_case(rows, check_kind):
                 max_rel = rel
         status = f"MATCH (val={ref['result_val']:.4f}, max_rel_err={max_rel:.2e}"
         if exact_pair is not None:
-            status += f", FloatExactTree CPU==Metal: {'BIT-EXACT' if exact_pair else 'DIFF'}"
+            status += f", FloatExactTree CPU==OpenCL==Metal: {'BIT-EXACT' if exact_pair else 'DIFF'}"
         status += ")"
         return status
 
@@ -200,7 +212,7 @@ def format_markdown(env, array_report, all_results):
             if "error" in r:
                 lines.append(f"| `{r['backend']}` | — | ERR | ERR | — | — | `{r['error']}` |")
             else:
-                dev_mem = f"{r['peak_dev_mb']:.2f}" if r["backend"].startswith("cinch-metal") else "—"
+                dev_mem = f"{r['peak_dev_mb']:.2f}" if (r["backend"].startswith("cinch-metal") or r["backend"].startswith("cinch-opencl")) else "—"
                 res_s = r["result_hash"][:10] if case["check_kind"] == "hash" else f"{r['result_val']:.4f}"
                 lines.append(
                     f"| `{r['backend']}` | {r['contract']} | {r['warm_ms']:.3f} | {r['xfer_ms']:.3f} | {r['peak_rss_mb']:.2f} | {dev_mem} | `{res_s}` |"

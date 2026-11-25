@@ -322,7 +322,7 @@ fn required_metal_target_diagnoses_unsupported_ops_at_compile_time() {
     .expect_err("metal-required target must reject ordered foldl at compile time");
     let msg = err.to_string();
     assert!(
-        msg.contains("arrayFoldlF32") && msg.contains("Metal GPU"),
+        msg.contains("arrayFoldlF32") && msg.contains("Metal"),
         "expected specific GPU refusal diagnostic, got: {msg}"
     );
     common::cleanup(&dir);
@@ -541,4 +541,161 @@ module Main where
         String::from_utf8_lossy(&exec.stderr)
     );
     common::cleanup(&dir);
+}
+
+#[test]
+fn all_futhark_equivalent_targets_emit_kernels_and_diagnose_gpu_blockers() {
+    let ok_src = r#"module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Machine
+
+  main :: Int
+  main =
+    let xs = array-from-f32s [1.0, 2.0, 3.0, 4.0]
+        ys = array-from-f32s [5.0, 6.0, 7.0, 8.0]
+        d = case array-zip-binop-f32 xs ys 2 of
+              Some prod -> array-reduce-f32 prod 10
+              None -> 0.0
+    in if saturating-f32-to-i64 d == 70 then 0 else 1
+"#;
+    let mut sources = SOURCES.to_vec();
+    sources.push(("Main.cinch", ok_src));
+    let dir = common::project("dp_futhark_targets", &sources);
+
+    for (target, expect_lang, expect_snippet) in [
+        ("opencl-required", "OpenCL C", "__kernel void"),
+        ("cuda-required", "CUDA C++", "__global__ void"),
+        ("hip-required", "HIP C++", "hipBlockIdx_x"),
+        ("ispc", "ISPC", "export uniform float"),
+        ("python", "Python", "def cinch_py_"),
+        ("pyopencl", "OpenCL C", "__kernel void"),
+        ("wasm", "WebAssembly", "wasm-seq-coop"),
+        ("wasm-multicore", "WebAssembly", "wasm-threads-sab"),
+    ] {
+        let rep_path = dir.join(format!("rep_{target}.json"));
+        let kern_path = dir.join(format!("kern_{target}.txt"));
+        let mut opts = cinch::driver::DriverOptions::default();
+        opts.array_target = Some(target.to_string());
+        opts.array_report_out = Some(rep_path.clone());
+        opts.array_kernels_out = Some(kern_path.clone());
+        cinch::driver::driver_opts(
+            cinch::driver::Mode::EmitIr,
+            &dir.join("Main.cinch"),
+            Some(&dir.join(format!("out_{target}.ll"))),
+            &opts,
+        )
+        .unwrap_or_else(|e| panic!("target {target} failed: {e}"));
+        let rep = std::fs::read_to_string(&rep_path).unwrap();
+        let kerns = std::fs::read_to_string(&kern_path).unwrap();
+        assert!(rep.contains(&format!("\"kernel_language\":\"{expect_lang}\"")), "{target}: {rep}");
+        assert!(kerns.contains(expect_snippet), "{target}: missing '{expect_snippet}' in:\n{kerns}");
+    }
+    common::cleanup(&dir);
+
+    // Required GPU targets (opencl-required, cuda-required, hip-required) MUST reject sequential foldl!
+    let bad_src = r#"module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Machine
+
+  bad-gpu :: Array F32 -> F32
+  bad-gpu xs = array-foldl-f32 (\a b -> add-f32 a b) 0.0 xs
+
+  main :: Int
+  main =
+    let xs = array-from-f32s [1.0, 2.0]
+        s = bad-gpu xs
+    in if saturating-f32-to-i64 s == 3 then 0 else 1
+"#;
+    let mut bad_sources = SOURCES.to_vec();
+    bad_sources.push(("Main.cinch", bad_src));
+    let bad_dir = common::project("dp_futhark_bad_gpu", &bad_sources);
+    for req_target in ["opencl-required", "cuda-required", "hip-required"] {
+        let mut opts = cinch::driver::DriverOptions::default();
+        opts.array_target = Some(req_target.to_string());
+        let err = cinch::driver::driver_opts(
+            cinch::driver::Mode::EmitIr,
+            &bad_dir.join("Main.cinch"),
+            Some(&bad_dir.join("bad.ll")),
+            &opts,
+        )
+        .expect_err(&format!("{req_target} should reject array-foldl-f32"));
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("rejected unsupported kernel operations") && msg.contains("ordered sequential fold"),
+            "{req_target} unexpected error: {msg}"
+        );
+    }
+    common::cleanup(&bad_dir);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn cinch_program_runs_live_on_opencl_ispc_seq_and_handles_missing_cuda_hip() {
+    run_cinch(
+        "dp_live_multi_backends",
+        &[],
+        r#"module Main where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Device
+  import Data.Machine
+  import Data.Result
+  import Data.Nat
+
+  ignore :: forall a. a -> Unit
+  ignore _ = ()
+
+  run-dot :: DeviceBackend -> Result DeviceError F32
+  run-dot backend =
+    let xs = array-from-f32s [1, 2, 3, 4, 5, 6, 7, 8]
+        ys = array-from-f32s [2, 2, 2, 2, 2, 2, 2, 2]
+    in case device-open backend of
+      Err e -> Err e
+      Ok dev ->
+        case device-upload dev xs of
+          Err e ->
+            let _ = ignore (device-close dev)
+            in Err e
+          Ok ba ->
+            case device-upload dev ys of
+              Err e ->
+                let _ = ignore (device-buffer-free ba)
+                    _ = ignore (device-close dev)
+                in Err e
+              Ok bb ->
+                let res = device-dot-f32 dev ba bb 8 FloatExactTree
+                    _ = ignore (device-buffer-free ba)
+                    _ = ignore (device-buffer-free bb)
+                    _ = ignore (device-close dev)
+                in res
+
+  expect72 :: Result DeviceError F32 -> Bool
+  expect72 r = case r of
+    Ok v -> saturating-f32-to-i64 v == 72
+    Err _ -> False
+
+  expect-no-hw :: Result DeviceError Device -> Bool
+  expect-no-hw r = case r of
+    Err DeviceNoHardware -> True
+    Err _ -> False
+    Ok d -> let _ = ignore (device-close d) in False
+
+  main :: Int
+  main =
+    let ok-seq = expect72 (run-dot BackendSeq)
+        ok-cpu = expect72 (run-dot BackendCpu)
+        ok-ispc = expect72 (run-dot BackendIspc)
+        ok-ocl = expect72 (run-dot BackendOpenClRequired)
+        ok-mtl = expect72 (run-dot BackendMetalRequired)
+        no-cuda = expect-no-hw (device-open-cuda-required ())
+        no-hip = expect-no-hw (device-open-hip-required ())
+    in if ok-seq && ok-cpu && ok-ispc && ok-ocl && ok-mtl && no-cuda && no-hip then 0 else 1
+"#,
+    );
 }

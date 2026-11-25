@@ -385,7 +385,10 @@ fn main() {
                         opts.array_target = Some(v.to_string());
                     }
                     _ => {
-                        eprintln!("cinch: --array-target takes one of cpu, metal, metal-required");
+                        eprintln!(
+                            "cinch: --array-target takes one of {}",
+                            cinch::array_ir::ArrayTarget::all_names()
+                        );
                         exit(2);
                     }
                 }
@@ -395,7 +398,10 @@ fn main() {
                 if cinch::array_ir::ArrayTarget::from_str(v).is_some() {
                     opts.array_target = Some(v.to_string());
                 } else {
-                    eprintln!("cinch: --array-target takes one of cpu, metal, metal-required");
+                    eprintln!(
+                        "cinch: --array-target takes one of {}",
+                        cinch::array_ir::ArrayTarget::all_names()
+                    );
                     exit(2);
                 }
             }
@@ -405,6 +411,16 @@ fn main() {
                     Some(p) => opts.array_report_out = Some(PathBuf::from(p)),
                     None => {
                         eprintln!("cinch: --array-report-out needs a path");
+                        exit(2);
+                    }
+                }
+            }
+            "--array-kernels-out" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(p) => opts.array_kernels_out = Some(PathBuf::from(p)),
+                    None => {
+                        eprintln!("cinch: --array-kernels-out needs a path");
                         exit(2);
                     }
                 }

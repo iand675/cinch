@@ -173,26 +173,43 @@ static int run_shape(
     return 0;
 }
 
-int main(void) {
-    int64_t dev = cinch_device_open(CINCH_BACKEND_METAL_REQUIRED);
+int main(int argc, char **argv) {
+    int64_t backend = CINCH_BACKEND_METAL_REQUIRED;
+    const char *label = "metal";
+    if (argc >= 2) {
+        label = argv[1];
+        if (strcmp(label, "metal") == 0) backend = CINCH_BACKEND_METAL_REQUIRED;
+        else if (strcmp(label, "opencl") == 0) backend = CINCH_BACKEND_OPENCL_REQUIRED;
+        else if (strcmp(label, "cuda") == 0) backend = CINCH_BACKEND_CUDA_REQUIRED;
+        else if (strcmp(label, "hip") == 0) backend = CINCH_BACKEND_HIP_REQUIRED;
+        else if (strcmp(label, "ispc") == 0) backend = CINCH_BACKEND_ISPC_SIMD;
+        else if (strcmp(label, "cpu") == 0) backend = CINCH_BACKEND_CPU;
+        else if (strcmp(label, "seq") == 0) backend = CINCH_BACKEND_CPU_SEQ;
+        else if (strcmp(label, "auto") == 0) backend = CINCH_BACKEND_AUTO;
+        else {
+            fprintf(stderr, "unknown backend '%s' (use metal|opencl|cuda|hip|ispc|cpu|seq|auto)\n", label);
+            return 2;
+        }
+    }
+    int64_t dev = cinch_device_open(backend);
     if (dev < 0) {
-        fprintf(stderr, "failed to open required Metal GPU device: %lld\n", (long long)dev);
+        fprintf(stderr, "failed to open backend '%s': %lld\n", label, (long long)dev);
         return 1;
     }
 
-    /* Shape 1: Many small frames (1024 x 64 x 64) -> one threadgroup per frame. */
+    /* Shape 1: Many small frames (1024 x 64 x 64) -> one workgroup per frame. */
     if (run_shape(dev, "many-small-frames", 1024, 64, 64, 3, "many-small-frames", 1) != 0) {
         cinch_device_close(dev);
         return 10;
     }
 
-    /* Shape 2: Few large frames (2 x 2048 x 2048) -> multi-threadgroup per frame. */
+    /* Shape 2: Few large frames (2 x 2048 x 2048) -> multi-workgroup per frame. */
     if (run_shape(dev, "few-large-frames", 2, 2048, 2048, 3, "few-large-frames", 1) != 0) {
         cinch_device_close(dev);
         return 11;
     }
 
     cinch_device_close(dev);
-    printf("ALL C METAL GPU PIPELINE CHECKS PASSED.\n");
+    printf("ALL C %s PIPELINE CHECKS PASSED.\n", label);
     return 0;
 }

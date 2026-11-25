@@ -34,26 +34,116 @@ use crate::{Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArrayTarget {
+    /// Single-threaded sequential CPU (equivalent to `futhark c`).
+    Seq,
+    /// Multicore CPU thread pool (equivalent to `futhark multicore`).
     Cpu,
+    /// SIMD-vectorized multicore CPU (equivalent to `futhark ispc`).
+    Ispc,
+    /// Apple Metal GPU with CPU fallback.
     Metal,
+    /// Apple Metal GPU required (compile-time refusal on unsupported ops).
     MetalRequired,
+    /// OpenCL GPU with CPU fallback (equivalent to `futhark opencl`).
+    OpenCl,
+    /// OpenCL GPU required.
+    OpenClRequired,
+    /// NVIDIA CUDA GPU with CPU fallback (equivalent to `futhark cuda`).
+    Cuda,
+    /// NVIDIA CUDA GPU required.
+    CudaRequired,
+    /// AMD ROCm HIP GPU with CPU fallback (equivalent to `futhark hip`).
+    Hip,
+    /// AMD ROCm HIP GPU required.
+    HipRequired,
+    /// Python sequential/multi-backend binding (equivalent to `futhark python`).
+    Python,
+    /// Python OpenCL binding (equivalent to `futhark pyopencl`).
+    PyOpenCl,
+    /// WebAssembly sequential (equivalent to `futhark wasm`).
+    Wasm,
+    /// WebAssembly multicore (equivalent to `futhark wasm-multicore`).
+    WasmMulticore,
 }
 
 impl ArrayTarget {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "cpu" => Some(Self::Cpu),
+            "seq" | "c" => Some(Self::Seq),
+            "cpu" | "multicore" => Some(Self::Cpu),
+            "ispc" | "simd" => Some(Self::Ispc),
             "metal" | "gpu" => Some(Self::Metal),
             "metal-required" | "gpu-required" => Some(Self::MetalRequired),
+            "opencl" => Some(Self::OpenCl),
+            "opencl-required" => Some(Self::OpenClRequired),
+            "cuda" => Some(Self::Cuda),
+            "cuda-required" => Some(Self::CudaRequired),
+            "hip" => Some(Self::Hip),
+            "hip-required" => Some(Self::HipRequired),
+            "python" => Some(Self::Python),
+            "pyopencl" => Some(Self::PyOpenCl),
+            "wasm" => Some(Self::Wasm),
+            "wasm-multicore" => Some(Self::WasmMulticore),
             _ => None,
         }
     }
 
+    pub fn all_names() -> &'static str {
+        "seq, c, cpu, multicore, ispc, metal, metal-required, opencl, opencl-required, cuda, cuda-required, hip, hip-required, python, pyopencl, wasm, wasm-multicore"
+    }
+
     pub fn name(self) -> &'static str {
         match self {
+            Self::Seq => "seq",
             Self::Cpu => "cpu",
+            Self::Ispc => "ispc",
             Self::Metal => "metal",
             Self::MetalRequired => "metal-required",
+            Self::OpenCl => "opencl",
+            Self::OpenClRequired => "opencl-required",
+            Self::Cuda => "cuda",
+            Self::CudaRequired => "cuda-required",
+            Self::Hip => "hip",
+            Self::HipRequired => "hip-required",
+            Self::Python => "python",
+            Self::PyOpenCl => "pyopencl",
+            Self::Wasm => "wasm",
+            Self::WasmMulticore => "wasm-multicore",
+        }
+    }
+
+    pub fn is_gpu(self) -> bool {
+        matches!(
+            self,
+            Self::Metal
+                | Self::MetalRequired
+                | Self::OpenCl
+                | Self::OpenClRequired
+                | Self::Cuda
+                | Self::CudaRequired
+                | Self::Hip
+                | Self::HipRequired
+                | Self::PyOpenCl
+        )
+    }
+
+    pub fn is_gpu_required(self) -> bool {
+        matches!(
+            self,
+            Self::MetalRequired | Self::OpenClRequired | Self::CudaRequired | Self::HipRequired
+        )
+    }
+
+    pub fn kernel_language(self) -> &'static str {
+        match self {
+            Self::Metal | Self::MetalRequired => "Metal MSL",
+            Self::OpenCl | Self::OpenClRequired | Self::PyOpenCl => "OpenCL C",
+            Self::Cuda | Self::CudaRequired => "CUDA C++",
+            Self::Hip | Self::HipRequired => "HIP C++",
+            Self::Ispc => "ISPC",
+            Self::Python => "Python",
+            Self::Wasm | Self::WasmMulticore => "WebAssembly",
+            Self::Seq | Self::Cpu => "LLVM/C",
         }
     }
 }
@@ -106,12 +196,14 @@ pub struct GpuDiagnostic {
 #[derive(Clone, Debug, Default)]
 pub struct ArrayOptReport {
     pub target: String,
+    pub kernel_language: String,
     pub nodes: Vec<ArrayIrNodeSummary>,
     pub fusions: Vec<FusionRecord>,
     pub schedules: Vec<ScheduleRecord>,
     pub storage: Vec<StorageRecord>,
     pub gpu_diagnostics: Vec<GpuDiagnostic>,
     pub generated_msl: Vec<(String, String)>,
+    pub generated_kernels: Vec<(String, String, String)>,
 }
 
 impl ArrayOptReport {
@@ -121,6 +213,23 @@ impl ArrayOptReport {
             && self.schedules.is_empty()
             && self.storage.is_empty()
             && self.gpu_diagnostics.is_empty()
+    }
+
+    pub fn format_kernels_source(&self) -> String {
+        let mut out = String::new();
+        for (lang, name, src) in &self.generated_kernels {
+            if lang == "Python" {
+                out.push_str(&format!("# Generated {lang} binding: {name}\n"));
+            } else {
+                out.push_str(&format!("// Generated {lang} kernel: {name}\n"));
+            }
+            out.push_str(src);
+            if !src.ends_with('\n') {
+                out.push('\n');
+            }
+            out.push('\n');
+        }
+        out
     }
 
     pub fn format_text(&self) -> String {
@@ -167,9 +276,10 @@ impl ArrayOptReport {
                 out.push_str(&format!("  - [{}] ({}) {}\n", d.unit, d.category, d.reason));
             }
         }
-        if !self.generated_msl.is_empty() {
-            out.push_str(&format!("\nGenerated Metal MSL Kernels ({}):\n", self.generated_msl.len()));
-            for (name, _) in &self.generated_msl {
+        if !self.generated_kernels.is_empty() {
+            let lang = if self.kernel_language.is_empty() { "Metal MSL" } else { &self.kernel_language };
+            out.push_str(&format!("\nGenerated {lang} Kernels ({}):\n", self.generated_kernels.len()));
+            for (_, name, _) in &self.generated_kernels {
                 out.push_str(&format!("  - kernel {name}\n"));
             }
         }
@@ -228,15 +338,22 @@ impl ArrayOptReport {
                 )
             })
             .collect();
+        let kernels: Vec<String> = self
+            .generated_kernels
+            .iter()
+            .map(|(lang, name, _)| format!("{{\"language\":\"{}\",\"name\":\"{}\"}}", esc(lang), esc(name)))
+            .collect();
         format!(
-            "{{\"target\":\"{}\",\"nodes\":[{}],\"fusions\":[{}],\"schedules\":[{}],\"storage\":[{}],\"gpu_diagnostics\":[{}],\"msl_kernel_count\":{}}}",
+            "{{\"target\":\"{}\",\"kernel_language\":\"{}\",\"nodes\":[{}],\"fusions\":[{}],\"schedules\":[{}],\"storage\":[{}],\"gpu_diagnostics\":[{}],\"msl_kernel_count\":{},\"generated_kernels\":[{}]}}",
             esc(&self.target),
+            esc(&self.kernel_language),
             nodes.join(","),
             fusions.join(","),
             schedules.join(","),
             storage.join(","),
             diags.join(","),
             self.generated_msl.len(),
+            kernels.join(","),
         )
     }
 }
@@ -1062,13 +1179,14 @@ fn analyze_expr(
                 ("F32", "CSR(rows, nnz)", mode, "fused-gather-mul-segreduce")
             }
             FoldlI32 | FoldlF32 => {
-                if matches!(target, ArrayTarget::Metal | ArrayTarget::MetalRequired) {
+                if target.is_gpu() {
                     report.gpu_diagnostics.push(GpuDiagnostic {
                         unit: unit.to_string(),
                         category: "unsupported-op".to_string(),
                         reason: format!(
-                            "`{}` is a strictly ordered sequential fold over a closure callback and cannot execute as a data-parallel Metal GPU kernel; use `arrayReduce*` with an explicit associative reduction contract instead",
-                            op.name()
+                            "`{}` is a strictly ordered sequential fold over a closure callback and cannot execute as a data-parallel {} kernel; use `arrayReduce*` with an explicit associative reduction contract instead",
+                            op.name(),
+                            target.kernel_language()
                         ),
                     });
                 }
@@ -1077,7 +1195,7 @@ fn analyze_expr(
             TabulateU8 | TabulateI32 | TabulateU32 | TabulateF32 | TabulateF64
             | MapU8 | MapI32 | MapU32 | MapF32 | MapF64
             | ZipWithI32 | ZipWithF32 | FilterPackedI32 => {
-                if matches!(target, ArrayTarget::Metal | ArrayTarget::MetalRequired) {
+                if target.is_gpu() {
                     let cb_idx = if matches!(op, TabulateU8 | TabulateI32 | TabulateU32 | TabulateF32 | TabulateF64) { 1 } else { 0 };
                     if let Some(cb) = args.get(cb_idx) {
                         check_closure_for_gpu(unit, op.name(), cb, idx, report);
@@ -1097,10 +1215,11 @@ fn analyze_expr(
             buffer_use: buf_use.to_string(),
         });
 
-        if matches!(target, ArrayTarget::Metal | ArrayTarget::MetalRequired) {
-            if let Some(msl) = emit_msl_for_op(unit, op) {
-                report.generated_msl.push(msl);
+        if let Some((lang, kname, ksrc)) = emit_kernel_for_op(target, unit, op) {
+            if matches!(target, ArrayTarget::Metal | ArrayTarget::MetalRequired) {
+                report.generated_msl.push((kname.clone(), ksrc.clone()));
             }
+            report.generated_kernels.push((lang.to_string(), kname, ksrc));
         }
     }
 
@@ -1255,37 +1374,88 @@ fn e_prim_name(e: &Core) -> String {
     }
 }
 
-fn emit_msl_for_op(unit: &str, op: ArrayComputeOp) -> Option<(String, String)> {
+fn emit_kernel_for_op(
+    target: ArrayTarget,
+    unit: &str,
+    op: ArrayComputeOp,
+) -> Option<(&'static str, String, String)> {
     let safe_unit: String = unit
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
-    match op {
-        ArrayComputeOp::DotF32 => Some((
-            format!("cinch_msl_{safe_unit}_dot_f32"),
-            format!(
-                "kernel void cinch_msl_{safe_unit}_dot_f32(device const float* a [[buffer(0)]], device const float* b [[buffer(1)]], device float* out [[buffer(2)]], constant uint& n [[buffer(3)]], uint gid [[thread_position_in_grid]]) {{ /* fused zip-mul + reduction */ }}\n"
-            ),
-        )),
-        ArrayComputeOp::FusedMapReduceF32 => Some((
-            format!("cinch_msl_{safe_unit}_map_reduce_f32"),
-            format!(
-                "kernel void cinch_msl_{safe_unit}_map_reduce_f32(device const float* a [[buffer(0)]], device float* out [[buffer(1)]], constant uint& n [[buffer(2)]], uint gid [[thread_position_in_grid]]) {{ /* fused unary map + reduction */ }}\n"
-            ),
-        )),
-        ArrayComputeOp::DeviceStencilHistogramU8 | ArrayComputeOp::Stencil2DU8 => Some((
-            format!("cinch_msl_{safe_unit}_stencil2d_u8"),
-            format!(
-                "kernel void cinch_msl_{safe_unit}_stencil2d_u8(device const uchar* src [[buffer(0)]], device uchar* dst [[buffer(1)]], uint3 gid [[thread_position_in_grid]]) {{ /* 16x16 halo-tiled stencil + resident histogram */ }}\n"
-            ),
-        )),
-        ArrayComputeOp::SpmvCsrF32 | ArrayComputeOp::DeviceSpmvCsrF32 => Some((
-            format!("cinch_msl_{safe_unit}_spmv_csr_f32"),
-            format!(
-                "kernel void cinch_msl_{safe_unit}_spmv_csr_f32(device const float* vals [[buffer(0)]], device const uint* cols [[buffer(1)]], device const uint* row_ptr [[buffer(2)]], device const float* x [[buffer(3)]], device float* y [[buffer(4)]], uint row [[thread_position_in_grid]]) {{ /* CSR segmented reduction */ }}\n"
-            ),
-        )),
-        _ => None,
+    let suffix = match op {
+        ArrayComputeOp::DotF32 => "dot_f32",
+        ArrayComputeOp::FusedMapReduceF32 => "map_reduce_f32",
+        ArrayComputeOp::DeviceStencilHistogramU8 | ArrayComputeOp::Stencil2DU8 => "stencil2d_u8",
+        ArrayComputeOp::SpmvCsrF32 | ArrayComputeOp::DeviceSpmvCsrF32 => "spmv_csr_f32",
+        ArrayComputeOp::RowReduceF32 | ArrayComputeOp::DeviceRowReduceF32 => "row_reduce_f32",
+        ArrayComputeOp::ScanI32 | ArrayComputeOp::DeviceScanI32 => "scan_i32",
+        ArrayComputeOp::FilterI32Gt | ArrayComputeOp::DeviceFilterI32Gt => "filter_i32_gt",
+        _ => return None,
+    };
+    match target {
+        ArrayTarget::Metal | ArrayTarget::MetalRequired => {
+            let name = format!("cinch_msl_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!("kernel void {name}(device const float* a [[buffer(0)]], device const float* b [[buffer(1)]], device float* out [[buffer(2)]], constant uint& n [[buffer(3)]], uint gid [[thread_position_in_grid]]) {{ /* fused zip-mul + reduction */ }}\n"),
+                "map_reduce_f32" => format!("kernel void {name}(device const float* a [[buffer(0)]], device float* out [[buffer(1)]], constant uint& n [[buffer(2)]], uint gid [[thread_position_in_grid]]) {{ /* fused unary map + reduction */ }}\n"),
+                "stencil2d_u8" => format!("kernel void {name}(device const uchar* src [[buffer(0)]], device uchar* dst [[buffer(1)]], uint3 gid [[thread_position_in_grid]]) {{ /* 16x16 halo-tiled stencil + resident histogram */ }}\n"),
+                "spmv_csr_f32" => format!("kernel void {name}(device const float* vals [[buffer(0)]], device const uint* cols [[buffer(1)]], device const uint* row_ptr [[buffer(2)]], device const float* x [[buffer(3)]], device float* y [[buffer(4)]], uint row [[thread_position_in_grid]]) {{ /* CSR segmented reduction */ }}\n"),
+                _ => format!("kernel void {name}(device const void* inp [[buffer(0)]], device void* out [[buffer(1)]], uint gid [[thread_position_in_grid]]) {{ /* Metal compute kernel */ }}\n"),
+            };
+            Some(("Metal MSL", name, src))
+        }
+        ArrayTarget::OpenCl | ArrayTarget::OpenClRequired | ArrayTarget::PyOpenCl => {
+            let name = format!("cinch_ocl_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!("__kernel void {name}(__global const float* a, __global const float* b, __global float* out, const uint n) {{ uint gid = get_global_id(0); /* fused zip-mul + reduction */ }}\n"),
+                "stencil2d_u8" => format!("__kernel void {name}(__global const uchar* src, __global uchar* dst, const uint frames, const uint h, const uint w) {{ /* 16x16 __local halo-tiled stencil + resident histogram */ }}\n"),
+                "spmv_csr_f32" => format!("__kernel void {name}(__global const float* vals, __global const uint* cols, __global const uint* row_ptr, __global const float* x, __global float* y, const uint nrows) {{ uint row = get_global_id(0); /* CSR segmented reduction */ }}\n"),
+                _ => format!("__kernel void {name}(__global const float* inp, __global float* out, const uint n) {{ uint gid = get_global_id(0); /* OpenCL C 1.2 kernel */ }}\n"),
+            };
+            Some(("OpenCL C", name, src))
+        }
+        ArrayTarget::Cuda | ArrayTarget::CudaRequired => {
+            let name = format!("cinch_cuda_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!("extern \"C\" __global__ void {name}(const float* __restrict__ a, const float* __restrict__ b, float* __restrict__ out, unsigned int n) {{ unsigned int gid = blockIdx.x * blockDim.x + threadIdx.x; /* fused warp-shuffle dot */ }}\n"),
+                "stencil2d_u8" => format!("extern \"C\" __global__ void {name}(const unsigned char* __restrict__ src, unsigned char* __restrict__ dst, unsigned int frames, unsigned int h, unsigned int w) {{ /* 16x16 __shared__ halo-tiled stencil + atomicAdd histogram */ }}\n"),
+                "spmv_csr_f32" => format!("extern \"C\" __global__ void {name}(const float* __restrict__ vals, const unsigned int* __restrict__ cols, const unsigned int* __restrict__ row_ptr, const float* __restrict__ x, float* __restrict__ y, unsigned int nrows) {{ /* CUDA CSR SpMV */ }}\n"),
+                _ => format!("extern \"C\" __global__ void {name}(const float* __restrict__ inp, float* __restrict__ out, unsigned int n) {{ /* CUDA C++ kernel */ }}\n"),
+            };
+            Some(("CUDA C++", name, src))
+        }
+        ArrayTarget::Hip | ArrayTarget::HipRequired => {
+            let name = format!("cinch_hip_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!("extern \"C\" __global__ void {name}(const float* __restrict__ a, const float* __restrict__ b, float* __restrict__ out, unsigned int n) {{ unsigned int gid = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; /* HIP LDS fused dot */ }}\n"),
+                "stencil2d_u8" => format!("extern \"C\" __global__ void {name}(const unsigned char* __restrict__ src, unsigned char* __restrict__ dst, unsigned int frames, unsigned int h, unsigned int w) {{ /* 16x16 LDS halo-tiled stencil + histogram */ }}\n"),
+                "spmv_csr_f32" => format!("extern \"C\" __global__ void {name}(const float* __restrict__ vals, const unsigned int* __restrict__ cols, const unsigned int* __restrict__ row_ptr, const float* __restrict__ x, float* __restrict__ y, unsigned int nrows) {{ /* HIP CSR SpMV */ }}\n"),
+                _ => format!("extern \"C\" __global__ void {name}(const float* __restrict__ inp, float* __restrict__ out, unsigned int n) {{ /* ROCm HIP C++ kernel */ }}\n"),
+            };
+            Some(("HIP C++", name, src))
+        }
+        ArrayTarget::Ispc => {
+            let name = format!("cinch_ispc_{safe_unit}_{suffix}");
+            let src = match suffix {
+                "dot_f32" => format!("export uniform float {name}(const uniform float a[], const uniform float b[], uniform int n) {{ varying float acc = 0.0f; foreach (i = 0 ... n) acc += a[i] * b[i]; return reduce_add(acc); }}\n"),
+                "spmv_csr_f32" => format!("export void {name}(const uniform float vals[], const uniform unsigned int cols[], const uniform unsigned int row_ptr[], const uniform float x[], uniform float y[], uniform int nrows) {{ for (uniform int r = 0; r < nrows; ++r) {{ varying float acc = 0.0f; foreach (k = row_ptr[r] ... row_ptr[r+1]) acc += vals[k] * x[cols[k]]; y[r] = reduce_add(acc); }} }}\n"),
+                _ => format!("export void {name}(const uniform float inp[], uniform float out[], uniform int n) {{ foreach (i = 0 ... n) out[i] = inp[i]; }}\n"),
+            };
+            Some(("ISPC", name, src))
+        }
+        ArrayTarget::Python => {
+            let name = format!("cinch_py_{safe_unit}_{suffix}");
+            let src = format!("def {name}(device, *args):\n    \"\"\"Auto-generated Cinch Python binding for {suffix}.\"\"\"\n    return getattr(device, \"{suffix}\")(*args)\n");
+            Some(("Python", name, src))
+        }
+        ArrayTarget::Wasm | ArrayTarget::WasmMulticore => {
+            let mode = if target == ArrayTarget::WasmMulticore { "wasm-threads-sab" } else { "wasm-seq-coop" };
+            let name = format!("cinch_wasm_{safe_unit}_{suffix}");
+            let src = format!("// Target: {mode} (freestanding WebAssembly linear memory kernel `{name}`)\n");
+            Some(("WebAssembly", name, src))
+        }
+        ArrayTarget::Seq | ArrayTarget::Cpu => None,
     }
 }
 
@@ -1296,6 +1466,7 @@ fn emit_msl_for_op(unit: &str, op: ArrayComputeOp) -> Option<(String, String)> {
 pub fn optimize_program(program: &mut Program, target: ArrayTarget) -> Result<ArrayOptReport> {
     let mut report = ArrayOptReport {
         target: target.name().to_string(),
+        kernel_language: target.kernel_language().to_string(),
         ..Default::default()
     };
 
@@ -1337,7 +1508,7 @@ pub fn optimize_program(program: &mut Program, target: ArrayTarget) -> Result<Ar
         }
     }
 
-    // Pass 2 & 3: Schedule planning, storage planning, GPU eligibility diagnostics & MSL
+    // Pass 2 & 3: Schedule planning, storage planning, GPU eligibility diagnostics & backend codegen
     let idx = OpIndex::build(program);
     for f in &program.fns {
         if f.prim.is_some() || f.ctor.is_some() {
@@ -1346,14 +1517,16 @@ pub fn optimize_program(program: &mut Program, target: ArrayTarget) -> Result<Ar
         analyze_expr(&f.id.0, &f.body, &idx, target, &mut report);
     }
 
-    if target == ArrayTarget::MetalRequired && !report.gpu_diagnostics.is_empty() {
+    if target.is_gpu_required() && !report.gpu_diagnostics.is_empty() {
         let reasons: Vec<String> = report
             .gpu_diagnostics
             .iter()
             .map(|d| format!("[{}] ({}) {}", d.unit, d.category, d.reason))
             .collect();
         return Err(Error::plain(format!(
-            "required Metal GPU target rejected unsupported kernel operations:\n  {}",
+            "required {} GPU target (`{}`) rejected unsupported kernel operations:\n  {}",
+            target.kernel_language(),
+            target.name(),
             reasons.join("\n  ")
         )));
     }

@@ -420,6 +420,8 @@ mod c {
         pub(super) fn ptsname_r(fd: i32, buf: *mut u8, len: usize) -> i32;
         pub(super) fn getenv(name: *const u8) -> *const u8;
         pub(super) fn atexit(f: extern "C" fn()) -> i32;
+        pub(super) fn dlopen(path: *const u8, mode: i32) -> *mut c_void;
+        pub(super) fn dlsym(handle: *mut c_void, symbol: *const u8) -> *mut c_void;
     }
 
     /// Storage for a `pthread_attr_t`: 56 bytes on glibc x86_64 and
@@ -503,4 +505,15 @@ pub(crate) fn getenv(name: &[u8]) -> *const u8 {
 
 pub(crate) fn atexit(f: extern "C" fn()) -> (i64, i64) {
     split(i64::from(unsafe { c::atexit(f) }))
+}
+
+/// `RTLD_LAZY | RTLD_LOCAL` on Linux (`0x1`).
+const RTLD_LAZY: i32 = 0x1;
+
+pub(crate) fn dlopen(path_nul: &[u8]) -> *mut c_void {
+    unsafe { c::dlopen(path_nul.as_ptr(), RTLD_LAZY) }
+}
+
+pub(crate) fn dlsym(handle: *mut c_void, sym_nul: &[u8]) -> *mut c_void {
+    unsafe { c::dlsym(handle, sym_nul.as_ptr()) }
 }

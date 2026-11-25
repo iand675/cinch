@@ -35,6 +35,15 @@ use crate::{abi, arrays, par_arrays};
 pub const DEVICE_KIND_CPU: i64 = 0;
 pub const DEVICE_KIND_METAL: i64 = 1;
 pub const DEVICE_KIND_METAL_REQUIRED: i64 = 2;
+pub const DEVICE_KIND_OPENCL_REQUIRED: i64 = 3;
+pub const DEVICE_KIND_CUDA_REQUIRED: i64 = 4;
+pub const DEVICE_KIND_HIP_REQUIRED: i64 = 5;
+pub const DEVICE_KIND_CPU_SEQ: i64 = 6;
+pub const DEVICE_KIND_ISPC_SIMD: i64 = 7;
+pub const DEVICE_KIND_AUTO: i64 = 8;
+pub const DEVICE_KIND_OPENCL: i64 = 9;
+pub const DEVICE_KIND_CUDA: i64 = 10;
+pub const DEVICE_KIND_HIP: i64 = 11;
 
 pub const DEV_OK: i64 = 0;
 pub const DEV_ERR_NO_DEVICE: i64 = -1;
@@ -987,13 +996,13 @@ pub struct DeviceTelemetry {
 }
 
 impl DeviceTelemetry {
-    fn note_alloc(&mut self, bytes: usize) {
+    pub(crate) fn note_alloc(&mut self, bytes: usize) {
         self.live_device_bytes += bytes;
         if self.live_device_bytes > self.peak_device_bytes {
             self.peak_device_bytes = self.live_device_bytes;
         }
     }
-    fn note_free(&mut self, bytes: usize) {
+    pub(crate) fn note_free(&mut self, bytes: usize) {
         self.live_device_bytes = self.live_device_bytes.saturating_sub(bytes);
     }
     fn to_json(&self, device_name: &str, backend: &str) -> String {
@@ -1048,7 +1057,68 @@ struct ResidentBuffer {
     bytes: usize,
     #[cfg(target_os = "macos")]
     mtl_buf: *mut c_void,
+    ocl_buf: Option<crate::opencl::OpenClBuffer>,
+    cuda_buf: Option<crate::cuda::CudaBuffer>,
+    hip_buf: Option<crate::hip::HipBuffer>,
     cpu_buf: Vec<u8>,
+}
+
+impl ResidentBuffer {
+    fn new_cpu(ctx_id: i64, cpu_buf: Vec<u8>) -> Arc<Self> {
+        let bytes = cpu_buf.len();
+        Arc::new(Self {
+            ctx_id,
+            bytes,
+            #[cfg(target_os = "macos")]
+            mtl_buf: null_mut(),
+            ocl_buf: None,
+            cuda_buf: None,
+            hip_buf: None,
+            cpu_buf,
+        })
+    }
+
+    fn new_opencl(ctx_id: i64, buf: crate::opencl::OpenClBuffer) -> Arc<Self> {
+        let bytes = buf.bytes;
+        Arc::new(Self {
+            ctx_id,
+            bytes,
+            #[cfg(target_os = "macos")]
+            mtl_buf: null_mut(),
+            ocl_buf: Some(buf),
+            cuda_buf: None,
+            hip_buf: None,
+            cpu_buf: Vec::new(),
+        })
+    }
+
+    fn new_cuda(ctx_id: i64, buf: crate::cuda::CudaBuffer) -> Arc<Self> {
+        let bytes = buf.bytes;
+        Arc::new(Self {
+            ctx_id,
+            bytes,
+            #[cfg(target_os = "macos")]
+            mtl_buf: null_mut(),
+            ocl_buf: None,
+            cuda_buf: Some(buf),
+            hip_buf: None,
+            cpu_buf: Vec::new(),
+        })
+    }
+
+    fn new_hip(ctx_id: i64, buf: crate::hip::HipBuffer) -> Arc<Self> {
+        let bytes = buf.bytes;
+        Arc::new(Self {
+            ctx_id,
+            bytes,
+            #[cfg(target_os = "macos")]
+            mtl_buf: null_mut(),
+            ocl_buf: None,
+            cuda_buf: None,
+            hip_buf: Some(buf),
+            cpu_buf: Vec::new(),
+        })
+    }
 }
 
 unsafe impl Send for ResidentBuffer {}
@@ -1072,6 +1142,9 @@ struct DeviceCtx {
     mtl_queue: *mut c_void,
     #[cfg(target_os = "macos")]
     pipelines: HashMap<String, *mut c_void>,
+    ocl: Option<crate::opencl::OpenClState>,
+    cuda: Option<crate::cuda::CudaState>,
+    hip: Option<crate::hip::HipState>,
     /// Retained buffers kept alive until command completion.
     in_flight: Vec<Arc<ResidentBuffer>>,
     telemetry: DeviceTelemetry,
@@ -1140,24 +1213,99 @@ impl DeviceCtx {
             mtl_device: dev,
             mtl_queue: queue,
             pipelines: HashMap::new(),
+            ocl: None,
+            cuda: None,
+            hip: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         })
     }
 
-    fn open_cpu() -> Self {
+    fn open_cpu_variant(variant: crate::simd_cpu::CpuVariant) -> Self {
+        let (backend, device_name) = match variant {
+            crate::simd_cpu::CpuVariant::Seq => ("seq", "sequential-cpu"),
+            crate::simd_cpu::CpuVariant::Multicore => ("cpu", "multicore-cpu"),
+            crate::simd_cpu::CpuVariant::IspcSimd => ("ispc", "ispc-simd-multicore-cpu"),
+        };
         Self {
-            backend: "cpu",
-            device_name: "multicore-cpu".to_string(),
+            backend,
+            device_name: device_name.to_string(),
             #[cfg(target_os = "macos")]
             mtl_device: null_mut(),
             #[cfg(target_os = "macos")]
             mtl_queue: null_mut(),
             #[cfg(target_os = "macos")]
             pipelines: HashMap::new(),
+            ocl: None,
+            cuda: None,
+            hip: None,
             in_flight: Vec::new(),
             telemetry: DeviceTelemetry::default(),
         }
+    }
+
+    fn open_cpu() -> Self {
+        Self::open_cpu_variant(crate::simd_cpu::CpuVariant::Multicore)
+    }
+
+    fn open_opencl() -> Result<Self, String> {
+        let state = crate::opencl::OpenClState::open()?;
+        let device_name = state.device_name.clone();
+        Ok(Self {
+            backend: "opencl",
+            device_name,
+            #[cfg(target_os = "macos")]
+            mtl_device: null_mut(),
+            #[cfg(target_os = "macos")]
+            mtl_queue: null_mut(),
+            #[cfg(target_os = "macos")]
+            pipelines: HashMap::new(),
+            ocl: Some(state),
+            cuda: None,
+            hip: None,
+            in_flight: Vec::new(),
+            telemetry: DeviceTelemetry::default(),
+        })
+    }
+
+    fn open_cuda() -> Result<Self, String> {
+        let state = crate::cuda::CudaState::open()?;
+        let device_name = state.device_name.clone();
+        Ok(Self {
+            backend: "cuda",
+            device_name,
+            #[cfg(target_os = "macos")]
+            mtl_device: null_mut(),
+            #[cfg(target_os = "macos")]
+            mtl_queue: null_mut(),
+            #[cfg(target_os = "macos")]
+            pipelines: HashMap::new(),
+            ocl: None,
+            cuda: Some(state),
+            hip: None,
+            in_flight: Vec::new(),
+            telemetry: DeviceTelemetry::default(),
+        })
+    }
+
+    fn open_hip() -> Result<Self, String> {
+        let state = crate::hip::HipState::open()?;
+        let device_name = state.device_name.clone();
+        Ok(Self {
+            backend: "hip",
+            device_name,
+            #[cfg(target_os = "macos")]
+            mtl_device: null_mut(),
+            #[cfg(target_os = "macos")]
+            mtl_queue: null_mut(),
+            #[cfg(target_os = "macos")]
+            pipelines: HashMap::new(),
+            ocl: None,
+            cuda: None,
+            hip: Some(state),
+            in_flight: Vec::new(),
+            telemetry: DeviceTelemetry::default(),
+        })
     }
 
     #[cfg(target_os = "macos")]
@@ -1182,6 +1330,9 @@ impl DeviceCtx {
             ctx_id,
             bytes,
             mtl_buf,
+            ocl_buf: None,
+            cuda_buf: None,
+            hip_buf: None,
             cpu_buf: Vec::new(),
         }))
     }
@@ -1217,12 +1368,25 @@ fn get_buf(buf_id: i64) -> Option<Arc<ResidentBuffer>> {
 // (Used by both Cinch stdlib `Data.Device` AND external C / Python callers!)
 // ---------------------------------------------------------------------------
 
-/// Open a device context: `kind = 0` (CPU), `1` (Metal with CPU fallback),
-/// `2` (Metal required — returns `DEV_ERR_NO_DEVICE` if unavailable).
+/// Open a device context for any Cinch / Futhark-equivalent backend:
+/// - `0`: Multicore CPU (`cpu`, futhark `multicore`)
+/// - `1`: Metal GPU with CPU fallback (`metal`)
+/// - `2`: Metal GPU required (`metal-required`)
+/// - `3`: OpenCL GPU required (`opencl-required`, futhark `opencl`)
+/// - `4`: NVIDIA CUDA GPU required (`cuda-required`, futhark `cuda`)
+/// - `5`: AMD ROCm HIP GPU required (`hip-required`, futhark `hip`)
+/// - `6`: Sequential single-threaded CPU (`seq`, futhark `c`)
+/// - `7`: SIMD-vectorized multicore CPU (`ispc`, futhark `ispc`)
+/// - `8`: Auto-select best available accelerator (`auto`)
+/// - `9`: OpenCL with CPU fallback (`opencl`)
+/// - `10`: CUDA with CPU fallback (`cuda`)
+/// - `11`: HIP with CPU fallback (`hip`)
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_device_open(kind: i64) -> i64 {
     let ctx = match kind {
         DEVICE_KIND_CPU => DeviceCtx::open_cpu(),
+        DEVICE_KIND_CPU_SEQ => DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::Seq),
+        DEVICE_KIND_ISPC_SIMD => DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::IspcSimd),
         DEVICE_KIND_METAL => {
             #[cfg(target_os = "macos")]
             {
@@ -1244,6 +1408,41 @@ pub extern "C" fn cinch_device_open(kind: i64) -> i64 {
             #[cfg(not(target_os = "macos"))]
             {
                 return DEV_ERR_NO_DEVICE;
+            }
+        }
+        DEVICE_KIND_OPENCL => DeviceCtx::open_opencl().unwrap_or_else(|_| DeviceCtx::open_cpu()),
+        DEVICE_KIND_OPENCL_REQUIRED => match DeviceCtx::open_opencl() {
+            Ok(c) => c,
+            Err(_) => return DEV_ERR_NO_DEVICE,
+        },
+        DEVICE_KIND_CUDA => DeviceCtx::open_cuda().unwrap_or_else(|_| DeviceCtx::open_cpu()),
+        DEVICE_KIND_CUDA_REQUIRED => match DeviceCtx::open_cuda() {
+            Ok(c) => c,
+            Err(_) => return DEV_ERR_NO_DEVICE,
+        },
+        DEVICE_KIND_HIP => DeviceCtx::open_hip().unwrap_or_else(|_| DeviceCtx::open_cpu()),
+        DEVICE_KIND_HIP_REQUIRED => match DeviceCtx::open_hip() {
+            Ok(c) => c,
+            Err(_) => return DEV_ERR_NO_DEVICE,
+        },
+        DEVICE_KIND_AUTO => {
+            #[cfg(target_os = "macos")]
+            if let Ok(c) = DeviceCtx::open_metal() {
+                c
+            } else if let Ok(c) = DeviceCtx::open_opencl() {
+                c
+            } else {
+                DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::IspcSimd)
+            }
+            #[cfg(not(target_os = "macos"))]
+            if let Ok(c) = DeviceCtx::open_cuda() {
+                c
+            } else if let Ok(c) = DeviceCtx::open_hip() {
+                c
+            } else if let Ok(c) = DeviceCtx::open_opencl() {
+                c
+            } else {
+                DeviceCtx::open_cpu_variant(crate::simd_cpu::CpuVariant::IspcSimd)
             }
         }
         _ => return DEV_ERR_INVALID_HANDLE,
@@ -1337,19 +1536,46 @@ pub unsafe extern "C" fn cinch_device_upload_raw(
         {
             return DEV_ERR_NO_DEVICE;
         }
+    } else if let Some(ref ocl) = ctx.ocl {
+        match ocl.upload(src_ptr, bytes) {
+            Ok(b) => {
+                ctx.telemetry.note_alloc(bytes);
+                ResidentBuffer::new_opencl(ctx_id, b)
+            }
+            Err(e) => {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_OUT_OF_MEMORY;
+            }
+        }
+    } else if let Some(ref cuda) = ctx.cuda {
+        match cuda.upload(src_ptr, bytes) {
+            Ok(b) => {
+                ctx.telemetry.note_alloc(bytes);
+                ResidentBuffer::new_cuda(ctx_id, b)
+            }
+            Err(e) => {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_OUT_OF_MEMORY;
+            }
+        }
+    } else if let Some(ref hip) = ctx.hip {
+        match hip.upload(src_ptr, bytes) {
+            Ok(b) => {
+                ctx.telemetry.note_alloc(bytes);
+                ResidentBuffer::new_hip(ctx_id, b)
+            }
+            Err(e) => {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_OUT_OF_MEMORY;
+            }
+        }
     } else {
         let mut v = vec![0u8; bytes];
         if bytes > 0 && !src_ptr.is_null() {
             unsafe { std::ptr::copy_nonoverlapping(src_ptr, v.as_mut_ptr(), bytes) };
         }
         ctx.telemetry.note_alloc(bytes);
-        Arc::new(ResidentBuffer {
-            ctx_id,
-            bytes,
-            #[cfg(target_os = "macos")]
-            mtl_buf: null_mut(),
-            cpu_buf: v,
-        })
+        ResidentBuffer::new_cpu(ctx_id, v)
     };
     ctx.telemetry.uploads += 1;
     ctx.telemetry.upload_bytes += bytes;
@@ -1391,6 +1617,21 @@ pub unsafe extern "C" fn cinch_device_download_raw(
             #[cfg(target_os = "macos")]
             unsafe {
                 std::ptr::copy_nonoverlapping(objc::buffer_contents(buf.mtl_buf), dst_ptr, bytes);
+            }
+        } else if let (Some(ocl), Some(ob)) = (&ctx.ocl, &buf.ocl_buf) {
+            if let Err(e) = ocl.download(ob, dst_ptr, bytes) {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_EXECUTION_FAILED;
+            }
+        } else if let (Some(cuda), Some(cb)) = (&ctx.cuda, &buf.cuda_buf) {
+            if let Err(e) = cuda.download(cb, dst_ptr, bytes) {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_EXECUTION_FAILED;
+            }
+        } else if let (Some(hip), Some(hb)) = (&ctx.hip, &buf.hip_buf) {
+            if let Err(e) = hip.download(hb, dst_ptr, bytes) {
+                ctx.telemetry.last_error = e;
+                return DEV_ERR_EXECUTION_FAILED;
             }
         } else {
             unsafe { std::ptr::copy_nonoverlapping(buf.cpu_buf.as_ptr(), dst_ptr, bytes) };
@@ -1650,23 +1891,63 @@ pub unsafe extern "C" fn cinch_device_dot_f32(
         }
     }
 
-    // CPU fallback inside DeviceCtx
-    let xs = unsafe { std::slice::from_raw_parts(buf_a.cpu_buf.as_ptr().cast::<f32>(), n) };
-    let ys = unsafe { std::slice::from_raw_parts(buf_b.cpu_buf.as_ptr().cast::<f32>(), n) };
-    let res = if exact {
-        par_arrays::f32_exact_tree_prod(0, n, &|i| xs[i] * ys[i])
-    } else {
-        xs.iter().zip(ys.iter()).map(|(&a, &b)| a * b).sum()
+    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ba), Some(bb)) = (ocl.as_mut(), buf_a.ocl_buf.as_ref(), buf_b.ocl_buf.as_ref()) {
+        return match ocl.dot_f32(ba, bb, n, exact, telemetry) {
+            Ok(res) => {
+                if !out_f32_ptr.is_null() {
+                    unsafe { *out_f32_ptr = res };
+                }
+                DEV_OK
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(cuda), Some(ba), Some(bb)) = (cuda.as_mut(), buf_a.cuda_buf.as_ref(), buf_b.cuda_buf.as_ref()) {
+        return match cuda.dot_f32(ba, bb, n, exact, telemetry) {
+            Ok(res) => {
+                if !out_f32_ptr.is_null() {
+                    unsafe { *out_f32_ptr = res };
+                }
+                DEV_OK
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(hip), Some(ba), Some(bb)) = (hip.as_mut(), buf_a.hip_buf.as_ref(), buf_b.hip_buf.as_ref()) {
+        return match hip.dot_f32(ba, bb, n, exact, telemetry) {
+            Ok(res) => {
+                if !out_f32_ptr.is_null() {
+                    unsafe { *out_f32_ptr = res };
+                }
+                DEV_OK
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
     };
-    ctx.telemetry.kernel_launches += 1;
-    ctx.telemetry.last_plan = DeviceLaunchPlan {
-        op: "fused-dot-f32".to_string(),
-        schedule: format!("cpu-device(n={n})"),
-        grid: [n, 1, 1],
-        threadgroup: [1, 1, 1],
-        threadgroup_mem_bytes: 0,
-        numerical_mode: if exact { "f32-add-exact-tree" } else { "f32-add-relaxed" }.to_string(),
-    };
+    let res = crate::simd_cpu::dot_f32(variant, &buf_a.cpu_buf, &buf_b.cpu_buf, n, exact, telemetry);
     if !out_f32_ptr.is_null() {
         unsafe { *out_f32_ptr = res };
     }
@@ -1810,33 +2091,59 @@ pub unsafe extern "C" fn cinch_device_scan_i32(
         return register_buf(out_buf);
     }
 
-    // CPU fallback
-    let src = unsafe { std::slice::from_raw_parts(in_buf.cpu_buf.as_ptr().cast::<i32>(), n) };
-    let mut out = vec![0i32; n];
-    let mut acc = 0i32;
-    for i in 0..n {
-        if inclusive != 0 {
-            acc = acc.wrapping_add(src[i]);
-            out[i] = acc;
-        } else {
-            out[i] = acc;
-            acc = acc.wrapping_add(src[i]);
-        }
+    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ib)) = (ocl.as_mut(), in_buf.ocl_buf.as_ref()) {
+        return match ocl.scan_i32(ib, n, inclusive != 0, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
     }
-    let bytes = n * 4;
-    let mut raw = vec![0u8; bytes];
-    if bytes > 0 {
-        unsafe { std::ptr::copy_nonoverlapping(out.as_ptr().cast::<u8>(), raw.as_mut_ptr(), bytes) };
+    if let (Some(cuda), Some(ib)) = (cuda.as_mut(), in_buf.cuda_buf.as_ref()) {
+        return match cuda.scan_i32(ib, n, inclusive != 0, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
     }
-    ctx.telemetry.note_alloc(bytes);
-    ctx.telemetry.kernel_launches += 1;
-    let res = Arc::new(ResidentBuffer {
-        ctx_id,
-        bytes,
-        #[cfg(target_os = "macos")]
-        mtl_buf: null_mut(),
-        cpu_buf: raw,
-    });
+    if let (Some(hip), Some(ib)) = (hip.as_mut(), in_buf.hip_buf.as_ref()) {
+        return match hip.scan_i32(ib, n, inclusive != 0, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let raw = crate::simd_cpu::scan_i32(variant, &in_buf.cpu_buf, n, inclusive != 0, telemetry);
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
     drop(ctx);
     register_buf(res)
 }
@@ -1990,25 +2297,69 @@ pub unsafe extern "C" fn cinch_device_filter_i32_gt(
         return register_buf(out_buf);
     }
 
-    // CPU fallback
-    let src = unsafe { std::slice::from_raw_parts(in_buf.cpu_buf.as_ptr().cast::<i32>(), n) };
-    let kept: Vec<i32> = src.iter().copied().filter(|&x| x > threshold as i32).collect();
-    let k = kept.len();
-    let bytes = k * 4;
-    let mut raw = vec![0u8; bytes];
-    if bytes > 0 {
-        unsafe { std::ptr::copy_nonoverlapping(kept.as_ptr().cast::<u8>(), raw.as_mut_ptr(), bytes) };
-    }
+    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
     let mut ctx = ctx_arc.lock().unwrap_or_else(|e| e.into_inner());
-    ctx.telemetry.note_alloc(bytes);
-    ctx.telemetry.kernel_launches += 1;
-    let res = Arc::new(ResidentBuffer {
-        ctx_id,
-        bytes,
-        #[cfg(target_os = "macos")]
-        mtl_buf: null_mut(),
-        cpu_buf: raw,
-    });
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ib)) = (ocl.as_mut(), in_buf.ocl_buf.as_ref()) {
+        return match ocl.filter_i32_gt(ib, n, threshold as i32, telemetry) {
+            Ok((out, k)) => {
+                drop(ctx);
+                if !out_len_ptr.is_null() {
+                    unsafe { *out_len_ptr = k as i64 };
+                }
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(cuda), Some(ib)) = (cuda.as_mut(), in_buf.cuda_buf.as_ref()) {
+        return match cuda.filter_i32_gt(ib, n, threshold as i32, telemetry) {
+            Ok((out, k)) => {
+                drop(ctx);
+                if !out_len_ptr.is_null() {
+                    unsafe { *out_len_ptr = k as i64 };
+                }
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(hip), Some(ib)) = (hip.as_mut(), in_buf.hip_buf.as_ref()) {
+        return match hip.filter_i32_gt(ib, n, threshold as i32, telemetry) {
+            Ok((out, k)) => {
+                drop(ctx);
+                if !out_len_ptr.is_null() {
+                    unsafe { *out_len_ptr = k as i64 };
+                }
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let (raw, k) = crate::simd_cpu::filter_i32_gt(variant, &in_buf.cpu_buf, n, threshold as i32, telemetry);
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
     drop(ctx);
     if !out_len_ptr.is_null() {
         unsafe { *out_len_ptr = k as i64 };
@@ -2278,50 +2629,77 @@ pub unsafe extern "C" fn cinch_device_stencil_histogram_u8(
         return register_buf(out_hist);
     }
 
-    // CPU fallback inside DeviceCtx
-    drop(ctx);
-    let in_arr = unsafe { arrays::alloc_uninit_packed(total_pixels as i64, par_arrays::FMT_U8) };
-    if total_pixels > 0 {
-        unsafe { par_arrays::slice_u8_mut(in_arr) }.copy_from_slice(&in_buf.cpu_buf[..total_pixels]);
-    }
-    let w_arr = unsafe { arrays::alloc_uninit_packed(9, par_arrays::FMT_I32) };
-    unsafe { par_arrays::slice_i32_mut(w_arr) }.copy_from_slice(&ws);
-    let st_arr = if nsteps > 0 {
-        let s = unsafe {
-            par_arrays::cinch_array_stencil2d_u8(
-                in_arr, frames, height, width, w_arr, divisor, edge_policy, steps,
-            )
+    // OpenCL / CUDA / HIP / CPU (seq, cpu, ispc) dispatch
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ib)) = (ocl.as_mut(), in_buf.ocl_buf.as_ref()) {
+        return match ocl.stencil_histogram_u8(
+            ib, f, h, w, ws, divisor as i32, edge_policy as u32, nsteps, bins, telemetry,
+        ) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
         };
-        unsafe { crate::rc::cinch_drop(in_arr) };
-        s
-    } else {
-        in_arr
-    };
-    let hist_arr = unsafe {
-        par_arrays::cinch_array_histogram_batch_u8(st_arr, frames, height, width, num_bins)
-    };
-    unsafe {
-        crate::rc::cinch_drop(st_arr);
-        crate::rc::cinch_drop(w_arr);
     }
-    let bytes = f * bins * 4;
-    let mut raw = vec![0u8; bytes];
-    if bytes > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(arrays::data_ptr(hist_arr), raw.as_mut_ptr(), bytes);
-        }
+    if let (Some(cuda), Some(ib)) = (cuda.as_mut(), in_buf.cuda_buf.as_ref()) {
+        return match cuda.stencil_histogram_u8(
+            ib, f, h, w, ws, divisor as i32, edge_policy as u32, nsteps, bins, telemetry,
+        ) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
     }
-    unsafe { crate::rc::cinch_drop(hist_arr) };
-    let mut ctx = ctx_arc.lock().unwrap_or_else(|e| e.into_inner());
-    ctx.telemetry.note_alloc(bytes);
-    ctx.telemetry.kernel_launches += nsteps + 1;
-    let res = Arc::new(ResidentBuffer {
-        ctx_id,
-        bytes,
-        #[cfg(target_os = "macos")]
-        mtl_buf: null_mut(),
-        cpu_buf: raw,
-    });
+    if let (Some(hip), Some(ib)) = (hip.as_mut(), in_buf.hip_buf.as_ref()) {
+        return match hip.stencil_histogram_u8(
+            ib, f, h, w, ws, divisor as i32, edge_policy as u32, nsteps, bins, telemetry,
+        ) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let raw = crate::simd_cpu::stencil_histogram_u8(
+        variant,
+        &in_buf.cpu_buf,
+        f,
+        h,
+        w,
+        ws,
+        divisor as i32,
+        edge_policy,
+        nsteps,
+        bins,
+        telemetry,
+    );
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
     drop(ctx);
     register_buf(res)
 }
@@ -2467,7 +2845,70 @@ pub unsafe extern "C" fn cinch_device_stencil2d_f32(
         return register_buf(out_buf);
     }
 
-    DEV_ERR_NO_DEVICE
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ib)) = (ocl.as_mut(), in_buf.ocl_buf.as_ref()) {
+        return match ocl.stencil2d_f32(ib, f, h, w, ws, edge_policy as u32, nsteps, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(cuda), Some(ib)) = (cuda.as_mut(), in_buf.cuda_buf.as_ref()) {
+        return match cuda.stencil2d_f32(ib, f, h, w, ws, edge_policy as u32, nsteps, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(hip), Some(ib)) = (hip.as_mut(), in_buf.hip_buf.as_ref()) {
+        return match hip.stencil2d_f32(ib, f, h, w, ws, edge_policy as u32, nsteps, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let raw = crate::simd_cpu::stencil2d_f32(
+        variant,
+        &in_buf.cpu_buf,
+        f,
+        h,
+        w,
+        ws,
+        edge_policy,
+        nsteps,
+        telemetry,
+    );
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
+    drop(ctx);
+    register_buf(res)
 }
 
 /// GPU CSR SpMV (`y = A * x`) over resident device buffers, handling empty rows!
@@ -2583,7 +3024,88 @@ pub unsafe extern "C" fn cinch_device_spmv_csr_f32(
         return register_buf(out_y);
     }
 
-    DEV_ERR_NO_DEVICE
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(bv), Some(bc), Some(br), Some(bx)) = (
+        ocl.as_mut(),
+        vals.ocl_buf.as_ref(),
+        cols.ocl_buf.as_ref(),
+        row_ptr.ocl_buf.as_ref(),
+        x.ocl_buf.as_ref(),
+    ) {
+        return match ocl.spmv_csr_f32(bv, bc, br, bx, r, nz, exact, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(cuda), Some(bv), Some(bc), Some(br), Some(bx)) = (
+        cuda.as_mut(),
+        vals.cuda_buf.as_ref(),
+        cols.cuda_buf.as_ref(),
+        row_ptr.cuda_buf.as_ref(),
+        x.cuda_buf.as_ref(),
+    ) {
+        return match cuda.spmv_csr_f32(bv, bc, br, bx, r, nz, exact, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(hip), Some(bv), Some(bc), Some(br), Some(bx)) = (
+        hip.as_mut(),
+        vals.hip_buf.as_ref(),
+        cols.hip_buf.as_ref(),
+        row_ptr.hip_buf.as_ref(),
+        x.hip_buf.as_ref(),
+    ) {
+        return match hip.spmv_csr_f32(bv, bc, br, bx, r, nz, exact, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let raw = crate::simd_cpu::spmv_csr_f32(
+        variant,
+        &vals.cpu_buf,
+        &cols.cpu_buf,
+        &row_ptr.cpu_buf,
+        &x.cpu_buf,
+        r,
+        nz,
+        exact,
+        telemetry,
+    );
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
+    drop(ctx);
+    register_buf(res)
 }
 
 /// GPU Row Reduction (`rows x cols -> rows`) with adaptive outer vs inner schedule!
@@ -2684,7 +3206,60 @@ pub unsafe extern "C" fn cinch_device_row_reduce_f32(
         return register_buf(out_buf);
     }
 
-    DEV_ERR_NO_DEVICE
+    let DeviceCtx {
+        ref mut ocl,
+        ref mut cuda,
+        ref mut hip,
+        ref mut telemetry,
+        backend,
+        ..
+    } = *ctx;
+    if let (Some(ocl), Some(ib)) = (ocl.as_mut(), in_buf.ocl_buf.as_ref()) {
+        return match ocl.row_reduce_f32(ib, r, c, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_opencl(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(cuda), Some(ib)) = (cuda.as_mut(), in_buf.cuda_buf.as_ref()) {
+        return match cuda.row_reduce_f32(ib, r, c, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_cuda(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    if let (Some(hip), Some(ib)) = (hip.as_mut(), in_buf.hip_buf.as_ref()) {
+        return match hip.row_reduce_f32(ib, r, c, telemetry) {
+            Ok(out) => {
+                drop(ctx);
+                register_buf(ResidentBuffer::new_hip(ctx_id, out))
+            }
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_EXECUTION_FAILED
+            }
+        };
+    }
+    let variant = match backend {
+        "seq" => crate::simd_cpu::CpuVariant::Seq,
+        "ispc" => crate::simd_cpu::CpuVariant::IspcSimd,
+        _ => crate::simd_cpu::CpuVariant::Multicore,
+    };
+    let raw = crate::simd_cpu::row_reduce_f32(variant, &in_buf.cpu_buf, r, c, telemetry);
+    telemetry.note_alloc(raw.len());
+    let res = ResidentBuffer::new_cpu(ctx_id, raw);
+    drop(ctx);
+    register_buf(res)
 }
 
 /// Cinch-ABI wrapper for `cinch_device_dot_f32`: returns `u32` IEEE-754 bits
@@ -2870,6 +3445,119 @@ pub unsafe extern "C" fn cinch_device_run_msl_1d(
     DEV_ERR_NO_DEVICE
 }
 
+/// Generic compiler-emitted OpenCL C 1D kernel runner over resident OpenCL buffers.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_device_run_opencl_1d(
+    ctx_id: i64,
+    ocl_cstr: *const i8,
+    kernel_cstr: *const i8,
+    buf_ids: *const i64,
+    nbufs: usize,
+    n_threads: usize,
+) -> i64 {
+    let Some(ctx_arc) = get_ctx(ctx_id) else {
+        return DEV_ERR_INVALID_HANDLE;
+    };
+    if ocl_cstr.is_null() || kernel_cstr.is_null() {
+        return DEV_ERR_COMPILE_FAILED;
+    }
+    let src = unsafe { CStr::from_ptr(ocl_cstr) }.to_string_lossy();
+    let kname = unsafe { CStr::from_ptr(kernel_cstr) }.to_string_lossy();
+    let mut bufs = Vec::with_capacity(nbufs);
+    for i in 0..nbufs {
+        let id = unsafe { *buf_ids.add(i) };
+        let Some(b) = get_buf(id) else {
+            return DEV_ERR_INVALID_HANDLE;
+        };
+        bufs.push(b);
+    }
+    let mut ctx = ctx_arc.lock().unwrap_or_else(|e| e.into_inner());
+    let DeviceCtx { ref ocl, ref mut telemetry, .. } = *ctx;
+    if let Some(ocl) = ocl.as_ref() {
+        let mut ocl_refs = Vec::with_capacity(nbufs);
+        for b in &bufs {
+            let Some(ob) = b.ocl_buf.as_ref() else {
+                return DEV_ERR_INVALID_HANDLE;
+            };
+            ocl_refs.push(ob);
+        }
+        return match ocl.run_source_1d(&src, &kname, &ocl_refs, n_threads, telemetry) {
+            Ok(()) => DEV_OK,
+            Err(e) => {
+                telemetry.last_error = e;
+                DEV_ERR_COMPILE_FAILED
+            }
+        };
+    }
+    DEV_ERR_NO_DEVICE
+}
+
+/// Write a JSON summary of all supported backends and live availability on this host.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_device_available_backends_cstr(
+    out_ptr: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    #[cfg(target_os = "macos")]
+    let metal_ok = DeviceCtx::open_metal().is_ok();
+    #[cfg(not(target_os = "macos"))]
+    let metal_ok = false;
+    let ocl_ok = crate::opencl::is_available();
+    let cuda_ok = crate::cuda::is_available();
+    let hip_ok = crate::hip::is_available();
+    let json = format!(
+        "{{\"seq\":true,\"cpu\":true,\"ispc\":true,\"metal\":{metal_ok},\"opencl\":{ocl_ok},\"cuda\":{cuda_ok},\"hip\":{hip_ok}}}"
+    );
+    let b = json.as_bytes();
+    if !out_ptr.is_null() && out_cap > 0 {
+        let n = b.len().min(out_cap - 1);
+        unsafe {
+            std::ptr::copy_nonoverlapping(b.as_ptr(), out_ptr, n);
+            *out_ptr.add(n) = 0;
+        }
+        n as i64
+    } else {
+        b.len() as i64
+    }
+}
+
+/// Copy built-in kernel source for a given `DEVICE_KIND_*` into `out_ptr` (returns byte length).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_device_backend_source_cstr(
+    kind: i64,
+    out_ptr: *mut u8,
+    out_cap: usize,
+) -> i64 {
+    let src: &str = match kind {
+        DEVICE_KIND_METAL | DEVICE_KIND_METAL_REQUIRED => {
+            #[cfg(target_os = "macos")]
+            {
+                BUILTIN_MSL_SOURCE
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                ""
+            }
+        }
+        DEVICE_KIND_OPENCL | DEVICE_KIND_OPENCL_REQUIRED => crate::opencl::BUILTIN_OPENCL_SOURCE,
+        DEVICE_KIND_CUDA | DEVICE_KIND_CUDA_REQUIRED => crate::cuda::BUILTIN_CUDA_SOURCE,
+        DEVICE_KIND_HIP | DEVICE_KIND_HIP_REQUIRED => crate::hip::BUILTIN_HIP_SOURCE,
+        DEVICE_KIND_ISPC_SIMD => crate::simd_cpu::BUILTIN_ISPC_SOURCE,
+        _ => return DEV_ERR_INVALID_HANDLE,
+    };
+    let b = src.as_bytes();
+    if !out_ptr.is_null() && out_cap > 0 {
+        let n = b.len().min(out_cap - 1);
+        unsafe {
+            std::ptr::copy_nonoverlapping(b.as_ptr(), out_ptr, n);
+            *out_ptr.add(n) = 0;
+        }
+        n as i64
+    } else {
+        b.len() as i64
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Live Hardware Tests on Apple Metal GPU (Apple Silicon)
 // ---------------------------------------------------------------------------
@@ -3038,5 +3726,232 @@ mod tests {
             cinch_device_buffer_free(bv);
         }
         cinch_device_close(ctx);
+    }
+
+    #[test]
+    fn opencl_all_kernels_and_stencil_histogram_match_metal_and_cpu_bit_for_bit() {
+        let ctx = cinch_device_open(DEVICE_KIND_OPENCL_REQUIRED);
+        assert!(ctx > 0, "OpenCL GPU must be available on macOS Apple Silicon");
+        let n = 100_003usize;
+        let xs: Vec<f32> = (0..n).map(|i| ((i % 89) as f32 - 44.0) * 0.125).collect();
+        let ys: Vec<f32> = (0..n).map(|i| ((i % 47) as f32 - 23.0) * 0.25).collect();
+        let cpu_exact = par_arrays::f32_exact_tree_prod(0, n, &|i| xs[i] * ys[i]);
+        unsafe {
+            let ba = cinch_device_upload_raw(ctx, xs.as_ptr().cast(), n * 4);
+            let bb = cinch_device_upload_raw(ctx, ys.as_ptr().cast(), n * 4);
+            let mut ocl_exact = 0.0f32;
+            assert_eq!(
+                cinch_device_dot_f32(ctx, ba, bb, n as i64, 0, &mut ocl_exact),
+                DEV_OK,
+                "opencl dot exact failed: {}",
+                report_string(ctx)
+            );
+            assert_eq!(
+                ocl_exact.to_bits(),
+                cpu_exact.to_bits(),
+                "OpenCL exact-tree {ocl_exact} != CPU exact-tree {cpu_exact}"
+            );
+            let mut ocl_relaxed = 0.0f32;
+            assert_eq!(cinch_device_dot_f32(ctx, ba, bb, n as i64, 1, &mut ocl_relaxed), DEV_OK);
+            assert!((ocl_relaxed - cpu_exact).abs() < 1e-2);
+            let rep = report_string(ctx);
+            assert!(rep.contains("\"backend\":\"opencl\""), "{rep}");
+            cinch_device_buffer_free(ba);
+            cinch_device_buffer_free(bb);
+
+            // Stencil -> Histogram pipeline (many-small-frames & few-large-frames)
+            let weights = [1i32, 2, 1, 2, 4, 2, 1, 2, 1];
+            for (label, frames, h, w, expect_sched) in [
+                ("many-small", 64usize, 32usize, 32usize, "many-small-frames"),
+                ("few-large", 2usize, 256usize, 256usize, "few-large-frames"),
+            ] {
+                cinch_device_reset_telemetry(ctx);
+                let total = frames * h * w;
+                let imgs: Vec<u8> = (0..total).map(|i| ((i * 37 + (i >> 7) * 13) & 0xff) as u8).collect();
+                let in_buf = cinch_device_upload_raw(ctx, imgs.as_ptr(), total);
+                let out_buf = cinch_device_stencil_histogram_u8(
+                    ctx, in_buf, frames as i64, h as i64, w as i64,
+                    weights.as_ptr(), 16, par_arrays::EDGE_CLAMP, 2, 256,
+                );
+                assert!(out_buf > 0, "opencl {label} failed: {}", report_string(ctx));
+                let mut got = vec![0u32; frames * 256];
+                assert_eq!(cinch_device_download_raw(ctx, out_buf, got.as_mut_ptr().cast(), frames * 256 * 4), DEV_OK);
+                let rep = report_string(ctx);
+                assert!(rep.contains("\"uploads\":1,"), "{label}: {rep}");
+                assert!(rep.contains("\"downloads\":1,"), "{label}: {rep}");
+                assert!(rep.contains(expect_sched), "{label}: {rep}");
+
+                // Compare bit-for-bit against seq CPU reference
+                let mut ref_tel = DeviceTelemetry::default();
+                let ref_bytes = crate::simd_cpu::stencil_histogram_u8(
+                    crate::simd_cpu::CpuVariant::Seq, &imgs, frames, h, w, weights, 16, par_arrays::EDGE_CLAMP, 2, 256, &mut ref_tel,
+                );
+                let ref_u32 = std::slice::from_raw_parts(ref_bytes.as_ptr().cast::<u32>(), frames * 256);
+                assert_eq!(got.as_slice(), ref_u32, "opencl {label} != seq ref");
+                cinch_device_buffer_free(in_buf);
+                cinch_device_buffer_free(out_buf);
+            }
+
+            // Scan, Filter, SpMV (empty rows), Row-Reduce (outer & inner), Stencil2D F32
+            let data: Vec<i32> = (0..4096).map(|i| ((i as i32 * 29) % 40) - 20).collect();
+            let b_in = cinch_device_upload_raw(ctx, data.as_ptr().cast(), data.len() * 4);
+            let b_scan = cinch_device_scan_i32(ctx, b_in, data.len() as i64, 1);
+            assert!(b_scan > 0);
+            let mut got_scan = vec![0i32; data.len()];
+            assert_eq!(cinch_device_download_raw(ctx, b_scan, got_scan.as_mut_ptr().cast(), data.len() * 4), DEV_OK);
+            let mut acc = 0i32;
+            for i in 0..data.len() {
+                acc = acc.wrapping_add(data[i]);
+                assert_eq!(got_scan[i], acc);
+            }
+            let mut k = 0i64;
+            let b_filt = cinch_device_filter_i32_gt(ctx, b_in, data.len() as i64, 7, &mut k);
+            assert!(b_filt > 0);
+            let mut got_filt = vec![0i32; k as usize];
+            assert_eq!(cinch_device_download_raw(ctx, b_filt, got_filt.as_mut_ptr().cast(), k as usize * 4), DEV_OK);
+            let exp_filt: Vec<i32> = data.iter().copied().filter(|&x| x > 7).collect();
+            assert_eq!(got_filt, exp_filt);
+            cinch_device_buffer_free(b_filt);
+            cinch_device_buffer_free(b_scan);
+            cinch_device_buffer_free(b_in);
+
+            // SpMV with empty rows
+            let vals = [2.0f32, 3.0, 4.0, 5.0];
+            let cols = [0u32, 2, 1, 2];
+            let row_ptr = [0u32, 2, 2, 4, 4];
+            let x = [10.0f32, 20.0, 30.0];
+            let bv = cinch_device_upload_raw(ctx, vals.as_ptr().cast(), 16);
+            let bc = cinch_device_upload_raw(ctx, cols.as_ptr().cast(), 16);
+            let br = cinch_device_upload_raw(ctx, row_ptr.as_ptr().cast(), 20);
+            let bx = cinch_device_upload_raw(ctx, x.as_ptr().cast(), 12);
+            let by = cinch_device_spmv_csr_f32(ctx, bv, bc, br, bx, 4, 4, 0);
+            assert!(by > 0);
+            let mut y = [0.0f32; 4];
+            assert_eq!(cinch_device_download_raw(ctx, by, y.as_mut_ptr().cast(), 16), DEV_OK);
+            assert_eq!(y, [110.0, 0.0, 230.0, 0.0]);
+            cinch_device_buffer_free(by);
+            cinch_device_buffer_free(bx);
+            cinch_device_buffer_free(br);
+            cinch_device_buffer_free(bc);
+            cinch_device_buffer_free(bv);
+
+            // Row reduce (inner and outer schedules)
+            let mat: Vec<f32> = (0..(4 * 1024)).map(|i| ((i % 7) as f32) * 0.5).collect();
+            let bm = cinch_device_upload_raw(ctx, mat.as_ptr().cast(), mat.len() * 4);
+            let br_out = cinch_device_row_reduce_f32(ctx, bm, 4, 1024);
+            assert!(br_out > 0);
+            let mut row_sums = [0.0f32; 4];
+            assert_eq!(cinch_device_download_raw(ctx, br_out, row_sums.as_mut_ptr().cast(), 16), DEV_OK);
+            for r in 0..4 {
+                let exp: f32 = mat[r * 1024..(r + 1) * 1024].iter().sum();
+                assert!((row_sums[r] - exp).abs() < 1e-2);
+            }
+            cinch_device_buffer_free(br_out);
+            cinch_device_buffer_free(bm);
+
+            // Generic compiler-emitted OpenCL C kernel execution
+            let src = std::ffi::CString::new(
+                "__kernel void scale2(__global const float* a, __global float* b, const uint n) { uint i = get_global_id(0); if (i < n) b[i] = a[i] * 2.0f; }"
+            ).unwrap();
+            let kname = std::ffi::CString::new("scale2").unwrap();
+            let inp = [1.5f32, -2.0, 3.25, 4.0];
+            let ba = cinch_device_upload_raw(ctx, inp.as_ptr().cast(), 16);
+            let bb = cinch_device_upload_raw(ctx, inp.as_ptr().cast(), 16);
+            let handles = [ba, bb];
+            assert_eq!(cinch_device_run_opencl_1d(ctx, src.as_ptr(), kname.as_ptr(), handles.as_ptr(), 2, 4), DEV_OK);
+            let mut out = [0.0f32; 4];
+            assert_eq!(cinch_device_download_raw(ctx, bb, out.as_mut_ptr().cast(), 16), DEV_OK);
+            assert_eq!(out, [3.0, -4.0, 6.5, 8.0]);
+            cinch_device_buffer_free(ba);
+            cinch_device_buffer_free(bb);
+        }
+        cinch_device_close(ctx);
+    }
+
+    #[test]
+    fn all_five_live_backends_agree_and_cuda_hip_report_unavailable_cleanly() {
+        // Verify seq, cpu, ispc, opencl, metal all agree bit-for-bit on exact-tree dot,
+        // scan, filter, stencil_histogram_u8, stencil2d_f32, spmv_csr_f32, and row_reduce_f32!
+        let n = 4099usize;
+        let xs: Vec<f32> = (0..n).map(|i| ((i % 31) as f32 - 15.0) * 0.25).collect();
+        let ys: Vec<f32> = (0..n).map(|i| ((i % 19) as f32 - 9.0) * 0.5).collect();
+        let expected_dot = par_arrays::f32_exact_tree_prod(0, n, &|i| xs[i] * ys[i]);
+        let st_f32_in: Vec<f32> = (0..(2 * 32 * 32)).map(|i| ((i % 13) as f32) * 0.125).collect();
+        let st_w = [0.0625f32, 0.125, 0.0625, 0.125, 0.25, 0.125, 0.0625, 0.125, 0.0625];
+        let mut ref_st: Option<Vec<f32>> = None;
+
+        for (kind, tag) in [
+            (DEVICE_KIND_CPU_SEQ, "seq"),
+            (DEVICE_KIND_CPU, "cpu"),
+            (DEVICE_KIND_ISPC_SIMD, "ispc"),
+            (DEVICE_KIND_OPENCL_REQUIRED, "opencl"),
+            (DEVICE_KIND_METAL_REQUIRED, "metal"),
+        ] {
+            let ctx = cinch_device_open(kind);
+            assert!(ctx > 0, "backend {tag} failed to open ({ctx})");
+            unsafe {
+                let ba = cinch_device_upload_raw(ctx, xs.as_ptr().cast(), n * 4);
+                let bb = cinch_device_upload_raw(ctx, ys.as_ptr().cast(), n * 4);
+                let mut got_dot = 0.0f32;
+                assert_eq!(cinch_device_dot_f32(ctx, ba, bb, n as i64, 0, &mut got_dot), DEV_OK);
+                assert_eq!(got_dot.to_bits(), expected_dot.to_bits(), "backend {tag} dot mismatch");
+                let mut got_rel = 0.0f32;
+                assert_eq!(cinch_device_dot_f32(ctx, ba, bb, n as i64, 1, &mut got_rel), DEV_OK);
+                assert!((got_rel - expected_dot).abs() < 1e-2, "backend {tag} relaxed dot mismatch");
+                cinch_device_buffer_free(ba);
+                cinch_device_buffer_free(bb);
+
+                // Stencil2D F32
+                let bs = cinch_device_upload_raw(ctx, st_f32_in.as_ptr().cast(), st_f32_in.len() * 4);
+                let bso = cinch_device_stencil2d_f32(ctx, bs, 2, 32, 32, st_w.as_ptr(), par_arrays::EDGE_CLAMP, 2);
+                assert!(bso > 0, "backend {tag} stencil2d_f32 failed ({bso})");
+                let mut out_st = vec![0.0f32; st_f32_in.len()];
+                assert_eq!(cinch_device_download_raw(ctx, bso, out_st.as_mut_ptr().cast(), out_st.len() * 4), DEV_OK);
+                if let Some(ref r) = ref_st {
+                    for (idx, (&a, &b)) in out_st.iter().zip(r.iter()).enumerate() {
+                        assert!((a - b).abs() < 1e-5, "backend {tag} stencil2d_f32[{idx}] {a} != {b}");
+                    }
+                } else {
+                    ref_st = Some(out_st);
+                }
+                cinch_device_buffer_free(bso);
+                cinch_device_buffer_free(bs);
+
+                let rep = report_string(ctx);
+                assert!(rep.contains(&format!("\"backend\":\"{tag}\"")), "{rep}");
+            }
+            cinch_device_close(ctx);
+        }
+
+        // CUDA & HIP required return DEV_ERR_NO_DEVICE cleanly on macOS (no NVIDIA/ROCm GPU)
+        assert_eq!(cinch_device_open(DEVICE_KIND_CUDA_REQUIRED), DEV_ERR_NO_DEVICE);
+        assert_eq!(cinch_device_open(DEVICE_KIND_HIP_REQUIRED), DEV_ERR_NO_DEVICE);
+
+        // Introspection API lists all 7 backends and exports non-empty kernel sources
+        let mut avail_buf = vec![0u8; 512];
+        let n_avail = unsafe { cinch_device_available_backends_cstr(avail_buf.as_mut_ptr(), avail_buf.len()) };
+        assert!(n_avail > 0);
+        let avail = String::from_utf8_lossy(&avail_buf[..n_avail as usize]);
+        assert!(avail.contains("\"seq\":true"), "{avail}");
+        assert!(avail.contains("\"cpu\":true"), "{avail}");
+        assert!(avail.contains("\"ispc\":true"), "{avail}");
+        assert!(avail.contains("\"metal\":true"), "{avail}");
+        assert!(avail.contains("\"opencl\":true"), "{avail}");
+        assert!(avail.contains("\"cuda\":false"), "{avail}");
+        assert!(avail.contains("\"hip\":false"), "{avail}");
+
+        for (kind, needle) in [
+            (DEVICE_KIND_METAL_REQUIRED, "dot_f32_exact_block"),
+            (DEVICE_KIND_OPENCL_REQUIRED, "__kernel void stencil2d_u8_tiled"),
+            (DEVICE_KIND_CUDA_REQUIRED, "__global__ void spmv_csr_f32_warp"),
+            (DEVICE_KIND_HIP_REQUIRED, "#include <hip/hip_runtime.h>"),
+            (DEVICE_KIND_ISPC_SIMD, "export uniform float dot_f32_relaxed_ispc"),
+        ] {
+            let mut src_buf = vec![0u8; 32768];
+            let sz = unsafe { cinch_device_backend_source_cstr(kind, src_buf.as_mut_ptr(), src_buf.len()) };
+            assert!(sz > 200, "backend kind {kind} source too short ({sz})");
+            let text = String::from_utf8_lossy(&src_buf[..sz as usize]);
+            assert!(text.contains(needle), "backend kind {kind} missing '{needle}'");
+        }
     }
 }

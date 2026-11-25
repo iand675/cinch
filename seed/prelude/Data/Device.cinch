@@ -10,9 +10,17 @@ module Data.Device where
   import Data.Bytes
   import Data.Result
 
-  export Device, DeviceBuffer, DeviceError
+  export Device, DeviceBuffer, DeviceError, DeviceBackend
+  export BackendCpu, BackendSeq, BackendIspc, BackendMetal, BackendMetalRequired
+  export BackendOpenCl, BackendOpenClRequired, BackendCuda, BackendCudaRequired
+  export BackendHip, BackendHipRequired, BackendAuto
   export DeviceNoHardware, DeviceInvalidHandle, DeviceOutOfMemory, DeviceCompileFailed, DeviceExecutionFailed, DeviceInvalidShape
-  export device-open-cpu, device-open-metal, device-open-metal-required, device-close, device-reset-telemetry
+  export device-open, device-open-seq, device-open-cpu, device-open-ispc
+  export device-open-metal, device-open-metal-required
+  export device-open-opencl, device-open-opencl-required
+  export device-open-cuda, device-open-cuda-required
+  export device-open-hip, device-open-hip-required, device-open-auto
+  export device-close, device-reset-telemetry
   export device-upload, device-download-u8, device-download-u32, device-download-i32, device-download-f32
   export device-buffer-free, device-buffer-bytes
   export device-dot-f32, device-scan-i32, device-filter-i32-gt, device-row-reduce-f32
@@ -67,20 +75,75 @@ module Data.Device where
   buffer-handle :: forall a. DeviceBuffer a -> I64
   buffer-handle b = case b of MkDeviceBuffer h -> h
 
-  device-open-cpu :: Unit -> Result DeviceError Device
-  device-open-cpu unit =
-    let h = rt-device-open 0
+  data DeviceBackend where
+    BackendCpu :: DeviceBackend
+    BackendMetal :: DeviceBackend
+    BackendMetalRequired :: DeviceBackend
+    BackendOpenClRequired :: DeviceBackend
+    BackendCudaRequired :: DeviceBackend
+    BackendHipRequired :: DeviceBackend
+    BackendSeq :: DeviceBackend
+    BackendIspc :: DeviceBackend
+    BackendAuto :: DeviceBackend
+    BackendOpenCl :: DeviceBackend
+    BackendCuda :: DeviceBackend
+    BackendHip :: DeviceBackend
+
+  backend-code :: DeviceBackend -> I64
+  backend-code b = case b of
+    BackendCpu -> 0
+    BackendMetal -> 1
+    BackendMetalRequired -> 2
+    BackendOpenClRequired -> 3
+    BackendCudaRequired -> 4
+    BackendHipRequired -> 5
+    BackendSeq -> 6
+    BackendIspc -> 7
+    BackendAuto -> 8
+    BackendOpenCl -> 9
+    BackendCuda -> 10
+    BackendHip -> 11
+
+  device-open :: DeviceBackend -> Result DeviceError Device
+  device-open b =
+    let h = rt-device-open (backend-code b)
     in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+
+  device-open-cpu :: Unit -> Result DeviceError Device
+  device-open-cpu unit = device-open BackendCpu
+
+  device-open-seq :: Unit -> Result DeviceError Device
+  device-open-seq unit = device-open BackendSeq
+
+  device-open-ispc :: Unit -> Result DeviceError Device
+  device-open-ispc unit = device-open BackendIspc
 
   device-open-metal :: Unit -> Result DeviceError Device
-  device-open-metal unit =
-    let h = rt-device-open 1
-    in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+  device-open-metal unit = device-open BackendMetal
 
   device-open-metal-required :: Unit -> Result DeviceError Device
-  device-open-metal-required unit =
-    let h = rt-device-open 2
-    in if h > 0 then Ok (MkDevice h) else Err (decode-error h)
+  device-open-metal-required unit = device-open BackendMetalRequired
+
+  device-open-opencl :: Unit -> Result DeviceError Device
+  device-open-opencl unit = device-open BackendOpenCl
+
+  device-open-opencl-required :: Unit -> Result DeviceError Device
+  device-open-opencl-required unit = device-open BackendOpenClRequired
+
+  device-open-cuda :: Unit -> Result DeviceError Device
+  device-open-cuda unit = device-open BackendCuda
+
+  device-open-cuda-required :: Unit -> Result DeviceError Device
+  device-open-cuda-required unit = device-open BackendCudaRequired
+
+  device-open-hip :: Unit -> Result DeviceError Device
+  device-open-hip unit = device-open BackendHip
+
+  device-open-hip-required :: Unit -> Result DeviceError Device
+  device-open-hip-required unit = device-open BackendHipRequired
+
+  device-open-auto :: Unit -> Result DeviceError Device
+  device-open-auto unit = device-open BackendAuto
 
   device-close :: Device -> Result DeviceError Unit
   device-close d =
