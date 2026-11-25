@@ -3777,7 +3777,15 @@ impl<'a> Parser<'a> {
         // `from` in `forget p from e` is the contextual form's
         // separator, never a juxtaposed type atom.
         !matches!(self.peek_tok(), Tok::VarId(s) if s == "from")
-            && matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen | Tok::Int(_))
+            && matches!(
+                self.peek_tok(),
+                Tok::VarId(_)
+                    | Tok::ConId(_)
+                    | Tok::LParen
+                    | Tok::LBracket
+                    | Tok::Int(_)
+                    | Tok::StrLit(_)
+            )
     }
 
     fn parse_type_atom(&mut self) -> Result<Type> {
@@ -3834,6 +3842,29 @@ impl<'a> Parser<'a> {
             Tok::Int(s) => {
                 self.bump();
                 Ok(Type::Num(s, span))
+            }
+            Tok::StrLit(s) => {
+                self.bump();
+                Ok(Type::StrLit(s, span))
+            }
+            Tok::LBracket => {
+                self.bump();
+                let mut items = Vec::new();
+                if !self.at(&Tok::RBracket) {
+                    loop {
+                        items.push(self.parse_type()?);
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                            if self.at(&Tok::RBracket) {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RBracket, "`]` closing the type-level list")?;
+                Ok(Type::List(items, span))
             }
             Tok::SymLit(s) => Err(self.err(format!(
                 "the symbol `'{s}` is not a type: type-level symbols are deferred (the `'` spelling is reserved at the type level)"
@@ -4752,7 +4783,7 @@ fn resolve_type_chain(
 /// are walked.
 fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
     match t {
-        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) | Type::StrLit(_, _) => {}
         Type::Lam(_, b, _) => resolve_type(b, fix)?,
         Type::App(f, a, _) | Type::IndexAnnotated(f, a, _) => {
             resolve_type(f, fix)?;
@@ -4793,7 +4824,7 @@ fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
             resolve_type(ann, fix)?;
             resolve_type(body, fix)?;
         }
-        Type::Tuple(items, _) => {
+        Type::Tuple(items, _) | Type::List(items, _) => {
             for i in items {
                 resolve_type(i, fix)?;
             }

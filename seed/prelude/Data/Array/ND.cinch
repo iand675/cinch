@@ -23,30 +23,63 @@ module Data.Array.ND where
   import Algebra.Arithmetic
 
   export Z, MkZ, Dim, MkDim
+  export Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64, Float32, Float64
   export Shape0, Shape1, Shape2, Shape3, Shape4
   export Rank, Size, HeadDim, LastDim, TailShape, InitShape
   export AppendShape, SnocShape, ReverseShape, Transpose2, ReplaceLast
+  export DimElem, DimShape, DimTail, DimInit, DimTranspose2
   export AccumType
-  export ShapeWitness, SWZ, SWDim
-  export NDCoord, CoordZ, CoordCons
-  export NDView
+  export ShapeWitness, SWZ, SWDim, SWNil, SWCons
+  export NDCoord, CoordZ, CoordCons, CoordNil, CoordListCons
+  export DimWitness, DWEmpty, DWAxis
+  export DimCoord, DCoordEmpty, DCoordCons
+  export NDView, NDArray
   export shape-rank, shape-size, shape-dims, shape-strides, shape-last-dim
   export shape-tail, shape-init, shape-append, shape-snoc, shape-reverse
   export shape-transpose2, shape-replace-last
+  export dim-rank, dim-size, dim-extents, dim-strides, dim-last-dim
+  export dim-init, dim-transpose2, dim-to-shape
   export nd-shape, nd-data, nd-offset, nd-strides, nd-rank, nd-size
   export nd-is-contiguous, nd-from-array, nd-from-tensor
   export nd-tabulate-f32, nd-tabulate-i32, nd-tabulate-u8
   export nd-linear-index, nd-get
-  export nd-reshape, nd-transpose, nd-transpose-all, nd-slice-outer
+  export nd-reshape, nd-transpose, nd-transpose-all, nd-slice-outer, nd-slice-outer-list
   export nd-pack-f32, nd-pack-i32, nd-pack-u8
   export nd-map-f32, nd-map-i32, nd-zip-add-f32, nd-zip-mul-f32
   export nd-dot-f32, nd-dot-i32
   export nd-reduce-all-f32, nd-reduce-all-i32
   export nd-reduce-last-f32, nd-reduce-last-i32
   export nd-stencil2d-batch-u8, nd-histogram-last-u8
+  export ndarray-shape, ndarray-data, ndarray-offset, ndarray-strides, ndarray-rank, ndarray-size
+  export ndarray-is-contiguous, ndarray-from-array, ndarray-from-tensor
+  export ndarray-tabulate-f32, ndarray-tabulate-i32, ndarray-tabulate-u8
+  export ndarray-linear-index, ndarray-get, ndarray-to-view
+  export ndarray-reshape, ndarray-transpose, ndarray-slice-outer
+  export ndarray-pack-f32, ndarray-pack-i32, ndarray-pack-u8
+  export ndarray-map-f32, ndarray-map-i32, ndarray-zip-add-f32, ndarray-zip-mul-f32
+  export ndarray-dot-f32, ndarray-dot-i32
+  export ndarray-reduce-all-f32, ndarray-reduce-all-i32
+  export ndarray-reduce-last-f32, ndarray-reduce-last-i32
+
+  -- ---------------------------------------------------------------------------
+  -- Scalar type aliases (definitionally equal to I8..F64 via type families)
+  -- ---------------------------------------------------------------------------
+
+  type family Int8 = I8
+  type family Int16 = I16
+  type family Int32 = I32
+  type family Int64 = I64
+  type family UInt8 = U8
+  type family UInt16 = U16
+  type family UInt32 = U32
+  type family UInt64 = U64
+  type family Float32 = F32
+  type family Float64 = F64
 
   -- ---------------------------------------------------------------------------
   -- Type-level N-dimensional shapes
+  -- Supports both promoted type-level lists (`[10, 20, 30]` and
+  -- `[(10, Int32), (20, Int32), (30, Int32)]`) and legacy `Dim`/`Z` chains.
   -- ---------------------------------------------------------------------------
 
   data Z where
@@ -68,49 +101,98 @@ module Data.Array.ND where
   type family Rank sh :: Nat where
     Rank Z = 0
     Rank (Dim _ rest) = 1 + Rank rest
+    Rank [] = 0
+    Rank (Cons _ rest) = 1 + Rank rest
 
   type family Size sh :: Nat where
     Size Z = 1
     Size (Dim n rest) = n * Size rest
+    Size [] = 1
+    Size (Cons (n, _) rest) = n * Size rest
+    Size (Cons n rest) = n * Size rest
 
   type family HeadDim sh :: Nat where
     HeadDim Z = 1
     HeadDim (Dim n _) = n
+    HeadDim [] = 1
+    HeadDim (Cons (n, _) _) = n
+    HeadDim (Cons n _) = n
 
   type family LastDim sh :: Nat where
     LastDim Z = 1
     LastDim (Dim n Z) = n
     LastDim (Dim _ rest) = LastDim rest
+    LastDim [] = 1
+    LastDim (Cons (n, _) []) = n
+    LastDim (Cons n []) = n
+    LastDim (Cons _ rest) = LastDim rest
 
   type family TailShape sh where
     TailShape Z = Z
     TailShape (Dim _ rest) = rest
+    TailShape [] = []
+    TailShape (Cons _ rest) = rest
 
   type family InitShape sh where
     InitShape Z = Z
     InitShape (Dim _ Z) = Z
     InitShape (Dim n rest) = Dim n (InitShape rest)
+    InitShape [] = []
+    InitShape (Cons _ []) = []
+    InitShape (Cons d rest) = Cons d (InitShape rest)
 
   type family AppendShape s1 s2 where
     AppendShape Z s2 = s2
     AppendShape (Dim n rest) s2 = Dim n (AppendShape rest s2)
+    AppendShape [] s2 = s2
+    AppendShape (Cons d rest) s2 = Cons d (AppendShape rest s2)
 
   type family SnocShape sh (k :: Nat) where
     SnocShape Z k = Dim k Z
     SnocShape (Dim n rest) k = Dim n (SnocShape rest k)
+    SnocShape [] k = [k]
+    SnocShape (Cons n rest) k = Cons n (SnocShape rest k)
 
   type family ReverseShape sh where
     ReverseShape Z = Z
     ReverseShape (Dim n rest) = SnocShape (ReverseShape rest) n
+    ReverseShape [] = []
+    ReverseShape (Cons n rest) = SnocShape (ReverseShape rest) n
 
   type family Transpose2 sh where
     Transpose2 (Dim m (Dim n rest)) = Dim n (Dim m rest)
+    Transpose2 (Cons d1 (Cons d2 rest)) = Cons d2 (Cons d1 rest)
     Transpose2 sh = sh
 
   type family ReplaceLast sh (k :: Nat) where
     ReplaceLast Z k = Dim k Z
     ReplaceLast (Dim _ Z) k = Dim k Z
     ReplaceLast (Dim n rest) k = Dim n (ReplaceLast rest k)
+    ReplaceLast [] k = [k]
+    ReplaceLast (Cons _ []) k = [k]
+    ReplaceLast (Cons n rest) k = Cons n (ReplaceLast rest k)
+
+  -- Type-level dimension-list algebra for `NDArray [(10, Int32), (20, Int32), (30, Int32)]`
+  type family DimElem (dims :: List (Nat, Type)) :: Type where
+    DimElem [] = Unit
+    DimElem (Cons (_, t) _) = t
+
+  type family DimShape (dims :: List (Nat, Type)) :: List Nat where
+    DimShape [] = []
+    DimShape (Cons (n, _) rest) = Cons n (DimShape rest)
+
+  type family DimTail (dims :: List (Nat, Type)) :: List (Nat, Type) where
+    DimTail [] = []
+    DimTail (Cons _ rest) = rest
+
+  type family DimInit (dims :: List (Nat, Type)) :: List (Nat, Type) where
+    DimInit [] = []
+    DimInit (Cons _ []) = []
+    DimInit (Cons d rest) = Cons d (DimInit rest)
+
+  type family DimTranspose2 (dims :: List (Nat, Type)) :: List (Nat, Type) where
+    DimTranspose2 (Cons d1 (Cons d2 rest)) = Cons d2 (Cons d1 rest)
+    DimTranspose2 dims = dims
 
   -- Open type family: extensible accumulator type per element type.
   type family AccumType a :: Type
@@ -132,6 +214,12 @@ module Data.Array.ND where
   data instance ShapeWitness (Dim n rest) where
     SWDim :: (d :: Nat) -> ShapeWitness rest -> ShapeWitness (Dim d rest)
 
+  data instance ShapeWitness [] where
+    SWNil :: ShapeWitness []
+
+  data instance ShapeWitness (Cons n rest) where
+    SWCons :: (d :: Nat) -> ShapeWitness rest -> ShapeWitness (Cons d rest)
+
   data family NDCoord sh
 
   data instance NDCoord Z where
@@ -140,9 +228,37 @@ module Data.Array.ND where
   data instance NDCoord (Dim n rest) where
     CoordCons :: forall (n :: Nat) rest. Fin n -> NDCoord rest -> NDCoord (Dim n rest)
 
+  data instance NDCoord [] where
+    CoordNil :: NDCoord []
+
+  data instance NDCoord (Cons n rest) where
+    CoordListCons :: forall (n :: Nat) rest. Fin n -> NDCoord rest -> NDCoord (Cons n rest)
+
+  -- Dimension witness & coordinate families for `NDArray [(10, Int32), (20, Int32), (30, Int32)]`
+  data family DimWitness (dims :: List (Nat, Type))
+
+  data instance DimWitness [] where
+    DWEmpty :: DimWitness []
+
+  data instance DimWitness (Cons (n, t) rest) where
+    DWAxis :: forall (t :: Type) (rest :: List (Nat, Type)). (d :: Nat) -> DimWitness rest -> DimWitness (Cons (d, t) rest)
+
+  data family DimCoord (dims :: List (Nat, Type))
+
+  data instance DimCoord [] where
+    DCoordEmpty :: DimCoord []
+
+  data instance DimCoord (Cons (n, t) rest) where
+    DCoordCons :: forall (n :: Nat) (t :: Type) (rest :: List (Nat, Type)). Fin n -> DimCoord rest -> DimCoord (Cons (n, t) rest)
+
   -- One unified strided N-dimensional view for ALL ranks N >= 0.
   data NDView sh a where
     MkNDView :: Array a -> ShapeWitness sh -> Nat -> List Nat -> NDView sh a
+
+  -- Unified N-dimensional array indexed directly by a promoted list of
+  -- `(extent, elem_type)` pairs, e.g. `NDArray [(10, Int32), (20, Int32), (30, Int32)]`.
+  data NDArray (dims :: List (Nat, Type)) where
+    MkNDArray :: Array (DimElem dims) -> DimWitness dims -> Nat -> List Nat -> NDArray dims
 
   -- ---------------------------------------------------------------------------
   -- Rank-polymorphic shape witness operations
@@ -152,21 +268,29 @@ module Data.Array.ND where
   shape-rank w = case w of
     SWZ -> 0
     SWDim _ rest -> 1 + shape-rank rest
+    SWNil -> 0
+    SWCons _ rest -> 1 + shape-rank rest
 
   shape-size :: forall sh. ShapeWitness sh -> Nat
   shape-size w = case w of
     SWZ -> 1
     SWDim d rest -> d * shape-size rest
+    SWNil -> 1
+    SWCons d rest -> d * shape-size rest
 
   shape-dims :: forall sh. ShapeWitness sh -> List Nat
   shape-dims w = case w of
     SWZ -> Nil
     SWDim d rest -> Cons d (shape-dims rest)
+    SWNil -> Nil
+    SWCons d rest -> Cons d (shape-dims rest)
 
   shape-strides :: forall sh. ShapeWitness sh -> List Nat
   shape-strides w = case w of
     SWZ -> Nil
     SWDim _ rest -> Cons (shape-size rest) (shape-strides rest)
+    SWNil -> Nil
+    SWCons _ rest -> Cons (shape-size rest) (shape-strides rest)
 
   shape-last-dim :: forall sh. ShapeWitness sh -> Nat
   shape-last-dim w = case w of
@@ -174,11 +298,21 @@ module Data.Array.ND where
     SWDim d rest -> case rest of
       SWZ -> d
       SWDim d2 rest2 -> shape-last-dim (SWDim d2 rest2)
+      SWNil -> d
+      SWCons d2 rest2 -> shape-last-dim (SWCons d2 rest2)
+    SWNil -> 1
+    SWCons d rest -> case rest of
+      SWNil -> d
+      SWCons d2 rest2 -> shape-last-dim (SWCons d2 rest2)
+      SWZ -> d
+      SWDim d2 rest2 -> shape-last-dim (SWDim d2 rest2)
 
   shape-tail :: forall sh. ShapeWitness sh -> ShapeWitness (TailShape sh)
   shape-tail w = case w of
     SWZ -> SWZ
     SWDim _ rest -> rest
+    SWNil -> SWNil
+    SWCons _ rest -> rest
 
   shape-init :: forall sh. ShapeWitness sh -> ShapeWitness (InitShape sh)
   shape-init w = case w of
@@ -186,21 +320,35 @@ module Data.Array.ND where
     SWDim d rest -> case rest of
       SWZ -> SWZ
       SWDim d2 rest2 -> SWDim d (shape-init (SWDim d2 rest2))
+      SWNil -> SWDim d (shape-init SWNil)
+      SWCons d2 rest2 -> SWDim d (shape-init (SWCons d2 rest2))
+    SWNil -> SWNil
+    SWCons d rest -> case rest of
+      SWNil -> SWNil
+      SWCons d2 rest2 -> SWCons d (shape-init (SWCons d2 rest2))
+      SWZ -> SWCons d (shape-init SWZ)
+      SWDim d2 rest2 -> SWCons d (shape-init (SWDim d2 rest2))
 
   shape-append :: forall s1 s2. ShapeWitness s1 -> ShapeWitness s2 -> ShapeWitness (AppendShape s1 s2)
   shape-append w1 w2 = case w1 of
     SWZ -> w2
     SWDim d rest -> SWDim d (shape-append rest w2)
+    SWNil -> w2
+    SWCons d rest -> SWCons d (shape-append rest w2)
 
   shape-snoc :: forall sh. ShapeWitness sh -> (k :: Nat) -> ShapeWitness (SnocShape sh k)
   shape-snoc w k = case w of
     SWZ -> SWDim k SWZ
     SWDim d rest -> SWDim d (shape-snoc rest k)
+    SWNil -> SWCons k SWNil
+    SWCons d rest -> SWCons d (shape-snoc rest k)
 
   shape-reverse :: forall sh. ShapeWitness sh -> ShapeWitness (ReverseShape sh)
   shape-reverse w = case w of
     SWZ -> SWZ
     SWDim d rest -> shape-snoc (shape-reverse rest) d
+    SWNil -> SWNil
+    SWCons d rest -> shape-snoc (shape-reverse rest) d
 
   shape-transpose2 :: forall sh. ShapeWitness sh -> ShapeWitness (Transpose2 sh)
   shape-transpose2 w = case w of
@@ -208,6 +356,14 @@ module Data.Array.ND where
     SWDim d1 rest1 -> case rest1 of
       SWZ -> SWDim d1 SWZ
       SWDim d2 rest2 -> SWDim d2 (SWDim d1 rest2)
+      SWNil -> SWDim d1 SWNil
+      SWCons d2 rest2 -> SWDim d1 (SWCons d2 rest2)
+    SWNil -> SWNil
+    SWCons d1 rest1 -> case rest1 of
+      SWNil -> SWCons d1 SWNil
+      SWCons d2 rest2 -> SWCons d2 (SWCons d1 rest2)
+      SWZ -> SWCons d1 SWZ
+      SWDim d2 rest2 -> SWCons d1 (SWDim d2 rest2)
 
   shape-replace-last :: forall sh. ShapeWitness sh -> (k :: Nat) -> ShapeWitness (ReplaceLast sh k)
   shape-replace-last w k = case w of
@@ -215,6 +371,64 @@ module Data.Array.ND where
     SWDim d rest -> case rest of
       SWZ -> SWDim k SWZ
       SWDim d2 rest2 -> SWDim d (shape-replace-last (SWDim d2 rest2) k)
+      SWNil -> SWDim d (shape-replace-last SWNil k)
+      SWCons d2 rest2 -> SWDim d (shape-replace-last (SWCons d2 rest2) k)
+    SWNil -> SWCons k SWNil
+    SWCons d rest -> case rest of
+      SWNil -> SWCons k SWNil
+      SWCons d2 rest2 -> SWCons d (shape-replace-last (SWCons d2 rest2) k)
+      SWZ -> SWCons d (shape-replace-last SWZ k)
+      SWDim d2 rest2 -> SWCons d (shape-replace-last (SWDim d2 rest2) k)
+
+  -- ---------------------------------------------------------------------------
+  -- Dimension witness operations for `DimWitness (dims :: List (Nat, Type))`
+  -- ---------------------------------------------------------------------------
+
+  dim-rank :: forall (dims :: List (Nat, Type)). DimWitness dims -> Nat
+  dim-rank w = case w of
+    DWEmpty -> 0
+    DWAxis _ rest -> 1 + dim-rank rest
+
+  dim-size :: forall (dims :: List (Nat, Type)). DimWitness dims -> Nat
+  dim-size w = case w of
+    DWEmpty -> 1
+    DWAxis d rest -> d * dim-size rest
+
+  dim-extents :: forall (dims :: List (Nat, Type)). DimWitness dims -> List Nat
+  dim-extents w = case w of
+    DWEmpty -> Nil
+    DWAxis d rest -> Cons d (dim-extents rest)
+
+  dim-strides :: forall (dims :: List (Nat, Type)). DimWitness dims -> List Nat
+  dim-strides w = case w of
+    DWEmpty -> Nil
+    DWAxis _ rest -> Cons (dim-size rest) (dim-strides rest)
+
+  dim-last-dim :: forall (dims :: List (Nat, Type)). DimWitness dims -> Nat
+  dim-last-dim w = case w of
+    DWEmpty -> 1
+    DWAxis d rest -> case rest of
+      DWEmpty -> d
+      DWAxis d2 rest2 -> dim-last-dim (DWAxis d2 rest2)
+
+  dim-init :: forall (dims :: List (Nat, Type)). DimWitness dims -> DimWitness (DimInit dims)
+  dim-init w = case w of
+    DWEmpty -> DWEmpty
+    DWAxis d rest -> case rest of
+      DWEmpty -> DWEmpty
+      DWAxis d2 rest2 -> DWAxis d (dim-init (DWAxis d2 rest2))
+
+  dim-transpose2 :: forall (dims :: List (Nat, Type)). DimWitness dims -> DimWitness (DimTranspose2 dims)
+  dim-transpose2 w = case w of
+    DWEmpty -> DWEmpty
+    DWAxis d1 rest1 -> case rest1 of
+      DWEmpty -> DWAxis d1 DWEmpty
+      DWAxis d2 rest2 -> DWAxis d2 (DWAxis d1 rest2)
+
+  dim-to-shape :: forall (dims :: List (Nat, Type)). DimWitness dims -> ShapeWitness (DimShape dims)
+  dim-to-shape w = case w of
+    DWEmpty -> SWNil
+    DWAxis d rest -> SWCons d (dim-to-shape rest)
 
   -- ---------------------------------------------------------------------------
   -- Internal list helpers for arbitrary-rank stride & tensor validation
@@ -328,6 +542,13 @@ module Data.Array.ND where
         Fin i _ -> case strides of
           Nil -> 0
           Cons s srest -> i * s + nd-linear-index rest srest rest-c
+    SWNil -> case coord of
+      CoordNil -> 0
+    SWCons _ rest -> case coord of
+      CoordListCons idx rest-c -> case idx of
+        Fin i _ -> case strides of
+          Nil -> 0
+          Cons s srest -> i * s + nd-linear-index rest srest rest-c
 
   nd-get :: forall sh a. NDView sh a -> NDCoord sh -> Option a
   nd-get v coord = case v of
@@ -347,8 +568,8 @@ module Data.Array.ND where
       then Some (MkNDView d w2 0 (shape-strides w2))
       else None
 
-  -- Zero-copy swap of the two outermost axes for ANY rank >= 2.
-  nd-transpose :: forall (m :: Nat) (n :: Nat) rest a. NDView (Dim m (Dim n rest)) a -> NDView (Transpose2 (Dim m (Dim n rest))) a
+  -- Zero-copy swap of the two outermost axes for ANY rank >= 2 (both `Dim` and list shapes).
+  nd-transpose :: forall sh a. NDView sh a -> NDView (Transpose2 sh) a
   nd-transpose v = case v of
     MkNDView d w off st -> MkNDView d (shape-transpose2 w) off (list-nat-swap2 st)
 
@@ -360,6 +581,13 @@ module Data.Array.ND where
   -- Zero-copy outermost axis slice with static `Fin n` bounds witness (rank N -> N-1).
   nd-slice-outer :: forall (n :: Nat) rest a. NDView (Dim n rest) a -> Fin n -> NDView (TailShape (Dim n rest)) a
   nd-slice-outer v idx = case v of
+    MkNDView d w off st -> case idx of
+      Fin i _ -> case st of
+        Nil -> MkNDView d (shape-tail w) off Nil
+        Cons s0 srest -> MkNDView d (shape-tail w) (off + i * s0) srest
+
+  nd-slice-outer-list :: forall (n :: Nat) (rest :: List Nat) a. NDView (Cons n rest) a -> Fin n -> NDView rest a
+  nd-slice-outer-list v idx = case v of
     MkNDView d w off st -> case idx of
       Fin i _ -> case st of
         Nil -> MkNDView d (shape-tail w) off Nil
@@ -491,6 +719,11 @@ module Data.Array.ND where
         SWDim dw rest2 -> (dh, dw)
     SWDim _ brest -> case full of
       SWDim _ frest -> shape-split-suffix-hw brest frest
+    SWNil -> case full of
+      SWDim dh rest1 -> case rest1 of
+        SWDim dw rest2 -> (dh, dw)
+    SWCons _ brest -> case full of
+      SWCons _ frest -> shape-split-suffix-hw brest frest
 
   -- Rank-polymorphic batched 2D stencil: works for 2D single image (`batch = Z`),
   -- 3D video (`batch = Dim f Z`), 4D multi-camera video (`batch = Dim c (Dim f Z)`), etc.
@@ -519,3 +752,195 @@ module Data.Array.ND where
     in case array-histogram-batch-u8 (nd-data p) outer 1 inner bins of
       None -> None
       Some out -> Some (MkNDView out out-w 0 (shape-strides out-w))
+
+  -- ---------------------------------------------------------------------------
+  -- NDArray [(10, Int32), (20, Int32), (30, Int32)] operations
+  -- ---------------------------------------------------------------------------
+
+  ndarray-shape :: forall (dims :: List (Nat, Type)). NDArray dims -> DimWitness dims
+  ndarray-shape a = case a of MkNDArray _ w _ _ -> w
+
+  ndarray-data :: forall (dims :: List (Nat, Type)). NDArray dims -> Array (DimElem dims)
+  ndarray-data a = case a of MkNDArray d _ _ _ -> d
+
+  ndarray-offset :: forall (dims :: List (Nat, Type)). NDArray dims -> Nat
+  ndarray-offset a = case a of MkNDArray _ _ off _ -> off
+
+  ndarray-strides :: forall (dims :: List (Nat, Type)). NDArray dims -> List Nat
+  ndarray-strides a = case a of MkNDArray _ _ _ st -> st
+
+  ndarray-rank :: forall (dims :: List (Nat, Type)). NDArray dims -> Nat
+  ndarray-rank a = dim-rank (ndarray-shape a)
+
+  ndarray-size :: forall (dims :: List (Nat, Type)). NDArray dims -> Nat
+  ndarray-size a = dim-size (ndarray-shape a)
+
+  ndarray-is-contiguous :: forall (dims :: List (Nat, Type)). NDArray dims -> Bool
+  ndarray-is-contiguous a = case a of
+    MkNDArray d w off st ->
+      off == 0 && array-length d == dim-size w && list-nat-eq st (dim-strides w)
+
+  ndarray-from-array :: forall (dims :: List (Nat, Type)). DimWitness dims -> Array (DimElem dims) -> Option (NDArray dims)
+  ndarray-from-array w buf =
+    if array-length buf == dim-size w
+    then Some (MkNDArray buf w 0 (dim-strides w))
+    else None
+
+  ndarray-from-tensor :: forall (dims :: List (Nat, Type)). DimWitness dims -> Tensor (DimElem dims) -> Option (NDArray dims)
+  ndarray-from-tensor w t =
+    let s = tensor-shape t
+    in if check-tensor-dims s 0 (dim-extents w)
+       then Some (MkNDArray (tensor-data t) w 0 (dim-strides w))
+       else None
+
+  ndarray-tabulate-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). DimWitness (Cons (n, F32) rest) -> (Nat -> F32) -> NDArray (Cons (n, F32) rest)
+  ndarray-tabulate-f32 w f = MkNDArray (array-tabulate-f32 (dim-size w) f) w 0 (dim-strides w)
+
+  ndarray-tabulate-i32 :: forall (n :: Nat) (rest :: List (Nat, Type)). DimWitness (Cons (n, I32) rest) -> (Nat -> I32) -> NDArray (Cons (n, I32) rest)
+  ndarray-tabulate-i32 w f = MkNDArray (array-tabulate-i32 (dim-size w) f) w 0 (dim-strides w)
+
+  ndarray-tabulate-u8 :: forall (n :: Nat) (rest :: List (Nat, Type)). DimWitness (Cons (n, U8) rest) -> (Nat -> U8) -> NDArray (Cons (n, U8) rest)
+  ndarray-tabulate-u8 w f = MkNDArray (array-tabulate-u8 (dim-size w) f) w 0 (dim-strides w)
+
+  ndarray-linear-index :: forall (dims :: List (Nat, Type)). DimWitness dims -> List Nat -> DimCoord dims -> Nat
+  ndarray-linear-index w strides coord = case w of
+    DWEmpty -> case coord of
+      DCoordEmpty -> 0
+    DWAxis _ rest -> case coord of
+      DCoordCons idx rest-c -> case idx of
+        Fin i _ -> case strides of
+          Nil -> 0
+          Cons s srest -> i * s + ndarray-linear-index rest srest rest-c
+
+  ndarray-get :: forall (dims :: List (Nat, Type)). NDArray dims -> DimCoord dims -> Option (DimElem dims)
+  ndarray-get a coord = case a of
+    MkNDArray d w off st -> array-get d (off + ndarray-linear-index w st coord)
+
+  ndarray-to-view :: forall (dims :: List (Nat, Type)). NDArray dims -> NDView (DimShape dims) (DimElem dims)
+  ndarray-to-view a = case a of
+    MkNDArray d w off st -> MkNDView d (dim-to-shape w) off st
+
+  ndarray-reshape :: forall (m :: Nat) (k :: Nat) (t :: Type) (r1 :: List (Nat, Type)) (r2 :: List (Nat, Type)). using (Size (Cons (m, t) r1) == Size (Cons (k, t) r2)) => NDArray (Cons (m, t) r1) -> DimWitness (Cons (k, t) r2) -> Option (NDArray (Cons (k, t) r2))
+  ndarray-reshape a w2 = case a of
+    MkNDArray d w1 off st ->
+      if ndarray-is-contiguous a && dim-size w1 == dim-size w2
+      then Some (MkNDArray d w2 0 (dim-strides w2))
+      else None
+
+  ndarray-transpose :: forall (m :: Nat) (n :: Nat) (t :: Type) (rest :: List (Nat, Type)). NDArray (Cons (m, t) (Cons (n, t) rest)) -> NDArray (Cons (n, t) (Cons (m, t) rest))
+  ndarray-transpose a = case a of
+    MkNDArray d w off st -> MkNDArray d (dim-transpose2 w) off (list-nat-swap2 st)
+
+  ndarray-slice-outer :: forall (m :: Nat) (n :: Nat) (t :: Type) (rest :: List (Nat, Type)). NDArray (Cons (m, t) (Cons (n, t) rest)) -> Fin m -> NDArray (Cons (n, t) rest)
+  ndarray-slice-outer a idx = case a of
+    MkNDArray d w off st -> case w of
+      DWAxis _ rest-w -> case idx of
+        Fin i _ -> case st of
+          Nil -> MkNDArray d rest-w off Nil
+          Cons s0 srest -> MkNDArray d rest-w (off + i * s0) srest
+
+  ndarray-pack-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest)
+  ndarray-pack-f32 a =
+    if ndarray-is-contiguous a then a
+    else case a of
+      MkNDArray d w off st ->
+        let rstrides = dim-strides w
+        in let packed = array-tabulate-f32 (dim-size w) (\k ->
+             case array-get d (off + flat-to-strided-go k rstrides st 0) of
+               None -> 0.0
+               Some x -> x)
+        in MkNDArray packed w 0 rstrides
+
+  ndarray-pack-i32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, I32) rest) -> NDArray (Cons (n, I32) rest)
+  ndarray-pack-i32 a =
+    if ndarray-is-contiguous a then a
+    else case a of
+      MkNDArray d w off st ->
+        let rstrides = dim-strides w
+        in let packed = array-tabulate-i32 (dim-size w) (\k ->
+             case array-get d (off + flat-to-strided-go k rstrides st 0) of
+               None -> 0
+               Some x -> x)
+        in MkNDArray packed w 0 rstrides
+
+  ndarray-pack-u8 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, U8) rest) -> NDArray (Cons (n, U8) rest)
+  ndarray-pack-u8 a =
+    if ndarray-is-contiguous a then a
+    else case a of
+      MkNDArray d w off st ->
+        let rstrides = dim-strides w
+        in let packed = array-tabulate-u8 (dim-size w) (\k ->
+             case array-get d (off + flat-to-strided-go k rstrides st 0) of
+               None -> 0
+               Some x -> x)
+        in MkNDArray packed w 0 rstrides
+
+  ndarray-map-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). (F32 -> F32) -> NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest)
+  ndarray-map-f32 f a =
+    let p = ndarray-pack-f32 a
+    in MkNDArray (array-map-f32 f (ndarray-data p)) (ndarray-shape p) 0 (ndarray-strides p)
+
+  ndarray-map-i32 :: forall (n :: Nat) (rest :: List (Nat, Type)). (I32 -> I32) -> NDArray (Cons (n, I32) rest) -> NDArray (Cons (n, I32) rest)
+  ndarray-map-i32 f a =
+    let p = ndarray-pack-i32 a
+    in MkNDArray (array-map-i32 f (ndarray-data p)) (ndarray-shape p) 0 (ndarray-strides p)
+
+  ndarray-zip-add-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest)
+  ndarray-zip-add-f32 a b =
+    let pa = ndarray-pack-f32 a
+    in let pb = ndarray-pack-f32 b
+    in case array-zip-binop-f32 (ndarray-data pa) (ndarray-data pb) 0 of
+      None -> pa
+      Some out -> MkNDArray out (ndarray-shape pa) 0 (ndarray-strides pa)
+
+  ndarray-zip-mul-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest)
+  ndarray-zip-mul-f32 a b =
+    let pa = ndarray-pack-f32 a
+    in let pb = ndarray-pack-f32 b
+    in case array-zip-binop-f32 (ndarray-data pa) (ndarray-data pb) 2 of
+      None -> pa
+      Some out -> MkNDArray out (ndarray-shape pa) 0 (ndarray-strides pa)
+
+  ndarray-dot-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, F32) rest) -> NDArray (Cons (n, F32) rest) -> FloatMode -> F32
+  ndarray-dot-f32 a b mode =
+    let pa = ndarray-pack-f32 a
+    in let pb = ndarray-pack-f32 b
+    in case array-zip-binop-f32 (ndarray-data pa) (ndarray-data pb) 2 of
+      None -> 0.0
+      Some prod -> array-reduce-f32 prod (float-mode-code mode)
+
+  ndarray-dot-i32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, I32) rest) -> NDArray (Cons (n, I32) rest) -> I32
+  ndarray-dot-i32 a b =
+    let pa = ndarray-pack-i32 a
+    in let pb = ndarray-pack-i32 b
+    in case array-zip-binop-i32 (ndarray-data pa) (ndarray-data pb) 2 of
+      None -> 0
+      Some prod -> array-reduce-i32 prod 0
+
+  ndarray-reduce-all-f32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, F32) rest) -> FloatMode -> F32
+  ndarray-reduce-all-f32 a mode = array-reduce-f32 (ndarray-data (ndarray-pack-f32 a)) (float-mode-code mode)
+
+  ndarray-reduce-all-i32 :: forall (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (n, I32) rest) -> IntReducer -> I32
+  ndarray-reduce-all-i32 a red = array-reduce-i32 (ndarray-data (ndarray-pack-i32 a)) (int-reducer-code red)
+
+  ndarray-reduce-last-f32 :: forall (m :: Nat) (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (m, F32) (Cons (n, F32) rest)) -> FloatMode -> NDArray (DimInit (Cons (m, F32) (Cons (n, F32) rest)))
+  ndarray-reduce-last-f32 a mode =
+    let p = ndarray-pack-f32 a
+    in let w = ndarray-shape p
+    in let out-w = dim-init w
+    in let outer = dim-size out-w
+    in let inner = dim-last-dim w
+    in case array-row-reduce-f32 (ndarray-data p) outer inner (float-mode-code mode) of
+      None -> MkNDArray (array-tabulate-f32 outer (\_ -> 0.0)) out-w 0 (dim-strides out-w)
+      Some out -> MkNDArray out out-w 0 (dim-strides out-w)
+
+  ndarray-reduce-last-i32 :: forall (m :: Nat) (n :: Nat) (rest :: List (Nat, Type)). NDArray (Cons (m, I32) (Cons (n, I32) rest)) -> IntReducer -> NDArray (DimInit (Cons (m, I32) (Cons (n, I32) rest)))
+  ndarray-reduce-last-i32 a red =
+    let p = ndarray-pack-i32 a
+    in let w = ndarray-shape p
+    in let out-w = dim-init w
+    in let outer = dim-size out-w
+    in let inner = dim-last-dim w
+    in case array-row-reduce-i32 (ndarray-data p) outer inner (int-reducer-code red) of
+      None -> MkNDArray (array-tabulate-i32 outer (\_ -> 0)) out-w 0 (dim-strides out-w)
+      Some out -> MkNDArray out out-w 0 (dim-strides out-w)

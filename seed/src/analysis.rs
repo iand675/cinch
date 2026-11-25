@@ -1881,6 +1881,10 @@ pub fn render_ast_type(t: &ast::Type) -> String {
             "({})",
             items.iter().map(render_ast_type).collect::<Vec<_>>().join(", ")
         ),
+        Type::List(items, _) => format!(
+            "[{}]",
+            items.iter().map(render_ast_type).collect::<Vec<_>>().join(", ")
+        ),
         Type::Infix(items, ops, _) => {
             let mut out = String::new();
             for (i, item) in items.iter().enumerate() {
@@ -1894,6 +1898,7 @@ pub fn render_ast_type(t: &ast::Type) -> String {
             out
         }
         Type::Num(n, _) => n.clone(),
+        Type::StrLit(s, _) => format!("{s:?}"),
     }
 }
 

@@ -735,7 +735,7 @@ impl Checker {
         for (name, kind, runtime) in binders {
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match kind {
-                ParamKind::Type => scheme.params.push(name.into()),
+                ParamKind::Type | ParamKind::Data(_) => scheme.params.push(name.into()),
                 ParamKind::Region => { if !region_params.contains(&name) { region_params.push(name); } },
                 ParamKind::Con(arity) => { scheme.con_params.push((name.clone().into(), arity)); scheme.params.push(name.into()); }
                 ParamKind::Val(carrier) => {
@@ -2336,7 +2336,7 @@ impl Checker {
                     continue;
                 }
                 match k {
-                    ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                    ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                     ParamKind::Region => {},
                     ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone().into(), t.clone())),
                     ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone().into())),
@@ -3117,6 +3117,7 @@ impl Checker {
                 Some(ParamKind::Val(vty)) => {
                     Ty::Idx(Box::new(self.conv_idx(arg, &pat_vars, vty)?))
                 }
+                Some(ParamKind::Data(dty)) => self.conv_promoted(arg, &pat_vars, Some(dty))?,
                 Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(arg, &pat_vars)?)),
                 Some(ParamKind::Region) => {
                     self.conv_kind(arg, &pat_vars, Some(&ParamKind::Region))?
@@ -3144,6 +3145,7 @@ impl Checker {
         &self,
         param_kinds: &[ParamKind],
         idx_carrier: Option<&Ty>,
+        data_return_kind: Option<&Ty>,
         lhs_args: &[ast::Type],
         rhs_ast: &ast::Type,
     ) -> Result<crate::types::TypeFamilyRule> {
@@ -3157,12 +3159,15 @@ impl Checker {
                     .push((v.clone(), carrier.clone()));
             }
         }
-        let rhs_res = match idx_carrier {
-            Some(carrier) => self
+        let rhs_res = match (idx_carrier, data_return_kind) {
+            (Some(carrier), _) => self
                 .conv_idx(rhs_ast, &pat_vars, carrier)
                 .map(crate::types::TypeFamilyRhs::Idx),
-            None => self
-                .conv_type(rhs_ast, &pat_vars)
+            (None, Some(dty)) => self
+                .conv_promoted(rhs_ast, &pat_vars, Some(dty))
+                .map(crate::types::TypeFamilyRhs::Type),
+            (None, None) => self
+                .conv_kind(rhs_ast, &pat_vars, None)
                 .map(crate::types::TypeFamilyRhs::Type),
         };
         self.index_carriers.borrow_mut().truncate(carrier_start);
@@ -3239,8 +3244,15 @@ impl Checker {
                 ast::Decl::TypeFamily(tf) => {
                     let identity = nominal_identity(module, &tf.name);
                     if let Some(rk) = &tf.return_kind {
-                        if !matches!(rk, ast::Type::Con(p, _) if p.parts().as_slice() == ["Type"]) {
-                            self.idx_type_families.insert(identity);
+                        if let ast::Type::Con(p, _) = rk {
+                            let is_scalar = match p.parts().as_slice() {
+                                ["Nat"] | ["Int"] | ["Bool"] | ["Bytes"] | ["Sym"] => true,
+                                [s] => Scalar::parse(s).is_some(),
+                                _ => false,
+                            };
+                            if is_scalar {
+                                self.idx_type_families.insert(identity);
+                            }
                         }
                     }
                     heads.push(Head {
@@ -4098,7 +4110,7 @@ impl Checker {
                                 };
                                 vars.push(b.name.text.clone());
                                 match k {
-                                    ParamKind::Region | ParamKind::Type | ParamKind::Con(_) => {
+                                    ParamKind::Region | ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => {
                                         return Err(Error::at(
                                             b.name.span,
                                             "constructor-local type parameters are not supported in this slice; move the parameter to the family",
@@ -4182,7 +4194,7 @@ impl Checker {
                                             Ty::Param(params[i].clone().into())
                                         }
                                         ParamKind::Region => Ty::Region(params[i].clone().into()),
-                                        ParamKind::Val(_) => continue,
+                                        ParamKind::Val(_) | ParamKind::Data(_) => continue,
                                         ParamKind::Prop => {
                                             Ty::Prp(Box::new(PTerm::Var(params[i].clone())))
                                         }
@@ -4239,7 +4251,7 @@ impl Checker {
                                 continue;
                             }
                             match k {
-                                ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                                ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                                 ParamKind::Region => {},
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -4365,15 +4377,16 @@ impl Checker {
                     }
                     let (params, param_kinds) = self.nominal_params(&tf.params)?;
                     let identity = nominal_identity(&module, &tf.name);
-                    let idx_carrier = match &tf.return_kind {
-                        None => None,
+                    let (idx_carrier, data_return_kind) = match &tf.return_kind {
+                        None => (None, None),
                         Some(rk) => match self.binder_kind(rk, &params)? {
-                            ParamKind::Type => None,
-                            ParamKind::Val(carrier) => Some(carrier),
+                            ParamKind::Type => (None, None),
+                            ParamKind::Val(carrier) => (Some(carrier), None),
+                            ParamKind::Data(dty) => (None, Some(dty)),
                             _ => {
                                 return Err(Error::at(
                                     rk.span(),
-                                    "a `type family` return kind must be `Type` or an index carrier such as `Nat`",
+                                    "a `type family` return kind must be `Type`, a promoted data kind, or an index carrier such as `Nat`",
                                 ))
                             }
                         },
@@ -4416,6 +4429,7 @@ impl Checker {
                         let rule = self.compile_type_family_rule(
                             &param_kinds,
                             idx_carrier.as_ref(),
+                            data_return_kind.as_ref(),
                             &eq.lhs_args,
                             &eq.rhs,
                         )?;
@@ -4471,6 +4485,7 @@ impl Checker {
                     let rule = self.compile_type_family_rule(
                         &info.param_kinds,
                         idx_carrier.as_ref(),
+                        None,
                         &ti.lhs_args,
                         &ti.rhs,
                     )?;
@@ -4680,7 +4695,7 @@ impl Checker {
                                 continue;
                             }
                             match k {
-                                ParamKind::Type | ParamKind::Con(_) => local_ty_params.push(v.clone()),
+                                ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => local_ty_params.push(v.clone()),
                                 ParamKind::Val(carrier) => local_idx.push(IxParam::Val(v.clone().into(), carrier.clone())),
                                 ParamKind::Prop => local_idx.push(IxParam::Prop(v.clone().into())),
                                 ParamKind::Region => {}
@@ -4906,7 +4921,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -5110,7 +5125,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => Ty::Param(p.clone().into()),
                             ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
@@ -5125,7 +5140,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -5293,7 +5308,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone().into()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => Ty::Param(p.clone().into()),
                             ParamKind::Region => Ty::Region(p.clone().into()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone().into()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
@@ -5308,7 +5323,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Region => {},
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone().into(), t.clone()))
@@ -10952,7 +10967,7 @@ impl Checker {
                 .map(|(_, k)| k.clone())
                 .collect();
             let axis = |k: &ParamKind| match k {
-                ParamKind::Type => 0u8,
+                ParamKind::Type | ParamKind::Data(_) => 0u8,
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
@@ -10988,13 +11003,16 @@ impl Checker {
             let l = self.fresh_local();
             lids.insert(name.clone(), l);
             let ty = match kinds.get(name) {
-                Some(ParamKind::Val(t)) => t.clone(),
+                Some(ParamKind::Val(t)) | Some(ParamKind::Data(t)) => t.clone(),
                 Some(ParamKind::Prop) => {
                     Ty::Prp(Box::new(PTerm::Var(name.clone())))
                 }
                 _ => Ty::Param(name.clone().into()),
             };
-            if matches!(kinds.get(name), Some(ParamKind::Val(_)) | Some(ParamKind::Prop)) {
+            if matches!(
+                kinds.get(name),
+                Some(ParamKind::Val(_)) | Some(ParamKind::Data(_)) | Some(ParamKind::Prop)
+            ) {
                 self.bind_local(&mut env, name, l, Scheme::mono(ty), None, span)?;
             }
             let _ = hint;
@@ -17645,7 +17663,7 @@ fn desugar_family_pat_vars(ty: &mut ast::Type, pat_vars: &mut Vec<String>, wild_
             desugar_family_pat_vars(f, pat_vars, wild_counter);
             desugar_family_pat_vars(a, pat_vars, wild_counter);
         }
-        ast::Type::Tuple(items, _) | ast::Type::Infix(items, _, _) => {
+        ast::Type::Tuple(items, _) | ast::Type::List(items, _) | ast::Type::Infix(items, _, _) => {
             for item in items {
                 desugar_family_pat_vars(item, pat_vars, wild_counter);
             }
@@ -18241,7 +18259,7 @@ impl Checker {
                 kind: match kind {
                     ParamKind::Type => "Type".to_string(),
                     ParamKind::Region => "Region".to_string(),
-                    ParamKind::Val(ty) => ty.to_string(),
+                    ParamKind::Val(ty) | ParamKind::Data(ty) => ty.to_string(),
                     ParamKind::Prop => "Prop".to_string(),
                     ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
                 },

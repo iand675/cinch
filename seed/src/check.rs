@@ -1685,6 +1685,10 @@ pub enum ParamKind {
     /// A scoped runtime identity, erased from value and representation arguments.
     Region,
     Val(Ty),
+    /// A promoted data kind (`List (Nat, Type)`, `List Nat`, `Layout`, `String`,
+    /// `(Nat, Type)`, ...): erased at runtime like `Type`, inhabited by promoted
+    /// data constructors, type-level lists `[...]`, tuples `(...)`, and literals.
+    Data(Ty),
     Prop,
     /// `Type -> ... -> Type` with `n >= 1` arrows: a higher-kinded type
     /// constructor parameter (modules and compilation specification
@@ -1700,6 +1704,18 @@ impl ParamKind {
             _ => 0,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct PromotedCtorInfo {
+    module: String,
+    name: String,
+    identity: String,
+    parent_identity: String,
+    parent_args: Vec<Ty>,
+    #[allow(dead_code)]
+    ty_params: Vec<String>,
+    field_tys: Vec<Ty>,
 }
 
 #[derive(Clone)]
@@ -3266,6 +3282,10 @@ struct Checker {
     kind_constraints: RefCell<Vec<(String, ParamKind)>>,
     /// Explicit Type/Region annotations while converting their lexical telescope.
     declared_parameter_kinds: RefCell<Vec<(String, ParamKind)>>,
+    /// True while converting a kind annotation (`:: List (Nat, Type)`), where
+    /// `Type` may appear inside a promoted data kind without violating runtime
+    /// `Type : Type` universe safety.
+    in_kind_annotation: Cell<bool>,
     /// Logical definitions (`spec` and `proof` declarations): the erased
     /// total fragment, checked for termination and never emitted
     /// (core specification sections 3 and 8).
@@ -4054,6 +4074,7 @@ impl Checker {
             idx_pends: Vec::new(),
             kind_constraints: RefCell::new(Vec::new()),
             declared_parameter_kinds: RefCell::new(Vec::new()),
+            in_kind_annotation: Cell::new(false),
             logical: std::collections::HashSet::new(),
             corec: std::collections::HashSet::new(),
             allow_eval: true,
@@ -6253,7 +6274,7 @@ impl Checker {
                 let parts = self.ctor_parts(&defining, &args).ok()?;
                 if !parts.local_idx.is_empty() { return None; }
                 let inst = args.iter().zip(&info.param_kinds).filter_map(|(a, kind)|
-                    matches!(kind, ParamKind::Type | ParamKind::Con(_)).then(|| a.clone())).collect();
+                    matches!(kind, ParamKind::Type | ParamKind::Data(_) | ParamKind::Con(_)).then(|| a.clone())).collect();
                 (inst, parts.fields.into_iter().filter_map(|(_, ty, erased)| (!erased).then_some(ty)).collect())
             }
             _ => return None,
@@ -7645,6 +7666,39 @@ impl Checker {
                 let _ = args;
                 ParamKind::Type
             }
+            Ty::Adt(name, args) if name.starts_with("\"") && args.is_empty() => ParamKind::Type,
+            Ty::Adt(name, args) if name.starts_with("ctor:") => {
+                if let Some((mod_name, ctor_name)) = name[5..].rsplit_once('.') {
+                    if let Some(v) = self
+                        .qualified
+                        .get(&(mod_name.to_string(), ctor_name.to_string()))
+                    {
+                        if let ValueKind::Ctor { arity, .. } = &v.kind {
+                            if args.len() > *arity {
+                                return Err(Error::at(
+                                    span,
+                                    format!(
+                                        "promoted constructor {ctor_name} expects at most {arity} arguments, got {}",
+                                        args.len()
+                                    ),
+                                ));
+                            }
+                            let missing = *arity - args.len();
+                            if missing == 0 {
+                                ParamKind::Type
+                            } else {
+                                ParamKind::Con(missing)
+                            }
+                        } else {
+                            ParamKind::Type
+                        }
+                    } else {
+                        ParamKind::Type
+                    }
+                } else {
+                    ParamKind::Type
+                }
+            }
             Ty::Adt(name, args) => {
                 let info = self.lookup_known_type(name)?;
                 if args.len() > info.arity {
@@ -7674,7 +7728,9 @@ impl Checker {
             Ty::Param(_) | Ty::Meta(_) => return Ok(()),
             _ => ParamKind::Type,
         };
-        if kind == *expect {
+        if kind == *expect
+            || (matches!(kind, ParamKind::Type) && matches!(expect, ParamKind::Data(_)))
+        {
             return Ok(());
         }
         match (&kind, expect) {
@@ -7946,6 +8002,9 @@ impl Checker {
                             let arg = match info.param_kinds.get(i) {
                                 Some(ParamKind::Val(vty)) => {
                                     Ty::Idx(Box::new(self.conv_idx(a, vars, vty)?))
+                                }
+                                Some(ParamKind::Data(dty)) => {
+                                    self.conv_promoted(a, vars, Some(dty))?
                                 }
                                 Some(ParamKind::Prop) => {
                                     Ty::Prp(Box::new(self.conv_prop(a, vars)?))
@@ -9735,6 +9794,12 @@ impl Checker {
             Some("Eq" | "Not" | "&&" | "||") => {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
             }
+            Some("+" | "-" | "*")
+                if args.len() == 2
+                    && (expect.is_none() || matches!(expect, Some(ParamKind::Data(_)))) =>
+            {
+                return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+            }
             Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered"))
                 if args.len() == 1
                     && !matches!(&args[0], Arg::Ty(a) if self.refinement_type_app(pred, a)) =>
@@ -10058,11 +10123,57 @@ impl Checker {
         // type (dependent core kernel design, section 5). A type slot
         // carries no kind information for an un-annotated binder, so its
         // bare variables are not noted.
+        let expected_data = match expect {
+            Some(ParamKind::Data(d)) => Some(d),
+            _ => None,
+        };
         let info = match cur {
             ast::Type::Con(p, span) => {
-                Some(self.lookup_type_path(p).map_err(|_| {
+                let ty_res = self.lookup_type_path(p);
+                let ctor_opt = self.lookup_promoted_ctor_path(p);
+                let use_promoted = match (&ty_res, &ctor_opt) {
+                    (Err(_), Some(_)) => true,
+                    (Ok(ti), Some(ci)) => {
+                        let expect_parent = matches!(
+                            expected_data,
+                            Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                        );
+                        expect_parent || (args.len() == ci.field_tys.len() && args.len() != ti.arity)
+                    }
+                    _ => false,
+                };
+                if use_promoted {
+                    let ci = ctor_opt.unwrap();
+                    let mut arg_tys = Vec::with_capacity(args.len());
+                    for a in args {
+                        match a {
+                            Arg::Ty(t) => arg_tys.push(t),
+                            Arg::Row(r) => {
+                                return Err(Error::at(
+                                    r.span,
+                                    "effect rows cannot be passed to a promoted data constructor",
+                                ));
+                            }
+                        }
+                    }
+                    return self.conv_promoted_ctor(&ci, &arg_tys, vars, expected_data, *span);
+                }
+                let ti = ty_res.map_err(|_| {
                     Error::at(*span, format!("unknown type {}", p.parts().join(".")))
-                })?)
+                })?;
+                if self.idx_type_families.contains(&ti.identity) {
+                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                    }
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                            p.parts().join(".")
+                        ),
+                    ));
+                }
+                Some(ti)
             }
             _ => None,
         };
@@ -10075,6 +10186,9 @@ impl Checker {
                         Some(ParamKind::Region) => self.conv_kind(&t, vars, Some(&ParamKind::Region))?,
                         Some(ParamKind::Val(vty)) => {
                             Ty::Idx(Box::new(self.conv_idx(&t, vars, vty)?))
+                        }
+                        Some(ParamKind::Data(dty)) => {
+                            self.conv_promoted(&t, vars, Some(dty))?
                         }
                         Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(&t, vars)?)),
                         Some(k @ ParamKind::Con(_)) => {
@@ -10094,14 +10208,18 @@ impl Checker {
                     // A universe argument claims `Type : Type`: `Type n`
                     // has kind `Type (n + 1)` (core specification
                     // section 2), so it cannot fill a `Type 0` slot.
-                    if let Ty::Sort(Sort::Type(n)) = &arg {
-                        return Err(Error::at(
-                            t.span(),
-                            format!(
-                                "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
-                                n + 1
-                            ),
-                        ));
+                    // Inside a kind annotation (`List (Nat, Type)` / `List Type`),
+                    // `Type` is a valid kind component.
+                    if !self.in_kind_annotation.get() {
+                        if let Ty::Sort(Sort::Type(n)) = &arg {
+                            return Err(Error::at(
+                                t.span(),
+                                format!(
+                                    "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
+                                    n + 1
+                                ),
+                            ));
+                        }
                     }
                     result = self.type_app(result, arg, head_span)?;
                 }
@@ -10188,38 +10306,82 @@ impl Checker {
                         if let Some(s) = c_abi_scalar(name) {
                             return Ok(Ty::Prim(s));
                         }
-                        let info = self.lookup_type_path(p).map_err(|_| {
-                            Error::at(*span, format!("unknown type {}", parts.join(".")))
-                        })?;
-                        if self.idx_type_families.contains(&info.identity) {
-                            return Err(Error::at(
-                                *span,
-                                format!(
-                                    "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
-                                    parts.join(".")
-                                ),
-                            ));
+                        let expected_data = match expect {
+                            Some(ParamKind::Data(d)) => Some(d),
+                            _ => None,
+                        };
+                        match self.lookup_type_path(p) {
+                            Ok(info) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    let expect_parent = matches!(
+                                        expected_data,
+                                        Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                                    );
+                                    if expect_parent {
+                                        return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                    }
+                                }
+                                if self.idx_type_families.contains(&info.identity) {
+                                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                                    }
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                            parts.join(".")
+                                        ),
+                                    ));
+                                }
+                                // Full application is enforced by `conv_type`; here a
+                                // bare constructor may still collect arguments.
+                                Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                            }
+                            Err(_) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                }
+                                Err(Error::at(*span, format!("unknown type {}", parts.join("."))))
+                            }
                         }
-                        // Full application is enforced by `conv_type`; here a
-                        // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
                     }
                     _ => {
-                        let info = self.lookup_type_path(p).map_err(|_| {
-                            Error::at(*span, format!("unknown type {}", parts.join(".")))
-                        })?;
-                        if self.idx_type_families.contains(&info.identity) {
-                            return Err(Error::at(
-                                *span,
-                                format!(
-                                    "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
-                                    parts.join(".")
-                                ),
-                            ));
+                        let expected_data = match expect {
+                            Some(ParamKind::Data(d)) => Some(d),
+                            _ => None,
+                        };
+                        match self.lookup_type_path(p) {
+                            Ok(info) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    let expect_parent = matches!(
+                                        expected_data,
+                                        Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
+                                    );
+                                    if expect_parent {
+                                        return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                    }
+                                }
+                                if self.idx_type_families.contains(&info.identity) {
+                                    if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                                        return Ok(Ty::Idx(Box::new(self.conv_idx(ty, vars, &Ty::Nat)?)));
+                                    }
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                            parts.join(".")
+                                        ),
+                                    ));
+                                }
+                                Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
+                            }
+                            Err(_) => {
+                                if let Some(ci) = self.lookup_promoted_ctor_path(p) {
+                                    return self.conv_promoted_ctor(&ci, &[], vars, expected_data, *span);
+                                }
+                                Err(Error::at(*span, format!("unknown type {}", parts.join("."))))
+                            }
                         }
-                        // Full application is enforced by `conv_type`; here a
-                        // bare constructor may still collect arguments.
-                        Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
                     }
                 }
             }
@@ -10328,10 +10490,24 @@ impl Checker {
                     Ok(Ty::Tuple(vec![dom, cod]))
                 }
             }
-            ast::Type::Num(_, span) => Err(Error::at(
-                *span,
-                "a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)",
-            )),
+            ast::Type::Num(s, span) => {
+                if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                    Ok(Ty::Idx(Box::new(ITerm::Num(s.clone().into()))))
+                } else {
+                    Err(Error::at(
+                        *span,
+                        "a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)",
+                    ))
+                }
+            }
+            ast::Type::StrLit(s, _) => Ok(Ty::Adt(format!("\"{s}\"").into(), Vec::new())),
+            ast::Type::List(_, _) => {
+                let expected_data = match expect {
+                    Some(ParamKind::Data(d)) => Some(d),
+                    _ => None,
+                };
+                self.conv_promoted(ty, vars, expected_data)
+            }
             ast::Type::Infix(_, _, span) => Err(Error::at(
                 *span,
                 "internal error: unresolved infix chain in a type",
@@ -10340,6 +10516,13 @@ impl Checker {
             ast::Type::Tuple(items, span) => {
                 if items.len() < 2 {
                     return Err(Error::at(*span, "a tuple type needs at least two components"));
+                }
+                if expect.is_none() || matches!(expect, Some(ParamKind::Data(_))) {
+                    let expected_data = match expect {
+                        Some(ParamKind::Data(d)) => Some(d),
+                        _ => None,
+                    };
+                    return self.conv_promoted(ty, vars, expected_data);
                 }
                 Ok(Ty::Tuple(
                     items
@@ -10353,8 +10536,9 @@ impl Checker {
 
     /// What a binder's annotation binds: a universe binds a type
     /// parameter, `Prop` binds a proposition, `Type -> ... -> Type` binds
-    /// a type constructor parameter of that arity, and any other
-    /// annotation is the type of an index value (`(n :: Nat)`).
+    /// a type constructor parameter of that arity, a nominal data/tuple type
+    /// (`List (Nat, Type)`, `Layout`, `String`, ...) binds a promoted data
+    /// kind, and scalar/function carriers bind index values (`(n :: Nat)`).
     fn binder_kind(&self, ann: &ast::Type, vars: &[String]) -> Result<ParamKind> {
         if let ast::Type::Con(p, _) = ann {
             match p.parts().as_slice() {
@@ -10391,7 +10575,365 @@ impl Checker {
             // An arrow chain ending anywhere else keeps its index-value
             // reading (`(h :: Int -> Int)` is a value binder).
         }
-        Ok(ParamKind::Val(self.conv_type(ann, vars)?))
+        let prev = self.in_kind_annotation.replace(true);
+        let converted = self.conv_type(ann, vars);
+        self.in_kind_annotation.set(prev);
+        let t = converted?;
+        if matches!(t, Ty::Adt(..) | Ty::Tuple(..)) {
+            Ok(ParamKind::Data(t))
+        } else {
+            Ok(ParamKind::Val(t))
+        }
+    }
+
+    fn is_scalar_idx_ty(ty: &Ty) -> bool {
+        matches!(ty, Ty::Nat | Ty::Int | Ty::Bool | Ty::Prim(_) | Ty::Bytes | Ty::Sym)
+    }
+
+    fn lookup_promoted_ctor_path(&self, path: &ast::ConPath) -> Option<PromotedCtorInfo> {
+        let parts = path.parts();
+        let val = if parts.len() == 1 {
+            self.lookup_value(None, parts[0]).ok()?
+        } else {
+            let qual = parts[..parts.len() - 1].join(".");
+            self.lookup_value(Some(&qual), parts[parts.len() - 1]).ok()?
+        };
+        let ValueKind::Ctor { field_tys, ty_params, .. } = &val.kind else {
+            return None;
+        };
+        let mut cur = &val.scheme.ty;
+        loop {
+            match cur {
+                Ty::Fun(_, _, _, res) | Ty::Pi { cod: res, .. } => cur = res,
+                _ => break,
+            }
+        }
+        let Ty::Adt(parent_id, parent_args) = cur else {
+            return None;
+        };
+        Some(PromotedCtorInfo {
+            module: val.module.clone(),
+            name: val.name.clone(),
+            identity: format!("ctor:{}.{}", val.module, val.name),
+            parent_identity: parent_id.to_string(),
+            parent_args: parent_args.clone(),
+            ty_params: ty_params.clone(),
+            field_tys: field_tys.clone(),
+        })
+    }
+
+    fn subst_promoted_params(ty: &Ty, env: &HashMap<String, Ty>) -> Ty {
+        if env.is_empty() {
+            return ty.clone();
+        }
+        match ty {
+            Ty::Param(p) => env.get(p.as_str()).cloned().unwrap_or_else(|| ty.clone()),
+            Ty::Adt(n, args) => Ty::Adt(
+                n.clone(),
+                args.iter().map(|a| Self::subst_promoted_params(a, env)).collect(),
+            ),
+            Ty::Tuple(args) => {
+                Ty::Tuple(args.iter().map(|a| Self::subst_promoted_params(a, env)).collect())
+            }
+            Ty::Fun(a, m, e, b) => Ty::fun_mult(
+                Self::subst_promoted_params(a, env),
+                *m,
+                e.clone(),
+                Self::subst_promoted_params(b, env),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    fn conv_promoted_ctor(
+        &self,
+        ci: &PromotedCtorInfo,
+        args: &[ast::Type],
+        vars: &[String],
+        expected_kind: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<Ty> {
+        if args.len() > ci.field_tys.len() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "promoted constructor {} expects {} argument{}, got {}",
+                    ci.name,
+                    ci.field_tys.len(),
+                    if ci.field_tys.len() == 1 { "" } else { "s" },
+                    args.len()
+                ),
+            ));
+        }
+        let mut param_env: HashMap<String, Ty> = HashMap::new();
+        if let Some(ek) = expected_kind {
+            let zek = self.uni.zonk(ek);
+            match &zek {
+                Ty::Adt(ek_id, ek_args) => {
+                    if ek_id.as_str() != ci.parent_identity.as_str()
+                        && !self.uni.is_type_family(ek_id.as_str())
+                    {
+                        return Err(Error::at(
+                            span,
+                            crate::diagnostic!(
+                                "promoted constructor {} has kind {}, expected {}",
+                                ci.name,
+                                Ty::Adt(ci.parent_identity.clone().into(), Vec::new()),
+                                zek
+                            ),
+                        ));
+                    }
+                    for (pa, ea) in ci.parent_args.iter().zip(ek_args.iter()) {
+                        if let Ty::Param(p) = pa {
+                            param_env.insert(p.to_string(), ea.clone());
+                        }
+                    }
+                }
+                Ty::Param(_) | Ty::Meta(_) | Ty::Sort(_) => {}
+                other => {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!(
+                            "promoted constructor {} belongs to data type {}, expected {}",
+                            ci.name,
+                            Ty::Adt(ci.parent_identity.clone().into(), Vec::new()),
+                            other
+                        ),
+                    ));
+                }
+            }
+        }
+        let mut conv_args = Vec::with_capacity(args.len());
+        for (i, arg) in args.iter().enumerate() {
+            let field_ty = Self::subst_promoted_params(&ci.field_tys[i], &param_env);
+            let elem_expected = match &field_ty {
+                Ty::Param(_) => None,
+                other => Some(other),
+            };
+            conv_args.push(self.conv_promoted_elem(arg, vars, elem_expected)?);
+        }
+        Ok(Ty::Adt(ci.identity.clone().into(), conv_args))
+    }
+
+    fn conv_promoted_elem(
+        &self,
+        arg: &ast::Type,
+        vars: &[String],
+        expected_ty: Option<&Ty>,
+    ) -> Result<Ty> {
+        match expected_ty {
+            Some(Ty::Sort(Sort::Type(_))) => self.conv_type(arg, vars),
+            Some(Ty::Sort(Sort::Prop)) => Ok(Ty::Prp(Box::new(self.conv_prop(arg, vars)?))),
+            Some(ek) if Self::is_scalar_idx_ty(ek) => {
+                Ok(Ty::Idx(Box::new(self.conv_idx(arg, vars, ek)?)))
+            }
+            Some(ek @ (Ty::Adt(..) | Ty::Tuple(..))) => self.conv_promoted(arg, vars, Some(ek)),
+            _ => {
+                if let ast::Type::Var(n, _) = arg {
+                    if let Some((_, carrier)) = self
+                        .index_carriers
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(b, _)| b == &n.text)
+                    {
+                        if Self::is_scalar_idx_ty(carrier) {
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                    }
+                }
+                self.conv_promoted(arg, vars, None)
+            }
+        }
+    }
+
+    fn conv_promoted(
+        &self,
+        ty: &ast::Type,
+        vars: &[String],
+        expected_kind: Option<&Ty>,
+    ) -> Result<Ty> {
+        let expected_zonked = expected_kind.map(|k| self.uni.zonk(k));
+        let ek_ref = expected_zonked.as_ref();
+        match ty {
+            ast::Type::List(items, span) => {
+                let elem_kind = match ek_ref {
+                    None | Some(Ty::Param(_)) | Some(Ty::Meta(_)) => None,
+                    Some(Ty::Adt(id, args))
+                        if id.as_str() == crate::known::LIST || id.as_str() == "List" =>
+                    {
+                        args.first()
+                    }
+                    Some(Ty::Adt(id, _)) if self.uni.is_type_family(id.as_str()) => None,
+                    Some(other) => {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level list has kind `List _`, expected {}",
+                                other
+                            ),
+                        ));
+                    }
+                };
+                let mut acc = Ty::Adt(crate::types::PROMOTED_NIL.into(), Vec::new());
+                for item in items.iter().rev() {
+                    let elem = self.conv_promoted_elem(item, vars, elem_kind)?;
+                    acc = Ty::Adt(crate::types::PROMOTED_CONS.into(), vec![elem, acc]);
+                }
+                Ok(acc)
+            }
+            ast::Type::Tuple(items, span) => {
+                if items.len() < 2 {
+                    return Err(Error::at(*span, "a tuple type needs at least two components"));
+                }
+                match ek_ref {
+                    Some(Ty::Tuple(eks)) => {
+                        if eks.len() != items.len() {
+                            return Err(Error::at(
+                                *span,
+                                crate::diagnostic!(
+                                    "type-level tuple has {} components, expected {}",
+                                    items.len(),
+                                    Ty::Tuple(eks.clone())
+                                ),
+                            ));
+                        }
+                        let mut out = Vec::with_capacity(items.len());
+                        for (item, ek) in items.iter().zip(eks.iter()) {
+                            out.push(self.conv_promoted_elem(item, vars, Some(ek))?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    None | Some(Ty::Param(_)) | Some(Ty::Meta(_)) => {
+                        let mut out = Vec::with_capacity(items.len());
+                        for item in items {
+                            out.push(self.conv_promoted_elem(item, vars, None)?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    Some(Ty::Adt(id, _)) if self.uni.is_type_family(id.as_str()) => {
+                        let mut out = Vec::with_capacity(items.len());
+                        for item in items {
+                            out.push(self.conv_promoted_elem(item, vars, None)?);
+                        }
+                        Ok(Ty::Tuple(out))
+                    }
+                    Some(other) => Err(Error::at(
+                        *span,
+                        crate::diagnostic!(
+                            "type-level tuple is not a promoted value of kind {}",
+                            other
+                        ),
+                    )),
+                }
+            }
+            ast::Type::StrLit(s, span) => {
+                if let Some(other) = ek_ref {
+                    let is_string = matches!(
+                        other,
+                        Ty::Param(_) | Ty::Meta(_)
+                    ) || matches!(
+                        other,
+                        Ty::Adt(id, _) if id.as_str() == crate::known::STRING
+                            || id.as_str() == "String"
+                            || self.uni.is_type_family(id.as_str())
+                    );
+                    if !is_string {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level string literal \"{}\" has kind `String`, expected {}",
+                                s,
+                                other
+                            ),
+                        ));
+                    }
+                }
+                Ok(Ty::Adt(format!("\"{s}\"").into(), Vec::new()))
+            }
+            ast::Type::Num(s, span) => {
+                if let Some(other) = ek_ref {
+                    let is_num = matches!(
+                        other,
+                        Ty::Nat | Ty::Int | Ty::Prim(_) | Ty::Param(_) | Ty::Meta(_)
+                    );
+                    if !is_num {
+                        return Err(Error::at(
+                            *span,
+                            crate::diagnostic!(
+                                "type-level numeral `{}` has kind `Nat`, expected {}",
+                                s,
+                                other
+                            ),
+                        ));
+                    }
+                }
+                Ok(Ty::Idx(Box::new(ITerm::Num(s.clone().into()))))
+            }
+            ast::Type::Var(n, _) => {
+                if vars.contains(&n.text) {
+                    if let Some(ek) = ek_ref {
+                        if Self::is_scalar_idx_ty(ek) {
+                            self.note_kind(&n.text, ParamKind::Val(ek.clone()));
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                        if matches!(ek, Ty::Sort(Sort::Type(_))) {
+                            self.note_kind(&n.text, ParamKind::Type);
+                            return Ok(Ty::Param(n.text.clone().into()));
+                        }
+                        self.note_kind(&n.text, ParamKind::Data(ek.clone()));
+                        return Ok(Ty::Param(n.text.clone().into()));
+                    }
+                    if let Some((_, carrier)) = self
+                        .index_carriers
+                        .borrow()
+                        .iter()
+                        .rev()
+                        .find(|(b, _)| b == &n.text)
+                    {
+                        if Self::is_scalar_idx_ty(carrier) {
+                            return Ok(Ty::Idx(Box::new(ITerm::Var(n.text.clone().into()))));
+                        }
+                    }
+                    Ok(Ty::Param(n.text.clone().into()))
+                } else {
+                    Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
+                }
+            }
+            _ => {
+                let expect_pk = ek_ref.map(|d| ParamKind::Data(d.clone()));
+                let res = self.conv_raw(ty, vars, expect_pk.as_ref())?;
+                if let Some(ek @ (Ty::Adt(..) | Ty::Tuple(..))) = ek_ref {
+                    let zres = self.uni.zonk(&res);
+                    let ok = match &zres {
+                        Ty::Param(_) | Ty::Meta(_) | Ty::App(..) => true,
+                        Ty::Adt(id, _)
+                            if id.starts_with("ctor:")
+                                || self.uni.is_type_family(id.as_str()) =>
+                        {
+                            true
+                        }
+                        Ty::Adt(id, _) if id.starts_with("\"") => matches!(
+                            ek,
+                            Ty::Adt(eid, _) if eid.as_str() == crate::known::STRING || eid.as_str() == "String"
+                        ),
+                        Ty::Tuple(_) => matches!(ek, Ty::Tuple(_)),
+                        _ => false,
+                    };
+                    if !ok {
+                        return Err(Error::at(
+                            ty.span(),
+                            crate::diagnostic!(
+                                "type {} is not a promoted value of kind {}",
+                                zres,
+                                ek
+                            ),
+                        ));
+                    }
+                }
+                Ok(res)
+            }
+        }
     }
 
     /// Resolve one binder's kind from its annotation and its recorded
@@ -10445,12 +10987,20 @@ impl Checker {
             // The classification axis must be consistent: a binder used
             // both as a type and as an index value needs an annotation.
             let axis = |k: &ParamKind| match k {
-                ParamKind::Type => 0u8,
+                ParamKind::Type | ParamKind::Data(_) => 0u8,
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
                 ParamKind::Con(_) => 3,
                 ParamKind::Region => 4,
             };
+            // A binder annotated with a data type (`forall (xs :: List U32)`)
+            // may be used either as a promoted type-level data parameter OR
+            // (in equations/laws) as a value-level index parameter.
+            if let ParamKind::Data(carrier) = hint {
+                if !uses.is_empty() && uses.iter().all(|k| matches!(k, ParamKind::Val(_))) {
+                    return Ok(ParamKind::Val(carrier.clone()));
+                }
+            }
             if let Some(k) = uses.iter().find(|k| axis(k) != axis(hint)) {
                 let _ = k;
                 return Err(Error::at(
@@ -10484,7 +11034,7 @@ impl Checker {
         // value uses only fix the axis, not the index type (the
         // annotation, or the first value use, supplies the type).
         let axis = |k: &ParamKind| match k {
-            ParamKind::Type => 0u8,
+            ParamKind::Type | ParamKind::Data(_) => 0u8,
             ParamKind::Val(_) => 1,
             ParamKind::Prop => 2,
             ParamKind::Con(_) => 3,
@@ -10602,7 +11152,7 @@ impl Checker {
             }
             if row_params.contains(&name) || region_params.contains(&name) { continue; }
             match self.resolve_binder_kind(&name, hint.as_ref(), &constraints, binder_span)? {
-                ParamKind::Type => params.push(name),
+                ParamKind::Type | ParamKind::Data(_) => params.push(name),
                 ParamKind::Con(n) => { con_params.push((name.clone(), n)); params.push(name); }
                 ParamKind::Region | ParamKind::Val(_) | ParamKind::Prop => return Err(Error::at(binder_span, format!(
                     "the nested forall binder `{name}` is used as a value or proposition; a nested quantifier binds only types, effect rows and regions"))),
@@ -10708,7 +11258,9 @@ impl Checker {
                     let carriers_start = self.index_carriers.borrow().len();
                     self.index_carriers.borrow_mut().extend(binders.iter().filter_map(|(name, kind, _)| {
                         match kind {
-                            Some(ParamKind::Val(carrier)) => Some((name.clone(), carrier.clone())),
+                            Some(ParamKind::Val(carrier)) | Some(ParamKind::Data(carrier)) => {
+                                Some((name.clone(), carrier.clone()))
+                            }
                             Some(ParamKind::Prop) => Some((name.clone(), Ty::Sort(Sort::Prop))),
                             _ => None,
                         }
@@ -10830,7 +11382,7 @@ impl Checker {
                         let kind =
                             self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                         match kind {
-                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Type | ParamKind::Data(_) => type_params.push(name),
                             ParamKind::Con(n) => {
                                 con_params.push((name.clone(), n));
                                 type_params.push(name);

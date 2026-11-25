@@ -3454,16 +3454,43 @@ impl EffRow {
     }
 }
 
+/// Canonical promoted type identities for `Data.Core.Nil` and `Data.Core.Cons`
+/// used when desugaring type-level list literals (`[]`, `[a, b, c]`).
+pub const PROMOTED_NIL: &str = "ctor:Data.Core.Nil";
+pub const PROMOTED_CONS: &str = "ctor:Data.Core.Cons";
+
+/// If `ty` is a proper promoted type-level list (`Nil` or right-nested `Cons`
+/// ending in `Nil`), return its element slice in order.
+pub fn extract_promoted_list<'a>(mut ty: &'a Ty) -> Option<Vec<&'a Ty>> {
+    let mut elems = Vec::new();
+    loop {
+        match ty {
+            Ty::Adt(t, args) if t == PROMOTED_NIL && args.is_empty() => return Some(elems),
+            Ty::Adt(t, args) if t == PROMOTED_CONS && args.len() == 2 => {
+                elems.push(&args[0]);
+                ty = &args[1];
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Whether a type needs parentheses when it appears as an ARGUMENT of an
 /// applied type constructor (`List (List a)`, `Option (List a)`,
 /// `List (a -> b)` in the arrows it emits itself). Types that already
-/// print their own delimiters (tuples, arrows, Pis, Sigmas, handlers) do
+/// print their own delimiters (tuples, lists, arrows, Pis, Sigmas, handlers) do
 /// not; a nullary constructor or a variable is atomic. Without this the
 /// rendered contract text is not re-parseable, which matters because an
 /// interface's rendered scheme is the contract a consumer reads.
 fn needs_parens_as_argument(t: &Ty) -> bool {
     match t {
-        Ty::Adt(_, args) => !args.is_empty(),
+        Ty::Adt(_, args) => {
+            if extract_promoted_list(t).is_some() {
+                false
+            } else {
+                !args.is_empty()
+            }
+        }
         Ty::App(..)
         | Ty::Thunk { .. }
         | Ty::Later(_)
@@ -3499,6 +3526,21 @@ impl Spell for Ty {
             Ty::Region(r) => write!(f, "{r}"),
             Ty::Meta(MetaId(m)) => write!(f, "?m{m}"),
             Ty::Adt(t, args) => {
+                // Proper promoted type-level lists print as `[t1, t2, ...]`.
+                if let Some(elems) = extract_promoted_list(self) {
+                    write!(f, "[")?;
+                    for (i, a) in elems.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", s.of(*a))?;
+                    }
+                    return write!(f, "]");
+                }
+                // Promoted type-level string literals (`"batch"`).
+                if t.starts_with("\"") && args.is_empty() {
+                    return write!(f, "{t}");
+                }
                 // The anonymous former prints as it is written: the
                 // predicate parenthesized and a renamed binder (`$it`)
                 // back to a plain name, so an interface's rendering reads
@@ -3515,7 +3557,8 @@ impl Spell for Ty {
                         write!(f, "refined ({}) {}", s.of(&p), s.of(base))
                     };
                 }
-                s.nominal(f, t)?;
+                let display_head = t.strip_prefix("ctor:").unwrap_or(t.as_str());
+                s.nominal(f, display_head)?;
                 for a in args {
                     if needs_parens_as_argument(a) {
                         write!(f, " ({})", s.of(a))?;
@@ -4240,6 +4283,9 @@ fn match_ty_pat(
                 ty_eq(prev, arg)
             } else {
                 ty_env.insert(v.to_string(), arg.clone());
+                if let Ty::Idx(it) = arg {
+                    idx_env.insert(v.to_string(), it.normalize());
+                }
                 true
             }
         }

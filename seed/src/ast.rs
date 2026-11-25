@@ -314,12 +314,17 @@ pub enum Type {
     /// grammar, which has tuple expressions but no tuple types (decision D1
     /// in `compiler/CONFORMANCE.md`).
     Tuple(Vec<Type>, Span),
+    /// Type-level list literal `[T1, ..., Tn]` or `[]`, desugared to promoted
+    /// `Cons` / `Nil` data constructors (e.g. `NDArray [(10, I32), (20, I32)]`).
+    List(Vec<Type>, Span),
     /// Infix chain awaiting fixity resolution (`n + 1` in an index
     /// position, `length bytes <= limit` in a proposition), resolved by the
     /// fixity pass into nested `App` spines over the operator names.
     Infix(Vec<Type>, Vec<Name>, Span),
-    /// A numeral in index position (`Vec 0 a`).
+    /// A numeral in index or promoted-literal position (`Vec 0 a`, `(10, I32)`).
     Num(String, Span),
+    /// A type-level string literal (`"batch"`, `"height"`).
+    StrLit(String, Span),
 }
 
 impl Type {
@@ -340,8 +345,10 @@ impl Type {
             | Type::Lam(_, _, s)
             | Type::Unit(s)
             | Type::Tuple(_, s)
+            | Type::List(_, s)
             | Type::Infix(_, _, s)
-            | Type::Num(_, s) => *s,
+            | Type::Num(_, s)
+            | Type::StrLit(_, s) => *s,
         }
     }
 }
@@ -769,11 +776,11 @@ impl Type {
                 visit_obligation_types(obligations, visit);
                 body.visit_mut(visit);
             }
-            Type::Tuple(types, _) | Type::Infix(types, _, _) => {
+            Type::Tuple(types, _) | Type::List(types, _) | Type::Infix(types, _, _) => {
                 for ty in types { ty.visit_mut(visit); }
             }
             Type::Elaborated(..) | Type::IndexOperand(..) | Type::Con(..)
-            | Type::Var(..) | Type::Unit(..) | Type::Num(..) => {}
+            | Type::Var(..) | Type::Unit(..) | Type::Num(..) | Type::StrLit(..) => {}
         }
         visit(self);
     }
@@ -2046,7 +2053,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
     }
     match t {
         Type::Con(p, span) => out.push(ref_of_path(RefKind::Type, &p.segments, *span)),
-        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Elaborated(_, _) | Type::IndexOperand(..) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) | Type::StrLit(_, _) => {}
         Type::App(a, b, _) | Type::IndexAnnotated(a, b, _) => {
             collect_type_refs(a, out);
             collect_type_refs(b, out);
@@ -2081,7 +2088,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
             collect_type_refs(a, out);
             collect_type_refs(b, out);
         }
-        Type::Tuple(ts, _) => {
+        Type::Tuple(ts, _) | Type::List(ts, _) => {
             for x in ts {
                 collect_type_refs(x, out);
             }
@@ -2559,6 +2566,13 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
             }
             Type::Tuple(out, *s)
         }
+        Type::List(ts, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_type(x, cx, sc)?);
+            }
+            Type::List(out, *s)
+        }
         Type::Infix(ts, ops, s) => {
             let mut out = Vec::new();
             for x in ts {
@@ -2567,6 +2581,7 @@ fn hyg_type_scoped(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> 
             Type::Infix(out, ops.clone(), *s)
         }
         Type::Num(v, s) => Type::Num(v.clone(), *s),
+        Type::StrLit(v, s) => Type::StrLit(v.clone(), *s),
     })
 }
 

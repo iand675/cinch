@@ -399,3 +399,312 @@ fn nd_array_tensor_boundary_stencil_and_histogram_across_ranks() {
 "#,
     );
 }
+
+#[test]
+fn ndarray_type_level_dim_list_3d_end_to_end() {
+    run_cinch(
+        "ndarray_dim_list_3d",
+        &[],
+        r#"module Main where
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Array.ND
+  import Data.Machine
+
+  -- Compile-time shape algebra over `[(10, Int32), (20, Int32), (30, Int32)]`
+  -- AND `[2, 3, 4]` without any `Dim ... Z` chaining!
+  check-list-algebra ::
+    using (
+      Rank [(10, Int32), (20, Int32), (30, Int32)] == 3,
+      Size [(10, Int32), (20, Int32), (30, Int32)] == 6000,
+      HeadDim [(10, Int32), (20, Int32), (30, Int32)] == 10,
+      LastDim [(10, Int32), (20, Int32), (30, Int32)] == 30,
+      Rank [2, 3, 4] == 3,
+      Size [2, 3, 4] == 24
+    ) => Int -> Int
+  check-list-algebra x = x
+
+  -- Explicitly typed 3D array: `NDArray [(10, Int32), (20, Int32), (30, Int32)]`!
+  mk-cube :: Unit -> NDArray [(10, Int32), (20, Int32), (30, Int32)]
+  mk-cube _ =
+    let w = DWAxis 10 (DWAxis 20 (DWAxis 30 DWEmpty))
+    in ndarray-tabulate-i32 w (\k -> if k <= 1000000 then wrapping-i64-to-i32 (nat-to-i64 k) else 0)
+
+  -- Transpose swaps the two outer axes in the type: `[(10, Int32), (20, Int32), (30, Int32)]`
+  -- -> `[(20, Int32), (10, Int32), (30, Int32)]`.
+  swap-cube :: NDArray [(10, Int32), (20, Int32), (30, Int32)] -> NDArray [(20, Int32), (10, Int32), (30, Int32)]
+  swap-cube a = ndarray-transpose a
+
+  -- Compile-time size-checked reshape: `10 x 20 x 30` (6000) -> `200 x 30` (6000).
+  flatten-outer :: NDArray [(10, Int32), (20, Int32), (30, Int32)] -> Option (NDArray [(200, Int32), (30, Int32)])
+  flatten-outer a =
+    let w2 = DWAxis 200 (DWAxis 30 DWEmpty)
+    in ndarray-reshape a w2
+
+  -- Reduce innermost axis: `[(10, Int32), (20, Int32), (30, Int32)]` -> `[(10, Int32), (20, Int32)]`.
+  sum-last :: NDArray [(10, Int32), (20, Int32), (30, Int32)] -> NDArray [(10, Int32), (20, Int32)]
+  sum-last a = ndarray-reduce-last-i32 a ReduceAddWrap
+
+  -- Convert `NDArray [(10, Int32), (20, Int32), (30, Int32)]` -> `NDView [10, 20, 30] I32`.
+  as-view :: NDArray [(10, Int32), (20, Int32), (30, Int32)] -> NDView [10, 20, 30] I32
+  as-view a = ndarray-to-view a
+
+  -- Also exercise `NDView [2, 3, 4] F32` directly with promoted list shape!
+  mk-f32-list-view :: Unit -> NDView [2, 3, 4] F32
+  mk-f32-list-view _ =
+    let w = SWCons 2 (SWCons 3 (SWCons 4 SWNil))
+    in nd-tabulate-f32 w (\k -> if k <= 1000 then i64-to-f32 (nat-to-i64 (k + 1)) else 0.0)
+
+  transpose-list-view :: NDView [2, 3, 4] F32 -> NDView [3, 2, 4] F32
+  transpose-list-view v = nd-transpose v
+
+  main :: Int
+  main =
+    let cube = mk-cube ()
+        swapped = swap-cube cube
+        reduced = sum-last cube
+        view3 = as-view cube
+        fview = transpose-list-view (mk-f32-list-view ())
+    in if ndarray-rank cube /= 3 || ndarray-size cube /= 6000 then 1
+       else if ndarray-rank swapped /= 3 || ndarray-size swapped /= 6000 then 2
+       else if ndarray-rank reduced /= 2 || ndarray-size reduced /= 200 then 3
+       else if nd-rank view3 /= 3 || nd-size view3 /= 6000 then 4
+       else if nd-rank fview /= 3 || nd-size fview /= 24 then 5
+       else case flatten-outer cube of
+         None -> 6
+         Some mat ->
+           if ndarray-rank mat /= 2 || ndarray-size mat /= 6000 then 7
+           else case decide (2 < 10) of
+             No _ -> 8
+             Yes b2 -> case decide (3 < 20) of
+               No _ -> 9
+               Yes b3 -> case decide (5 < 30) of
+                 No _ -> 10
+                 Yes b5 ->
+                   -- Original (2, 3, 5) = 2*600 + 3*30 + 5 = 1295;
+                   -- In swapped (3, 2, 5) it must read the exact same element 1295!
+                   let c-orig = DCoordCons (Fin 2 b2) (DCoordCons (Fin 3 b3) (DCoordCons (Fin 5 b5) DCoordEmpty))
+                       c-swap = DCoordCons (Fin 3 b3) (DCoordCons (Fin 2 b2) (DCoordCons (Fin 5 b5) DCoordEmpty))
+                   in case ndarray-get cube c-orig of
+                     None -> 11
+                     Some v1 -> case ndarray-get swapped c-swap of
+                       None -> 12
+                       Some v2 ->
+                         -- First row of `reduced` sums 0..29 = 435!
+                         case decide (0 < 10) of
+                           No _ -> 13
+                           Yes b010 -> case decide (0 < 20) of
+                             No _ -> 14
+                             Yes b020 ->
+                               let c00 = DCoordCons (Fin 0 b010) (DCoordCons (Fin 0 b020) DCoordEmpty)
+                               in case ndarray-get reduced c00 of
+                                 None -> 15
+                                 Some row0 ->
+                                   if i32-to-i64 v1 == 1295 && i32-to-i64 v2 == 1295 && i32-to-i64 row0 == 435
+                                   then check-list-algebra 0
+                                   else 16
+"#,
+    );
+}
+
+#[test]
+fn promoted_data_types_string_literals_and_type_level_arithmetic() {
+    run_cinch(
+        "promoted_data_and_lits",
+        &[(
+            "Layouts.cinch",
+            r#"module Layouts where
+  import Data.Core
+  import Data.Nat
+  import Data.String
+
+  -- Ordinary data declarations whose constructors promote automatically
+  -- to the type level (DataKinds-style), even across module boundaries!
+  data Layout where
+    RowMajor :: Layout
+    ColMajor :: Layout
+
+  -- Data type whose constructor shares the SAME name as its parent type
+  -- and carries both a `Nat` index and a `Type` field!
+  data Axis where
+    Axis :: Nat -> Type -> Axis
+
+  type family FlipLayout (l :: Layout) :: Layout where
+    FlipLayout RowMajor = ColMajor
+    FlipLayout ColMajor = RowMajor
+
+  type family AxisExtent (ax :: Axis) :: Nat where
+    AxisExtent (Axis n _) = n
+
+  type family AxisElem (ax :: Axis) :: Type where
+    AxisElem (Axis _ t) = t
+
+  type family NamedSize (axes :: List (String, Nat)) :: Nat where
+    NamedSize [] = 1
+    NamedSize (Cons (_, n) rest) = n * NamedSize rest
+
+  type family HasBatchAxis (axes :: List (String, Nat)) :: Nat where
+    HasBatchAxis (Cons ("batch", _) _) = 1
+    HasBatchAxis _ = 0
+
+  export Layout, RowMajor, ColMajor
+  export Axis
+  export FlipLayout, AxisExtent, AxisElem, NamedSize, HasBatchAxis
+"#,
+        )],
+        r#"module Main where
+  import Data.Core
+  import Data.Array
+  import Data.Array.Packed
+  import Data.Array.Compute
+  import Data.Array.ND
+  import Data.Machine
+  import Data.String
+  import Layouts
+
+  -- GADT indexed by promoted `Layout` constructors!
+  data Matrix (l :: Layout) (m :: Nat) (n :: Nat) a where
+    RowMat :: Array a -> Matrix RowMajor m n a
+    ColMat :: Array a -> Matrix ColMajor m n a
+
+  -- Named tensor indexed by type-level list of `(String, Nat)` literal pairs!
+  data NamedTensor (axes :: List (String, Nat)) a where
+    MkNamed :: Array a -> NamedTensor axes a
+
+  -- Same-named promoted data constructor `Axis 16 Int32` as a type index!
+  data AxisBuf (ax :: Axis) where
+    MkAxisBuf :: Array (AxisElem ax) -> AxisBuf ax
+
+  transpose-layout :: forall (m :: Nat) (n :: Nat) a. Matrix RowMajor m n a -> Matrix (FlipLayout RowMajor) n m a
+  transpose-layout mat = case mat of
+    RowMat buf -> ColMat buf
+
+  -- Type-level arithmetic inside promoted list & tuple literals!
+  mk-arith-nd :: (d :: Nat) -> NDArray [(d + 1, Int32), (d * 2, Int32)]
+  mk-arith-nd d =
+    let w = DWAxis (d + 1) (DWAxis (d * 2) DWEmpty)
+    in ndarray-tabulate-i32 w (\k -> if k <= 1000 then wrapping-i64-to-i32 (nat-to-i64 k) else 0)
+
+  verify-proofs ::
+    using (
+      AxisExtent (Axis 16 Int32) == 16,
+      NamedSize [("batch", 2), ("height", 4), ("width", 8)] == 64,
+      HasBatchAxis [("batch", 2), ("height", 4)] == 1,
+      HasBatchAxis [("height", 4), ("width", 8)] == 0
+    ) => Int -> Int
+  verify-proofs x = x
+
+  main :: Int
+  main =
+    let rm = (RowMat (array-from-f32s [1, 2, 3, 4, 5, 6]) :: Matrix RowMajor 2 3 F32)
+        cm = (transpose-layout rm :: Matrix ColMajor 3 2 F32)
+        nt = (MkNamed (array-tabulate-f32 64 (\_ -> 1.0)) :: NamedTensor [("batch", 2), ("height", 4), ("width", 8)] F32)
+        ab = (MkAxisBuf (array-tabulate-i32 16 (\_ -> 7)) :: AxisBuf (Axis 16 Int32))
+        ar = (mk-arith-nd 3 :: NDArray [(4, Int32), (6, Int32)])
+    in case cm of
+      ColMat b -> case nt of
+        MkNamed nb -> case ab of
+          MkAxisBuf axbuf ->
+            if array-length b == 6 && array-length nb == 64 && array-length axbuf == 16 && ndarray-size ar == 24
+            then verify-proofs 0
+            else 1
+"#,
+    );
+}
+
+#[test]
+fn promoted_data_and_ndarray_compile_time_rejections() {
+    // 1. Shape mismatch between `NDArray [(10, Int32), (20, Int32)]` and `[(10, Int32), (21, Int32)]`.
+    expect_build_error(
+        "nd_err_list_shape_mismatch",
+        &[],
+        r#"module Main where
+  import Data.Array.ND
+  need21 :: NDArray [(10, Int32), (21, Int32)] -> Nat
+  need21 a = ndarray-size a
+  main :: Int
+  main =
+    let w = DWAxis 10 (DWAxis 20 DWEmpty)
+        a = (ndarray-tabulate-i32 w (\_ -> 0) :: NDArray [(10, Int32), (20, Int32)])
+        _ = need21 a
+    in 0
+"#,
+        &["20", "21"],
+    );
+
+    // 2. Reshape size mismatch on `NDArray`: 10*20 = 200 /= 10*21 = 210.
+    expect_build_error(
+        "nd_err_list_reshape_size",
+        &[],
+        r#"module Main where
+  import Data.Array.ND
+  bad :: NDArray [(10, Int32), (20, Int32)] -> Option (NDArray [(10, Int32), (21, Int32)])
+  bad a = ndarray-reshape a (DWAxis 10 (DWAxis 21 DWEmpty))
+  main :: Int
+  main = 0
+"#,
+        &["200", "210"],
+    );
+
+    // 3. Kind error: passing `[10, 20]` (`List Nat`) where `List (Nat, Type)` is required.
+    expect_build_error(
+        "nd_err_kind_list_nat_not_pair",
+        &[],
+        r#"module Main where
+  import Data.Array.ND
+  bad :: NDArray [10, 20] -> Nat
+  bad a = ndarray-size a
+  main :: Int
+  main = 0
+"#,
+        &["numeral", "expected"],
+    );
+
+    // 4. Kind error: swapped tuple component kinds `[(Int32, 10)]` instead of `[(10, Int32)]`.
+    expect_build_error(
+        "nd_err_kind_swapped_tuple",
+        &[],
+        r#"module Main where
+  import Data.Array.ND
+  bad :: NDArray [(Int32, 10)] -> Nat
+  bad a = ndarray-size a
+  main :: Int
+  main = 0
+"#,
+        &["index"],
+    );
+
+    // 5. Kind error: passing a plain type `Int32` where `List (Nat, Type)` is expected.
+    expect_build_error(
+        "nd_err_kind_plain_type",
+        &[],
+        r#"module Main where
+  import Data.Array.ND
+  bad :: NDArray Int32 -> Nat
+  bad a = ndarray-size a
+  main :: Int
+  main = 0
+"#,
+        &["not a promoted value"],
+    );
+
+    // 6. Kind error: wrong promoted data constructor (`Some 1` where `Layout` is expected).
+    expect_build_error(
+        "nd_err_kind_wrong_ctor",
+        &[],
+        r#"module Main where
+  import Data.Core
+  data Layout where
+    RowMajor :: Layout
+    ColMajor :: Layout
+  data Tagged (l :: Layout) where
+    MkTagged :: Tagged l
+  bad :: Tagged (Some 1) -> Int
+  bad _ = 0
+  main :: Int
+  main = 0
+"#,
+        &["promoted constructor", "expected"],
+    );
+}
