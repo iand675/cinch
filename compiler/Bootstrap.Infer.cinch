@@ -6,6 +6,7 @@ module Bootstrap.Infer where
   import Bootstrap.Ast
   import Bootstrap.Kinds (symbolic-effect-spelling, KindDeclarations, kind-declarations, declared-kinds, declaration-kind-index, add-kind-declaration, kind-at)
   import Bootstrap.Type
+  import Bootstrap.Promote
   import Bootstrap.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
   import Bootstrap.Index
   import Bootstrap.Total
@@ -33,7 +34,7 @@ module Bootstrap.Infer where
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
-  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-data-string-length, global-stage-code, global-stage-str-nat)
+  import Bootstrap.Nominal (kernel-type-name, interface-global, encode-identity, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved, qualify-refinement-predicate, resolved-measures, global-data-core-cons, global-data-core-list, global-data-core-nil, global-data-core-option, global-data-core-some, global-data-core-none, global-data-core-result, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list, global-data-string-string, global-data-string-length, global-stage-code, global-stage-str-nat)
   import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-span)
   import Bootstrap.Document
   import Data.List (sort-by)
@@ -55,7 +56,7 @@ module Bootstrap.Infer where
   export scalar-intrinsic-scheme, scalar-promise-matches
   export scalar-interface-contract-matches
   export elaboration-declarations, elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
-  export elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds
+  export elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns
   export PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd
   export PromotedCtorInfo, MkPromotedCtor, promoted-ctor-symbol, promoted-ctor-parent, promoted-ctor-fields
   export DataFamilyInfo, MkDataFamily, data-family-name, data-family-params, data-family-patterns, data-family-ctors
@@ -113,13 +114,13 @@ module Bootstrap.Infer where
   data-family-ctors df = case df of MkDataFamily name params pats ctors -> ctors
 
   data FamilyContext where
-    MkFamilyContext :: List TypeFamilyRuleSet -> List DataFamilyInfo -> List PromotedCtorInfo -> List (String, List (Option PromotedDataKind)) -> FamilyContext
+    MkFamilyContext :: List TypeFamilyRuleSet -> List DataFamilyInfo -> List PromotedCtorInfo -> List (String, List (Option PromotedDataKind)) -> List PromotedFn -> List (String, String) -> FamilyContext
   empty-family-context :: FamilyContext
-  empty-family-context = MkFamilyContext Nil Nil Nil Nil
+  empty-family-context = MkFamilyContext Nil Nil Nil Nil Nil Nil
   merge-family-contexts :: FamilyContext -> FamilyContext -> FamilyContext
   merge-family-contexts a b = case (a, b) of
-    (MkFamilyContext tf1 df1 pc1 pk1, MkFamilyContext tf2 df2 pc2 pk2) ->
-      MkFamilyContext (tf1 <> tf2) (df1 <> df2) (pc1 <> pc2) (pk1 <> pk2)
+    (MkFamilyContext tf1 df1 pc1 pk1 pf1 pr1, MkFamilyContext tf2 df2 pc2 pk2 pf2 pr2) ->
+      MkFamilyContext (tf1 <> tf2) (df1 <> df2) (pc1 <> pc2) (pk1 <> pk2) (pf1 <> pf2) (pr1 <> pr2)
 
   -- | Elaboration state including sealed primitive evidence that interfaces cannot grant.
   data TypeContext where
@@ -210,25 +211,35 @@ module Bootstrap.Infer where
   context-with-family-context :: FamilyContext -> TypeContext -> TypeContext
   context-with-family-context fams context = case context of MkTypeContext handling kinds aliases active observers effects source-classes payloads old -> MkTypeContext handling kinds aliases active observers effects source-classes payloads fams
   context-type-families :: TypeContext -> List TypeFamilyRuleSet
-  context-type-families context = case context-family-context context of MkFamilyContext tfs dfs pcs pks -> tfs
+  context-type-families context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> tfs
   context-data-families :: TypeContext -> List DataFamilyInfo
-  context-data-families context = case context-family-context context of MkFamilyContext tfs dfs pcs pks -> dfs
+  context-data-families context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> dfs
   context-promoted-ctors :: TypeContext -> List PromotedCtorInfo
-  context-promoted-ctors context = case context-family-context context of MkFamilyContext tfs dfs pcs pks -> pcs
+  context-promoted-ctors context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> pcs
   context-data-param-kinds :: TypeContext -> List (String, List (Option PromotedDataKind))
-  context-data-param-kinds context = case context-family-context context of MkFamilyContext tfs dfs pcs pks -> pks
+  context-data-param-kinds context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> pks
+  context-promoted-fns :: TypeContext -> List PromotedFn
+  context-promoted-fns context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> pfs
+  context-promoted-rejections :: TypeContext -> List (String, String)
+  context-promoted-rejections context = case context-family-context context of MkFamilyContext tfs dfs pcs pks pfs prs -> prs
   context-set-type-families :: List TypeFamilyRuleSet -> TypeContext -> TypeContext
   context-set-type-families tfs context = case context-family-context context of
-    MkFamilyContext old dfs pcs pks -> context-with-family-context (MkFamilyContext tfs dfs pcs pks) context
+    MkFamilyContext old dfs pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs pcs pks pfs prs) context
   context-set-data-families :: List DataFamilyInfo -> TypeContext -> TypeContext
   context-set-data-families dfs context = case context-family-context context of
-    MkFamilyContext tfs old pcs pks -> context-with-family-context (MkFamilyContext tfs dfs pcs pks) context
+    MkFamilyContext tfs old pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs pcs pks pfs prs) context
   context-add-promoted-ctor :: PromotedCtorInfo -> TypeContext -> TypeContext
   context-add-promoted-ctor info context = case context-family-context context of
-    MkFamilyContext tfs dfs pcs pks -> context-with-family-context (MkFamilyContext tfs dfs (Cons info pcs) pks) context
+    MkFamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs (Cons info pcs) pks pfs prs) context
   context-add-data-param-kinds :: String -> List (Option PromotedDataKind) -> TypeContext -> TypeContext
   context-add-data-param-kinds name pdks context = case context-family-context context of
-    MkFamilyContext tfs dfs pcs pks -> context-with-family-context (MkFamilyContext tfs dfs pcs (Cons (name, pdks) pks)) context
+    MkFamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs pcs (Cons (name, pdks) pks) pfs prs) context
+  context-add-promoted-fn :: PromotedFn -> TypeContext -> TypeContext
+  context-add-promoted-fn fn context = case context-family-context context of
+    MkFamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs pcs pks (Cons fn pfs) prs) context
+  context-add-promoted-rejection :: String -> String -> TypeContext -> TypeContext
+  context-add-promoted-rejection name reason context = case context-family-context context of
+    MkFamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (MkFamilyContext tfs dfs pcs pks pfs (Cons (name, reason) prs)) context
   -- The whole-environment projections the checker asks for once per name use,
   -- folded once when the module environment is sealed. A projection of an
   -- environment longer than the sealed one is the same fold over the local
@@ -412,13 +423,15 @@ module Bootstrap.Infer where
   elaboration-instances :: Elaboration -> List CoreInstance
   elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> instances; other -> Nil
   elaboration-type-families :: Elaboration -> List TypeFamilyRuleSet
-  elaboration-type-families e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks) -> tfs; other -> Nil
+  elaboration-type-families e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks pfs prs) -> tfs; other -> Nil
   elaboration-data-families :: Elaboration -> List DataFamilyInfo
-  elaboration-data-families e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks) -> dfs; other -> Nil
+  elaboration-data-families e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks pfs prs) -> dfs; other -> Nil
   elaboration-promoted-ctors :: Elaboration -> List PromotedCtorInfo
-  elaboration-promoted-ctors e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks) -> pcs; other -> Nil
+  elaboration-promoted-ctors e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks pfs prs) -> pcs; other -> Nil
   elaboration-data-param-kinds :: Elaboration -> List (String, List (Option PromotedDataKind))
-  elaboration-data-param-kinds e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks) -> pks; other -> Nil
+  elaboration-data-param-kinds e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks pfs prs) -> pks; other -> Nil
+  elaboration-promoted-fns :: Elaboration -> List PromotedFn
+  elaboration-promoted-fns e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (MkFamilyContext tfs dfs pcs pks pfs prs) -> pfs; other -> Nil
   -- The verified temporal contracts, in declaration order (core
   -- specification section 10): the interface facts and manifest rows.
   elaboration-temporal :: Elaboration -> List TemporalRow
@@ -571,7 +584,7 @@ module Bootstrap.Infer where
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
   primitive-kinds =
-    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
+    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType), ("Sing", KFun KType (KFun KType KType)), ("Same", KFun KType (KFun KType KType))] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
     MkTypeContext False (kind-declarations builtins) (Nil, hash-map-empty, hash-map-empty, hash-map-empty, RecordIndex hash-map-empty None) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads empty-family-context
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
@@ -652,7 +665,7 @@ module Bootstrap.Infer where
     Cons fs rest -> same name (family-identity fs) || is-type-family-in name rest
   is-promoted-data-type :: TypeContext -> String -> Bool
   is-promoted-data-type kinds name =
-    if is-scalar-carrier-name name || has name ["Type", "Prop", "Region", "Effect", "Row", "Ref", "Mut", "Thunk", "Lazy", "Later", "Copy", "Kernel", "Share", "Array", "b.Io", "b.Scope", "b.Task", "b.Dec", "(->)"]
+    if is-scalar-carrier-name name || has name ["Type", "Prop", "Region", "Effect", "Row", "Ref", "Mut", "Thunk", "Lazy", "Later", "Copy", "Kernel", "Share", "Array", "Sing", "Same", "b.Io", "b.Scope", "b.Task", "b.Dec", "(->)"]
     then False
     else case (find-refinement name kinds, context-kind name kinds) of
       (Some _, _) -> False
@@ -1061,32 +1074,45 @@ module Bootstrap.Infer where
       None -> case convert-promoted-tuple external kinds locals s None args st of (xs, sx) -> (UTuple xs, sx)
       Some (PDKTuple elem-pdks) -> case convert-promoted-tuple external kinds locals s (Some elem-pdks) args st of (xs, sx) -> (UTuple xs, sx)
       Some other -> bad s (string-concat "promoted tuple does not match expected kind " (pdk-text other)) st
+    TIndexLambda s param body ->
+      case compile-type-expr-to-pexpr [param] body of
+        Some pbody ->
+          case fresh-id st of
+            (lid, s1) ->
+              let lam-name = "$tylam_" <> nat-to-string lid in
+              let pfn = MkPromotedFn lam-name 1 False [MkPClause (PPArg (PPVar param) PPEnd) pbody] in
+              (UCon ("fn:" <> lam-name) (promoted-fn-kind 1 False), add-promoted-fn pfn s1)
+        None -> bad s "type-level lambda body cannot be promoted" st
     TName s name -> case lookup-local name locals of
       Some found -> case expected of
         Some PDKNat | not (is-nat-kind (type-kind found)) -> bad s (string-concat-all ["expected Nat index, found ", name]) st
         other -> (found, st)
-      None -> case expected of
-        Some PDKType -> convert external kinds locals ty st
-        Some PDKNat -> (case convert-index external kinds locals (UCon "Nat" KType) ty st of
-          (v, sv) -> if store-error-count sv > store-error-count st then
-            bad s (string-concat-all ["expected Nat index, found ", diagnostic-member-name name]) st
-            else (v, sv))
-        other -> case lookup-promoted-ctor kinds name of
-          Some info ->
-            if pdk-arity (promoted-ctor-fields info) /= 0 then
-              bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " requires arguments"]) st
-            else if promoted-ctor-ok-for-pdk info expected then
-              (UCon (promoted-ctor-symbol info) KType, st)
-            else bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " does not match expected kind ", case expected of Some e -> pdk-text e; None -> "Data"]) st
-          None -> case expected of
-            None -> convert external kinds locals ty st
-            Some exp-pdk ->
-              if is-type-family-in name (context-type-families kinds) then
-                (case convert external kinds locals ty st of
-                  (raw, sr) -> let red = normalize sr raw in
-                    if reduced-fits-pdk red exp-pdk then (raw, sr)
-                    else bad s (string-concat-all [diagnostic-member-name name, " is not a promoted value of expected kind ", pdk-text exp-pdk]) sr)
-              else bad s (string-concat-all [diagnostic-member-name name, " is not a promoted value of expected kind ", pdk-text exp-pdk]) st
+      None -> case lookup-promoted-rejection kinds name of
+        Some reason -> bad s reason st
+        None -> case expected of
+          Some PDKType -> convert external kinds locals ty st
+          Some PDKNat -> (case convert-index external kinds locals (UCon "Nat" KType) ty st of
+            (v, sv) -> if store-error-count sv > store-error-count st then
+              bad s (string-concat-all ["expected Nat index, found ", diagnostic-member-name name]) st
+              else (v, sv))
+          other -> case lookup-promoted-ctor kinds name of
+            Some info ->
+              if pdk-arity (promoted-ctor-fields info) /= 0 then
+                bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " requires arguments"]) st
+              else if promoted-ctor-ok-for-pdk info expected then
+                (UCon (promoted-ctor-symbol info) KType, st)
+              else bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " does not match expected kind ", case expected of Some e -> pdk-text e; None -> "Data"]) st
+            None -> case lookup-promoted-fn-in kinds name of
+              Some (canon, arity, ret-idx) -> (UCon ("fn:" <> canon) (promoted-fn-kind arity ret-idx), st)
+              None -> case expected of
+                None -> convert external kinds locals ty st
+                Some exp-pdk ->
+                  if is-type-family-in name (context-type-families kinds) then
+                    (case convert external kinds locals ty st of
+                      (raw, sr) -> let red = normalize sr raw in
+                        if reduced-fits-pdk red exp-pdk then (raw, sr)
+                        else bad s (string-concat-all [diagnostic-member-name name, " is not a promoted value of expected kind ", pdk-text exp-pdk]) sr)
+                  else bad s (string-concat-all [diagnostic-member-name name, " is not a promoted value of expected kind ", pdk-text exp-pdk]) st
     TApp s head args -> case source-type-application head args of
       (TName at name, actuals) ->
         if is-promoted-cons-name name then
@@ -1101,14 +1127,18 @@ module Bootstrap.Infer where
                   (utl, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) uhd) utl, s2)
             (Some exp-pdk, _) -> bad s (string-concat-all ["promoted constructor Cons does not match expected kind ", pdk-text exp-pdk]) st
             other -> bad s "promoted constructor Cons takes 2 arguments" st)
-        else case lookup-promoted-ctor kinds name of
-          Some info | (case expected of Some PDKType -> False; other -> True) ->
-            if not (promoted-ctor-ok-for-pdk info expected) then
-              bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " does not match expected kind ", case expected of Some e -> pdk-text e; None -> "Data"]) st
-            else convert-promoted-ctor-args external kinds locals s (UCon (promoted-ctor-symbol info) (pdk-ctor-kind (promoted-ctor-fields info))) (promoted-ctor-fields info) actuals st
-          other -> case expected of
-            Some PDKNat -> convert-index external kinds locals (UCon "Nat" KType) ty st
-            other -> convert external kinds locals ty st
+        else case lookup-promoted-rejection kinds name of
+          Some reason -> bad s reason st
+          None -> case lookup-promoted-ctor kinds name of
+            Some info | (case expected of Some PDKType -> False; other -> True) ->
+              if not (promoted-ctor-ok-for-pdk info expected) then
+                bad s (string-concat-all ["promoted constructor ", diagnostic-member-name name, " does not match expected kind ", case expected of Some e -> pdk-text e; None -> "Data"]) st
+              else convert-promoted-ctor-args external kinds locals s (UCon (promoted-ctor-symbol info) (pdk-ctor-kind (promoted-ctor-fields info))) (promoted-ctor-fields info) actuals st
+            other -> case lookup-promoted-fn-in kinds name of
+              Some (canon, arity, ret-idx) -> convert-promoted-fn-app external kinds locals s canon arity ret-idx actuals st
+              None -> case expected of
+                Some PDKNat -> convert-index external kinds locals (UCon "Nat" KType) ty st
+                other -> convert external kinds locals ty st
       other -> convert external kinds locals ty st
     other -> case expected of
       Some PDKType -> convert external kinds locals ty st
@@ -1138,8 +1168,28 @@ module Bootstrap.Infer where
     TFun s a b -> convert-arrow external kinds locals s a None b st
     TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Eq" ->
       convert-predicate external kinds locals ty st
+    TApp s (TName at name) (TArg first arg (TArgsEnd end)) | same name "Sing" ->
+      case convert-promoted external kinds locals None arg st of
+        (raw-val, s1) ->
+          let val = normalize s1 raw-val in
+          case infer-sing-carrier kinds locals val s1 of
+            (carrier, s2) ->
+              let nc = normalize s2 carrier in
+              if ty-contains-erased-universe nc then
+                bad s "cannot form runtime Sing over erased Type universe" s2
+              else (make-sing-type nc val, s2)
+    TApp s (TName at name) (TArg first a (TArg second b (TArgsEnd end))) | same name "Same" ->
+      case convert-promoted external kinds locals None a st of
+        (ta, s1) -> case convert-promoted external kinds locals None b s1 of
+          (tb, s2) -> (make-same-type (normalize s2 ta) (normalize s2 tb), s2)
     TApp s head args -> case source-type-application head args of
       (TName at name, actuals) | is-promoted-cons-name name ->
+        convert-promoted external kinds locals None ty st
+      (TName at name, actuals) | (case lookup-promoted-rejection kinds name of Some _ -> True; None -> False) ->
+        convert-promoted external kinds locals None ty st
+      (TName at name, actuals) | (case (lookup-promoted-fn-in kinds name, context-kind name kinds) of
+        (Some _, None) -> True
+        other -> False) ->
         convert-promoted external kinds locals None ty st
       (TName at name, actuals) | (case (lookup-promoted-ctor kinds name, context-kind name kinds) of
         (Some info, None) -> True
@@ -1449,19 +1499,31 @@ module Bootstrap.Infer where
         Some element -> convert-predicate-index external kinds locals carrier input st
         None -> convert-byte-operand external kinds locals sp input st)
     None -> convert-byte-operand external kinds locals sp input st
+  is-promoted-value-utype :: UType -> Bool
+  is-promoted-value-utype ty = case ty of
+    UCon name _ -> promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name
+    UApp f _ -> is-promoted-value-utype f
+    other -> False
+
   convert-index-application :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> Store -> (UType, Store)
   convert-index-application external kinds locals sp name args st =
     if is-type-family-in name (context-type-families kinds) then
       (case convert external kinds locals (TApp sp (TName sp name) args) st of
         (value, checked) -> (normalize checked value, checked))
-    else case (builtin-index-measure name, args) of
-    (Some WordToNat, TArg arg input (TArgsEnd end)) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
-      (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
-    (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-length-operand external kinds locals sp input st of
-      (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
-    (Some measure, other) -> bad sp "builtin index measure needs exactly one operand" st
-    (None, TArg arg input (TArgsEnd end)) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
-    other -> convert-total-call external kinds locals sp name args st
+    else case lookup-promoted-rejection kinds name of
+      Some reason -> bad sp reason st
+      None -> (if is-promoted-length-call kinds locals name args then
+        convert-promoted-fn-app external kinds locals sp "Data.List.length" 1 True args st
+        else case lookup-promoted-fn-in kinds name of
+          Some (canon, arity, ret-idx) -> convert-promoted-fn-app external kinds locals sp canon arity ret-idx args st
+          other -> (case (builtin-index-measure name, args) of
+            (Some WordToNat, TArg arg input (TArgsEnd end)) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
+              (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
+            (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-length-operand external kinds locals sp input st of
+              (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
+            (Some measure, other) -> bad sp "builtin index measure needs exactly one operand" st
+            (None, TArg arg input (TArgsEnd end)) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
+            other -> convert-total-call external kinds locals sp name args st))
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
   convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
     (Nil, TArgsEnd sp) -> (UEnd, st)
@@ -1570,13 +1632,17 @@ module Bootstrap.Infer where
   convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-index external kinds locals carrier syntax st = case syntax of
     TUnmodeled at message | not (same message "") -> bad at message st
+    TStrLit sp text -> (UCon ("\"" <> text <> "\"") KType, st)
     TApp sp (TName at name) arguments ->
       if is-type-family-in name (context-type-families kinds) then
         (case convert external kinds locals syntax st of
           (value, checked) -> let reduced = normalize checked value in
-            (reduced, unify-kind sp (type-kind reduced) (value-kind carrier) checked))
+            if is-promoted-value-utype reduced then (reduced, checked)
+            else (reduced, unify-kind sp (type-kind reduced) (value-kind carrier) checked))
       else (case convert-index-application external kinds locals sp name arguments st of
-        (value, checked) -> (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
+        (value, checked) ->
+          if is-promoted-value-utype value then (value, checked)
+          else (value, unify-kind sp (type-kind value) (value-kind carrier) checked))
     TIndex sp text -> case index-number text of
       Some n -> checked-source-index sp carrier (IInteger n) st
       None -> bad sp "index literal is not a mathematical integer" st
@@ -1584,7 +1650,11 @@ module Bootstrap.Infer where
       Some value -> let checked = unify-kind sp (type-kind value) (value-kind carrier) st in
         checked-typed-source-index sp value checked
       None ->
-        if is-type-family-in name (context-type-families kinds) then
+        if same name "True" && same-shape (normalize st carrier) (primitive-type "Bool") then
+          (UCon "ctor:True" KType, st)
+        else if same name "False" && same-shape (normalize st carrier) (primitive-type "Bool") then
+          (UCon "ctor:False" KType, st)
+        else if is-type-family-in name (context-type-families kinds) then
           (case convert external kinds locals syntax st of
             (value, checked) -> let reduced = normalize checked value in
               (reduced, unify-kind sp (type-kind reduced) (value-kind carrier) checked))
@@ -1940,7 +2010,10 @@ module Bootstrap.Infer where
         None -> case value-carrier domain of
           Some carrier -> convert-index external kinds locals carrier arg st
           None -> if kind-equal domain KProp then convert-predicate external kinds locals arg st else convert external kinds locals arg st) of
-          (x, sx) -> let checked = unify-kind s domain (type-kind x) sx in
+          (x, sx) ->
+            let checked = case domain of
+                  KValue _ | is-promoted-value-utype (normalize sx x) -> sx
+                  other -> unify-kind s domain (type-kind x) sx in
             convert-args-pdk external kinds locals sp (type-application head x) more-pdks rest checked
       other -> bad sp "type constructor is applied to too many arguments" st
     other -> bad sp "malformed type argument spine" st
@@ -2039,12 +2112,46 @@ module Bootstrap.Infer where
         if arity == 0 then p else MkTypeParam sp name (Some (constructor-kind-syntax sp arity)) only
       other -> p) (infer-forall-parameters kinds locals all rest body)
 
+  pdk-to-carrier :: TypeContext -> PromotedDataKind -> UType
+  pdk-to-carrier kinds pdk = case pdk of
+    PDKType -> UCon "Type" KType
+    PDKNat -> primitive-type "Nat"
+    PDKString -> literal-type kinds "String"
+    PDKList elem -> UApp (UCon global-data-core-list (KFun KType KType)) (pdk-to-carrier kinds elem)
+    PDKTuple fields -> UTuple (pdk-spine-to-carriers kinds fields)
+    PDKData name _ -> resolve-parent-carrier kinds name
+    other -> UCon "Type" KType
+
+  pdk-spine-to-carriers :: TypeContext -> PromotedDataKind -> UType
+  pdk-spine-to-carriers kinds spine = case spine of
+    PDKArg h rest -> UArg (pdk-to-carrier kinds h) (pdk-spine-to-carriers kinds rest)
+    other -> UEnd
+
+  param-carrier-locals :: TypeContext -> List TypeParam -> List (String, UType)
+  param-carrier-locals kinds ps = case ps of
+    Nil -> Nil
+    Cons p rest ->
+      let more = param-carrier-locals kinds rest in
+      case param-kind p of
+        Some ann ->
+          if is-type-expr-bool ann then Cons ("#carrier:" <> param-name p, primitive-type "Bool") more
+          else case parse-promoted-data-kind kinds ann of
+            Some pdk -> Cons ("#carrier:" <> param-name p, pdk-to-carrier kinds pdk) more
+            None -> more
+        None -> more
+
+  is-type-expr-bool :: TypeExpr -> Bool
+  is-type-expr-bool ty = case ty of TName _ name -> same name "Bool"; other -> False
+
   make-scheme :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   make-scheme external classes kinds inherited ty st = case ty of
-    TForall s binders body -> case parameters external kinds (quant-locals inherited)
-      (inferred-forall-parameters kinds (quant-locals inherited) (region-parameters (forall-params-of binders) (region-names body)) body)
-      (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
-        (local, checked) -> scheme-body-from external classes kinds (implicit-row-regions (inherited <> local) (latent-regions body)) body checked
+    TForall s binders body ->
+      let raw-ps = forall-params-of binders in
+      let clocals = param-carrier-locals kinds raw-ps in
+      case parameters external kinds (quant-locals inherited)
+        (inferred-forall-parameters kinds (quant-locals inherited) (region-parameters raw-ps (region-names body)) body)
+        (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
+          (local, checked) -> scheme-body-from-with external classes kinds clocals (implicit-row-regions (inherited <> local) (latent-regions body)) body checked
     other -> scheme-body-from external classes kinds (case inherited of Nil -> implicit-row-regions Nil (latent-regions ty); more -> inherited) ty st
 
   term-annotation-parameters :: List Quant -> Bool
@@ -2095,14 +2202,18 @@ module Bootstrap.Infer where
     other -> Nil
 
   scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
+  scheme-body-from external classes kinds qs ty st = scheme-body-from-with external classes kinds Nil qs ty st
+  scheme-body-from-with :: Bool -> List (String, Kind) -> TypeContext -> List (String, UType) -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
   -- An imported scheme keeps its defining module's dictionary order: the
   -- requirements are read in declaration order from the recorded source
   -- contract when the producer stored no resolved form.
-  scheme-body-from external classes kinds qs ty st = case ty of
-    TUsing s bounds body -> case convert-requirements classes kinds (quant-locals qs) bounds Nil st of
-      (requirements, sr) -> case convert-contracted external kinds (quant-locals qs) bounds body sr of
-        (out, so) -> (qualified qs requirements out, expect-declared s out so)
-    other -> case convert external kinds (quant-locals qs) ty st of (out, so) -> (MkScheme qs out, expect-declared (type-expr-span ty) out so)
+  scheme-body-from-with external classes kinds clocals qs ty st =
+    let q-locals = quant-locals qs <> clocals in
+    case ty of
+      TUsing s bounds body -> case convert-requirements classes kinds q-locals bounds Nil st of
+        (requirements, sr) -> case convert-contracted external kinds q-locals bounds body sr of
+          (out, so) -> (qualified qs requirements out, expect-declared s out so)
+      other -> case convert external kinds q-locals ty st of (out, so) -> (MkScheme qs out, expect-declared (type-expr-span ty) out so)
   convert-requirements :: List (String, Kind) -> TypeContext -> List (String, UType) -> TypeExpr -> List String -> Store -> (List Requirement, Store)
   convert-requirements classes kinds locals bounds seen st = case bounds of
     TBoundsEnd s -> (Nil, st)
@@ -2700,12 +2811,17 @@ module Bootstrap.Infer where
         import-data-param-kinds-json rest (context-add-data-param-kinds (interface-global identity) pdks kinds)
       other -> import-data-param-kinds-json rest kinds
     other -> kinds
+  import-promoted-fns-list :: List PromotedFn -> TypeContext -> TypeContext
+  import-promoted-fns-list fns kinds = case fns of
+    Nil -> kinds
+    Cons f rest -> import-promoted-fns-list rest (context-add-promoted-fn f kinds)
   import-interface-families :: Json -> TypeContext -> TypeContext
   import-interface-families exports kinds =
     let k1 = import-type-families-json (field "type_families" exports) kinds in
     let k2 = import-data-families-json (field "data_families" exports) k1 in
     let k3 = import-promoted-ctors-json (field "promoted_ctors" exports) k2 in
-    import-data-param-kinds-json (field "data_param_kinds" exports) k3
+    let k4 = import-data-param-kinds-json (field "data_param_kinds" exports) k3 in
+    import-promoted-fns-list (read-promoted-fns-json (field "promoted_fns" exports)) k4
   collect-kinds :: List Decl -> TypeContext -> Store -> (TypeContext, Store)
   collect-kinds ds kinds st = case ds of
     Nil -> (kinds, st)
@@ -3083,12 +3199,454 @@ module Bootstrap.Infer where
                           let upd = MkDataFamily name (data-family-params df) [lhs-tys] Nil in
                           collect-data-family-instances rest (context-set-data-families (upsert-data-family upd (context-data-families kinds)) kinds) s1
     Cons _ rest -> collect-data-family-instances rest kinds st
+  -- Native promoted function compilation & lookup helpers.
+  lookup-promoted-rejection :: TypeContext -> String -> Option String
+  lookup-promoted-rejection kinds name =
+    let canon = canonical-identity name in
+    find-promoted-rejection name canon (context-promoted-rejections kinds)
+
+  find-promoted-rejection :: String -> String -> List (String, String) -> Option String
+  find-promoted-rejection raw canon entries = case entries of
+    Nil -> None
+    Cons (k, msg) rest -> if same raw k || same canon k || same canon (canonical-identity k) then Some msg else find-promoted-rejection raw canon rest
+
+  lookup-promoted-fn-in :: TypeContext -> String -> Option (String, Nat, Bool)
+  lookup-promoted-fn-in kinds name =
+    let canon = canonical-identity name in
+    case lookup-promoted-fn canon (context-promoted-fns kinds) of
+      Some f -> Some (promoted-fn-identity f, promoted-fn-arity f, promoted-fn-returns-idx f)
+      None -> case promoted-builtin-arity canon of
+        Some arity -> Some (canon, arity, same canon "Data.List.length" || same canon "length")
+        None -> case promoted-builtin-arity name of
+          Some arity -> Some (name, arity, same name "Data.List.length" || same name "length")
+          None -> None
+
+  is-promoted-length-call :: TypeContext -> List (String, UType) -> String -> TypeExpr -> Bool
+  is-promoted-length-call kinds locals name args =
+    if not (same name "length" || same (canonical-identity name) "Data.List.length") then False
+    else case args of
+      TArg _ input (TArgsEnd _) -> case input of
+        TList _ _ -> True
+        TApp _ (TName _ head) _ -> (case lookup-promoted-fn-in kinds head of Some _ -> True; None -> is-promoted-cons-name head)
+        TName _ v -> (case lookup-local v locals of Some _ -> False; None -> same v "Nil" || same v global-data-core-nil)
+        other -> False
+      other -> False
+
+  parse-decimal-int :: String -> Option Int
+  parse-decimal-int s = case unpack s of
+    Nil -> None
+    Cons c rest ->
+      if char-code c == 45 then
+        (case parse-decimal-digits rest 0 of Some n -> Some (0 - n); None -> None)
+      else parse-decimal-digits (Cons c rest) 0
+
+  parse-decimal-digits :: List Char -> Int -> Option Int
+  parse-decimal-digits cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest ->
+      let code = char-code c in
+      if code >= 48 && code <= 57 then
+        parse-decimal-digits rest (acc * 10 + (nat-to-int code - 48))
+      else None
+
+  type-effect-names :: TypeExpr -> List String
+  type-effect-names ty = case ty of
+    TForall _ _ body -> type-effect-names body
+    TUsing _ _ body -> type-effect-names body
+    TUsageArrow _ _ body -> type-effect-names body
+    TFun _ _ b -> type-effect-names b
+    TFunEff _ _ row b -> row-effect-names row <> type-effect-names b
+    other -> Nil
+
+  row-effect-names :: TypeExpr -> List String
+  row-effect-names row = case row of
+    TRow _ labels _ -> row-labels-names labels
+    other -> Nil
+
+  row-labels-names :: TypeExpr -> List String
+  row-labels-names labels = case labels of
+    TArg _ (TName _ name) rest -> Cons (diagnostic-member-name name) (row-labels-names rest)
+    TArg _ (TApp _ (TName _ name) _) rest -> Cons (diagnostic-member-name name) (row-labels-names rest)
+    TArg _ _ rest -> row-labels-names rest
+    other -> Nil
+
+  sig-returns-nat :: TypeExpr -> Bool
+  sig-returns-nat ty = case ty of
+    TForall _ _ body -> sig-returns-nat body
+    TUsing _ _ body -> sig-returns-nat body
+    TUsageArrow _ _ body -> sig-returns-nat body
+    TFun _ _ b -> sig-returns-nat b
+    TFunEff _ _ _ b -> sig-returns-nat b
+    TName _ n -> same n "Nat"
+    other -> False
+
+  compile-promoted-binop :: String -> Option PBinOp
+  compile-promoted-binop op =
+    if same op "+" then Some PBAdd
+    else if same op "-" then Some PBSub
+    else if same op "*" then Some PBMul
+    else if same op "/" then Some PBDiv
+    else if same op "%" then Some PBMod
+    else if same op "==" then Some PBEq
+    else if same op "/=" then Some PBNe
+    else if same op "<" then Some PBLt
+    else if same op "<=" then Some PBLe
+    else if same op ">" then Some PBGt
+    else if same op ">=" then Some PBGe
+    else if same op "&&" then Some PBAnd
+    else if same op "||" then Some PBOr
+    else if same op "<>" then Some PBConcat
+    else None
+
+  compile-promoted-pat :: Pat -> Option (PPat, List String)
+  compile-promoted-pat p = case p of
+    PWild _ -> Some (PPWild, Nil)
+    PVar _ name -> Some (PPVar name, [name])
+    PLitInt _ text -> case parse-decimal-int text of Some n -> Some (PPNat n, Nil); None -> None
+    PLitStr _ text -> Some (PPStr text, Nil)
+    PFamilyCon _ fallback _ args -> compile-promoted-pat (PCon zero fallback args)
+    PCon _ name args ->
+      if same name "True" then Some (PPBool True, Nil)
+      else if same name "False" then Some (PPBool False, Nil)
+      else case compile-promoted-pat-list (pats-of args) of
+        Some (ps, vs) -> Some (PPCon (canonical-ctor-name name) ps, vs)
+        None -> None
+    PTuple _ args -> case compile-promoted-pat-list (pats-of args) of
+      Some (ps, vs) -> Some (PPTuple ps, vs)
+      None -> None
+    PList _ args -> compile-promoted-pat-list-elems (pats-of args)
+    PAnn _ inner _ -> compile-promoted-pat inner
+    other -> None
+
+  compile-promoted-pat-list :: List Pat -> Option (PPatList, List String)
+  compile-promoted-pat-list ps = case ps of
+    Nil -> Some (PPEnd, Nil)
+    Cons first rest -> case (compile-promoted-pat first, compile-promoted-pat-list rest) of
+      (Some (p, v1), Some (more, v2)) -> Some (PPArg p more, v1 <> v2)
+      other -> None
+
+  compile-promoted-pat-list-elems :: List Pat -> Option (PPat, List String)
+  compile-promoted-pat-list-elems ps = case ps of
+    Nil -> Some (PPCon promoted-nil-name PPEnd, Nil)
+    Cons first rest -> case (compile-promoted-pat first, compile-promoted-pat-list-elems rest) of
+      (Some (p, v1), Some (tl, v2)) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
+      other -> None
+
+  compile-promoted-expr :: List String -> Expr -> Option PExpr
+  compile-promoted-expr locals e = case e of
+    EVar _ name ->
+      if has name locals then Some (PEVar name)
+      else Some (PEFnRef (canonical-identity name))
+    ELitInt _ text -> case parse-decimal-int text of Some n -> Some (PENat n); None -> None
+    ELitStr _ text -> Some (PEStr text)
+    EUnit _ -> Some (PETuple PEEnd)
+    EFamilyCon _ fallback _ args -> compile-promoted-expr locals (ECon zero fallback args)
+    ECon _ name args ->
+      if same name "True" then Some (PEBool True)
+      else if same name "False" then Some (PEBool False)
+      else case compile-promoted-expr-list locals (exprs-of args) of
+        Some es -> Some (PECon (canonical-ctor-name name) es)
+        None -> None
+    ETuple _ args -> case compile-promoted-expr-list locals (exprs-of args) of
+      Some es -> Some (PETuple es)
+      None -> None
+    EList _ args -> compile-promoted-expr-list-elems locals (exprs-of args)
+    EApp _ (EApp _ (EVar _ op-name) a) b ->
+      case compile-promoted-binop (diagnostic-member-name op-name) of
+        Some pop -> (case (compile-promoted-expr locals a, compile-promoted-expr locals b) of
+          (Some pa, Some pb) -> Some (PEBin pop pa pb)
+          other -> None)
+        None -> (case (compile-promoted-expr locals (EApp zero (EVar zero op-name) a), compile-promoted-expr locals b) of
+          (Some pf, Some px) -> Some (PEApp pf px)
+          other -> None)
+    EApp _ f x -> case (compile-promoted-expr locals f, compile-promoted-expr locals x) of
+      (Some pf, Some px) -> Some (PEApp pf px)
+      other -> None
+    EBin _ op a b -> case (compile-promoted-binop op, compile-promoted-expr locals a, compile-promoted-expr locals b) of
+      (Some pop, Some pa, Some pb) -> Some (PEBin pop pa pb)
+      other -> None
+    ENeg _ x -> case compile-promoted-expr locals x of
+      Some px -> Some (PENeg px)
+      None -> None
+    ELam _ ps body -> compile-promoted-lam locals ps body
+    ELet _ bindings body -> compile-promoted-let locals bindings body
+    ELetScope _ inner -> compile-promoted-expr locals inner
+    EIf _ c y n -> case (compile-promoted-expr locals c, compile-promoted-expr locals y, compile-promoted-expr locals n) of
+      (Some pc, Some py, Some pn) -> Some (PEIf pc py pn)
+      other -> None
+    ECase _ scrut alts -> case (compile-promoted-expr locals scrut, compile-promoted-alts locals alts) of
+      (Some ps, Some palts) -> Some (PECase ps palts)
+      other -> None
+    EAnn _ inner _ -> compile-promoted-expr locals inner
+    other -> None
+
+  compile-promoted-expr-list :: List String -> List Expr -> Option PExprList
+  compile-promoted-expr-list locals es = case es of
+    Nil -> Some PEEnd
+    Cons first rest -> case (compile-promoted-expr locals first, compile-promoted-expr-list locals rest) of
+      (Some pe, Some more) -> Some (PEArg pe more)
+      other -> None
+
+  compile-promoted-expr-list-elems :: List String -> List Expr -> Option PExpr
+  compile-promoted-expr-list-elems locals es = case es of
+    Nil -> Some (PECon promoted-nil-name PEEnd)
+    Cons first rest -> case (compile-promoted-expr locals first, compile-promoted-expr-list-elems locals rest) of
+      (Some pe, Some tl) -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd)))
+      other -> None
+
+  compile-promoted-lam :: List String -> List Pat -> Expr -> Option PExpr
+  compile-promoted-lam locals ps body = case ps of
+    Nil -> compile-promoted-expr locals body
+    Cons (PVar _ name) rest -> case compile-promoted-lam (Cons name locals) rest body of
+      Some b -> Some (PELam name b)
+      None -> None
+    Cons (PWild _) rest -> case compile-promoted-lam locals rest body of
+      Some b -> Some (PELam "_" b)
+      None -> None
+    other -> None
+
+  compile-promoted-let :: List String -> Expr -> Expr -> Option PExpr
+  compile-promoted-let locals bindings body = case bindings of
+    EBindingsEnd _ -> compile-promoted-expr locals body
+    EBinding _ name rhs rest -> case (compile-promoted-expr locals rhs, compile-promoted-let (Cons name locals) rest body) of
+      (Some pr, Some pb) -> Some (PELet name pr pb)
+      other -> None
+    ELocalEnd _ -> compile-promoted-expr locals body
+    ELocalStrict _ (PVar _ name) rhs rest -> case (compile-promoted-expr locals rhs, compile-promoted-let (Cons name locals) rest body) of
+      (Some pr, Some pb) -> Some (PELet name pr pb)
+      other -> None
+    other -> None
+
+  compile-promoted-alts :: List String -> Expr -> Option PAltList
+  compile-promoted-alts locals alts = case alts of
+    EAltsEnd _ -> Some PAltEnd
+    EAlt _ pat body rest -> case compile-promoted-pat pat of
+      Some (pp, bound) -> case (compile-promoted-expr (bound <> locals) body, compile-promoted-alts locals rest) of
+        (Some pb, Some more) -> Some (PAltCons pp pb more)
+        other -> None
+      None -> None
+    other -> None
+
+  compile-promoted-clauses :: List (List Pat, Expr) -> Option (List PClause)
+  compile-promoted-clauses cs = case cs of
+    Nil -> Some Nil
+    Cons (ps, body) rest -> case compile-promoted-pat-list ps of
+      Some (pps, bound) -> case (compile-promoted-expr bound body, compile-promoted-clauses rest) of
+        (Some pb, Some more) -> Some (Cons (MkPClause pps pb) more)
+        other -> None
+      None -> None
+
+  lookup-sig-returns-nat :: String -> List Decl -> Bool
+  lookup-sig-returns-nat name ds = case ds of
+    Nil -> False
+    Cons (DSig _ n ty) rest -> if same name n then sig-returns-nat ty else lookup-sig-returns-nat name rest
+    Cons _ rest -> lookup-sig-returns-nat name rest
+
+  collect-promoted-rejections :: List Decl -> TypeContext -> TypeContext
+  collect-promoted-rejections ds kinds = case ds of
+    Nil -> kinds
+    Cons (DForeign _ _ _ symbol fname _) rest ->
+      let next = case array-plan symbol of
+            Some _ -> kinds
+            None -> context-add-promoted-rejection fname ("cannot promote foreign function `" <> diagnostic-member-name fname <> "` to the type level") kinds in
+      collect-promoted-rejections rest next
+    Cons (DSig _ name ty) rest ->
+      let next = case type-effect-names ty of
+            Nil -> kinds
+            Cons eff _ -> context-add-promoted-rejection name ("cannot promote effectful function `" <> diagnostic-member-name name <> "` (effect " <> eff <> ") to the type level") kinds in
+      collect-promoted-rejections rest next
+    Cons _ rest -> collect-promoted-rejections rest kinds
+
+  collect-promoted-fns :: List Decl -> List Decl -> TypeContext -> TypeContext
+  collect-promoted-fns all ds kinds = case ds of
+    Nil -> kinds
+    Cons (DFun _ name cs) rest ->
+      let next = case lookup-promoted-rejection kinds name of
+            Some _ -> kinds
+            None -> case lookup-promoted-fn-in kinds name of
+              Some _ -> kinds
+              None ->
+                let all-cs = function-clauses name all in
+                case all-cs of
+                  Nil -> kinds
+                  Cons (ps, _) _ ->
+                    let arity = list-length ps in
+                    case compile-promoted-clauses all-cs of
+                      Some pclauses ->
+                        let fn = MkPromotedFn (canonical-identity name) arity (lookup-sig-returns-nat name all) pclauses in
+                        context-add-promoted-fn fn kinds
+                      None -> kinds in
+      collect-promoted-fns all rest next
+    Cons _ rest -> collect-promoted-fns all rest kinds
+
+  compile-type-expr-to-pexpr :: List String -> TypeExpr -> Option PExpr
+  compile-type-expr-to-pexpr locals ty = case ty of
+    TName _ name ->
+      if has name locals then Some (PEVar name)
+      else if same name "True" then Some (PEBool True)
+      else if same name "False" then Some (PEBool False)
+      else if same name "Nil" || same name global-data-core-nil then Some (PECon promoted-nil-name PEEnd)
+      else Some (PEFnRef (canonical-identity name))
+    TIndex _ text -> case parse-decimal-int text of Some n -> Some (PENat n); None -> None
+    TStrLit _ text -> Some (PEStr text)
+    TNegate _ x -> case compile-type-expr-to-pexpr locals x of Some px -> Some (PENeg px); None -> None
+    TInfix _ op a b -> case (compile-promoted-binop op, compile-type-expr-to-pexpr locals a, compile-type-expr-to-pexpr locals b) of
+      (Some pop, Some pa, Some pb) -> Some (PEBin pop pa pb)
+      other -> None
+    TIndexLambda _ param body -> case compile-type-expr-to-pexpr (Cons param locals) body of
+      Some pb -> Some (PELam param pb)
+      None -> None
+    TTuple _ args -> case compile-type-exprs-to-pexprs locals (type-args-of args) of
+      Some es -> Some (PETuple es)
+      None -> None
+    TList _ args -> compile-type-list-to-pexpr locals (type-args-of args)
+    TApp _ head args -> case (compile-type-expr-to-pexpr locals head, compile-type-exprs-to-pexprs locals (type-args-of args)) of
+      (Some pf, Some es) -> Some (apply-pexpr-list pf es)
+      other -> None
+    other -> None
+
+  compile-type-exprs-to-pexprs :: List String -> List TypeExpr -> Option PExprList
+  compile-type-exprs-to-pexprs locals ts = case ts of
+    Nil -> Some PEEnd
+    Cons first rest -> case (compile-type-expr-to-pexpr locals first, compile-type-exprs-to-pexprs locals rest) of
+      (Some pe, Some more) -> Some (PEArg pe more)
+      other -> None
+
+  compile-type-list-to-pexpr :: List String -> List TypeExpr -> Option PExpr
+  compile-type-list-to-pexpr locals ts = case ts of
+    Nil -> Some (PECon promoted-nil-name PEEnd)
+    Cons first rest -> case (compile-type-expr-to-pexpr locals first, compile-type-list-to-pexpr locals rest) of
+      (Some pe, Some tl) -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd)))
+      other -> None
+
+  apply-pexpr-list :: PExpr -> PExprList -> PExpr
+  apply-pexpr-list fn args = case args of
+    PEEnd -> fn
+    PEArg first rest -> apply-pexpr-list (PEApp fn first) rest
+
+  -- Infer the runtime carrier type of a promoted type-level value for `Sing x`,
+  -- rejecting erased `Type` universe values.
+  ty-contains-erased-universe :: UType -> Bool
+  ty-contains-erased-universe ty = case ty of
+    UCon name k -> same name "Type"
+    UApp f x -> ty-contains-erased-universe f || ty-contains-erased-universe x
+    UTuple fields -> ty-contains-erased-universe fields
+    UArg a rest -> ty-contains-erased-universe a || ty-contains-erased-universe rest
+    other -> False
+
+  infer-sing-carrier :: TypeContext -> List (String, UType) -> UType -> Store -> (UType, Store)
+  infer-sing-carrier kinds locals val st =
+    let z = normalize st val in
+    case z of
+      UIndex carrier _ -> (carrier, st)
+      UIndexMath _ l _ -> infer-sing-carrier kinds locals l st
+      UCon name k ->
+        if promoted-str-name name then (literal-type kinds "String", st)
+        else if same name "ctor:True" || same name "ctor:False" then (primitive-type "Bool", st)
+        else if same name promoted-nil-name then
+          (case fresh-meta KType st of (el, s1) -> (UApp (UCon global-data-core-list (KFun KType KType)) el, s1))
+        else if promoted-ctor-name name then
+          (case find-promoted-ctor name (context-promoted-ctors kinds) of
+            Some info -> (resolve-parent-carrier kinds (promoted-ctor-parent info), st)
+            None -> (UCon "Type" KType, st))
+        else if same name "Nat" || same name "Int" || same name "Bool" || same name "String" || same name "Char" || same name "Unit" || same name "F32" || same name "F64" || same name "I8" || same name "I16" || same name "I32" || same name "I64" || same name "U8" || same name "U16" || same name "U32" || same name "U64" || is-scalar-carrier-name name then
+          (UCon "Type" KType, st)
+        else case context-kind name kinds of
+          Some _ -> (UCon "Type" KType, st)
+          None -> (UCon "Type" KType, st)
+      UBound _ _ (KValue c) -> (c, st)
+      URigid _ _ _ (KValue c) -> (c, st)
+      UMeta _ (KValue c) -> (c, st)
+      UBound _ name KType -> case lookup-local ("#carrier:" <> name) locals of
+        Some c -> (c, st)
+        None -> fresh-meta KType st
+      URigid _ name _ KType -> case lookup-local ("#carrier:" <> name) locals of
+        Some c -> (c, st)
+        None -> fresh-meta KType st
+      UMeta _ KType -> fresh-meta KType st
+      UTuple fields -> case infer-sing-tuple-carriers kinds locals fields st of
+        (cs, s1) -> (UTuple cs, s1)
+      UApp _ _ -> case unwrap-app-spine z Nil of
+        (UCon name _, args) ->
+          if same name promoted-cons-name then
+            (case args of
+              Cons hd _ -> case infer-sing-carrier kinds locals hd st of
+                (el, s1) -> (UApp (UCon global-data-core-list (KFun KType KType)) el, s1)
+              Nil -> fresh-meta KType st)
+          else if promoted-ctor-name name then
+            (case find-promoted-ctor name (context-promoted-ctors kinds) of
+              Some info -> (resolve-parent-carrier kinds (promoted-ctor-parent info), st)
+              None -> fresh-meta KType st)
+          else if is-promoted-fn-name name then
+            let fn-id = strip-promoted-fn-name name in
+            (case lookup-promoted-fn-in kinds fn-id of
+              Some (_, _, True) -> (primitive-type "Nat", st)
+              other -> infer-promoted-fn-ret-carrier kinds locals fn-id args st)
+          else (UCon "Type" KType, st)
+        other -> fresh-meta KType st
+      other -> fresh-meta KType st
+
+  infer-promoted-fn-ret-carrier :: TypeContext -> List (String, UType) -> String -> List UType -> Store -> (UType, Store)
+  infer-promoted-fn-ret-carrier kinds locals fn-id args st =
+    if same fn-id "Data.String.string-concat" || same fn-id "string-concat" then (literal-type kinds "String", st)
+    else if same fn-id "Data.Bool.not" || same fn-id "Data.Core.not" || same fn-id "not" then (primitive-type "Bool", st)
+    else if has fn-id ["Data.Sing.dims-append", "Data.Sing.dims-reverse", "Data.Sing.dims-transpose2", "Data.Sing.dims-tail", "Data.Sing.dims-init", "Data.Sing.dims-scale", "Data.Sing.dims-strides"] then
+      (UApp (UCon global-data-core-list (KFun KType KType)) (primitive-type "Nat"), st)
+    else if has fn-id ["Data.Sing.list-append", "Data.List.reverse", "Data.List.append", "Data.List.tail", "Data.List.take", "Data.List.drop", "reverse", "append", "tail"] then
+      (case args of
+        Cons a _ -> infer-sing-carrier kinds locals a st
+        Nil -> fresh-meta KType st)
+    else case args of
+      Cons a _ -> infer-sing-carrier kinds locals a st
+      Nil -> fresh-meta KType st
+
+  infer-sing-tuple-carriers :: TypeContext -> List (String, UType) -> UType -> Store -> (UType, Store)
+  infer-sing-tuple-carriers kinds locals fields st = case fields of
+    UEnd -> (UEnd, st)
+    UArg first rest -> case infer-sing-carrier kinds locals first st of
+      (c1, s1) -> case infer-sing-tuple-carriers kinds locals rest s1 of
+        (more, s2) -> (UArg c1 more, s2)
+    other -> (UEnd, st)
+
+  resolve-parent-carrier :: TypeContext -> String -> UType
+  resolve-parent-carrier kinds parent =
+    if same parent "Bool" then primitive-type "Bool"
+    else if same parent "Data.Core.List" then UCon global-data-core-list (KFun KType KType)
+    else case context-kind parent kinds of
+      Some k -> UCon parent k
+      None ->
+        let ig = interface-global parent in
+        case context-kind ig kinds of
+          Some k -> UCon ig k
+          None ->
+            let mg = "m." <> parent in
+            case context-kind mg kinds of
+              Some k -> UCon mg k
+              None -> UCon parent KType
+
+  convert-promoted-fn-args :: Bool -> TypeContext -> List (String, UType) -> List TypeExpr -> Store -> (List UType, Store)
+  convert-promoted-fn-args external kinds locals args st = case args of
+    Nil -> (Nil, st)
+    Cons first rest -> case convert-promoted external kinds locals None first st of
+      (v, s1) -> case convert-promoted-fn-args external kinds locals rest s1 of
+        (more, s2) -> (Cons v more, s2)
+
+  convert-promoted-fn-app :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> Nat -> Bool -> TypeExpr -> Store -> (UType, Store)
+  convert-promoted-fn-app external kinds locals sp canon arity ret-idx args st =
+    case convert-promoted-fn-args external kinds locals (type-args-of args) st of
+      (arg-tys, s1) ->
+        let head = UCon ("fn:" <> canon) (promoted-fn-kind arity ret-idx) in
+        let app = apply-app-spine head arg-tys in
+        (normalize s1 app, s1)
+
   collect-family-metadata :: List Decl -> TypeContext -> Store -> (TypeContext, Store)
   collect-family-metadata ds kinds st =
-    let k1 = collect-pdk-and-promoted ds kinds in
-    let s0 = with-type-families (context-type-families k1) st in
-    case collect-type-family-rules ds k1 s0 of
-      (k2, s1) -> collect-data-family-instances ds k2 s1
+    let k0 = collect-promoted-rejections ds kinds in
+    let k1 = collect-pdk-and-promoted ds k0 in
+    let k2 = collect-promoted-fns ds ds k1 in
+    let s0 = with-families-and-promoted (context-type-families k2) (context-promoted-fns k2) st in
+    case collect-type-family-rules ds k2 s0 of
+      (k3, s1) -> collect-data-family-instances ds k3 s1
   -- The first binding named `name`. Below the module environment's cache
   -- entry the name index gives its position in the list and the entry's
   -- tree gives the binding at that position. The entry seals what is below
@@ -3771,7 +4329,7 @@ module Bootstrap.Infer where
     Cons requirement rest -> (case root-name (requirement-type requirement) of Some name -> same name owner; None -> False)
     Nil -> False
   builtins :: List CheckedBinding
-  builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor"]
+  builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "Refl" (MkScheme [MkQuant 0 "a" KType False] (make-same-type (UBound 0 "a" KType) (UBound 0 "a" KType))) "constructor"]
 
   result-type :: UType -> UType
   result-type ty = case arrow-shape ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
@@ -5624,6 +6182,558 @@ module Bootstrap.Infer where
         (callee, checked) -> poly-elim-all sp callee checked)
     other -> infer classes kinds families env locals expr st
 
+  -- =========================================================================
+  -- Zero-cost runtime singletons (`sing`, `from-sing`, `with-sing`, `sing-eq`,
+  -- direct singleton pattern matching, and direct singleton-lifted calls).
+  -- =========================================================================
+
+  type-contains-rigid-id :: Nat -> UType -> Bool
+  type-contains-rigid-id wanted ty = case ty of
+    URigid id _ _ _ -> id == wanted
+    UIndex carrier idx -> type-contains-rigid-id wanted carrier || index-contains-rigid-id wanted idx
+    UApp f x -> type-contains-rigid-id wanted f || type-contains-rigid-id wanted x
+    UFun a b -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted b
+    UFunEff a row b -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted row || type-contains-rigid-id wanted b
+    UPi _ _ a row b -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted row || type-contains-rigid-id wanted b
+    USigma _ _ a b -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted b
+    UTuple xs -> type-contains-rigid-id wanted xs
+    UArg a rest -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted rest
+    URow xs -> type-contains-rigid-id wanted xs
+    URowJoin a b -> type-contains-rigid-id wanted a || type-contains-rigid-id wanted b
+    URefine _ _ c p -> type-contains-rigid-id wanted c || type-contains-rigid-id wanted p
+    URequire ps b -> type-contains-rigid-id wanted ps || type-contains-rigid-id wanted b
+    UProofFun p r b -> type-contains-rigid-id wanted p || type-contains-rigid-id wanted r || type-contains-rigid-id wanted b
+    UUsageArrow _ a -> type-contains-rigid-id wanted a
+    UForall _ b -> type-contains-rigid-id wanted b
+    UIndexMath _ l r -> type-contains-rigid-id wanted l || type-contains-rigid-id wanted r
+    other -> False
+
+  index-contains-rigid-id :: Nat -> IndexTerm -> Bool
+  index-contains-rigid-id wanted idx = case idx of
+    IRigid id _ _ -> id == wanted
+    IAdd l r -> index-contains-rigid-id wanted l || index-contains-rigid-id wanted r
+    ISubtract l r -> index-contains-rigid-id wanted l || index-contains-rigid-id wanted r
+    IMultiply l r -> index-contains-rigid-id wanted l || index-contains-rigid-id wanted r
+    IApply f x -> index-contains-rigid-id wanted f || index-contains-rigid-id wanted x
+    other -> False
+
+  find-sing-witness-in-env :: List CheckedBinding -> UType -> Store -> Option (CoreTerm, UType)
+  find-sing-witness-in-env env wanted-val st = case env of
+    Nil -> None
+    Cons (MkLocalBinding name sc id level) rest ->
+      case sing-type-parts (normalize st (scheme-body sc)) of
+        Some (c, v) ->
+          if same-shape (normalize st v) wanted-val then
+            Some (CLocal zero (normalize st (scheme-body sc)) id name Nil, normalize st c)
+          else find-sing-witness-in-env rest wanted-val st
+        None -> find-sing-witness-in-env rest wanted-val st
+    Cons (MkRefinedLocal name orig ref id level) rest ->
+      case sing-type-parts (normalize st ref) of
+        Some (c, v) ->
+          if same-shape (normalize st v) wanted-val then
+            Some (CCast zero (normalize st ref) (CLocal zero orig id name Nil), normalize st c)
+          else find-sing-witness-in-env rest wanted-val st
+        None -> find-sing-witness-in-env rest wanted-val st
+    Cons _ rest -> find-sing-witness-in-env rest wanted-val st
+
+  lookup-runtime-ctor-for-promoted :: List CheckedBinding -> String -> Option (String, Scheme)
+  lookup-runtime-ctor-for-promoted env promoted-name =
+    if same promoted-name promoted-nil-name then
+      (case lookup-binding global-data-core-nil env of
+        Some b -> Some (checked-name b, checked-scheme b)
+        None -> case lookup-binding "m.Data.Core.Nil" env of
+          Some b -> Some (checked-name b, checked-scheme b)
+          None -> None)
+    else if same promoted-name promoted-cons-name then
+      (case lookup-binding global-data-core-cons env of
+        Some b -> Some (checked-name b, checked-scheme b)
+        None -> case lookup-binding "m.Data.Core.Cons" env of
+          Some b -> Some (checked-name b, checked-scheme b)
+          None -> None)
+    else
+      let stripped = strip-ctor-prefix promoted-name in
+      let ig = interface-global stripped in
+      let mg = "m." <> stripped in
+      case lookup-binding mg env of
+        Some b -> Some (checked-name b, checked-scheme b)
+        None -> case lookup-binding ig env of
+          Some b -> Some (checked-name b, checked-scheme b)
+          None -> case lookup-binding stripped env of
+            Some b -> Some (checked-name b, checked-scheme b)
+            None -> None
+
+  synthesize-sing-carrier-term :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> UType -> Store -> (CoreTerm, Store)
+  synthesize-sing-carrier-term sp classes kinds families env raw-carrier raw-val st =
+    let carrier = normalize st raw-carrier in
+    let val = normalize st raw-val in
+    case find-sing-witness-in-env env val st of
+      Some (witness, wc) -> (CCast sp carrier witness, unify sp carrier wc st)
+      None -> case val of
+        UIndex _ (IInteger n) ->
+          if same-shape carrier (primitive-type "Nat") || same-shape carrier (primitive-type "Int") then
+            (CInt sp carrier (int-to-string n), st)
+          else (CInt sp carrier (int-to-string n), unify sp carrier (primitive-type "Nat") st)
+        UCon name _ ->
+          if same name "ctor:True" then (CUse sp (primitive-type "Bool") "True" "constructor" Nil, unify sp carrier (primitive-type "Bool") st)
+          else if same name "ctor:False" then (CUse sp (primitive-type "Bool") "False" "constructor" Nil, unify sp carrier (primitive-type "Bool") st)
+          else if promoted-str-name name then
+            let str-ty = literal-type kinds "String" in
+            (CString sp str-ty (strip-str-prefix name), unify sp carrier str-ty st)
+          else if promoted-ctor-name name then
+            synthesize-sing-ctor sp classes kinds families env carrier name Nil st
+          else term-error sp ("cannot synthesize sing: no Sing witness in scope for `" <> type-text val <> "`") st
+        UTuple fields -> case carrier of
+          UTuple cfields -> case synthesize-sing-tuple-fields sp classes kinds families env cfields fields st of
+            (args, s1) -> (CTuple sp carrier args, s1)
+          other -> term-error sp ("cannot synthesize sing tuple against carrier `" <> type-text carrier <> "`") st
+        UApp _ _ -> case unwrap-app-spine val Nil of
+          (UCon name _, args) | promoted-ctor-name name ->
+            synthesize-sing-ctor sp classes kinds families env carrier name args st
+          other -> term-error sp ("cannot synthesize sing: no Sing witness in scope for `" <> type-text val <> "`") st
+        other -> term-error sp ("cannot synthesize sing: no Sing witness in scope for `" <> type-text val <> "`") st
+
+  synthesize-sing-tuple-fields :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> UType -> Store -> (CoreTerm, Store)
+  synthesize-sing-tuple-fields sp classes kinds families env cfields vfields st = case (cfields, vfields) of
+    (UEnd, UEnd) -> (CArgumentsEnd sp, st)
+    (UArg c cr, UArg v vr) ->
+      case synthesize-sing-carrier-term sp classes kinds families env c v st of
+        (t1, s1) -> case synthesize-sing-tuple-fields sp classes kinds families env cr vr s1 of
+          (more, s2) -> (CArgument sp t1 more, s2)
+    other -> (CArgumentsEnd sp, add-error sp "singleton tuple arity mismatch" st)
+
+  synthesize-sing-ctor :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> String -> List UType -> Store -> (CoreTerm, Store)
+  synthesize-sing-ctor sp classes kinds families env carrier promoted-name val-args st =
+    case lookup-runtime-ctor-for-promoted env promoted-name of
+      None -> term-error sp ("cannot synthesize sing: unknown runtime constructor for " <> promoted-name) st
+      Some (cname, sc) ->
+        case open-scheme False sc st of
+          (ctor-ty, pairs, s1) ->
+            let res-ty = result-type ctor-ty in
+            let s2 = unify sp res-ty carrier s1 in
+            let actuals = map (normalize s2) (pair-types pairs) in
+            let base-use = CUse sp (normalize s2 ctor-ty) cname "constructor" actuals in
+            synthesize-sing-ctor-apply sp classes kinds families env base-use (normalize s2 ctor-ty) val-args s2
+
+  synthesize-sing-ctor-apply :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> CoreTerm -> UType -> List UType -> Store -> (CoreTerm, Store)
+  synthesize-sing-ctor-apply sp classes kinds families env fn fn-ty val-args st = case val-args of
+    Nil -> (fn, st)
+    Cons v rest -> case arrow-shape (normalize st fn-ty) of
+      UFun dom res ->
+        case synthesize-sing-carrier-term sp classes kinds families env dom v st of
+          (arg-term, s1) -> synthesize-sing-ctor-apply sp classes kinds families env (CApply sp (normalize s1 res) fn arg-term) (normalize s1 res) rest s1
+      other -> term-error sp "singleton constructor arity mismatch" st
+
+  check-sing-value :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> Store -> (CoreTerm, Store)
+  check-sing-value sp classes kinds families env expected st =
+    let norm-exp = normalize st expected in
+    case sing-type-parts norm-exp of
+      Some (carrier, val) ->
+        case synthesize-sing-carrier-term sp classes kinds families env carrier val st of
+          (raw-term, s1) ->
+            let final-ty = normalize s1 norm-exp in
+            (CCast sp final-ty raw-term, s1)
+      None -> term-error sp "sing requires an expected `Sing x` type" st
+
+  infer-from-sing :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer-from-sing sp classes kinds families env locals arg st =
+    case infer classes kinds families env locals arg st of
+      (arg-term, s1) -> case sing-type-parts (normalize s1 (core-type arg-term)) of
+        Some (carrier, val) -> (CCast sp (normalize s1 carrier) arg-term, s1)
+        None -> term-error sp ("from-sing expects a `Sing x` argument, got `" <> type-text (normalize s1 (core-type arg-term)) <> "`") s1
+
+  infer-with-sing :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-with-sing sp classes kinds families env locals val-expr cont-expr wanted st =
+    case infer classes kinds families env locals val-expr st of
+      (val-term, s1) ->
+        let carrier = normalize s1 (core-type val-term) in
+        if ty-contains-erased-universe carrier then
+          term-error sp "with-sing cannot reflect erased Type universe" s1
+        else case cont-expr of
+          ELam _ (Cons pat Nil) body ->
+            let s-name = case pat of PVar _ n -> n; PWild _ -> "_"; other -> "_" in
+            case fresh-id s1 of
+              (sk-id, s2) ->
+                let sk-kind = if same-shape carrier (primitive-type "Nat") || same-shape carrier (primitive-type "Int") then KValue carrier else KType in
+                let skolem = URigid sk-id ("$sing_" <> nat-to-string sk-id) (store-level s2) sk-kind in
+                let sing-ty = make-sing-type carrier skolem in
+                case fresh-id s2 of
+                  (loc-id, s3) ->
+                    let bound-env = Cons (MkLocalBinding s-name (mono sing-ty) loc-id (store-level s3)) env in
+                    let (body-term, s4) = case wanted of
+                          Some exp -> check classes kinds families bound-env locals body exp s3
+                          None -> infer classes kinds families bound-env locals body s3 in
+                    let body-ty = normalize s4 (core-type body-term) in
+                    if type-contains-rigid-id sk-id body-ty then
+                      term-error sp "existential singleton variable escapes with-sing scope" s4
+                    else
+                      (CLet sp body-ty loc-id s-name (mono sing-ty) (CCast sp sing-ty val-term) body-term, s4)
+          other -> term-error sp "with-sing expects a callback `\\s -> body` as its second argument" s1
+
+  -- Structural runtime equality on raw carrier values for `sing-eq`.
+  emit-sing-eq-bool :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  emit-sing-eq-bool sp kinds families env raw-carrier x1 x2 st =
+    let carrier = normalize st raw-carrier in
+    let bool-ty = primitive-type "Bool" in
+    if integer-carrier carrier || wide-carrier carrier || same-shape carrier bool-ty || same-shape carrier (primitive-type "Char") || same-shape carrier (literal-type kinds "String") then
+      (CPrimitive sp bool-ty "==" (CArgument sp x1 (CArgument sp x2 (CArgumentsEnd sp))), st)
+    else if same-shape carrier (primitive-type "Unit") then
+      (CUse sp bool-ty "True" "constructor" Nil, st)
+    else case carrier of
+      UTuple fields -> emit-sing-eq-tuple sp kinds families env carrier fields x1 x2 st
+      UApp (UCon list-con _) elem-ty | same list-con global-data-core-list || same list-con "m.Data.Core.List" ->
+        emit-sing-eq-list sp kinds families env carrier elem-ty x1 x2 st
+      other -> case root-name carrier of
+        Some owner -> case family-ctors owner families of
+          Some ctors -> emit-sing-eq-adt sp kinds families env carrier ctors x1 x2 st
+          None -> term-error sp ("sing-eq does not support carrier `" <> type-text carrier <> "`") st
+        None -> term-error sp ("sing-eq does not support carrier `" <> type-text carrier <> "`") st
+
+  emit-sing-eq-tuple :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> UType -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  emit-sing-eq-tuple sp kinds families env carrier fields x1 x2 st =
+    case fresh-tuple-pat-vars sp fields "a" st of
+      (p1, vs1, s1) -> case fresh-tuple-pat-vars sp fields "b" s1 of
+        (p2, vs2, s2) -> case emit-sing-eq-pair-list sp kinds families env vs1 vs2 s2 of
+          (eq-body, s3) ->
+            let inner-case = CCase sp (primitive-type "Bool") x2 (CAlternative sp (CPTuple sp carrier p2) eq-body (CAlternativesEnd sp)) in
+            (CCase sp (primitive-type "Bool") x1 (CAlternative sp (CPTuple sp carrier p1) inner-case (CAlternativesEnd sp)), s3)
+
+  fresh-tuple-pat-vars :: Span -> UType -> String -> Store -> (CorePattern, List (Nat, String, UType), Store)
+  fresh-tuple-pat-vars sp fields prefix st = case fields of
+    UEnd -> (CPDone sp, Nil, st)
+    UArg ty rest -> case fresh-id st of
+      (id, s1) ->
+        let vname = prefix <> "_" <> nat-to-string id in
+        case fresh-tuple-pat-vars sp rest prefix s1 of
+          (more-p, more-vs, s2) -> (CPField sp (CPVar sp ty id vname) more-p, Cons (id, vname, ty) more-vs, s2)
+    other -> (CPDone sp, Nil, st)
+
+  emit-sing-eq-pair-list :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (Nat, String, UType) -> List (Nat, String, UType) -> Store -> (CoreTerm, Store)
+  emit-sing-eq-pair-list sp kinds families env vs1 vs2 st =
+    let bool-ty = primitive-type "Bool" in
+    case (vs1, vs2) of
+      (Nil, Nil) -> (CUse sp bool-ty "True" "constructor" Nil, st)
+      (Cons (id1, n1, ty1) r1, Cons (id2, n2, ty2) r2) ->
+        case emit-sing-eq-bool sp kinds families env ty1 (CLocal sp ty1 id1 n1 Nil) (CLocal sp ty2 id2 n2 Nil) st of
+          (eq1, s1) -> case r1 of
+            Nil -> (eq1, s1)
+            other -> case emit-sing-eq-pair-list sp kinds families env r1 r2 s1 of
+              (eq-rest, s2) -> (CIf sp bool-ty eq1 eq-rest (CUse sp bool-ty "False" "constructor" Nil), s2)
+      other -> (CUse sp bool-ty "False" "constructor" Nil, st)
+
+  emit-sing-eq-list :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> UType -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  emit-sing-eq-list sp kinds families env list-ty elem-ty x1 x2 st =
+    let bool-ty = primitive-type "Bool" in
+    let nil-sym = case lookup-binding global-data-core-nil env of Some _ -> global-data-core-nil; None -> "m.Data.Core.Nil" in
+    let cons-sym = case lookup-binding global-data-core-cons env of Some _ -> global-data-core-cons; None -> "m.Data.Core.Cons" in
+    let cons-ctor-ty = UFun elem-ty (UFun list-ty list-ty) in
+    let go-ty = UFun list-ty (UFun list-ty bool-ty) in
+    case fresh-id st of
+      (go-id, s1) -> case fresh-id s1 of
+        (xs-id, s2) -> case fresh-id s2 of
+          (ys-id, s3) -> case fresh-id s3 of
+            (h1-id, s4) -> case fresh-id s4 of
+              (t1-id, s5) -> case fresh-id s5 of
+                (h2-id, s6) -> case fresh-id s6 of
+                  (t2-id, s7) ->
+                    case emit-sing-eq-bool sp kinds families env elem-ty (CLocal sp elem-ty h1-id "h1" Nil) (CLocal sp elem-ty h2-id "h2" Nil) s7 of
+                      (head-eq, s8) ->
+                        let nil-pat = CPConstructor sp list-ty nil-sym [elem-ty] list-ty (CPDone sp) in
+                        let cons-wild-pat = CPConstructor sp list-ty cons-sym [elem-ty] cons-ctor-ty (CPField sp (CPWild sp elem-ty) (CPField sp (CPWild sp list-ty) (CPDone sp))) in
+                        let cons1-pat = CPConstructor sp list-ty cons-sym [elem-ty] cons-ctor-ty (CPField sp (CPVar sp elem-ty h1-id "h1") (CPField sp (CPVar sp list-ty t1-id "t1") (CPDone sp))) in
+                        let cons2-pat = CPConstructor sp list-ty cons-sym [elem-ty] cons-ctor-ty (CPField sp (CPVar sp elem-ty h2-id "h2") (CPField sp (CPVar sp list-ty t2-id "t2") (CPDone sp))) in
+                        let rec-call = CApply sp bool-ty (CApply sp (UFun list-ty bool-ty) (CLocal sp go-ty go-id "$sing_eq_list" Nil) (CLocal sp list-ty t1-id "t1" Nil)) (CLocal sp list-ty t2-id "t2" Nil) in
+                        let true-t = CUse sp bool-ty "True" "constructor" Nil in
+                        let false-t = CUse sp bool-ty "False" "constructor" Nil in
+                        let ys-var = CLocal sp list-ty ys-id "ys" Nil in
+                        let nil-branch = CCase sp bool-ty ys-var (CAlternative sp nil-pat true-t (CAlternative sp cons-wild-pat false-t (CAlternativesEnd sp))) in
+                        let cons-branch = CCase sp bool-ty ys-var (CAlternative sp nil-pat false-t (CAlternative sp cons2-pat (CIf sp bool-ty head-eq rec-call false-t) (CAlternativesEnd sp))) in
+                        let body = CCase sp bool-ty (CLocal sp list-ty xs-id "xs" Nil) (CAlternative sp nil-pat nil-branch (CAlternative sp cons1-pat cons-branch (CAlternativesEnd sp))) in
+                        let go-lam = CLambda sp go-ty (CPVar sp list-ty xs-id "xs") (CLambda sp (UFun list-ty bool-ty) (CPVar sp list-ty ys-id "ys") body) in
+                        let call-top = CApply sp bool-ty (CApply sp (UFun list-ty bool-ty) (CLocal sp go-ty go-id "$sing_eq_list" Nil) x1) x2 in
+                        (CRecursiveFunctions sp bool-ty (CRecursiveBinding go-id "$sing_eq_list" go-lam CRecursiveBindingsEnd) call-top, s8)
+
+  emit-sing-eq-adt :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> List String -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  emit-sing-eq-adt sp kinds families env carrier ctors x1 x2 st =
+    case fresh-id st of
+      (y-id, s1) ->
+        let y-ref = CLocal sp carrier y-id "$sing_eq_y" Nil in
+        case emit-sing-eq-adt-alts sp kinds families env carrier ctors y-ref s1 of
+          (alts, s2) ->
+            let body = CCase sp (primitive-type "Bool") x1 alts in
+            (CLet sp (primitive-type "Bool") y-id "$sing_eq_y" (mono carrier) x2 body, s2)
+
+  emit-sing-eq-adt-alts :: Span -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> List String -> CoreTerm -> Store -> (CoreTerm, Store)
+  emit-sing-eq-adt-alts sp kinds families env carrier ctors y-ref st = case ctors of
+    Nil -> (CAlternativesEnd sp, st)
+    Cons cname rest -> case lookup-binding cname env of
+      None -> emit-sing-eq-adt-alts sp kinds families env carrier rest y-ref st
+      Some b -> case open-scheme False (checked-scheme b) st of
+        (ctor-ty, pairs, s1) ->
+          let s2 = unify sp (result-type ctor-ty) carrier s1 in
+          let actuals = map (normalize s2) (pair-types pairs) in
+          let norm-ctor = normalize s2 ctor-ty in
+          let ftypes = domains norm-ctor in
+          case fresh-ctor-pat-vars sp ftypes "a" s2 of
+            (fpat1, vs1, s3) -> case fresh-ctor-pat-vars sp ftypes "b" s3 of
+              (fpat2, vs2, s4) -> case emit-sing-eq-pair-list sp kinds families env vs1 vs2 s4 of
+                (eq-fields, s5) ->
+                  let bool-ty = primitive-type "Bool" in
+                  let p1 = CPConstructor sp carrier cname actuals norm-ctor fpat1 in
+                  let p2 = CPConstructor sp carrier cname actuals norm-ctor fpat2 in
+                  let inner = CCase sp bool-ty y-ref (CAlternative sp p2 eq-fields (CAlternative sp (CPWild sp carrier) (CUse sp bool-ty "False" "constructor" Nil) (CAlternativesEnd sp))) in
+                  case emit-sing-eq-adt-alts sp kinds families env carrier rest y-ref s5 of
+                    (more, s6) -> (CAlternative sp p1 inner more, s6)
+
+  fresh-ctor-pat-vars :: Span -> List UType -> String -> Store -> (CorePattern, List (Nat, String, UType), Store)
+  fresh-ctor-pat-vars sp tys prefix st = case tys of
+    Nil -> (CPDone sp, Nil, st)
+    Cons ty rest -> case fresh-id st of
+      (id, s1) ->
+        let vname = prefix <> "_" <> nat-to-string id in
+        case fresh-ctor-pat-vars sp rest prefix s1 of
+          (more-p, more-vs, s2) -> (CPField sp (CPVar sp ty id vname) more-p, Cons (id, vname, ty) more-vs, s2)
+
+  infer-sing-eq :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Store -> (CoreTerm, Store)
+  infer-sing-eq sp classes kinds families env locals e1 e2 st =
+    case infer classes kinds families env locals e1 st of
+      (t1, s1) -> case infer classes kinds families env locals e2 s1 of
+        (t2, s2) -> case (sing-type-parts (normalize s2 (core-type t1)), sing-type-parts (normalize s2 (core-type t2))) of
+          (Some (c1, v1), Some (c2, v2)) ->
+            let s3 = unify sp c1 c2 s2 in
+            let carrier = normalize s3 c1 in
+            let nv1 = normalize s3 v1 in
+            let nv2 = normalize s3 v2 in
+            case emit-sing-eq-bool sp kinds families env carrier (CCast sp carrier t1) (CCast sp carrier t2) s3 of
+              (eq-term, s4) ->
+                let same-ty = make-same-type nv1 nv2 in
+                let opt-con = case lookup-binding global-data-core-some env of Some _ -> global-data-core-option; None -> "m.Data.Core.Option" in
+                let some-sym = case lookup-binding global-data-core-some env of Some _ -> global-data-core-some; None -> "m.Data.Core.Some" in
+                let none-sym = case lookup-binding global-data-core-none env of Some _ -> global-data-core-none; None -> "m.Data.Core.None" in
+                let opt-ty = UApp (UCon opt-con (KFun KType KType)) same-ty in
+                let refl-term = CCast sp same-ty (CUse sp (make-same-type nv1 nv1) "Refl" "constructor" [nv1]) in
+                let some-term = CApply sp opt-ty (CUse sp (UFun same-ty opt-ty) some-sym "constructor" [same-ty]) refl-term in
+                let none-term = CUse sp opt-ty none-sym "constructor" [same-ty] in
+                (CIf sp opt-ty eq-term some-term none-term, s4)
+          other -> term-error sp "sing-eq expects two `Sing` arguments" s2
+
+  -- Direct pattern matching on `Sing carrier val`.
+  check-sing-case :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> UType -> UType -> Expr -> Store -> (CoreTerm, Store)
+  check-sing-case sp classes kinds families env locals scrut carrier val expected alts st =
+    let raw-scrut = CCast sp carrier scrut in
+    case check-sing-alts sp classes kinds families env locals raw-scrut carrier val expected alts st of
+      (branches, s1) -> (CCase sp expected raw-scrut branches, s1)
+
+  check-sing-alts :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> CoreTerm -> UType -> UType -> UType -> Expr -> Store -> (CoreTerm, Store)
+  check-sing-alts sp classes kinds families env locals raw-scrut carrier val expected alts st = case alts of
+    EAltsEnd end -> (CAlternativesEnd end, st)
+    EAlt s pat body rest ->
+      case bind-sing-pattern sp classes kinds families env carrier pat (duplicate-names s (pattern-names pat) Nil st) of
+        (cpat, pat-val, rebinds, s1) ->
+          let nval = normalize s1 val in
+          let npval = normalize s1 pat-val in
+          if types-coverage-apart s1 nval npval then
+            (CError s, add-error s ("impossible arm in singleton case: `" <> type-text npval <> "` cannot match `" <> type-text nval <> "`") s1)
+          else
+            case gadt-refine-match s Nil nval npval Nil s1 of
+              (refs, s2) ->
+                let refined-rebinds = case refs of
+                      Nil -> rebinds
+                      more -> map (\r -> case r of (sid, sname, fc, fs, rid, rname) -> (sid, sname, fc, normalize s2 (substitute-rigids refs fs), rid, rname)) rebinds in
+                let outer-env = case refs of Nil -> env; more -> refine-env-locals refs s2 env in
+                let eff-env = prepend-sing-rebinds refined-rebinds (store-level s2) outer-env in
+                let eff-expected = case refs of Nil -> expected; more -> normalize s2 (substitute-rigids refs (normalize s2 expected)) in
+                case check-alt-body classes kinds families eff-env locals body eff-expected s2 of
+                  (raw-rhs, s3) ->
+                    let cast-rhs = case refs of
+                          Nil -> raw-rhs
+                          more ->
+                            let outer-res = normalize s3 expected in
+                            if same-shape (normalize s3 (core-type raw-rhs)) outer-res then raw-rhs
+                            else CCast s outer-res raw-rhs in
+                    let wrapped-rhs = wrap-sing-rebinds s refined-rebinds cast-rhs in
+                    case check-sing-alts sp classes kinds families env locals raw-scrut carrier val expected rest s3 of
+                      (more-alts, s4) -> (CAlternative s cpat wrapped-rhs more-alts, s4)
+    other -> term-error (expr-span alts) "malformed singleton case alternative" st
+
+  prepend-sing-rebinds :: List (Nat, String, UType, UType, Nat, String) -> Nat -> List CheckedBinding -> List CheckedBinding
+  prepend-sing-rebinds rebinds lvl env = case rebinds of
+    Nil -> env
+    Cons (sid, sname, fcarrier, fskolem, raw-id, raw-name) rest ->
+      let sing-ty = make-sing-type fcarrier fskolem in
+      prepend-sing-rebinds rest lvl (Cons (MkLocalBinding sname (mono sing-ty) sid lvl) env)
+
+  wrap-sing-rebinds :: Span -> List (Nat, String, UType, UType, Nat, String) -> CoreTerm -> CoreTerm
+  wrap-sing-rebinds sp rebinds body = case rebinds of
+    Nil -> body
+    Cons (sid, sname, fcarrier, fskolem, raw-id, raw-name) rest ->
+      let sing-ty = make-sing-type fcarrier fskolem in
+      let inner = wrap-sing-rebinds sp rest body in
+      CLet sp (core-type inner) sid sname (mono sing-ty) (CCast sp sing-ty (CLocal sp fcarrier raw-id raw-name Nil)) inner
+
+  bind-sing-pattern :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> Pat -> Store -> (CorePattern, UType, List (Nat, String, UType, UType, Nat, String), Store)
+  bind-sing-pattern sp classes kinds families env raw-carrier pat st =
+    let carrier = normalize st raw-carrier in
+    case pat of
+      PWild s ->
+        case fresh-id st of
+          (sk-id, s1) ->
+            let sk-kind = if same-shape carrier (primitive-type "Nat") || same-shape carrier (primitive-type "Int") then KValue carrier else KType in
+            (CPWild s carrier, URigid sk-id ("$sing_" <> nat-to-string sk-id) (store-level s1) sk-kind, Nil, s1)
+      PVar s name ->
+        case fresh-id st of
+          (raw-id, s1) -> case fresh-id s1 of
+            (sing-id, s2) -> case fresh-id s2 of
+              (sk-id, s3) ->
+                let sk-kind = if same-shape carrier (primitive-type "Nat") || same-shape carrier (primitive-type "Int") then KValue carrier else KType in
+                let skolem = URigid sk-id ("$sing_" <> nat-to-string sk-id) (store-level s3) sk-kind in
+                let raw-name = "$raw_" <> name in
+                (CPVar s carrier raw-id raw-name, skolem, [(sing-id, name, carrier, skolem, raw-id, raw-name)], s3)
+      PLitInt s text ->
+        case parse-decimal-int text of
+          Some n -> (CPInt s carrier text, UIndex carrier (IInteger n), Nil, st)
+          None -> (CPWild s carrier, UError, Nil, add-error s "invalid integer literal in singleton pattern" st)
+      PLitStr s text ->
+        (CPString s carrier text, UCon ("\"" <> text <> "\"") KType, Nil, st)
+      PTuple s args -> case carrier of
+        UTuple cfields ->
+          case bind-sing-tuple-fields sp classes kinds families env cfields (pats-of args) st of
+            (cpats, pvals, rebinds, s1) -> (CPTuple s carrier cpats, UTuple pvals, rebinds, s1)
+        other -> (CPWild s carrier, UError, Nil, add-error s "tuple pattern on non-tuple Sing carrier" st)
+      PFamilyCon s fallback _ args -> bind-sing-pattern sp classes kinds families env raw-carrier (PCon s fallback args) st
+      PList s args -> bind-sing-pattern sp classes kinds families env raw-carrier (desugar-sing-list-pat s (pats-of args)) st
+      PCon s cname args ->
+        if same cname "True" then
+          (CPConstructor s (primitive-type "Bool") "True" Nil (primitive-type "Bool") (CPDone s), UCon "ctor:True" KType, Nil, unify s carrier (primitive-type "Bool") st)
+        else if same cname "False" then
+          (CPConstructor s (primitive-type "Bool") "False" Nil (primitive-type "Bool") (CPDone s), UCon "ctor:False" KType, Nil, unify s carrier (primitive-type "Bool") st)
+        else case lookup-binding cname env of
+          None -> (CPWild s carrier, UError, Nil, add-error s ("unknown constructor in singleton pattern: " <> cname) st)
+          Some b -> case open-scheme False (checked-scheme b) st of
+            (ctor-ty, pairs, s1) ->
+              let s2 = unify s (result-type ctor-ty) carrier s1 in
+              let actuals = map (normalize s2) (pair-types pairs) in
+              let norm-ctor = normalize s2 ctor-ty in
+              let ftypes = domains norm-ctor in
+              case bind-sing-ctor-fields sp classes kinds families env ftypes (pats-of args) s2 of
+                (cpats, field-vals, rebinds, s3) ->
+                  let promoted-cname = canonical-ctor-name cname in
+                  let pval = apply-app-spine (UCon promoted-cname (sing-ctor-promoted-kind field-vals)) field-vals in
+                  (CPConstructor s (normalize s3 carrier) cname actuals norm-ctor cpats, pval, rebinds, s3)
+      other -> (CPWild (pat-span pat) carrier, UError, Nil, add-error (pat-span pat) "unsupported pattern in singleton case" st)
+
+  desugar-sing-list-pat :: Span -> List Pat -> Pat
+  desugar-sing-list-pat sp ps = case ps of
+    Nil -> PCon sp global-data-core-nil (PArgsEnd sp)
+    Cons h t -> PCon sp global-data-core-cons (PArg sp h (PArg sp (desugar-sing-list-pat sp t) (PArgsEnd sp)))
+
+  sing-ctor-promoted-kind :: List UType -> Kind
+  sing-ctor-promoted-kind args = case args of
+    Nil -> KType
+    Cons a rest -> KFun (case type-kind a of KValue c -> KValue c; other -> KType) (sing-ctor-promoted-kind rest)
+
+  bind-sing-tuple-fields :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> UType -> List Pat -> Store -> (CorePattern, UType, List (Nat, String, UType, UType, Nat, String), Store)
+  bind-sing-tuple-fields sp classes kinds families env cfields pats st = case (cfields, pats) of
+    (UEnd, Nil) -> (CPDone sp, UEnd, Nil, st)
+    (UArg c cr, Cons p pr) ->
+      case bind-sing-pattern sp classes kinds families env c p st of
+        (cp, pv, rb1, s1) -> case bind-sing-tuple-fields sp classes kinds families env cr pr s1 of
+          (more-p, more-v, rb2, s2) -> (CPField sp cp more-p, UArg pv more-v, rb1 <> rb2, s2)
+    other -> (CPDone sp, UEnd, Nil, add-error sp "tuple pattern arity mismatch in singleton case" st)
+
+  bind-sing-ctor-fields :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List UType -> List Pat -> Store -> (CorePattern, List UType, List (Nat, String, UType, UType, Nat, String), Store)
+  bind-sing-ctor-fields sp classes kinds families env ftypes pats st = case (ftypes, pats) of
+    (Nil, Nil) -> (CPDone sp, Nil, Nil, st)
+    (Cons ft fr, Cons p pr) ->
+      case bind-sing-pattern sp classes kinds families env ft p st of
+        (cp, pv, rb1, s1) -> case bind-sing-ctor-fields sp classes kinds families env fr pr s1 of
+          (more-p, more-v, rb2, s2) -> (CPField sp cp more-p, Cons pv more-v, rb1 <> rb2, s2)
+    other -> (CPDone sp, Nil, Nil, add-error sp "constructor pattern arity mismatch in singleton case" st)
+
+  -- Direct singleton-lifted calls (`dims-append a b`, `dims-product combined`, `Cons h t`, `a + b`).
+  scheme-expects-sing :: Scheme -> Bool
+  scheme-expects-sing sc = case domains (scheme-body sc) of
+    Cons first _ -> case sing-type-parts first of Some _ -> True; None -> False
+    Nil -> False
+
+  infer-sing-args-list :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List Expr -> Store -> (List CoreTerm, List (UType, UType), Bool, Store)
+  infer-sing-args-list classes kinds families env locals args st = case args of
+    Nil -> (Nil, Nil, True, st)
+    Cons first rest -> case infer classes kinds families env locals first st of
+      (term, s1) -> case sing-type-parts (normalize s1 (core-type term)) of
+        Some (c, v) -> case infer-sing-args-list classes kinds families env locals rest s1 of
+          (ts, cvs, all-sing, s2) -> (Cons term ts, Cons (normalize s2 c, normalize s2 v) cvs, all-sing, s2)
+        None -> (Nil, Nil, False, s1)
+
+  apply-unwrapped-sing-args :: Span -> CoreTerm -> List CoreTerm -> List (UType, UType) -> Store -> (CoreTerm, Store)
+  apply-unwrapped-sing-args sp fn terms cvs st = case (terms, cvs) of
+    (Nil, Nil) -> (fn, st)
+    (Cons t ts, Cons (c, _) more) -> case arrow-shape (normalize st (core-type fn)) of
+      UFun dom res ->
+        let s1 = unify sp dom c st in
+        apply-unwrapped-sing-args sp (CApply sp (normalize s1 res) fn (CCast sp (normalize s1 dom) t)) ts more s1
+      UFunEff dom row res ->
+        let s1 = include-effects sp row (URow UEnd) (unify sp dom c st) in
+        apply-unwrapped-sing-args sp (CApply sp (normalize s1 res) fn (CCast sp (normalize s1 dom) t)) ts more s1
+      other -> term-error sp "singleton-lifted call arity mismatch" st
+    other -> term-error sp "singleton-lifted call arity mismatch" st
+
+  try-infer-sing-lifted-app :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> Option (CoreTerm, Store)
+  try-infer-sing-lifted-app sp classes kinds families env locals expr st =
+    case application-spine expr Nil of
+      (EVar at fname, [a, b]) | has (diagnostic-member-name fname) ["+", "-", "*"] ->
+        let op = diagnostic-member-name fname in
+        (case infer-sing-args-list classes kinds families env locals [a, b] st of
+          ([ta, tb], [(c1, v1), (c2, v2)], True, s1) | store-error-count s1 == store-error-count st ->
+            let s2 = unify sp c1 c2 s1 in
+            let carrier = normalize s2 c1 in
+            let raw-op = CPrimitive sp carrier op (CArgument sp (CCast sp carrier ta) (CArgument sp (CCast sp carrier tb) (CArgumentsEnd sp))) in
+            let pval = normalize s2 (make-index-math op (normalize s2 v1) (normalize s2 v2)) in
+            Some (CCast sp (make-sing-type carrier pval) raw-op, s2)
+          other -> None)
+      (EVar at fname, args) | not (is-nil-list args) ->
+        case lookup-binding fname env of
+          Some b | not (scheme-expects-sing (checked-scheme b)) ->
+            case lookup-promoted-fn-in kinds fname of
+              Some (canon, arity, ret-idx) | list-length args == arity ->
+                case infer-sing-args-list classes kinds families env locals args st of
+                  (terms, cvs, True, s1) | store-error-count s1 == store-error-count st ->
+                    case lookup-expression-value at kinds fname env s1 of
+                      (fn-term, s2) -> case apply-unwrapped-sing-args sp fn-term terms cvs s2 of
+                        (call-term, s3) ->
+                          let ret-carrier = normalize s3 (core-type call-term) in
+                          let arg-vals = map (\p -> case p of (_, v) -> v) cvs in
+                          let pval = normalize s3 (apply-app-spine (UCon ("fn:" <> canon) (promoted-fn-kind arity ret-idx)) arg-vals) in
+                          Some (CCast sp (make-sing-type ret-carrier pval) call-term, s3)
+                  other -> None
+              other -> None
+          other -> None
+      (ECon at cname (EArgsEnd _), args) | not (is-nil-list args) ->
+        try-infer-sing-lifted-con sp classes kinds families env locals cname (expr-spine sp args) st
+      (EFamilyCon at fallback _ (EArgsEnd _), args) | not (is-nil-list args) ->
+        try-infer-sing-lifted-con sp classes kinds families env locals fallback (expr-spine sp args) st
+      other -> None
+
+  try-infer-sing-lifted-con :: Span -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> String -> Expr -> Store -> Option (CoreTerm, Store)
+  try-infer-sing-lifted-con sp classes kinds families env locals cname args-spine st =
+    let args = exprs-of args-spine in
+    if is-nil-list args then None
+    else case lookup-binding cname env of
+      Some b | not (scheme-expects-sing (checked-scheme b)) ->
+        case infer-sing-args-list classes kinds families env locals args st of
+          (terms, cvs, True, s1) | store-error-count s1 == store-error-count st ->
+            case lookup-expression-value sp kinds cname env s1 of
+              (ctor-term, s2) -> case apply-unwrapped-sing-args sp ctor-term terms cvs s2 of
+                (call-term, s3) ->
+                  let ret-carrier = normalize s3 (core-type call-term) in
+                  let arg-vals = map (\p -> case p of (_, v) -> v) cvs in
+                  let pval = normalize s3 (apply-app-spine (UCon (canonical-ctor-name cname) (sing-ctor-promoted-kind arg-vals)) arg-vals) in
+                  Some (CCast sp (make-sing-type ret-carrier pval) call-term, s3)
+          other -> None
+      other -> None
+
+  is-nil-list :: forall a. List a -> Bool
+  is-nil-list xs = case xs of Nil -> True; other -> False
+
   infer-raw :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer-raw classes kinds families env locals expr st = case expr of
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields None st
@@ -5635,7 +6745,9 @@ module Bootstrap.Infer where
       (case decision-unary classes kinds families env locals sp former input st of
         (predicate, test, checked) -> (test, checked))
     EFamilyCon sp fallback candidate args -> infer classes kinds families env locals (ECon sp fallback args) st
-    ECon s name args -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
+    ECon s name args -> case try-infer-sing-lifted-con s classes kinds families env locals name args st of
+      Some lifted -> lifted
+      None -> case lookup-expression-value s kinds name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
     ERange s args -> infer classes kinds families env locals (range-expression env s args) st
     EMap s args -> infer-collection classes kinds families env locals s args True None st
     EList s args -> infer-collection classes kinds families env locals s args False None st
@@ -5646,17 +6758,22 @@ module Bootstrap.Infer where
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     ELitSym s text -> (CSymbol s (primitive-type "Sym") text, st)
     EUnit s -> (CUnit s (primitive-type "Unit"), st)
+    EApp s (EVar _ fn-name) x | same fn-name "from-sing" -> infer-from-sing s classes kinds families env locals x st
+    EApp s (EApp _ (EVar _ fn-name) v) cont | same fn-name "with-sing" -> infer-with-sing s classes kinds families env locals v cont None st
+    EApp s (EApp _ (EVar _ fn-name) a) b | same fn-name "sing-eq" -> infer-sing-eq s classes kinds families env locals a b st
     EApp s f x | memo-demand-head env f -> infer-memo-demand classes kinds families env locals s x st
-    EApp s f x -> case thunk-syntax-operation env f of
-      Some operation -> infer-thunk classes kinds families env locals s operation x st
-      None -> case ownership-syntax-call env expr of
-        Some (operation, args) -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals s args st
-          else infer-borrow classes kinds families env locals s operation args UError st
-        None -> case projection-syntax-head env f of
-          Some operation -> infer-projection classes kinds families env locals s operation x st
-          None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
-            (case infer-callee classes kinds families env locals f st of
-              (fun, sf) -> apply-argument classes kinds families env locals s fun x sf)
+    EApp s f x -> case try-infer-sing-lifted-app s classes kinds families env locals expr st of
+      Some lifted -> lifted
+      None -> (case thunk-syntax-operation env f of
+        Some operation -> infer-thunk classes kinds families env locals s operation x st
+        None -> case ownership-syntax-call env expr of
+          Some (operation, args) -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals s args st
+            else infer-borrow classes kinds families env locals s operation args UError st
+          None -> case projection-syntax-head env f of
+            Some operation -> infer-projection classes kinds families env locals s operation x st
+            None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
+              (case infer-callee classes kinds families env locals f st of
+                (fun, sf) -> apply-argument classes kinds families env locals s fun x sf))
     ELam s ps body -> case infer-lambda classes (handling-context False kinds) families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
     EDo sp statements -> (case fresh-meta KType st of (result, ready) -> check-do classes kinds families env locals sp statements result ready)
@@ -5678,9 +6795,12 @@ module Bootstrap.Infer where
     ECase s value alts -> case measured-case-binding env s value alts of
       Some scoped -> infer classes kinds families env locals scoped st
       None -> case infer classes kinds families env locals value st of
-        (scrut, sv) -> case fresh-meta KType sv of
-          (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-match-coverage s families env (core-type scrut) alts so) of
-            (alternatives, ss) -> (CCase s out scrut alternatives, ss)
+        (scrut, sv) -> case sing-type-parts (normalize sv (core-type scrut)) of
+          Some (carrier, val) -> case fresh-meta KType sv of
+            (out, so) -> check-sing-case s classes kinds families (proof-env-after-term env scrut so) locals scrut carrier val out alts so
+          None -> case fresh-meta KType sv of
+            (out, so) -> case check-alternatives classes kinds families (proof-env-after-term env scrut so) locals scrut out alts (ensure-match-coverage s families env (core-type scrut) alts so) of
+              (alternatives, ss) -> (CCase s out scrut alternatives, ss)
     ETuple s args -> case infer-fields classes kinds families env locals args st of
       (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
     EForget sp atoms value -> case infer classes kinds families env locals value st of
@@ -5727,6 +6847,8 @@ module Bootstrap.Infer where
       (term, checked) -> (term, with-let-depth depth checked)
   check-unrefined :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-unrefined classes kinds families env locals expr expected st = case expr of
+    EVar s fn-name | same fn-name "sing" -> check-sing-value s classes kinds families env expected st
+    EApp s (EApp _ (EVar _ fn-name) v) cont | same fn-name "with-sing" -> infer-with-sing s classes kinds families env locals v cont (Some expected) st
     EDo sp statements -> check-do classes kinds families env locals sp statements expected st
     ELet sp bindings body -> infer-let-with-expected classes kinds families env locals sp bindings body (Some expected) st
     ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body (Some expected) st
@@ -5757,8 +6879,10 @@ module Bootstrap.Infer where
     ECase s value alternatives -> case measured-case-binding env s value alternatives of
       Some scoped -> check classes kinds families env locals scoped expected st
       None -> case infer classes kinds families env locals value st of
-        (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
-          (branches, done) -> (CCase s expected scrutinee branches, done)
+        (scrutinee, checked) -> case sing-type-parts (normalize checked (core-type scrutinee)) of
+          Some (carrier, val) -> check-sing-case s classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee carrier val expected alternatives checked
+          None -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
+            (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
     ELitFloat s text -> check-contextual-float-literal s expected text st
@@ -5863,23 +6987,30 @@ module Bootstrap.Infer where
     ERecord sp name fields -> infer-record-construction classes kinds families env locals sp name fields (Some expected) st
     EFamilyCon sp fallback candidate args -> infer-expected classes kinds families env locals (ECon sp (expected-constructor st expected fallback candidate) args) expected st
     ECon sp name fields | has name ["#condition.NonZero", "#condition.NotNull"] -> infer classes kinds families env locals expr st
-    ECon sp name fields -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
-      (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
+    ECon sp name fields -> case try-infer-sing-lifted-con sp classes kinds families env locals name fields st of
+      Some lifted -> lifted
+      None -> if not (expression-spine-valid fields) then term-error sp "malformed constructor argument spine" st else (case lookup-expression-value sp kinds name env st of
+        (constructor, opened) -> let args = exprs-of fields in apply-spine classes kinds families env locals constructor args (hint-application-result sp (core-type constructor) args expected opened))
+    EApp sp (EVar _ fn-name) x | same fn-name "from-sing" -> infer-from-sing sp classes kinds families env locals x st
+    EApp sp (EApp _ (EVar _ fn-name) v) cont | same fn-name "with-sing" -> infer-with-sing sp classes kinds families env locals v cont (Some expected) st
+    EApp sp (EApp _ (EVar _ fn-name) a) b | same fn-name "sing-eq" -> infer-sing-eq sp classes kinds families env locals a b st
     EApp sp function argument | memo-demand-head env function -> infer-memo-demand classes kinds families env locals sp argument st
     -- One spine walk serves the ownership, projection, task and thunk checks
     -- and the argument list the application is checked against.
-    EApp sp function argument -> case application-spine expr Nil of
-      (head, args) -> case ownership-syntax-head env head of
-        Some operation -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
-          else infer-borrow classes kinds families env locals sp operation args expected st
-        None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if par-method-head? env head then par-method-dispatch classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
-          case thunk-syntax-operation env head of
-            Some operation -> (case (later-parts (normalize st expected), args) of
-              (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
-              other -> infer classes kinds families env locals expr st)
-            None -> case infer-callee classes kinds families env locals head st of
-              (fun, opened) -> apply-spine classes kinds families env locals fun args
-                (hint-application-result sp (core-type fun) args expected opened)
+    EApp sp function argument -> case try-infer-sing-lifted-app sp classes kinds families env locals expr st of
+      Some lifted -> lifted
+      None -> (case application-spine expr Nil of
+        (head, args) -> case ownership-syntax-head env head of
+          Some operation -> if same operation "b.refSet" then infer-ref-set classes kinds families env locals sp args st
+            else infer-borrow classes kinds families env locals sp operation args expected st
+          None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if par-method-head? env head then par-method-dispatch classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
+            case thunk-syntax-operation env head of
+              Some operation -> (case (later-parts (normalize st expected), args) of
+                (Some carrier, [input]) -> if same operation "b.delay" then check-later-delay classes kinds families env locals sp input carrier st else infer classes kinds families env locals expr st
+                other -> infer classes kinds families env locals expr st)
+              None -> case infer-callee classes kinds families env locals head st of
+                (fun, opened) -> apply-spine classes kinds families env locals fun args
+                  (hint-application-result sp (core-type fun) args expected opened))
     other -> infer classes kinds families env locals expr st
   conjuncts :: UType -> List UType
   conjuncts predicate = case predicate of UPropAnd a b -> conjuncts a <> conjuncts b; other -> [predicate]
@@ -6001,8 +7132,10 @@ module Bootstrap.Infer where
     ECase s value alternatives -> case measured-case-binding env s value alternatives of
       Some scoped -> check classes kinds families env locals scoped expected st
       None -> case infer classes kinds families env locals value st of
-        (scrutinee, checked) -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
-          (branches, done) -> (CCase s expected scrutinee branches, done)
+        (scrutinee, checked) -> case sing-type-parts (normalize checked (core-type scrutinee)) of
+          Some (carrier, val) -> check-sing-case s classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee carrier val expected alternatives checked
+          None -> case check-alternatives classes kinds families (proof-env-after-term env scrutinee checked) locals scrutinee expected alternatives (ensure-match-coverage s families env (core-type scrutinee) alternatives checked) of
+            (branches, done) -> (CCase s expected scrutinee branches, done)
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
@@ -7346,23 +8479,34 @@ module Bootstrap.Infer where
             else (CIf sp boolean first (CUse sp boolean "True" "constructor" Nil) second, sb)
     else if has op ["+", "-", "*", "/", "<", ">", "<=", ">="] then
       case infer classes kinds families env locals a st of
-        (inferred, sa) ->
-          let first = project-comparison sp inferred sa in
-          let carrier = case normalize sa (core-type first) of
-                UCon name KType -> if same name "Nat" then primitive-type "Nat" else primitive-type "Int"
-                other -> primitive-type "Int" in
-          let sorted = unify sp (core-type first) carrier sa in
-          case check classes kinds families env locals b carrier sorted of
-            (second, sb) -> let operation = CPrimitive sp (if has op ["+", "-", "*", "/"] then carrier else primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))) in
-              if same op "-" && same (type-text carrier) "Nat" then
-                (case scoped-prove-subtraction (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
-                  Some evidence -> (CProved sp carrier evidence operation, sb)
-                  None -> term-error sp "Nat subtraction needs checked ordering evidence" sb)
-              else if same op "/" then
-                (case scoped-prove-division (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
-                  Some evidence -> (CProved sp carrier evidence operation, sb)
-                  None -> term-error sp "division needs checked NonZero evidence for its divisor" sb)
-              else (operation, sb)
+        (inferred, sa) -> case sing-type-parts (normalize sa (core-type inferred)) of
+          Some (c1, v1) | has op ["+", "-", "*"] ->
+            case infer classes kinds families env locals b sa of
+              (inferred-b, sb) -> case sing-type-parts (normalize sb (core-type inferred-b)) of
+                Some (c2, v2) ->
+                  let s1 = unify sp c1 c2 sb in
+                  let carrier = normalize s1 c1 in
+                  let raw-op = CPrimitive sp carrier op (CArgument sp (CCast sp carrier inferred) (CArgument sp (CCast sp carrier inferred-b) (CArgumentsEnd sp))) in
+                  let pval = normalize s1 (make-index-math op (normalize s1 v1) (normalize s1 v2)) in
+                  (CCast sp (make-sing-type carrier pval) raw-op, s1)
+                None -> term-error sp "singleton-lifted arithmetic expects both operands to be `Sing`" sb
+          other ->
+            let first = project-comparison sp inferred sa in
+            let carrier = case normalize sa (core-type first) of
+                  UCon name KType -> if same name "Nat" then primitive-type "Nat" else primitive-type "Int"
+                  other -> primitive-type "Int" in
+            let sorted = unify sp (core-type first) carrier sa in
+            case check classes kinds families env locals b carrier sorted of
+              (second, sb) -> let operation = CPrimitive sp (if has op ["+", "-", "*", "/"] then carrier else primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))) in
+                if same op "-" && same (type-text carrier) "Nat" then
+                  (case scoped-prove-subtraction (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
+                    Some evidence -> (CProved sp carrier evidence operation, sb)
+                    None -> term-error sp "Nat subtraction needs checked ordering evidence" sb)
+                else if same op "/" then
+                  (case scoped-prove-division (proof-context env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
+                    Some evidence -> (CProved sp carrier evidence operation, sb)
+                    None -> term-error sp "division needs checked NonZero evidence for its divisor" sb)
+                else (operation, sb)
     else if has op ["==", "/="] then case infer classes kinds families env locals a st of
       (inferred, sa) -> let first = project-comparison sp inferred sa in case check classes kinds families env locals b (core-type first) sa of
         (second, sb) -> (CPrimitive sp (primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))),
@@ -7510,9 +8654,9 @@ module Bootstrap.Infer where
         else case a of
           UIndex c2 (IRigid id2 _ _) | contains-nat-id id2 local-ids -> (Cons (id2, b) refs, st)
           other2 -> (Cons (id, a) refs, st)
-      (UIndex c (IRigid id name lvl), other) | contains-nat-id id local-ids ->
+      (UIndex c (IRigid id name lvl), other) ->
         if same-shape a b then (refs, st) else (Cons (id, b) refs, st)
-      (URigid id name lvl k, other) | contains-nat-id id local-ids ->
+      (URigid id name lvl k, other) ->
         if same-shape a b then (refs, st) else (Cons (id, b) refs, st)
       (UApp f1 x1, UApp f2 x2) ->
         case gadt-refine-match sp local-ids f1 f2 refs st of
@@ -8847,7 +9991,7 @@ module Bootstrap.Infer where
     let globals = instance-globals instances (global-bindings st bindings empty-global-declarations) in
     case close-typing-context-with-indexes headers globals (context-effects kinds) datas definitions usage of
       Some closed ->
-        let typed = with-typing-type-families (context-type-families kinds) closed in
+        let typed = with-typing-promoted (context-promoted-fns kinds) (with-typing-type-families (context-type-families kinds) closed) in
         check-instance-globals typed instances (check-core-closed typed definitions st)
       None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal (declared-kinds headers) (ordered-global-declarations globals) (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
@@ -9993,7 +11137,7 @@ module Bootstrap.Infer where
     let admitted-bodies = (case interfaces of Ok checked -> Some checked; Err message -> None) in
     let (import-kinds, import-body-store) = collect-body-contracts admitted-bodies ds classes class-kinds class-store in
     let (method-kinds, method-store) = collect-imported-total-methods interfaces total-instances ds rows classes import-kinds import-body-store in
-    PreparedModule unkinded ds specs clauses classes (prepare-record-scopes method-kinds) (with-type-families (context-type-families method-kinds) method-store)
+    PreparedModule unkinded ds specs clauses classes (prepare-record-scopes method-kinds) (with-families-and-promoted (context-type-families method-kinds) (context-promoted-fns method-kinds) method-store)
 
   finish-module :: ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
@@ -10007,7 +11151,7 @@ module Bootstrap.Infer where
     let (uncached-env, registration-store) = register-conditional-instances rows classes kinds ds ordinary-env si in
     let (env, conditional-store) = cache-body-context uncached-env registration-store in
     let se = check-instance-coherence (env-instances env <> conditional-heads env hash-map-empty) conditional-store in
-    let families = add-families (reverse (Cons ("Bool", ["True", "False"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds)))) (extend-external-families ds external-families) in
+    let families = add-families (reverse (Cons ("Bool", ["True", "False"]) (Cons ("Same", ["Refl"]) (Cons ("b.Dec", ["b.Yes", "b.No"]) (families-of ds))))) (extend-external-families ds external-families) in
     let default-decls = source-default-definitions ds (context-source-classes kinds) in
     let law-store = case store-errors se of Nil -> check-source-laws classes kinds families env ds se; other -> se in
     let (defaults, default-store) = (case (store-errors law-store, default-decls) of
@@ -11187,6 +12331,8 @@ module Bootstrap.Infer where
       None -> if byte-length-binding name kinds || string-length-binding name kinds then Some (primitive-type "Nat")
         else if is-type-family-in name (context-type-families kinds) then
           (case context-kind name kinds of Some k -> value-carrier (kind-result k); None -> None)
+        else if is-promoted-length-call kinds locals name arguments then Some (primitive-type "Nat")
+        else if (case lookup-promoted-fn-in kinds name of Some (_, _, True) -> True; other -> False) then Some (primitive-type "Nat")
         else (case context-total-observation name kinds of
           Some binding -> Some (primitive-type (total-result (binding-function binding)))
           None -> None))
@@ -11214,7 +12360,7 @@ module Bootstrap.Infer where
     None -> primitive-type "Int"
   predicate-arithmetic-input :: TypeContext -> List (String, UType) -> TypeExpr -> Bool
   predicate-arithmetic-input kinds locals syntax = case syntax of
-    TApp sp (TName at name) arguments -> index-observer-name name kinds || string-length-binding name kinds || (case context-total-observation name kinds of
+    TApp sp (TName at name) arguments -> index-observer-name name kinds || string-length-binding name kinds || is-type-family-in name (context-type-families kinds) || is-promoted-length-call kinds locals name arguments || (case lookup-promoted-fn-in kinds name of Some (_, _, True) -> True; other -> False) || (case context-total-observation name kinds of
       Some binding -> has (total-result (binding-function binding)) ["Nat", "Int"]
       None -> False)
     -- A local fixed-width value can be read as mathematical Int in a type

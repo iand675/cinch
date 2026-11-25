@@ -5,7 +5,8 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, elaboration-type-families, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, elaboration-type-families, elaboration-promoted-fns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
+  import Bootstrap.Promote (PromotedFn, is-promoted-fn-name)
   import Bootstrap.BodyContract (binding-name, binding-native, binding-function)
   import Bootstrap.Total (TotalFunction, TotalTerm, TotalArguments, total-term, total-parameters, total-result,
     term-node, argument-node, LocalTerm, NumberTerm, PrimitiveTerm, NextArgument, NoArguments)
@@ -145,7 +146,7 @@ module Bootstrap.RuntimeIr where
   target-caps-of-wasm wasm32 = if wasm32 then MkTargetCaps "wasm32" False else target-caps-of-profile host-profile
 
   data ProgramInfo where
-    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> TargetCaps -> List TypeFamilyRuleSet -> ProgramInfo
+    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> TargetCaps -> List TypeFamilyRuleSet -> List PromotedFn -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -250,35 +251,37 @@ module Bootstrap.RuntimeIr where
   program-data :: ProgramInfo -> List CoreData
   program-data info = case data-index-of info of DataIndex datas types constructors unpacked -> datas
   data-index-of :: ProgramInfo -> DataIndex
-  data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> index
+  data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> index
   program-type-families :: ProgramInfo -> List TypeFamilyRuleSet
-  program-type-families info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> families
+  program-type-families info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> families
+  program-promoted-fns :: ProgramInfo -> List PromotedFn
+  program-promoted-fns info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> promoted
   is-type-family-name :: String -> List TypeFamilyRuleSet -> Bool
   is-type-family-name name families = case families of
     Nil -> False
     Cons fs rest -> same name (family-identity fs) || is-type-family-name name rest
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> instances
   program-callable-bindings :: ProgramInfo -> CallableBindings
   program-callable-bindings info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> callable
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> callable
   -- The first binding of this name still controls foreign lookup, even if
   -- a later binding of the same name carries a foreign plan.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   foreign-symbol-plans :: String -> ProgramInfo -> List ForeignPlan
   foreign-symbol-plans symbol info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> case hash-map-lookup symbol symbols of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case hash-map-lookup symbol symbols of
       Some plans -> plans
       None -> Nil
   foreign-pointer-types :: ProgramInfo -> List UType
   foreign-pointer-types info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> pointers
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> pointers
   index-bindings :: CheckedProgram -> List CoreDefinition -> BindingIndex
   index-bindings checked definitions =
     let bindings = reverse (elaboration-bindings (checked-elaboration checked)) in
@@ -319,7 +322,7 @@ module Bootstrap.RuntimeIr where
     Cons other rest -> index-function-hints rest hints
   function-hints :: ProgramInfo -> String -> FunctionHints
   function-hints info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> lookup-hints name hints
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 families promoted -> lookup-hints name hints
     other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
@@ -342,30 +345,30 @@ module Bootstrap.RuntimeIr where
     Nil -> tail
     Cons first rest -> add-pointer-type first (add-pointer-types rest tail)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim wasm32 families -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim wasm32 families promoted -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families promoted -> groups
   -- Whether this emission counts references (`--no-reclaim` and
   -- `CINCH_RECLAIM=0` select the other arm): the one switch every
   -- ownership operation reads, so a leak-baseline build emits none of
   -- them and every block it allocates stays live until exit.
   program-reclaim :: ProgramInfo -> Bool
-  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> reclaim
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim wasm32 families ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim wasm32 families promoted ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families promoted
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families promoted -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -499,40 +502,44 @@ module Bootstrap.RuntimeIr where
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
   value-word-class context raw-ty =
-    let ty = reduce-type-families (program-type-families (program-info context)) raw-ty in
-    if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
-    RuntimeContext datas bounds rigids queue inlining -> case base ty of
-      -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
-      UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> Some 0
-      UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" -> Some 0
-      UBound id name KType -> representation id bounds
-      URigid id name level KType -> (case representation id rigids of
-        Some code -> Some code
-        None -> if string-starts-with "$gadt_" name then Some 1 else None)
-      UIndex carrier idx -> Some 0
-      UIndexMath op left right -> Some 0
-      UFun domain result -> Some 1
-      UFunEff domain row result -> Some 1
-      UUsageArrow usage arrow -> Some 1
-      UProofFun predicate row result -> Some 1
-      UPi id name domain row result -> Some 1
-      -- A polymorphic value is its class-indexed bundle: one block.
-      UForall qs body -> Some 1
-      UTuple fields -> if field-types context fields 0 then Some 1 else None
-      USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
-      other -> case type-head ty of
-        UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
-          else if promoted-ctor-name name || promoted-str-name name then Some 0
-          else if is-type-family-name name (program-type-families datas) then Some 1
-          else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
-          else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
-          (case data-declaration name datas of
-            Some d -> Some (data-word-class d)
-            None -> if kind-equal kind KType && checked-string-word name datas then Some 1
-              else case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
-        UBound id name kind -> applied-former-class ty kind (representation id bounds)
-        URigid id name level kind -> applied-former-class ty kind (representation id rigids)
-        other -> None
+    let ty = reduce-types (program-type-families (program-info context)) (program-promoted-fns (program-info context)) raw-ty in
+    case sing-type-parts (base ty) of
+      Some (carrier, val) -> value-word-class context carrier
+      None -> case same-type-parts (base ty) of
+        Some _ -> Some 0
+        None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+          RuntimeContext datas bounds rigids queue inlining -> case base ty of
+            -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
+            UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> Some 0
+            UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" -> Some 0
+            UBound id name KType -> representation id bounds
+            URigid id name level KType -> (case representation id rigids of
+              Some code -> Some code
+              None -> if string-starts-with "$gadt_" name || string-starts-with "$sing_" name then Some 1 else None)
+            UIndex carrier idx -> Some 0
+            UIndexMath op left right -> Some 0
+            UFun domain result -> Some 1
+            UFunEff domain row result -> Some 1
+            UUsageArrow usage arrow -> Some 1
+            UProofFun predicate row result -> Some 1
+            UPi id name domain row result -> Some 1
+            -- A polymorphic value is its class-indexed bundle: one block.
+            UForall qs body -> Some 1
+            UTuple fields -> if field-types context fields 0 then Some 1 else None
+            USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
+            other -> case type-head ty of
+              UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
+                else if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then Some 0
+                else if is-type-family-name name (program-type-families datas) then Some 1
+                else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
+                else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
+                (case data-declaration name datas of
+                  Some d -> Some (data-word-class d)
+                  None -> if kind-equal kind KType && checked-string-word name datas then Some 1
+                    else case find-class name (program-classes datas) of Some description -> Some 1; None -> None)
+              UBound id name kind -> applied-former-class ty kind (representation id bounds)
+              URigid id name level kind -> applied-former-class ty kind (representation id rigids)
+              other -> None
   data-word-class :: CoreData -> Nat
   data-word-class d = case core-data-layout d of UnboxedData label word bytes align -> word; other -> 1
   uniform-owner :: String -> Writer -> Bool
@@ -611,7 +618,7 @@ module Bootstrap.RuntimeIr where
   source-scheme-classes context qs actuals = case (qs, actuals) of
     (Nil, Nil) -> Some Nil
     (Cons q rest, Cons actual more) -> (case value-carrier (quant-kind q) of
-      Some carrier -> if typed-index-admissible actual then source-scheme-classes context rest more else None
+      Some carrier -> if typed-index-admissible actual || valid-app-arg-kind (quant-kind q) actual then source-scheme-classes context rest more else None
       None -> if erased-kind (quant-kind q) then source-scheme-classes context rest more else
         (case (quant-word-class context (quant-kind q) actual, source-scheme-classes context rest more) of
           (Some code, Some tail) -> Some (Cons code tail)
@@ -987,7 +994,7 @@ module Bootstrap.RuntimeIr where
     Cons d rest -> index-definitions rest (hash-map-insert (core-name d) d table)
   worker-definition :: String -> Writer -> Option CoreDefinition
   worker-definition name w = case writer-program w of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 families -> hash-map-lookup name definitions
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 families promoted -> hash-map-lookup name definitions
   join :: List String -> String
   join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
   argument-words :: List String -> List String
@@ -1520,6 +1527,7 @@ module Bootstrap.RuntimeIr where
       else if same role "operation" then expression definitions locals w (operation-closure sp ty)
       else if named ty "Bool" && same name "True" then (w, "1")
       else if named ty "Bool" && same name "False" then (w, "0")
+      else if same role "constructor" && same name "Refl" then (w, "0")
       else direct-call definitions locals w sp name actuals Nil
     CQualifiedUse sp ty name role actuals evidence -> case evidences definitions locals w evidence of
       (ready, values) -> call-name definitions locals ready sp name actuals values Nil
@@ -4565,6 +4573,7 @@ module Bootstrap.RuntimeIr where
         else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           (case compare-word w "eq" value (if same name "True" then "1" else "0") of
             (ready, condition) -> (continue-if ready condition failed, Nil))
+        else if same name "Refl" then (w, Nil)
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
             Some d -> case core-data-layout d of
@@ -4774,6 +4783,7 @@ module Bootstrap.RuntimeIr where
   known-constructor-fields :: Writer -> UType -> String -> Option Nat
   known-constructor-fields w ty name =
     if named ty "Bool" && (same name "True" || same name "False") then Some 0
+    else if same name "Refl" then Some 0
     else if decision-word-type ty && (same name "b.Yes" || same name "b.No") then Some 0
     else case constructor name (writer-program w) of
       Some (owner, tag, c) -> if tag < 16777216 then Some (list-length (core-constructor-fields c)) else None
@@ -5154,6 +5164,7 @@ module Bootstrap.RuntimeIr where
         if decision-word-type (shared-pattern-carrier ty) then NoArm
         else if named (shared-pattern-carrier ty) "Bool" && (same name "True" || same name "False") then
           WordArm (if same name "True" then "1" else "0")
+        else if same name "Refl" then WordArm "0"
         else case constructor name (writer-program w) of
           Some (owner, tag, c) -> if uniform-owner owner w && tag < 16777216 && irrefutable-fields fields then TagArm (nat-to-string tag) else NoArm
           None -> NoArm
@@ -5405,7 +5416,8 @@ module Bootstrap.RuntimeIr where
       Some word -> if static-carrier (writer-context w) ty word then Some word else None
       None -> None) else if raw-integer ty then (if static-carrier (writer-context w) ty text then Some text else None) else None
     CUse sp ty name role actuals -> if named ty "Bool" && same name "True" then (if static-carrier (writer-context w) ty "1" then Some "1" else None)
-      else if named ty "Bool" && same name "False" then (if static-carrier (writer-context w) ty "0" then Some "0" else None) else None
+      else if named ty "Bool" && same name "False" then (if static-carrier (writer-context w) ty "0" then Some "0" else None)
+      else if same name "Refl" then (if static-carrier (writer-context w) ty "0" then Some "0" else None) else None
     CLocal sp ty id name Nil -> case local id locals of
       Some (declared, word) -> if static-carrier (writer-context w) declared word then Some word else None
       None -> None
@@ -5428,7 +5440,7 @@ module Bootstrap.RuntimeIr where
       CUnit sp ty -> True
       CChar sp ty text -> True
       CInt sp ty text -> True
-      CUse sp ty name role actuals -> same name "True" || same name "False"
+      CUse sp ty name role actuals -> same name "True" || same name "False" || same name "Refl"
       CLocal sp ty id name Nil -> True
       CApply sp ty f x -> trivial-pure-call info context term (fuel - 1)
       other -> False
@@ -5749,7 +5761,7 @@ module Bootstrap.RuntimeIr where
   par-prefix info = if program-wasm32 info then "@cinch_coop_" else "@cinch_"
   program-caps :: ProgramInfo -> TargetCaps
   program-caps info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim caps families -> caps
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim caps families promoted -> caps
   program-wasm32 :: ProgramInfo -> Bool
   program-wasm32 info = same (target-caps-arch (program-caps info)) "wasm32"
   program-arch :: ProgramInfo -> String
@@ -7103,7 +7115,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
@@ -7238,7 +7250,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-unit-roots checked demands =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     case (library-default-definitions definitions, library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok ordinary, Ok constructors) -> case library-requested-units demands definitions (elaboration-data typed) of
         Ok requested -> Ok (ordinary <> constructors <> requested)
@@ -7392,7 +7404,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps (elaboration-type-families typed) in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
@@ -7430,7 +7442,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) in
+    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) (elaboration-promoted-fns typed) in
     let exports = checked-c-exports (elaboration-bindings typed) in
     let roots = foreign-export-roots exports in
     let plan = inline-plan inlining definitions info in

@@ -5,7 +5,7 @@ module Bootstrap.Export where
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
   import Bootstrap.Ast (Program, Module, Decl, TypeExpr, TypeParam, param-kind, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
-  import Bootstrap.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, promoted-ctor-symbol, promoted-ctor-parent, promoted-ctor-fields, DataFamilyInfo, data-family-name, data-family-params, data-family-patterns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, promoted-ctor-symbol, promoted-ctor-parent, promoted-ctor-fields, DataFamilyInfo, data-family-name, data-family-params, data-family-patterns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Unpack (unpacked-abi)
   import Bootstrap.Core (CoreEffect, core-effect-name, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -13,6 +13,7 @@ module Bootstrap.Export where
   import Bootstrap.Guarded (check-guarded-binding)
   import Bootstrap.Instance
   import Bootstrap.Type
+  import Bootstrap.Promote (PromotedFn, promoted-fn-identity, promoted-fn-json)
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
@@ -1282,6 +1283,14 @@ module Bootstrap.Export where
               (JObj "param_kinds" (opt-pdk-list-json pdks) JObjEnd)) more
           Err _ -> more)
       else more
+  export-promoted-fns-json :: String -> List PromotedFn -> Json
+  export-promoted-fns-json mod-name fns = case fns of
+    Nil -> JArrEnd
+    Cons f rest ->
+      let more = export-promoted-fns-json mod-name rest in
+      if same (nominal-owner (promoted-fn-identity f)) mod-name then
+        JArr (promoted-fn-json f) more
+      else more
   attach-optional-field :: String -> Json -> Json -> Json
   attach-optional-field key val obj = case val of JArrEnd -> obj; other -> JObj key val obj
   document :: Elaboration -> HashMap String DataLayout -> Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
@@ -1291,12 +1300,14 @@ module Bootstrap.Export where
     let df-rows = export-data-families-json context (elaboration-data-families typed) in
     let pc-rows = export-promoted-ctors-json mod-name (elaboration-promoted-ctors typed) in
     let pk-rows = export-data-param-kinds-json context (elaboration-data-param-kinds typed) in
+    let pf-rows = export-promoted-fns-json mod-name (elaboration-promoted-fns typed) in
     let base-exports = JObj "values" values (JObj "types" types (JObj "signatures" signatures
           (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))) in
     let full-exports = attach-optional-field "type_families" tf-rows
           (attach-optional-field "data_families" df-rows
             (attach-optional-field "promoted_ctors" pc-rows
-              (attach-optional-field "data_param_kinds" pk-rows base-exports))) in
+              (attach-optional-field "data_param_kinds" pk-rows
+                (attach-optional-field "promoted_fns" pf-rows base-exports)))) in
     JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)

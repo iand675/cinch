@@ -1,0 +1,825 @@
+-- Native compile-time evaluator for promoted pure Cinch functions.
+-- Runs directly in compiled machine code during type normalization without
+-- type-family defunctionalization overhead.
+module Bootstrap.Promote where
+
+  import Bootstrap.Document
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Data.Int (int-div, int-rem)
+  import Text.Scan (string-starts-with)
+  import Algebra.Semigroup
+
+  export PBinOp, PBAdd, PBSub, PBMul, PBDiv, PBMod, PBEq, PBNe, PBLt, PBLe, PBGt, PBGe, PBAnd, PBOr, PBConcat
+  export PPat, PPWild, PPVar, PPNat, PPBool, PPStr, PPCon, PPTuple, PPatList, PPArg, PPEnd
+  export PExpr, PEVar, PENat, PEBool, PEStr, PECon, PETuple, PEApp, PELam, PELet, PEIf, PECase, PEBin, PENot, PENeg, PEFnRef
+  export PExprList, PEArg, PEEnd, PAltList, PAltCons, PAltEnd
+  export PClause, MkPClause, clause-pats, clause-body
+  export PromotedFn, MkPromotedFn, promoted-fn-identity, promoted-fn-arity, promoted-fn-returns-idx, promoted-fn-clauses
+  export PVal, PVNat, PVBool, PVStr, PVCon, PVTuple, PVClosure, PVPartial, PVSymAdd, PVSymSub, PVSymMul, PVOpaque
+  export PValList, PVArg, PVEnd, PEnv, PEnvCons, PEnvEnd
+  export promoted-fn-prefix, is-promoted-fn-name, strip-promoted-fn-name, promoted-builtin-arity, lookup-promoted-fn
+  export eval-promoted-call, eval-promoted-apply, pval-list-from-list, pval-list-to-list
+  export promoted-fn-json, read-promoted-fn-json, promoted-fns-json, read-promoted-fns-json
+
+  promoted-fn-prefix :: String
+  promoted-fn-prefix = "fn:"
+
+  is-promoted-fn-name :: String -> Bool
+  is-promoted-fn-name name = string-starts-with "fn:" name
+
+  strip-promoted-fn-name :: String -> String
+  strip-promoted-fn-name name = case unpack name of
+    Cons c1 (Cons c2 (Cons c3 rest)) ->
+      if char-code c1 == 102 && char-code c2 == 110 && char-code c3 == 58 then pack rest else name
+    other -> name
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  int-to-nat-or-zero :: Int -> Nat
+  int-to-nat-or-zero n = if n >= 0 then nat-from-int n else 0
+
+  data PBinOp where
+    PBAdd :: PBinOp
+    PBSub :: PBinOp
+    PBMul :: PBinOp
+    PBDiv :: PBinOp
+    PBMod :: PBinOp
+    PBEq :: PBinOp
+    PBNe :: PBinOp
+    PBLt :: PBinOp
+    PBLe :: PBinOp
+    PBGt :: PBinOp
+    PBGe :: PBinOp
+    PBAnd :: PBinOp
+    PBOr :: PBinOp
+    PBConcat :: PBinOp
+
+  data PPat where
+    PPWild :: PPat
+    PPVar :: String -> PPat
+    PPNat :: Int -> PPat
+    PPBool :: Bool -> PPat
+    PPStr :: String -> PPat
+    PPCon :: String -> PPatList -> PPat
+    PPTuple :: PPatList -> PPat
+
+  data PPatList where
+    PPArg :: PPat -> PPatList -> PPatList
+    PPEnd :: PPatList
+
+  data PExpr where
+    PEVar :: String -> PExpr
+    PENat :: Int -> PExpr
+    PEBool :: Bool -> PExpr
+    PEStr :: String -> PExpr
+    PECon :: String -> PExprList -> PExpr
+    PETuple :: PExprList -> PExpr
+    PEApp :: PExpr -> PExpr -> PExpr
+    PELam :: String -> PExpr -> PExpr
+    PELet :: String -> PExpr -> PExpr -> PExpr
+    PEIf :: PExpr -> PExpr -> PExpr -> PExpr
+    PECase :: PExpr -> PAltList -> PExpr
+    PEBin :: PBinOp -> PExpr -> PExpr -> PExpr
+    PENot :: PExpr -> PExpr
+    PENeg :: PExpr -> PExpr
+    PEFnRef :: String -> PExpr
+
+  data PExprList where
+    PEArg :: PExpr -> PExprList -> PExprList
+    PEEnd :: PExprList
+
+  data PAltList where
+    PAltCons :: PPat -> PExpr -> PAltList -> PAltList
+    PAltEnd :: PAltList
+
+  data PClause where
+    MkPClause :: PPatList -> PExpr -> PClause
+
+  clause-pats :: PClause -> PPatList
+  clause-pats c = case c of MkPClause ps body -> ps
+
+  clause-body :: PClause -> PExpr
+  clause-body c = case c of MkPClause ps body -> body
+
+  data PromotedFn where
+    MkPromotedFn :: String -> Nat -> Bool -> List PClause -> PromotedFn
+
+  promoted-fn-identity :: PromotedFn -> String
+  promoted-fn-identity f = case f of MkPromotedFn id arity ret-idx clauses -> id
+
+  promoted-fn-arity :: PromotedFn -> Nat
+  promoted-fn-arity f = case f of MkPromotedFn id arity ret-idx clauses -> arity
+
+  promoted-fn-returns-idx :: PromotedFn -> Bool
+  promoted-fn-returns-idx f = case f of MkPromotedFn id arity ret-idx clauses -> ret-idx
+
+  promoted-fn-clauses :: PromotedFn -> List PClause
+  promoted-fn-clauses f = case f of MkPromotedFn id arity ret-idx clauses -> clauses
+
+  data PVal a where
+    PVNat :: Int -> PVal a
+    PVBool :: Bool -> PVal a
+    PVStr :: String -> PVal a
+    PVCon :: String -> PValList a -> PVal a
+    PVTuple :: PValList a -> PVal a
+    PVClosure :: String -> PExpr -> PEnv a -> PVal a
+    PVPartial :: String -> Nat -> PValList a -> PVal a
+    PVSymAdd :: PVal a -> PVal a -> PVal a
+    PVSymSub :: PVal a -> PVal a -> PVal a
+    PVSymMul :: PVal a -> PVal a -> PVal a
+    PVOpaque :: a -> PVal a
+
+  data PValList a where
+    PVArg :: PVal a -> PValList a -> PValList a
+    PVEnd :: PValList a
+
+  data PEnv a where
+    PEnvCons :: String -> PVal a -> PEnv a -> PEnv a
+    PEnvEnd :: PEnv a
+
+  pval-list-from-list :: forall a. List (PVal a) -> PValList a
+  pval-list-from-list xs = case xs of
+    Nil -> PVEnd
+    Cons h t -> PVArg h (pval-list-from-list t)
+
+  pval-list-to-list :: forall a. PValList a -> List (PVal a)
+  pval-list-to-list xs = case xs of
+    PVEnd -> Nil
+    PVArg h t -> Cons h (pval-list-to-list t)
+
+  pval-list-len :: forall a. PValList a -> Nat
+  pval-list-len xs = case xs of
+    PVEnd -> 0
+    PVArg _ t -> 1 + pval-list-len t
+
+  pval-list-snoc :: forall a. PValList a -> PVal a -> PValList a
+  pval-list-snoc xs v = case xs of
+    PVEnd -> PVArg v PVEnd
+    PVArg h t -> PVArg h (pval-list-snoc t v)
+
+  pval-list-append :: forall a. PValList a -> PValList a -> PValList a
+  pval-list-append xs ys = case xs of
+    PVEnd -> ys
+    PVArg h t -> PVArg h (pval-list-append t ys)
+
+  lookup-env :: forall a. String -> PEnv a -> Option (PVal a)
+  lookup-env name env = case env of
+    PEnvEnd -> None
+    PEnvCons k v rest -> if same k name then Some v else lookup-env name rest
+
+  lookup-promoted-fn :: String -> List PromotedFn -> Option PromotedFn
+  lookup-promoted-fn wanted fns = case fns of
+    Nil -> None
+    Cons f rest -> if same wanted (promoted-fn-identity f) then Some f else lookup-promoted-fn wanted rest
+
+  -- Built-in promoted prelude fast paths (keyed by canonical identity).
+  promoted-builtin-arity :: String -> Option Nat
+  promoted-builtin-arity id =
+    if same id "Data.List.reverse" || same id "reverse" then Some 1
+    else if same id "Data.List.length" || same id "length" then Some 1
+    else if same id "Data.List.map" || same id "map" then Some 2
+    else if same id "Data.List.append" || same id "append" then Some 2
+    else if same id "Data.List.head" || same id "head" then Some 1
+    else if same id "Data.List.tail" || same id "tail" then Some 1
+    else if same id "Data.List.concat" || same id "concat" then Some 1
+    else if same id "Data.List.foldl" || same id "foldl" then Some 3
+    else if same id "Data.List.foldr" || same id "foldr" then Some 3
+    else if same id "Data.List.take" || same id "take" then Some 2
+    else if same id "Data.List.drop" || same id "drop" then Some 2
+    else if same id "Data.String.string-concat" || same id "string-concat" then Some 2
+    else if same id "Data.Bool.not" || same id "Data.Core.not" || same id "not" then Some 1
+    else if same id "Data.Tuple.fst" || same id "Data.Core.fst" || same id "fst" then Some 1
+    else if same id "Data.Tuple.snd" || same id "Data.Core.snd" || same id "snd" then Some 1
+    else None
+
+  fn-arity-in :: List PromotedFn -> String -> Option Nat
+  fn-arity-in fns id = case lookup-promoted-fn id fns of
+    Some f -> Some (promoted-fn-arity f)
+    None -> promoted-builtin-arity id
+
+  cons-ctor-name :: String
+  cons-ctor-name = "ctor:Data.Core.Cons"
+
+  nil-ctor-name :: String
+  nil-ctor-name = "ctor:Data.Core.Nil"
+
+  is-nil-ctor :: String -> Bool
+  is-nil-ctor name = same name nil-ctor-name || same name "ctor:Nil"
+
+  is-cons-ctor :: String -> Bool
+  is-cons-ctor name = same name cons-ctor-name || same name "ctor:Cons"
+
+  -- Symbolic arithmetic with algebraic simplification (`m + 0 -> m`, `m * 1 -> m`, etc.).
+  sym-add :: forall a. PVal a -> PVal a -> PVal a
+  sym-add a b = case (a, b) of
+    (PVNat x, PVNat y) -> PVNat (x + y)
+    (PVNat 0, y) -> y
+    (x, PVNat 0) -> x
+    (PVSymAdd x (PVNat c1), PVNat c2) -> sym-add x (PVNat (c1 + c2))
+    (PVNat c1, PVSymAdd (PVNat c2) y) -> sym-add (PVNat (c1 + c2)) y
+    other -> PVSymAdd a b
+
+  sym-sub :: forall a. PVal a -> PVal a -> PVal a
+  sym-sub a b = case (a, b) of
+    (PVNat x, PVNat y) -> PVNat (if x >= y then x - y else 0)
+    (x, PVNat 0) -> x
+    other -> PVSymSub a b
+
+  sym-mul :: forall a. PVal a -> PVal a -> PVal a
+  sym-mul a b = case (a, b) of
+    (PVNat x, PVNat y) -> PVNat (x * y)
+    (PVNat 0, _) -> PVNat 0
+    (_, PVNat 0) -> PVNat 0
+    (PVNat 1, y) -> y
+    (x, PVNat 1) -> x
+    other -> PVSymMul a b
+
+  eval-binop :: forall a. PBinOp -> PVal a -> PVal a -> Option (PVal a)
+  eval-binop op a b = case op of
+    PBAdd -> Some (sym-add a b)
+    PBSub -> Some (sym-sub a b)
+    PBMul -> Some (sym-mul a b)
+    PBDiv -> case (a, b) of
+      (PVNat x, PVNat y) | y /= 0 -> Some (PVNat (int-div x y))
+      other -> None
+    PBMod -> case (a, b) of
+      (PVNat x, PVNat y) | y /= 0 -> Some (PVNat (int-rem x y))
+      other -> None
+    PBEq -> pval-eq a b
+    PBNe -> case pval-eq a b of Some (PVBool eq) -> Some (PVBool (not eq)); other -> None
+    PBLt -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x < y)); other -> None
+    PBLe -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x <= y)); other -> None
+    PBGt -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x > y)); other -> None
+    PBGe -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x >= y)); other -> None
+    PBAnd -> case a of
+      PVBool False -> Some (PVBool False)
+      PVBool True -> Some b
+      other -> None
+    PBOr -> case a of
+      PVBool True -> Some (PVBool True)
+      PVBool False -> Some b
+      other -> None
+    PBConcat -> case (a, b) of
+      (PVStr x, PVStr y) -> Some (PVStr (x <> y))
+      other -> None
+
+  pval-eq :: forall a. PVal a -> PVal a -> Option (PVal a)
+  pval-eq a b = case (a, b) of
+    (PVNat x, PVNat y) -> Some (PVBool (x == y))
+    (PVBool x, PVBool y) -> Some (PVBool ((x && y) || (not x && not y)))
+    (PVStr x, PVStr y) -> Some (PVBool (same x y))
+    (PVCon c1 fs1, PVCon c2 fs2) ->
+      if not (same c1 c2) then Some (PVBool False)
+      else pval-list-eq fs1 fs2
+    (PVTuple fs1, PVTuple fs2) -> pval-list-eq fs1 fs2
+    other -> None
+
+  pval-list-eq :: forall a. PValList a -> PValList a -> Option (PVal a)
+  pval-list-eq xs ys = case (xs, ys) of
+    (PVEnd, PVEnd) -> Some (PVBool True)
+    (PVArg a r1, PVArg b r2) -> case pval-eq a b of
+      Some (PVBool True) -> pval-list-eq r1 r2
+      Some (PVBool False) -> Some (PVBool False)
+      other -> None
+    other -> Some (PVBool False)
+
+  -- Three-way pattern match result: matched with bindings, definitely mismatched,
+  -- or stuck on an opaque symbolic value.
+  data MatchOutcome a where
+    PMatch :: PEnv a -> MatchOutcome a
+    PMismatch :: MatchOutcome a
+    PStuck :: MatchOutcome a
+
+  match-pat :: forall a. PPat -> PVal a -> PEnv a -> MatchOutcome a
+  match-pat pat val env = case pat of
+    PPWild -> PMatch env
+    PPVar name -> PMatch (PEnvCons name val env)
+    PPNat n -> case val of
+      PVNat m -> if n == m then PMatch env else PMismatch
+      other -> PStuck
+    PPBool b -> case val of
+      PVBool v -> if (b && v) || (not b && not v) then PMatch env else PMismatch
+      other -> PStuck
+    PPStr s -> case val of
+      PVStr v -> if same s v then PMatch env else PMismatch
+      other -> PStuck
+    PPCon cname subpats ->
+      if same cname "ctor:True" || same cname "True" then match-pat (PPBool True) val env
+      else if same cname "ctor:False" || same cname "False" then match-pat (PPBool False) val env
+      else case val of
+        PVCon vname vfields ->
+          if same cname vname || (is-nil-ctor cname && is-nil-ctor vname) || (is-cons-ctor cname && is-cons-ctor vname) then
+            match-pat-list subpats vfields env
+          else PMismatch
+        other -> PStuck
+    PPTuple subpats -> case val of
+      PVTuple vfields -> match-pat-list subpats vfields env
+      other -> PStuck
+
+  match-pat-list :: forall a. PPatList -> PValList a -> PEnv a -> MatchOutcome a
+  match-pat-list pats vals env = case (pats, vals) of
+    (PPEnd, PVEnd) -> PMatch env
+    (PPArg p pr, PVArg v vr) -> case match-pat p v env of
+      PMatch next -> match-pat-list pr vr next
+      PMismatch -> PMismatch
+      PStuck -> PStuck
+    other -> PMismatch
+
+  -- Fuel + depth threaded evaluation state.
+  eval-promoted-call :: forall a. List PromotedFn -> String -> PValList a -> Option (PVal a)
+  eval-promoted-call fns fn-id args =
+    case eval-call-fuel fns fn-id args 20000 256 of
+      (res, _) -> res
+
+  eval-promoted-apply :: forall a. List PromotedFn -> PVal a -> PVal a -> Option (PVal a)
+  eval-promoted-apply fns fn arg =
+    case apply-val fns fn arg 20000 256 of
+      (res, _) -> res
+
+  eval-call-fuel :: forall a. List PromotedFn -> String -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
+  eval-call-fuel fns fn-id args fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else case lookup-promoted-fn fn-id fns of
+      Some f ->
+        let arity = promoted-fn-arity f in
+        let n = pval-list-len args in
+        if n < arity then (Some (PVPartial fn-id arity args), fuel - 1)
+        else if n == arity then eval-clauses fns (promoted-fn-clauses f) args (fuel - 1) (depth - 1)
+        else
+          case split-pvals arity args of
+            (first-args, extra) ->
+              case eval-clauses fns (promoted-fn-clauses f) first-args (fuel - 1) (depth - 1) of
+                (Some res, f1) -> apply-val-list fns res extra f1 (depth - 1)
+                (None, f1) -> (None, f1)
+      None -> eval-builtin-call fns fn-id args (fuel - 1) (depth - 1)
+
+  split-pvals :: forall a. Nat -> PValList a -> (PValList a, PValList a)
+  split-pvals n xs =
+    if n == 0 then (PVEnd, xs)
+    else case xs of
+      PVEnd -> (PVEnd, PVEnd)
+      PVArg h t -> case split-pvals (n - 1) t of
+        (front, back) -> (PVArg h front, back)
+
+  eval-clauses :: forall a. List PromotedFn -> List PClause -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
+  eval-clauses fns clauses args fuel depth = case clauses of
+    Nil -> (None, fuel)
+    Cons (MkPClause pats body) rest -> case match-pat-list pats args PEnvEnd of
+      PMatch env -> eval-expr fns env body fuel depth
+      PMismatch -> eval-clauses fns rest args fuel depth
+      PStuck -> (None, fuel)
+
+  eval-expr :: forall a. List PromotedFn -> PEnv a -> PExpr -> Nat -> Nat -> (Option (PVal a), Nat)
+  eval-expr fns env expr fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else let f0 = fuel - 1 in case expr of
+      PEVar name -> (lookup-env name env, f0)
+      PENat n -> (Some (PVNat n), f0)
+      PEBool b -> (Some (PVBool b), f0)
+      PEStr s -> (Some (PVStr s), f0)
+      PEFnRef id -> case fn-arity-in fns id of
+        Some 0 -> eval-call-fuel fns id PVEnd f0 (depth - 1)
+        Some arity -> (Some (PVPartial id arity PVEnd), f0)
+        None -> (None, f0)
+      PECon cname args ->
+        if same cname "ctor:True" || same cname "True" then (Some (PVBool True), f0)
+        else if same cname "ctor:False" || same cname "False" then (Some (PVBool False), f0)
+        else case eval-expr-list fns env args f0 depth of
+          (Some vals, f1) -> (Some (PVCon cname vals), f1)
+          (None, f1) -> (None, f1)
+      PETuple args -> case eval-expr-list fns env args f0 depth of
+        (Some vals, f1) -> (Some (PVTuple vals), f1)
+        (None, f1) -> (None, f1)
+      PELam param body -> (Some (PVClosure param body env), f0)
+      PELet name rhs body -> case eval-expr fns env rhs f0 depth of
+        (Some v, f1) -> eval-expr fns (PEnvCons name v env) body f1 depth
+        (None, f1) -> (None, f1)
+      PEIf cond yes no -> case eval-expr fns env cond f0 depth of
+        (Some (PVBool True), f1) -> eval-expr fns env yes f1 depth
+        (Some (PVBool False), f1) -> eval-expr fns env no f1 depth
+        (_, f1) -> (None, f1)
+      PECase scrut alts -> case eval-expr fns env scrut f0 depth of
+        (Some v, f1) -> eval-alts fns env v alts f1 depth
+        (None, f1) -> (None, f1)
+      PENot x -> case eval-expr fns env x f0 depth of
+        (Some (PVBool b), f1) -> (Some (PVBool (not b)), f1)
+        (_, f1) -> (None, f1)
+      PENeg x -> case eval-expr fns env x f0 depth of
+        (Some (PVNat n), f1) -> (Some (PVNat (0 - n)), f1)
+        (_, f1) -> (None, f1)
+      PEBin op lhs rhs ->
+        case op of
+          PBAnd -> case eval-expr fns env lhs f0 depth of
+            (Some (PVBool False), f1) -> (Some (PVBool False), f1)
+            (Some (PVBool True), f1) -> eval-expr fns env rhs f1 depth
+            (_, f1) -> (None, f1)
+          PBOr -> case eval-expr fns env lhs f0 depth of
+            (Some (PVBool True), f1) -> (Some (PVBool True), f1)
+            (Some (PVBool False), f1) -> eval-expr fns env rhs f1 depth
+            (_, f1) -> (None, f1)
+          other -> case eval-expr fns env lhs f0 depth of
+            (Some a, f1) -> case eval-expr fns env rhs f1 depth of
+              (Some b, f2) -> (eval-binop op a b, f2)
+              (None, f2) -> (None, f2)
+            (None, f1) -> (None, f1)
+      PEApp fun arg -> case eval-expr fns env fun f0 depth of
+        (Some fv, f1) -> case eval-expr fns env arg f1 depth of
+          (Some av, f2) -> apply-val fns fv av f2 depth
+          (None, f2) -> (None, f2)
+        (None, f1) -> (None, f1)
+
+  eval-expr-list :: forall a. List PromotedFn -> PEnv a -> PExprList -> Nat -> Nat -> (Option (PValList a), Nat)
+  eval-expr-list fns env exprs fuel depth = case exprs of
+    PEEnd -> (Some PVEnd, fuel)
+    PEArg first rest -> case eval-expr fns env first fuel depth of
+      (Some v, f1) -> case eval-expr-list fns env rest f1 depth of
+        (Some more, f2) -> (Some (PVArg v more), f2)
+        (None, f2) -> (None, f2)
+      (None, f1) -> (None, f1)
+
+  eval-alts :: forall a. List PromotedFn -> PEnv a -> PVal a -> PAltList -> Nat -> Nat -> (Option (PVal a), Nat)
+  eval-alts fns env val alts fuel depth = case alts of
+    PAltEnd -> (None, fuel)
+    PAltCons pat body rest -> case match-pat pat val env of
+      PMatch next-env -> eval-expr fns next-env body fuel depth
+      PMismatch -> eval-alts fns env val rest fuel depth
+      PStuck -> (None, fuel)
+
+  apply-val :: forall a. List PromotedFn -> PVal a -> PVal a -> Nat -> Nat -> (Option (PVal a), Nat)
+  apply-val fns fn arg fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else case fn of
+      PVClosure param body cenv -> eval-expr fns (PEnvCons param arg cenv) body (fuel - 1) (depth - 1)
+      PVPartial id arity collected ->
+        let next = pval-list-snoc collected arg in
+        if pval-list-len next >= arity then eval-call-fuel fns id next (fuel - 1) (depth - 1)
+        else (Some (PVPartial id arity next), fuel - 1)
+      PVCon cname fields -> (Some (PVCon cname (pval-list-snoc fields arg)), fuel - 1)
+      other -> (None, fuel)
+
+  apply-val-list :: forall a. List PromotedFn -> PVal a -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
+  apply-val-list fns fn args fuel depth = case args of
+    PVEnd -> (Some fn, fuel)
+    PVArg first rest -> case apply-val fns fn first fuel depth of
+      (Some next, f1) -> apply-val-list fns next rest f1 depth
+      (None, f1) -> (None, f1)
+
+  -- Native prelude fast paths.
+  eval-builtin-call :: forall a. List PromotedFn -> String -> PValList a -> Nat -> Nat -> (Option (PVal a), Nat)
+  eval-builtin-call fns id args fuel depth =
+    case promoted-builtin-arity id of
+      None -> (None, fuel)
+      Some arity ->
+        let n = pval-list-len args in
+        if n < arity then (Some (PVPartial id arity args), fuel)
+        else if same id "Data.String.string-concat" || same id "string-concat" then
+          case args of
+            PVArg (PVStr a) (PVArg (PVStr b) PVEnd) -> (Some (PVStr (a <> b)), fuel)
+            other -> (None, fuel)
+        else if same id "Data.Bool.not" || same id "Data.Core.not" || same id "not" then
+          case args of
+            PVArg (PVBool b) PVEnd -> (Some (PVBool (not b)), fuel)
+            other -> (None, fuel)
+        else if same id "Data.Tuple.fst" || same id "Data.Core.fst" || same id "fst" then
+          case args of
+            PVArg (PVTuple (PVArg a (PVArg _ PVEnd))) PVEnd -> (Some a, fuel)
+            other -> (None, fuel)
+        else if same id "Data.Tuple.snd" || same id "Data.Core.snd" || same id "snd" then
+          case args of
+            PVArg (PVTuple (PVArg _ (PVArg b PVEnd))) PVEnd -> (Some b, fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.reverse" || same id "reverse" then
+          case args of
+            PVArg xs PVEnd -> (builtin-list-reverse xs (PVCon nil-ctor-name PVEnd), fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.length" || same id "length" then
+          case args of
+            PVArg xs PVEnd -> (builtin-list-length xs 0, fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.append" || same id "append" then
+          case args of
+            PVArg xs (PVArg ys PVEnd) -> (builtin-list-append xs ys, fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.head" || same id "head" then
+          case args of
+            PVArg (PVCon c (PVArg h (PVArg _ PVEnd))) PVEnd | is-cons-ctor c -> (Some (PVCon "ctor:Data.Core.Some" (PVArg h PVEnd)), fuel)
+            PVArg (PVCon c PVEnd) PVEnd | is-nil-ctor c -> (Some (PVCon "ctor:Data.Core.None" PVEnd), fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.tail" || same id "tail" then
+          case args of
+            PVArg (PVCon c (PVArg _ (PVArg t PVEnd))) PVEnd | is-cons-ctor c -> (Some t, fuel)
+            PVArg (PVCon c PVEnd) PVEnd | is-nil-ctor c -> (Some (PVCon nil-ctor-name PVEnd), fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.map" || same id "map" then
+          case args of
+            PVArg fn (PVArg xs PVEnd) -> builtin-list-map fns fn xs fuel depth
+            other -> (None, fuel)
+        else if same id "Data.List.foldl" || same id "foldl" then
+          case args of
+            PVArg fn (PVArg acc (PVArg xs PVEnd)) -> builtin-list-foldl fns fn acc xs fuel depth
+            other -> (None, fuel)
+        else if same id "Data.List.foldr" || same id "foldr" then
+          case args of
+            PVArg fn (PVArg acc (PVArg xs PVEnd)) -> builtin-list-foldr fns fn acc xs fuel depth
+            other -> (None, fuel)
+        else if same id "Data.List.concat" || same id "concat" then
+          case args of
+            PVArg xss PVEnd -> (builtin-list-concat xss, fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.take" || same id "take" then
+          case args of
+            PVArg (PVNat k) (PVArg xs PVEnd) -> (builtin-list-take k xs, fuel)
+            other -> (None, fuel)
+        else if same id "Data.List.drop" || same id "drop" then
+          case args of
+            PVArg (PVNat k) (PVArg xs PVEnd) -> (builtin-list-drop k xs, fuel)
+            other -> (None, fuel)
+        else (None, fuel)
+
+  builtin-list-reverse :: forall a. PVal a -> PVal a -> Option (PVal a)
+  builtin-list-reverse xs acc = case xs of
+    PVCon c PVEnd | is-nil-ctor c -> Some acc
+    PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c ->
+      builtin-list-reverse t (PVCon cons-ctor-name (PVArg h (PVArg acc PVEnd)))
+    other -> None
+
+  builtin-list-length :: forall a. PVal a -> Int -> Option (PVal a)
+  builtin-list-length xs acc = case xs of
+    PVCon c PVEnd | is-nil-ctor c -> Some (PVNat acc)
+    PVCon c (PVArg _ (PVArg t PVEnd)) | is-cons-ctor c -> builtin-list-length t (acc + 1)
+    other -> None
+
+  builtin-list-append :: forall a. PVal a -> PVal a -> Option (PVal a)
+  builtin-list-append xs ys = case xs of
+    PVCon c PVEnd | is-nil-ctor c -> Some ys
+    PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c -> case builtin-list-append t ys of
+      Some rest -> Some (PVCon cons-ctor-name (PVArg h (PVArg rest PVEnd)))
+      None -> None
+    other -> None
+
+  builtin-list-concat :: forall a. PVal a -> Option (PVal a)
+  builtin-list-concat xss = case xss of
+    PVCon c PVEnd | is-nil-ctor c -> Some (PVCon nil-ctor-name PVEnd)
+    PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c -> case builtin-list-concat t of
+      Some rest -> builtin-list-append h rest
+      None -> None
+    other -> None
+
+  builtin-list-take :: forall a. Int -> PVal a -> Option (PVal a)
+  builtin-list-take k xs =
+    if k <= 0 then Some (PVCon nil-ctor-name PVEnd)
+    else case xs of
+      PVCon c PVEnd | is-nil-ctor c -> Some (PVCon nil-ctor-name PVEnd)
+      PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c -> case builtin-list-take (k - 1) t of
+        Some rest -> Some (PVCon cons-ctor-name (PVArg h (PVArg rest PVEnd)))
+        None -> None
+      other -> None
+
+  builtin-list-drop :: forall a. Int -> PVal a -> Option (PVal a)
+  builtin-list-drop k xs =
+    if k <= 0 then Some xs
+    else case xs of
+      PVCon c PVEnd | is-nil-ctor c -> Some (PVCon nil-ctor-name PVEnd)
+      PVCon c (PVArg _ (PVArg t PVEnd)) | is-cons-ctor c -> builtin-list-drop (k - 1) t
+      other -> None
+
+  builtin-list-map :: forall a. List PromotedFn -> PVal a -> PVal a -> Nat -> Nat -> (Option (PVal a), Nat)
+  builtin-list-map fns fn xs fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else case xs of
+      PVCon c PVEnd | is-nil-ctor c -> (Some (PVCon nil-ctor-name PVEnd), fuel)
+      PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c ->
+        case apply-val fns fn h (fuel - 1) depth of
+          (Some mh, f1) -> case builtin-list-map fns fn t f1 depth of
+            (Some mt, f2) -> (Some (PVCon cons-ctor-name (PVArg mh (PVArg mt PVEnd))), f2)
+            (None, f2) -> (None, f2)
+          (None, f1) -> (None, f1)
+      other -> (None, fuel)
+
+  builtin-list-foldl :: forall a. List PromotedFn -> PVal a -> PVal a -> PVal a -> Nat -> Nat -> (Option (PVal a), Nat)
+  builtin-list-foldl fns fn acc xs fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else case xs of
+      PVCon c PVEnd | is-nil-ctor c -> (Some acc, fuel)
+      PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c ->
+        case apply-val fns fn acc (fuel - 1) depth of
+          (Some fn1, f1) -> case apply-val fns fn1 h f1 depth of
+            (Some next-acc, f2) -> builtin-list-foldl fns fn next-acc t f2 depth
+            (None, f2) -> (None, f2)
+          (None, f1) -> (None, f1)
+      other -> (None, fuel)
+
+  builtin-list-foldr :: forall a. List PromotedFn -> PVal a -> PVal a -> PVal a -> Nat -> Nat -> (Option (PVal a), Nat)
+  builtin-list-foldr fns fn acc xs fuel depth =
+    if fuel == 0 || depth == 0 then (None, 0)
+    else case xs of
+      PVCon c PVEnd | is-nil-ctor c -> (Some acc, fuel)
+      PVCon c (PVArg h (PVArg t PVEnd)) | is-cons-ctor c ->
+        case builtin-list-foldr fns fn acc t (fuel - 1) depth of
+          (Some r, f1) -> case apply-val fns fn h f1 depth of
+            (Some fn1, f2) -> apply-val fns fn1 r f2 depth
+            (None, f2) -> (None, f2)
+          (None, f1) -> (None, f1)
+      other -> (None, fuel)
+
+  -- JSON serialization/deserialization for `.cinchif` cross-module promoted functions.
+  jfield :: String -> Json -> Json
+  jfield key doc = case doc of
+    JObj k v rest -> if same key k then v else jfield key rest
+    other -> JNull
+
+  binop-to-str :: PBinOp -> String
+  binop-to-str op = case op of
+    PBAdd -> "+"
+    PBSub -> "-"
+    PBMul -> "*"
+    PBDiv -> "/"
+    PBMod -> "%"
+    PBEq -> "=="
+    PBNe -> "/="
+    PBLt -> "<"
+    PBLe -> "<="
+    PBGt -> ">"
+    PBGe -> ">="
+    PBAnd -> "&&"
+    PBOr -> "||"
+    PBConcat -> "<>"
+
+  str-to-binop :: String -> Option PBinOp
+  str-to-binop s =
+    if same s "+" then Some PBAdd
+    else if same s "-" then Some PBSub
+    else if same s "*" then Some PBMul
+    else if same s "/" then Some PBDiv
+    else if same s "%" then Some PBMod
+    else if same s "==" then Some PBEq
+    else if same s "/=" then Some PBNe
+    else if same s "<" then Some PBLt
+    else if same s "<=" then Some PBLe
+    else if same s ">" then Some PBGt
+    else if same s ">=" then Some PBGe
+    else if same s "&&" then Some PBAnd
+    else if same s "||" then Some PBOr
+    else if same s "<>" then Some PBConcat
+    else None
+
+  ppat-json :: PPat -> Json
+  ppat-json p = case p of
+    PPWild -> JObj "k" (JStr "wild") JObjEnd
+    PPVar n -> JObj "k" (JStr "var") (JObj "n" (JStr n) JObjEnd)
+    PPNat n -> JObj "k" (JStr "nat") (JObj "v" (JNum n) JObjEnd)
+    PPBool b -> JObj "k" (JStr "bool") (JObj "v" (JBool b) JObjEnd)
+    PPStr s -> JObj "k" (JStr "str") (JObj "v" (JStr s) JObjEnd)
+    PPCon c ps -> JObj "k" (JStr "con") (JObj "n" (JStr c) (JObj "ps" (ppat-list-json ps) JObjEnd))
+    PPTuple ps -> JObj "k" (JStr "tup") (JObj "ps" (ppat-list-json ps) JObjEnd)
+
+  ppat-list-json :: PPatList -> Json
+  ppat-list-json ps = case ps of
+    PPEnd -> JArrEnd
+    PPArg p rest -> JArr (ppat-json p) (ppat-list-json rest)
+
+  pexpr-json :: PExpr -> Json
+  pexpr-json e = case e of
+    PEVar n -> JObj "k" (JStr "var") (JObj "n" (JStr n) JObjEnd)
+    PENat n -> JObj "k" (JStr "nat") (JObj "v" (JNum n) JObjEnd)
+    PEBool b -> JObj "k" (JStr "bool") (JObj "v" (JBool b) JObjEnd)
+    PEStr s -> JObj "k" (JStr "str") (JObj "v" (JStr s) JObjEnd)
+    PEFnRef id -> JObj "k" (JStr "fn") (JObj "id" (JStr id) JObjEnd)
+    PECon c es -> JObj "k" (JStr "con") (JObj "n" (JStr c) (JObj "as" (pexpr-list-json es) JObjEnd))
+    PETuple es -> JObj "k" (JStr "tup") (JObj "as" (pexpr-list-json es) JObjEnd)
+    PEApp f x -> JObj "k" (JStr "app") (JObj "f" (pexpr-json f) (JObj "x" (pexpr-json x) JObjEnd))
+    PELam p b -> JObj "k" (JStr "lam") (JObj "p" (JStr p) (JObj "b" (pexpr-json b) JObjEnd))
+    PELet n r b -> JObj "k" (JStr "let") (JObj "n" (JStr n) (JObj "r" (pexpr-json r) (JObj "b" (pexpr-json b) JObjEnd)))
+    PEIf c y n -> JObj "k" (JStr "if") (JObj "c" (pexpr-json c) (JObj "y" (pexpr-json y) (JObj "n" (pexpr-json n) JObjEnd)))
+    PECase s alts -> JObj "k" (JStr "case") (JObj "s" (pexpr-json s) (JObj "alts" (palt-list-json alts) JObjEnd))
+    PEBin op l r -> JObj "k" (JStr "bin") (JObj "op" (JStr (binop-to-str op)) (JObj "l" (pexpr-json l) (JObj "r" (pexpr-json r) JObjEnd)))
+    PENot x -> JObj "k" (JStr "not") (JObj "x" (pexpr-json x) JObjEnd)
+    PENeg x -> JObj "k" (JStr "neg") (JObj "x" (pexpr-json x) JObjEnd)
+
+  pexpr-list-json :: PExprList -> Json
+  pexpr-list-json es = case es of
+    PEEnd -> JArrEnd
+    PEArg e rest -> JArr (pexpr-json e) (pexpr-list-json rest)
+
+  palt-list-json :: PAltList -> Json
+  palt-list-json alts = case alts of
+    PAltEnd -> JArrEnd
+    PAltCons p b rest -> JArr (JObj "p" (ppat-json p) (JObj "b" (pexpr-json b) JObjEnd)) (palt-list-json rest)
+
+  pclauses-json :: List PClause -> Json
+  pclauses-json cs = case cs of
+    Nil -> JArrEnd
+    Cons (MkPClause ps body) rest ->
+      JArr (JObj "ps" (ppat-list-json ps) (JObj "b" (pexpr-json body) JObjEnd)) (pclauses-json rest)
+
+  promoted-fn-json :: PromotedFn -> Json
+  promoted-fn-json f = case f of
+    MkPromotedFn id arity ret-idx clauses ->
+      JObj "identity" (JStr id)
+        (JObj "arity" (JNum (nat-to-int arity))
+          (JObj "returns_idx" (JBool ret-idx)
+            (JObj "clauses" (pclauses-json clauses) JObjEnd)))
+
+  promoted-fns-json :: List PromotedFn -> Json
+  promoted-fns-json fns = case fns of
+    Nil -> JArrEnd
+    Cons f rest -> JArr (promoted-fn-json f) (promoted-fns-json rest)
+
+  read-ppat-json :: Json -> Option PPat
+  read-ppat-json doc = case jfield "k" doc of
+    JStr tag ->
+      if same tag "wild" then Some PPWild
+      else if same tag "var" then (case jfield "n" doc of JStr n -> Some (PPVar n); other -> None)
+      else if same tag "nat" then (case jfield "v" doc of JNum n -> Some (PPNat n); other -> None)
+      else if same tag "bool" then (case jfield "v" doc of JBool b -> Some (PPBool b); other -> None)
+      else if same tag "str" then (case jfield "v" doc of JStr s -> Some (PPStr s); other -> None)
+      else if same tag "con" then (case (jfield "n" doc, read-ppat-list-json (jfield "ps" doc)) of
+        (JStr c, Some ps) -> Some (PPCon c ps)
+        other -> None)
+      else if same tag "tup" then (case read-ppat-list-json (jfield "ps" doc) of
+        Some ps -> Some (PPTuple ps)
+        None -> None)
+      else None
+    other -> None
+
+  read-ppat-list-json :: Json -> Option PPatList
+  read-ppat-list-json doc = case doc of
+    JArrEnd -> Some PPEnd
+    JArr row rest -> case (read-ppat-json row, read-ppat-list-json rest) of
+      (Some p, Some more) -> Some (PPArg p more)
+      other -> None
+    other -> None
+
+  read-pexpr-json :: Json -> Option PExpr
+  read-pexpr-json doc = case jfield "k" doc of
+    JStr tag ->
+      if same tag "var" then (case jfield "n" doc of JStr n -> Some (PEVar n); other -> None)
+      else if same tag "nat" then (case jfield "v" doc of JNum n -> Some (PENat n); other -> None)
+      else if same tag "bool" then (case jfield "v" doc of JBool b -> Some (PEBool b); other -> None)
+      else if same tag "str" then (case jfield "v" doc of JStr s -> Some (PEStr s); other -> None)
+      else if same tag "fn" then (case jfield "id" doc of JStr id -> Some (PEFnRef id); other -> None)
+      else if same tag "con" then (case (jfield "n" doc, read-pexpr-list-json (jfield "as" doc)) of
+        (JStr c, Some es) -> Some (PECon c es)
+        other -> None)
+      else if same tag "tup" then (case read-pexpr-list-json (jfield "as" doc) of
+        Some es -> Some (PETuple es)
+        None -> None)
+      else if same tag "app" then (case (read-pexpr-json (jfield "f" doc), read-pexpr-json (jfield "x" doc)) of
+        (Some f, Some x) -> Some (PEApp f x)
+        other -> None)
+      else if same tag "lam" then (case (jfield "p" doc, read-pexpr-json (jfield "b" doc)) of
+        (JStr p, Some b) -> Some (PELam p b)
+        other -> None)
+      else if same tag "let" then (case (jfield "n" doc, read-pexpr-json (jfield "r" doc), read-pexpr-json (jfield "b" doc)) of
+        (JStr n, Some r, Some b) -> Some (PELet n r b)
+        other -> None)
+      else if same tag "if" then (case (read-pexpr-json (jfield "c" doc), read-pexpr-json (jfield "y" doc), read-pexpr-json (jfield "n" doc)) of
+        (Some c, Some y, Some n) -> Some (PEIf c y n)
+        other -> None)
+      else if same tag "case" then (case (read-pexpr-json (jfield "s" doc), read-palt-list-json (jfield "alts" doc)) of
+        (Some s, Some alts) -> Some (PECase s alts)
+        other -> None)
+      else if same tag "bin" then (case (jfield "op" doc, read-pexpr-json (jfield "l" doc), read-pexpr-json (jfield "r" doc)) of
+        (JStr op-s, Some l, Some r) -> case str-to-binop op-s of Some op -> Some (PEBin op l r); None -> None
+        other -> None)
+      else if same tag "not" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENot x); None -> None)
+      else if same tag "neg" then (case read-pexpr-json (jfield "x" doc) of Some x -> Some (PENeg x); None -> None)
+      else None
+    other -> None
+
+  read-pexpr-list-json :: Json -> Option PExprList
+  read-pexpr-list-json doc = case doc of
+    JArrEnd -> Some PEEnd
+    JArr row rest -> case (read-pexpr-json row, read-pexpr-list-json rest) of
+      (Some e, Some more) -> Some (PEArg e more)
+      other -> None
+    other -> None
+
+  read-palt-list-json :: Json -> Option PAltList
+  read-palt-list-json doc = case doc of
+    JArrEnd -> Some PAltEnd
+    JArr row rest -> case (read-ppat-json (jfield "p" row), read-pexpr-json (jfield "b" row), read-palt-list-json rest) of
+      (Some p, Some b, Some more) -> Some (PAltCons p b more)
+      other -> None
+    other -> None
+
+  read-pclauses-json :: Json -> Option (List PClause)
+  read-pclauses-json doc = case doc of
+    JArrEnd -> Some Nil
+    JArr row rest -> case (read-ppat-list-json (jfield "ps" row), read-pexpr-json (jfield "b" row), read-pclauses-json rest) of
+      (Some ps, Some b, Some more) -> Some (Cons (MkPClause ps b) more)
+      other -> None
+    other -> None
+
+  read-promoted-fn-json :: Json -> Option PromotedFn
+  read-promoted-fn-json doc = case (jfield "identity" doc, jfield "arity" doc, jfield "returns_idx" doc, read-pclauses-json (jfield "clauses" doc)) of
+    (JStr id, JNum arity, JBool ret-idx, Some clauses) -> Some (MkPromotedFn id (int-to-nat-or-zero arity) ret-idx clauses)
+    other -> None
+
+  read-promoted-fns-json :: Json -> List PromotedFn
+  read-promoted-fns-json doc = case doc of
+    JArr row rest -> case read-promoted-fn-json row of
+      Some f -> Cons f (read-promoted-fns-json rest)
+      None -> read-promoted-fns-json rest
+    other -> Nil

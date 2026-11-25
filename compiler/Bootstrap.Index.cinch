@@ -7,6 +7,7 @@ module Bootstrap.Index where
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-lookup, hash-map-insert)
   import Data.Nat (nat-from-int, nat-to-int)
+  import Text.Scan (string-starts-with)
 
   export IndexTerm, ICharacter, IInteger, IBound, IRigid, IGlobal, IMeta, IApply, ILambda
   export IAdd, ISubtract, IMultiply
@@ -94,7 +95,7 @@ module Bootstrap.Index where
     ICharacter c -> True
     IInteger value -> True
     IBound id name -> has id bound
-    IRigid id name level -> has id rigid
+    IRigid id name level -> has id rigid || string-starts-with "$sing_" name
     IGlobal identity -> has-global identity globals
     IMeta id -> False
     ILambda id name body -> index-scoped (Cons id bound) rigid globals body

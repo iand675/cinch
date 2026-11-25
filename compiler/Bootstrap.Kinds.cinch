@@ -2,6 +2,7 @@
 -- A printed name or a cached Kind annotation never introduces a declaration.
 module Bootstrap.Kinds where
   import Bootstrap.Type
+  import Bootstrap.Promote (is-promoted-fn-name)
   import Bootstrap.Index
   import Data.Char (is-ascii-alpha-numeric)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
@@ -225,7 +226,8 @@ module Bootstrap.Kinds where
   type-authorized :: KindIndex -> TypeScope -> UType -> Bool
   type-authorized kinds scope ty = case ty of
     UCon name actual ->
-      if promoted-ctor-name name || promoted-str-name name then True
+      if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then True
+      else if same name "Sing" || same name "Same" then True
       else (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope-bound scope) of Some expected -> kind-equal actual expected; None -> False)
     URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-authorized kinds scope carrier && local-carrier carrier id scope; None -> False)

@@ -837,7 +837,8 @@ module Bootstrap.Resolve where
       Some b -> (binding-symbol b, Nil)
       None | has-name name ["Syntax.apply", "Syntax.capture", "Syntax.captureUnder", "Syntax.newBinding", "Syntax.reference", "Syntax.letIn", "Syntax.definition", "Syntax.recordValue", "Syntax.recordDeclaration", "Syntax.lambda", "Syntax.captureType"] ->
         (name, fail sp (cat [name, " is compile-time only"]))
-      None -> if constructor && (same name "True" || same name "False") then (name, Nil)
+      None -> if constructor && (same name "True" || same name "False" || same name "Refl") then (name, Nil)
+        else if not constructor && has-name name ["sing", "from-sing", "with-sing", "sing-eq"] then (name, Nil)
         else let qualifier = name-qualifier name in
           if constructor && string-length qualifier > 0 && visible-qualifier qualifier (visible-order visible) then
             (name, fail sp (scope-diagnostic visible (cat ["unknown constructor ", name, ": not exported into this scope"])))
@@ -1223,7 +1224,7 @@ module Bootstrap.Resolve where
     else "a C ABI scalar cannot be redefined (builtin type " <> name <> ")"
   opaque-name-reserved :: String -> Bool
   opaque-name-reserved name = kernel-type-name name || stage-type-name name || has-name name
-    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret"
+    ["Array", "Tensor", "Columnar", "Type", "Prop", "Secret", "Sing", "Same"
     , "IoCap", "FileReadCap", "FileWriteCap", "ProcCap", "Scope", "Task", "RawPtr", "Borrowed", "Retained", "Owned", "Out", "MaybeNull"
     , "CChar", "CUchar", "CShort", "CUshort", "CInt", "CUint", "CLong", "CULong", "CLongLong", "CULongLong", "CSize", "SizeT"
     , "CSsize", "CFloat", "CDouble", "CVoid", "SchemaSnapshot", "Database", "SchemaRead"]

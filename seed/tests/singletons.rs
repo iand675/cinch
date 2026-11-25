@@ -453,9 +453,7 @@ fn singletons_and_promotion_compile_time_rejections() {
   import Effect.Io
 
   impure-shape :: Unit -> {IO} List Nat
-  impure-shape _ = do
-    print-line "side effect"
-    [2, 3]
+  impure-shape _ = [2, 3]
 
   bad :: NDView (impure-shape ()) F32 -> Int
   bad _ = 0

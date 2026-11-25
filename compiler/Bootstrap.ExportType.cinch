@@ -3,6 +3,7 @@
 module Bootstrap.ExportType where
   import Algebra.Semigroup
   import Bootstrap.Type
+  import Bootstrap.Promote (is-promoted-fn-name, strip-promoted-fn-name)
   import Bootstrap.Nominal (decode-identity)
   import Bootstrap.Ast
   import Bootstrap.Index
@@ -169,6 +170,7 @@ module Bootstrap.ExportType where
       if promoted-str-name name then Ok name
       else if same name promoted-nil-name then Ok "[]"
       else if promoted-ctor-name name then export-global (strip-ctor-prefix name)
+      else if is-promoted-fn-name name then Ok (strip-promoted-fn-name name)
       else export-global name
     UApp f x -> join [constructor-type scope f, Ok " ", case x of
       UApp g y -> join [Ok "(", constructor-type scope x, Ok ")"]
@@ -291,6 +293,7 @@ module Bootstrap.ExportType where
       if promoted-str-name name then Ok name
       else if same name promoted-nil-name then Ok "[]"
       else if promoted-ctor-name name then export-global (strip-ctor-prefix name)
+      else if is-promoted-fn-name name then Ok (strip-promoted-fn-name name)
       else export-global name
     UBound id name kind -> local id scope
     URigid id name level kind -> local id scope
@@ -325,19 +328,21 @@ module Bootstrap.ExportType where
     URefine id name carrier predicate -> let binder = fresh-scoped-name "cinch-result" scope in join [Ok "(refined (", type-in-style display (Cons (id, binder) scope) predicate, Ok ") ", type-in-style display scope carrier, Ok ")"]
     UPi id name domain row result -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
       join [Ok "((", Ok binder, Ok " :: ", type-in-style display scope domain, Ok ") ->", row-in bound row, Ok " ", type-in-style display bound result, Ok ")"]
-    UApp f x -> case extract-promoted-list ty of
-      Some elems -> join [Ok "[", promoted-list-in display scope elems, Ok "]"]
-      None -> (case thunk-parts ty of
-        Some (row, result) -> case row-in scope row of
-          Err error -> Err error
-          Ok effects -> join [Ok "(Thunk ", Ok (if same effects "" then "{}" else effects), Ok " ", type-in-style display scope result, Ok ")"]
-        None -> (case lazy-parts ty of
-          Some (row, region, result) -> (case row-in scope row of
+    UApp f x -> case sing-type-parts ty of
+      Some (carrier, val) -> join [Ok "(Sing ", type-in-style display scope val, Ok ")"]
+      None -> (case extract-promoted-list ty of
+        Some elems -> join [Ok "[", promoted-list-in display scope elems, Ok "]"]
+        None -> (case thunk-parts ty of
+          Some (row, result) -> case row-in scope row of
             Err error -> Err error
-            Ok effects -> join [Ok "(Lazy ", Ok (if same effects "" then "{}" else effects), Ok " ",
-              type-in-style display scope region, Ok " ", type-in-style display scope result, Ok ")"])
-          None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
-            join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"]))
+            Ok effects -> join [Ok "(Thunk ", Ok (if same effects "" then "{}" else effects), Ok " ", type-in-style display scope result, Ok ")"]
+          None -> (case lazy-parts ty of
+            Some (row, region, result) -> (case row-in scope row of
+              Err error -> Err error
+              Ok effects -> join [Ok "(Lazy ", Ok (if same effects "" then "{}" else effects), Ok " ",
+                type-in-style display scope region, Ok " ", type-in-style display scope result, Ok ")"])
+            None -> if display then join [Ok "(", application-style True scope ty, Ok ")"] else
+              join [Ok "(", type-in-style False scope f, Ok " ", type-in-style False scope x, Ok ")"])))
     UFun a b -> join [Ok "(", type-in-style display scope a, Ok " -> ", type-in-style display scope b, Ok ")"]
     UFunEff a row b -> join [Ok "(", type-in-style display scope a, Ok " ->", row-in scope row, Ok " ", type-in-style display scope b, Ok ")"]
     UUsageArrow usage arrow -> case usage-arrow-prefix display False scope 0 usage arrow of

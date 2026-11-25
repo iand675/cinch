@@ -6,6 +6,7 @@ module Bootstrap.Core where
 
   import Bootstrap.Index
   import Bootstrap.Type
+  import Bootstrap.Promote (PromotedFn)
   import Bootstrap.Nominal (global-data-string-length, global-data-string-string, interface-global, global-data-core-cons, global-data-core-nil, global-data-core-result, global-data-ordering-eq, global-data-ordering-gt, global-data-ordering-lt, global-data-ordering-ordering)
   import Bootstrap.Proof
   import Bootstrap.Total
@@ -17,6 +18,7 @@ module Bootstrap.Core where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.Nat (nat-to-int)
   import Text.Lex (Span)
+  import Text.Scan (string-starts-with)
   import Algebra.Semigroup
 
   export scoped-core-case-facts, scoped-core-case-rest-facts, normalized-case-rest-facts, case-pattern-may-prove, core-alternative-covers, opening-value-types, opening-value-patterns
@@ -57,7 +59,7 @@ module Bootstrap.Core where
   export CoreClause, MkCoreClause, CoreDefinition, MkCoreDefinition
   export valid-integer-literal, term-children, runtime-term-children
   export core-total-function, TotalCoreIndex, total-core-index, indexed-source-body
-  export with-checked-body-bindings, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, seal-definition-with-checked-contracts
+  export with-checked-body-bindings, core-definition-checked-contracts-closed, core-definition-checked-contracts-closed-with-families, core-definition-checked-contracts-closed-with, seal-definition-with-checked-contracts
   export TotalCoreSources, total-core-sources, indexed-source-function
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
@@ -67,9 +69,9 @@ module Bootstrap.Core where
   export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
-  export core-definition-refusal, core-definition-refusal-with-families
+  export core-definition-refusal, core-definition-refusal-with-families, core-definition-refusal-with
 
-  export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families
+  export contract-quants-closed, contract-scheme-closed, contract-scheme-refusal, core-definition-result-types, core-definition-result-types-with-families, core-definition-result-types-with
   export arrow-result, erasable-value-argument, pattern-result, proof-pattern, proof-patterns, scope-let
   export DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, with-data-layout
   export RecordSlot, OrdinarySlot, ProductSlot, slot-types, physical-fields
@@ -1752,7 +1754,7 @@ module Bootstrap.Core where
     UIndex carrier value -> type-index-scope bound rigid carrier && index-scoped bound rigid Nil value
     UPi id name domain row result -> type-index-scope bound rigid domain && type-index-scope (Cons id bound) rigid row && type-index-scope (Cons id bound) rigid result
     UBound id name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id bound; None -> True)
-    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid; None -> True)
+    URigid id name level kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> local-id id rigid || string-starts-with "$sing_" name; None -> True)
     UMeta id kind -> False
     UCon name kind -> kind-index-scope bound rigid kind && (case value-carrier kind of Some carrier -> False; None -> True)
     UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
@@ -1917,12 +1919,16 @@ module Bootstrap.Core where
     core-definition-checked-contracts-closed-with-families Nil checked guards definition
 
   core-definition-checked-contracts-closed-with-families :: List TypeFamilyRuleSet -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
-  core-definition-checked-contracts-closed-with-families fams checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
+  core-definition-checked-contracts-closed-with-families fams checked guards definition =
+    core-definition-checked-contracts-closed-with fams Nil checked guards definition
+
+  core-definition-checked-contracts-closed-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Bool
+  core-definition-checked-contracts-closed-with fams proms checked guards definition = let bodies = body-bindings-members checked in guarded-bindings-closed guards && (case definition of
     -- A definition's scheme is a DECLARATION contract, so its body may be a
     -- proposition: `same v = refl` defines a proof former. `scheme-closed`
     -- would demand a value kind and refuse every proof former here.
     MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
-      declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in fams checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
+      declaration-scheme-closed sc && scheme-index-scope Nil sc && givens-closed givens && givens-index-scope values givens && valid-clauses clauses && scoped-clauses values clauses && body-scheme-authorized bodies sc && proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses)
 
   -- The definition conjunction above folds nine tests into one `Bool`. This
   -- reports the first that refused, so a refusal names a clause instead of
@@ -1932,7 +1938,11 @@ module Bootstrap.Core where
     core-definition-refusal-with-families Nil checked guards definition
 
   core-definition-refusal-with-families :: List TypeFamilyRuleSet -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
-  core-definition-refusal-with-families fams checked guards definition = let bodies = body-bindings-members checked in
+  core-definition-refusal-with-families fams checked guards definition =
+    core-definition-refusal-with fams Nil checked guards definition
+
+  core-definition-refusal-with :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> CoreDefinition -> Option String
+  core-definition-refusal-with fams proms checked guards definition = let bodies = body-bindings-members checked in
     if not (guarded-bindings-closed guards) then Some "a guarded binding is not closed"
     else case definition of
       MkCoreDefinition s name sc openings givens private clauses -> let values = opening-value-ids (scheme-params sc) openings in
@@ -1943,7 +1953,7 @@ module Bootstrap.Core where
         else if not (valid-clauses clauses) then Some "a clause pattern or term is invalid"
         else if not (scoped-clauses values clauses) then Some "a clause body is not scoped"
         else if not (body-scheme-authorized bodies sc) then Some "the scheme names a body it is not authorized to"
-        else if not (proof-contract-clauses-checked-in fams checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
+        else if not (proof-contract-clauses-checked-in fams proms checked guards (opening-value-types openings) (substitute-bound openings (scheme-body sc)) clauses) then Some "a proof clause does not discharge its goal"
         else None
   -- Operation certificates are rechecked against facts derived from the
   -- retained Core control flow. Display names never identify proof values.
@@ -3215,10 +3225,10 @@ module Bootstrap.Core where
   -- CDischarge checks it; CRequire is permitted only at a declared boundary.
   contract-equal :: UType -> UType -> Bool
   contract-equal a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core contract")) of Nil -> True; other -> False
-  contract-equal-in :: List TypeFamilyRuleSet -> UType -> UType -> Bool
-  contract-equal-in fams a b = case fams of
-    Nil -> contract-equal a b
-    other -> case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-type-families fams (empty-store "Core contract"))) of Nil -> True; other -> False
+  contract-equal-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> UType -> Bool
+  contract-equal-in fams proms a b = case (fams, proms) of
+    (Nil, Nil) -> contract-equal a b
+    other -> case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted fams proms (empty-store "Core contract"))) of Nil -> True; other -> False
   index-arithmetic :: ProofScope -> UType -> IndexTerm -> Option Arithmetic
   index-arithmetic gamma carrier value = if not (same-number-sort carrier carrier && index-runtime-admissible carrier value) then None else case value of
     IInteger n -> Some (AInteger n)
@@ -3526,26 +3536,26 @@ module Bootstrap.Core where
     CPInt s ty text -> case decimal-value text of Some n -> Some (UIndex ty (IInteger n)); None -> None
     other -> None
   pattern-result :: UType -> CorePattern -> Option UType
-  pattern-result fun pattern = pattern-result-in Nil fun pattern
-  pattern-result-in :: List TypeFamilyRuleSet -> UType -> CorePattern -> Option UType
-  pattern-result-in fams fun pattern = case (reduce-type-families fams fun, pattern) of
-    (UUsageArrow UsageZero arrow, CPErasedValue sp ty id name) -> if valid-type fun then pattern-result-in fams arrow (CPVar sp ty id name) else None
+  pattern-result fun pattern = pattern-result-in Nil Nil fun pattern
+  pattern-result-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
+  pattern-result-in fams proms fun pattern = case (reduce-types fams proms fun, pattern) of
+    (UUsageArrow UsageZero arrow, CPErasedValue sp ty id name) -> if valid-type fun then pattern-result-in fams proms arrow (CPVar sp ty id name) else None
     (UUsageArrow UsageZero arrow, other) -> None
     (other, CPErasedValue sp ty id name) -> None
-    (reduced, other) -> pattern-result-runtime-in fams reduced pattern
-  pattern-result-runtime-in :: List TypeFamilyRuleSet -> UType -> CorePattern -> Option UType
-  pattern-result-runtime-in fams fun pattern = case fun of
-    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal-in fams predicate actual then Some result else None; other -> None
-    UPi id name domain row result -> if not (contract-equal-in fams domain (pattern-type pattern)) then None
+    (reduced, other) -> pattern-result-runtime-in fams proms reduced pattern
+  pattern-result-runtime-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> CorePattern -> Option UType
+  pattern-result-runtime-in fams proms fun pattern = case fun of
+    UProofFun predicate row result -> case pattern of CPProof s actual id name -> if valid-type predicate && kind-equal (type-kind predicate) KProp && contract-equal-in fams proms predicate actual then Some result else None; other -> None
+    UPi id name domain row result -> if not (contract-equal-in fams proms domain (pattern-type pattern)) then None
       else if pi-dependent fun then (case pattern-index pattern of Some index -> Some (substitute-bound [(id, index)] result); None -> None) else Some result
-    UFun domain result -> if contract-equal-in fams domain (pattern-type pattern) then Some result else None
-    UFunEff domain row result -> if contract-equal-in fams domain (pattern-type pattern) then Some result else None
-    UUsageArrow usage arrow -> if valid-type fun then pattern-result-in fams arrow pattern else None
+    UFun domain result -> if contract-equal-in fams proms domain (pattern-type pattern) then Some result else None
+    UFunEff domain row result -> if contract-equal-in fams proms domain (pattern-type pattern) then Some result else None
+    UUsageArrow usage arrow -> if valid-type fun then pattern-result-in fams proms arrow pattern else None
     other -> None
   patterns-result :: UType -> List CorePattern -> Option UType
-  patterns-result expected patterns = patterns-result-in Nil expected patterns
-  patterns-result-in :: List TypeFamilyRuleSet -> UType -> List CorePattern -> Option UType
-  patterns-result-in fams expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result-in fams expected p of Some result -> patterns-result-in fams result rest; None -> None
+  patterns-result expected patterns = patterns-result-in Nil Nil expected patterns
+  patterns-result-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> List CorePattern -> Option UType
+  patterns-result-in fams proms expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result-in fams proms expected p of Some result -> patterns-result-in fams proms result rest; None -> None
   -- Shared declaration closure checks. Global term typing and primitive
   -- semantics remain separate from these retained contract invariants.
   contract-quants-closed :: List Quant -> Bool
@@ -3568,32 +3578,34 @@ module Bootstrap.Core where
     && effect-type-scope (scheme-params sc) (scheme-body sc)
     && effect-requirements (scheme-params sc) (scheme-requirements sc)
   definition-clause-types :: UType -> List CoreClause -> Bool
-  definition-clause-types ty clauses = definition-clause-types-in Nil ty clauses
-  definition-clause-types-in :: List TypeFamilyRuleSet -> UType -> List CoreClause -> Bool
-  definition-clause-types-in fams ty clauses = case clauses of
+  definition-clause-types ty clauses = definition-clause-types-in Nil Nil ty clauses
+  definition-clause-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> UType -> List CoreClause -> Bool
+  definition-clause-types-in fams proms ty clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams ty patterns of Some expected -> contract-equal-in fams expected (core-type body); None -> False) && definition-clause-types-in fams ty rest
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms ty patterns of Some expected -> contract-equal-in fams proms expected (core-type body); None -> False) && definition-clause-types-in fams proms ty rest
   definition-given-types :: List Requirement -> List CoreGiven -> Bool
-  definition-given-types requirements givens = definition-given-types-in Nil requirements givens
-  definition-given-types-in :: List TypeFamilyRuleSet -> List Requirement -> List CoreGiven -> Bool
-  definition-given-types-in fams requirements givens = case (requirements, givens) of
+  definition-given-types requirements givens = definition-given-types-in Nil Nil requirements givens
+  definition-given-types-in :: List TypeFamilyRuleSet -> List PromotedFn -> List Requirement -> List CoreGiven -> Bool
+  definition-given-types-in fams proms requirements givens = case (requirements, givens) of
     (Nil, Nil) -> True
-    (Cons r rest, Cons g more) -> contract-equal-in fams (requirement-type r) (given-type g) && definition-given-types-in fams rest more
+    (Cons r rest, Cons g more) -> contract-equal-in fams proms (requirement-type r) (given-type g) && definition-given-types-in fams proms rest more
     other -> False
   core-definition-result-types :: CoreDefinition -> Bool
-  core-definition-result-types definition = core-definition-result-types-with-families Nil definition
+  core-definition-result-types definition = core-definition-result-types-with Nil Nil definition
   core-definition-result-types-with-families :: List TypeFamilyRuleSet -> CoreDefinition -> Bool
-  core-definition-result-types-with-families fams definition = let sc = core-scheme definition in let pairs = core-openings definition in
-    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types-in fams (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
-      && definition-clause-types-in fams (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
+  core-definition-result-types-with-families fams definition = core-definition-result-types-with fams Nil definition
+  core-definition-result-types-with :: List TypeFamilyRuleSet -> List PromotedFn -> CoreDefinition -> Bool
+  core-definition-result-types-with fams proms definition = let sc = core-scheme definition in let pairs = core-openings definition in
+    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types-in fams proms (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
+      && definition-clause-types-in fams proms (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
 
   proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  proof-expected gamma facts expected term = proof-expected-in Nil gamma facts expected term
-  proof-expected-in :: List TypeFamilyRuleSet -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
-  proof-expected-in fams gamma facts expected term = let reduced = reduce-type-families fams expected in case refinement-view reduced of
-    URefine id name carrier predicate -> contract-equal-in fams reduced (core-type term) && proof-refined-term gamma facts term
+  proof-expected gamma facts expected term = proof-expected-in Nil Nil gamma facts expected term
+  proof-expected-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  proof-expected-in fams proms gamma facts expected term = let reduced = reduce-types fams proms expected in case refinement-view reduced of
+    URefine id name carrier predicate -> contract-equal-in fams proms reduced (core-type term) && proof-refined-term gamma facts term
     URequire predicates result -> case term of
-      CRequire s ty body -> contract-equal-in fams reduced ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected-in fams gamma (introduced <> facts) result body; None -> False)
+      CRequire s ty body -> contract-equal-in fams proms reduced ty && (case scoped-core-predicates gamma predicates of Some introduced -> proof-expected-in fams proms gamma (introduced <> facts) result body; None -> False)
       other -> False
     other -> proof-term gamma facts term
   proof-contract-clauses :: List BodyBinding -> List GuardedBinding -> UType -> List CoreClause -> Bool
@@ -3604,17 +3616,17 @@ module Bootstrap.Core where
     None -> False
   proof-contract-clauses-checked :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
   proof-contract-clauses-checked bodies guards values expected clauses =
-    proof-contract-clauses-checked-in Nil bodies guards values expected clauses
-  proof-contract-clauses-checked-in :: List TypeFamilyRuleSet -> BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
-  proof-contract-clauses-checked-in fams bodies guards values expected clauses =
-    proof-equations-in fams (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
-  proof-equations-in :: List TypeFamilyRuleSet -> ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
-  proof-equations-in fams scope expected earlier clauses = case clauses of
+    proof-contract-clauses-checked-in Nil Nil bodies guards values expected clauses
+  proof-contract-clauses-checked-in :: List TypeFamilyRuleSet -> List PromotedFn -> BodyBindings -> List GuardedBinding -> List (Nat, UType) -> UType -> List CoreClause -> Bool
+  proof-contract-clauses-checked-in fams proms bodies guards values expected clauses =
+    proof-equations-in fams proms (with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil))) expected Nil clauses
+  proof-equations-in :: List TypeFamilyRuleSet -> List PromotedFn -> ProofScope -> UType -> List (List CorePattern) -> List CoreClause -> Bool
+  proof-equations-in fams proms scope expected earlier clauses = case clauses of
     Nil -> True
-    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams expected patterns of
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result-in fams proms expected patterns of
       Some result -> let gamma = proof-patterns patterns scope in
-        proof-expected-in fams gamma (scoped-core-equation-facts gamma earlier patterns) result body
-      None -> False) && proof-equations-in fams scope expected (extend-equation-prefix patterns body earlier) rest
+        proof-expected-in fams proms gamma (scoped-core-equation-facts gamma earlier patterns) result body
+      None -> False) && proof-equations-in fams proms scope expected (extend-equation-prefix patterns body earlier) rest
 
   selected-method-function :: ProofScope -> CoreTerm -> UType -> UType -> Option TotalFunction
   selected-method-function gamma method first second = case method of
