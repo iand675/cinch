@@ -66,6 +66,12 @@ struct CtorParts {
     local_idx: Vec<IxParam>,
     /// The result's arguments.
     res_args: Vec<Ty>,
+    /// Branch-local GADT / data-family type parameter refinements (`sh -> Z`, `sh -> Dim n$1 rest$1`).
+    ty_refinements: HashMap<String, Ty>,
+    /// Branch-local GADT / data-family index parameter refinements (`n -> 0`, etc.).
+    idx_refinements: HashMap<String, ITerm>,
+    /// Dependent field binders promoted to branch-local index skolems: `(field_index, skolem_name)`.
+    dep_field_skolems: Vec<(usize, String)>,
 }
 
 /// Whether a constructor can build the type being matched.
@@ -5610,6 +5616,7 @@ impl Checker {
                 Box::new(self.reduce_idx_fuel(&a, fuel - 1)),
                 Box::new(self.reduce_idx_fuel(&b, fuel - 1)),
             ),
+            ITerm::TyFamily(..) => self.uni.resolve_idx(&t),
             other => other,
         }
     }
@@ -5864,12 +5871,15 @@ impl Checker {
     pub(crate) fn decide_closed_oblig(&self, obl: &PTerm, span: ast::Span) -> Result<bool> {
         match self.static_obligation(obl)? {
             ObligStatus::Checked => Ok(true),
-            ObligStatus::Disproved => Err(Error::at(
-                span,
-                format!(
-                    "the obligation `{obl}` of this call is false: its arguments are known here and do not satisfy it"
-                ),
-            )),
+            ObligStatus::Disproved => {
+                let shown = self.uni.resolve_prop(obl).normalize();
+                Err(Error::at(
+                    span,
+                    format!(
+                        "the obligation `{shown}` of this call is false: its arguments are known here and do not satisfy it"
+                    ),
+                ))
+            }
             ObligStatus::Unsupported | ObligStatus::Timeout | ObligStatus::Unresolved => Ok(false),
         }
     }
@@ -6581,6 +6591,14 @@ impl Checker {
                 Ok(v) => Stuck::Val(v),
                 Err(_) => Stuck::Stuck,
             },
+            ITerm::TyFamily(..) => {
+                let resolved = self.uni.resolve_idx(t);
+                if matches!(resolved, ITerm::TyFamily(..)) {
+                    Stuck::Stuck
+                } else {
+                    self.eval_idx(&resolved, fuel - 1)
+                }
+            }
             ITerm::Bin(op, a, b) => {
                 let a = self.eval_idx(&self.uni.resolve_idx(a), fuel - 1);
                 let b = self.eval_idx(&self.uni.resolve_idx(b), fuel - 1);
@@ -9444,12 +9462,97 @@ impl Checker {
                     }
                     let key = BranchKey::Ctor { name: name.clone(), arity, list: list_shaped };
                     self.bind_column_facts(&mut branch_rows, &col0, &key, ctx_span)?;
+                    let mut branch_expected = expected.clone();
+                    if !parts.ty_refinements.is_empty() || !parts.idx_refinements.is_empty() {
+                        // When a dependent constructor field binder (like `d :: Nat` in
+                        // `SWDim :: (d :: Nat) -> ShapeWitness rest -> ShapeWitness (Dim d rest)`)
+                        // was promoted to a GADT skolem `$gadt_i_k` and every row binds
+                        // that field to the same pattern variable name `v`, equate the
+                        // skolem with `ITerm::Var(v)` so `SWDim v ...` matches the refined type.
+                        let mut skolem_to_pat: HashMap<String, Ty> = HashMap::new();
+                        for (field_idx, skolem) in &parts.dep_field_skolems {
+                            // Map field_idx in `parts.fields` to its position in runtime `pats`.
+                            let rt_pos = parts
+                                .fields
+                                .iter()
+                                .take(*field_idx)
+                                .filter(|(_, _, erased)| !*erased)
+                                .count();
+                            if parts.fields.get(*field_idx).is_some_and(|(_, _, erased)| !*erased) {
+                                let mut agreed: Option<String> = None;
+                                let mut consistent = !branch_rows.is_empty();
+                                for row in &branch_rows {
+                                    match row.pats.get(rt_pos) {
+                                        Some(ast::Pat::Var(n, _)) => match &agreed {
+                                            None => agreed = Some(n.text.clone()),
+                                            Some(prev) if prev == &n.text => {}
+                                            Some(_) => {
+                                                consistent = false;
+                                                break;
+                                            }
+                                        },
+                                        _ => {
+                                            consistent = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if consistent {
+                                    if let Some(pat_name) = agreed {
+                                        skolem_to_pat.insert(
+                                            skolem.clone(),
+                                            Ty::Idx(Box::new(ITerm::Var(pat_name.into()))),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        let mut refine_map = HashMap::new();
+                        for (k, v) in &parts.ty_refinements {
+                            let v2 = if skolem_to_pat.is_empty() {
+                                v.clone()
+                            } else {
+                                Self::subst_ty(v, &skolem_to_pat)
+                            };
+                            refine_map.insert(k.clone(), self.uni.zonk(&v2));
+                        }
+                        for (k, v) in &parts.idx_refinements {
+                            let vt = Ty::Idx(Box::new(v.clone()));
+                            let v2 = if skolem_to_pat.is_empty() {
+                                vt
+                            } else {
+                                Self::subst_ty(&vt, &skolem_to_pat)
+                            };
+                            refine_map.insert(k.clone(), self.uni.zonk(&v2));
+                        }
+                        for (k, v) in &skolem_to_pat {
+                            refine_map.insert(k.clone(), v.clone());
+                        }
+                        branch_expected = self.uni.zonk(&Self::subst_ty(&branch_expected, &refine_map));
+                        for bt in &mut branch_tys {
+                            *bt = self.uni.zonk(&Self::subst_ty(bt, &refine_map));
+                        }
+                        for row in &mut branch_rows {
+                            for (_, _, scheme) in &mut row.env.locals {
+                                let mut filtered = refine_map.clone();
+                                for bp in &scheme.params {
+                                    filtered.remove(bp);
+                                }
+                                for ip in &scheme.idx_params {
+                                    filtered.remove(ip.name());
+                                }
+                                if !filtered.is_empty() {
+                                    scheme.ty = self.uni.zonk(&Self::subst_ty(&scheme.ty, &filtered));
+                                }
+                            }
+                        }
+                    }
                     let (core, m) = self.isolate(|s| {
                         s.compile_rows(
                             branch_rows,
                             branch_cols,
                             branch_tys,
-                            expected,
+                            &branch_expected,
                             ctx_span,
                             &format!("constructor {name}"),
                         )
@@ -9971,10 +10074,16 @@ impl Checker {
     }
 
     /// The constructor of `info`'s own type, resolved in the type's module
+    /// (or the `data instance`'s defining module for open data families)
     /// so a user constructor of the same name cannot shadow it.
     fn ctor_of_type(&self, info: &TypeKind, name: &str) -> Result<ValueInfo> {
+        let owner = self
+            .data_family_ctor_modules
+            .get(&(info.identity.clone(), name.to_string()))
+            .map(String::as_str)
+            .unwrap_or(&info.module);
         self.qualified
-            .get(&(info.module.clone(), name.to_string()))
+            .get(&(owner.to_string(), name.to_string()))
             .cloned()
             .ok_or_else(|| Error::plain(format!("unknown constructor {name}")))
     }
@@ -10052,7 +10161,14 @@ impl Checker {
         self.record_quote_constructor(p, &v);
         match &v.kind {
             ValueKind::Ctor { tag, .. } => {
-                if v.module != info.module
+                let is_open_family = self.open_data_families.contains(&info.identity);
+                let module_ok = v.module == info.module
+                    || (is_open_family
+                        && self
+                            .data_family_ctor_modules
+                            .get(&(info.identity.clone(), v.name.clone()))
+                            .is_some_and(|m| m == &v.module));
+                if !module_ok
                     || !info.ctors.iter().any(|(n, t)| n == &v.name && *t == *tag)
                 {
                     return Err(Error::at(
@@ -10107,26 +10223,184 @@ impl Checker {
                     fields,
                     local_idx: local_idx.clone(),
                     res_args: res_args.iter().map(|t| Self::subst_ty(t, &map)).collect(),
+                    ty_refinements: HashMap::new(),
+                    idx_refinements: HashMap::new(),
+                    dep_field_skolems: Vec::new(),
                 })
             }
             _ => Err(Error::plain(format!("{} is not a constructor", v.name))),
         }
     }
 
+    fn fresh_gadt_ty_param(&mut self) -> Ty {
+        let id = self.gadt_skolem_counter;
+        self.gadt_skolem_counter += 1;
+        Ty::Param(format!("$gadt_t_{id}").into())
+    }
+
+    fn fresh_gadt_idx_param(&mut self) -> ITerm {
+        let id = self.gadt_skolem_counter;
+        self.gadt_skolem_counter += 1;
+        ITerm::Var(format!("$gadt_i_{id}").into())
+    }
+
+    fn promote_local_metas(
+        &mut self,
+        local_ty_metas: &[crate::types::MetaId],
+        local_idx_metas: &[usize],
+    ) {
+        for &m in local_ty_metas {
+            if matches!(self.uni.zonk(&Ty::Meta(m)), Ty::Meta(m2) if m2 == m) {
+                let sk = self.fresh_gadt_ty_param();
+                let _ = self.uni.unify(&Ty::Meta(m), &sk);
+            }
+        }
+        for &im in local_idx_metas {
+            if matches!(self.uni.resolve_idx(&ITerm::MVar(im)), ITerm::MVar(m2) if m2 == im) {
+                let sk = self.fresh_gadt_idx_param();
+                let _ = self.uni.unify_idx(&ITerm::MVar(im), &sk);
+            }
+        }
+    }
+
+    fn match_data_instance_arg(
+        &mut self,
+        a: &Ty,
+        b: &Ty,
+        local_ty_metas: &[crate::types::MetaId],
+        local_idx_metas: &[usize],
+        ty_refinements: &mut HashMap<String, Ty>,
+        idx_refinements: &mut HashMap<String, ITerm>,
+    ) -> std::result::Result<(), CtorMatch> {
+        if self.uni.unify(a, b).is_ok() {
+            return Ok(());
+        }
+        let za = self.uni.zonk(a);
+        let zb = self.uni.zonk(b);
+        if ty_heads_conflict(&za, &zb, &self.uni) {
+            return Err(CtorMatch::Refuted);
+        }
+        match (&za, &zb) {
+            (_, Ty::Param(rigid)) => {
+                if let Some(prev) = ty_refinements.get(rigid.as_str()).cloned() {
+                    if self.uni.unify(&za, &prev).is_ok() {
+                        return Ok(());
+                    }
+                    let zp = self.uni.zonk(&prev);
+                    if ty_heads_conflict(&za, &zp, &self.uni) {
+                        return Err(CtorMatch::Refuted);
+                    }
+                    return Err(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zp)));
+                }
+                self.promote_local_metas(local_ty_metas, local_idx_metas);
+                let refined = self.uni.zonk(&za);
+                ty_refinements.insert(rigid.to_string(), refined);
+                Ok(())
+            }
+            (Ty::Idx(ia), Ty::Idx(ib)) => match ib.normalize() {
+                ITerm::Var(rigid_idx) => {
+                    self.promote_local_metas(local_ty_metas, local_idx_metas);
+                    let refined = self.uni.resolve_idx(ia).normalize();
+                    idx_refinements.insert(rigid_idx.to_string(), refined);
+                    Ok(())
+                }
+                _ => {
+                    if idx_ground(&za) && idx_ground(&zb) {
+                        Err(CtorMatch::Refuted)
+                    } else {
+                        Err(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)))
+                    }
+                }
+            },
+            (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) if n1 == n2 && a1.len() == a2.len() => {
+                for (x, y) in a1.iter().zip(a2.iter()) {
+                    self.match_data_instance_arg(
+                        x,
+                        y,
+                        local_ty_metas,
+                        local_idx_metas,
+                        ty_refinements,
+                        idx_refinements,
+                    )?;
+                }
+                Ok(())
+            }
+            (Ty::Tuple(a1), Ty::Tuple(a2)) if a1.len() == a2.len() => {
+                for (x, y) in a1.iter().zip(a2.iter()) {
+                    self.match_data_instance_arg(
+                        x,
+                        y,
+                        local_ty_metas,
+                        local_idx_metas,
+                        ty_refinements,
+                        idx_refinements,
+                    )?;
+                }
+                Ok(())
+            }
+            _ => {
+                if idx_ground(&za) && idx_ground(&zb) {
+                    Err(CtorMatch::Refuted)
+                } else {
+                    Err(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)))
+                }
+            }
+        }
+    }
+
     /// Can this constructor build the matched type? Its result indices
     /// must unify with the type's (dependent core kernel design, section
     /// 5): solvable equations make it possible, a ground contradiction or
-    /// an out-of-range solution refutes it, and an equation stuck on rigid
-    /// indices is unknown (this slice rejects those matches rather than
-    /// guessing; it does not yet refine rigid indices in a branch).
+    /// an out-of-range solution refutes it, and for `data instance`
+    /// constructors rigid type/index parameters acquire branch-local
+    /// GADT refinements.
     fn match_ctor(&mut self, v: &ValueInfo, ty_args: &[Ty]) -> Result<CtorMatch> {
         let parts = self.ctor_parts(v, ty_args)?;
         let mut meta_of: HashMap<String, Ty> = HashMap::new();
+        let mut local_ty_metas: Vec<crate::types::MetaId> = Vec::new();
+        let mut local_idx_metas: Vec<usize> = Vec::new();
+        let local_ty_params = self
+            .ctor_local_ty_params
+            .get(&(v.module.clone(), v.name.clone()))
+            .cloned();
+        let is_data_instance = local_ty_params.is_some();
+        if let Some(ltps) = local_ty_params {
+            for tp in ltps {
+                let m = self.uni.fresh();
+                if let Ty::Meta(mid) = m {
+                    local_ty_metas.push(mid);
+                }
+                meta_of.insert(tp, m);
+            }
+        }
         for p in &parts.local_idx {
             let m = self.uni.fresh_idx();
+            if let Ty::Idx(ref it) = m {
+                if let ITerm::MVar(mid) = **it {
+                    local_idx_metas.push(mid);
+                }
+            }
             meta_of.insert(p.name().to_string(), m);
         }
-        // Solve the index equations on a trial substitution and commit it
+        let mut dep_field_metas: Vec<(usize, usize)> = Vec::new();
+        if is_data_instance {
+            for (i, (b, t, _)) in parts.fields.iter().enumerate() {
+                if !meta_of.contains_key(b)
+                    && matches!(t, Ty::Nat | Ty::Int)
+                    && parts.res_args.iter().any(|r| ty_mentions(r, b))
+                {
+                    let m = self.uni.fresh_idx();
+                    if let Ty::Idx(ref it) = m {
+                        if let ITerm::MVar(mid) = **it {
+                            local_idx_metas.push(mid);
+                            dep_field_metas.push((i, mid));
+                        }
+                    }
+                    meta_of.insert(b.clone(), m);
+                }
+            }
+        }
+        // Solve the index/type equations on a trial substitution and commit it
         // on success: the metavariables must belong to the unifier the
         // branch elaboration continues with.
         let trial = self.uni.snapshot();
@@ -10135,17 +10409,33 @@ impl Checker {
             .iter()
             .map(|t| Self::subst_ty(t, &meta_of))
             .collect();
+        let mut ty_refinements: HashMap<String, Ty> = HashMap::new();
+        let mut idx_refinements: HashMap<String, ITerm> = HashMap::new();
         for (a, b) in res.iter().zip(ty_args.iter()) {
-            if self.uni.unify(a, b).is_ok() {
-                continue;
+            if is_data_instance {
+                if let Err(outcome) = self.match_data_instance_arg(
+                    a,
+                    b,
+                    &local_ty_metas,
+                    &local_idx_metas,
+                    &mut ty_refinements,
+                    &mut idx_refinements,
+                ) {
+                    self.uni.rollback_to(trial);
+                    return Ok(outcome);
+                }
+            } else {
+                if self.uni.unify(a, b).is_ok() {
+                    continue;
+                }
+                let za = self.uni.zonk(a);
+                let zb = self.uni.zonk(b);
+                self.uni.rollback_to(trial);
+                if idx_ground(&za) && idx_ground(&zb) {
+                    return Ok(CtorMatch::Refuted);
+                }
+                return Ok(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)));
             }
-            let za = self.uni.zonk(a);
-            let zb = self.uni.zonk(b);
-            self.uni.rollback_to(trial);
-            if idx_ground(&za) && idx_ground(&zb) {
-                return Ok(CtorMatch::Refuted);
-            }
-            return Ok(CtorMatch::Unknown(crate::diagnostic!("{} vs {}", za, zb)));
         }
         // An inversion guess like `?k + 1 = 0` solves with `?k := -1`,
         // which is not a natural number: the constructor is impossible.
@@ -10164,18 +10454,61 @@ impl Checker {
                 }
             }
         }
+        let dep_field_skolems: Vec<(usize, String)> = dep_field_metas
+            .into_iter()
+            .filter_map(|(field_idx, mid)| match self.uni.resolve_idx(&ITerm::MVar(mid)) {
+                ITerm::Var(sk) if sk.starts_with("$gadt_i_") => Some((field_idx, sk.to_string())),
+                _ => None,
+            })
+            .collect();
         let fields = parts
             .fields
             .into_iter()
-            .map(|(b, t, e)| (b, Self::subst_ty(&t, &meta_of), e))
+            .map(|(b, t, e)| (b, self.uni.zonk(&Self::subst_ty(&t, &meta_of)), e))
             .collect();
-        let res_args = res.clone();
+        let res_args = res.iter().map(|t| self.uni.zonk(t)).collect();
         self.uni.commit(trial);
         Ok(CtorMatch::Possible(CtorParts {
             fields,
             local_idx: parts.local_idx,
             res_args,
+            ty_refinements,
+            idx_refinements,
+            dep_field_skolems,
         }))
+    }
+}
+
+/// Two zonked types have permanently incompatible rigid heads (e.g., `Z` vs `Dim 3 Z`,
+/// `F32` vs `I32`, `0` vs `1`), so a constructor returning `a` can never build `b`.
+fn ty_heads_conflict(a: &Ty, b: &Ty, uni: &Unifier) -> bool {
+    match (a, b) {
+        (Ty::Meta(_), _) | (_, Ty::Meta(_)) | (Ty::Param(_), _) | (_, Ty::Param(_)) => false,
+        (Ty::Adt(n1, _), _) if uni.is_type_family(n1.as_str()) => false,
+        (_, Ty::Adt(n2, _)) if uni.is_type_family(n2.as_str()) => false,
+        (Ty::Adt(n1, a1), Ty::Adt(n2, a2)) => {
+            if n1 != n2 || a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| ty_heads_conflict(x, y, uni))
+            }
+        }
+        (Ty::Tuple(a1), Ty::Tuple(a2)) => {
+            if a1.len() != a2.len() {
+                true
+            } else {
+                a1.iter().zip(a2.iter()).any(|(x, y)| ty_heads_conflict(x, y, uni))
+            }
+        }
+        (Ty::Prim(s1), Ty::Prim(s2)) => s1 != s2,
+        (Ty::Int, Ty::Int) | (Ty::Nat, Ty::Nat) | (Ty::Bool, Ty::Bool)
+        | (Ty::Unit, Ty::Unit) | (Ty::Bytes, Ty::Bytes) | (Ty::Sym, Ty::Sym) => false,
+        (Ty::Idx(i1), Ty::Idx(i2)) => match (i1.normalize(), i2.normalize()) {
+            (ITerm::Num(n1), ITerm::Num(n2)) => n1 != n2,
+            _ => false,
+        },
+        (Ty::Fun(..), Ty::Fun(..)) | (Ty::Pi { .. }, Ty::Pi { .. }) => false,
+        _ => true,
     }
 }
 

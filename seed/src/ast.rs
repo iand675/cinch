@@ -944,6 +944,35 @@ impl Decl {
                 refinement.base.visit_mut(visit);
                 refinement.pred.visit_mut(visit);
             }
+            Decl::TypeFamily(tf) => {
+                visit_binder_types(&mut tf.params, visit);
+                if let Some(rk) = &mut tf.return_kind {
+                    rk.visit_mut(visit);
+                }
+                for eq in &mut tf.eqs {
+                    for arg in &mut eq.lhs_args {
+                        arg.visit_mut(visit);
+                    }
+                    eq.rhs.visit_mut(visit);
+                }
+            }
+            Decl::TypeInstance(ti) => {
+                for arg in &mut ti.lhs_args {
+                    arg.visit_mut(visit);
+                }
+                ti.rhs.visit_mut(visit);
+            }
+            Decl::DataFamily(df) => {
+                visit_binder_types(&mut df.params, visit);
+            }
+            Decl::DataInstance(di) => {
+                for arg in &mut di.lhs_args {
+                    arg.visit_mut(visit);
+                }
+                for ctor in &mut di.ctors {
+                    ctor.ty.visit_mut(visit);
+                }
+            }
             Decl::OpaqueType(opaque) => {
                 visit_binder_types(&mut opaque.params, visit);
                 opaque.kind.visit_mut(visit);
@@ -1316,6 +1345,58 @@ pub struct RefineDecl {
     pub span: Span,
 }
 
+/// One equation of a closed type family: `Family pat1 ... patN = rhs`.
+#[derive(Clone, Debug)]
+pub struct TypeFamilyEq {
+    pub head: Name,
+    pub lhs_args: Vec<Type>,
+    pub rhs: Type,
+    pub span: Span,
+}
+
+/// `type family Name params [:: Kind] [where { ... } | = rhs]`.
+/// When `closed` is true, equations are tried in declaration order with
+/// apartness checks; when false, the family is open and extended by
+/// `type instance` declarations.
+#[derive(Clone, Debug)]
+pub struct TypeFamilyDecl {
+    pub name: Name,
+    pub params: Vec<TypeBinder>,
+    pub return_kind: Option<Type>,
+    pub closed: bool,
+    pub eqs: Vec<TypeFamilyEq>,
+    pub span: Span,
+}
+
+/// `type instance Family pat1 ... patN = rhs`: one equation for an open
+/// type family.
+#[derive(Clone, Debug)]
+pub struct TypeInstanceDecl {
+    pub family: ConPath,
+    pub lhs_args: Vec<Type>,
+    pub rhs: Type,
+    pub span: Span,
+}
+
+/// `data family Name params [:: Type]`: an open indexed data family whose
+/// constructors are populated by `data instance` declarations.
+#[derive(Clone, Debug)]
+pub struct DataFamilyDecl {
+    pub name: Name,
+    pub params: Vec<TypeBinder>,
+    pub span: Span,
+}
+
+/// `data instance Family pat1 ... patN where { Ctor :: ... }`: one
+/// constructor block extending an open `data family`.
+#[derive(Clone, Debug)]
+pub struct DataInstanceDecl {
+    pub family: ConPath,
+    pub lhs_args: Vec<Type>,
+    pub ctors: Vec<CtorDecl>,
+    pub span: Span,
+}
+
 /// `effect L params where { op :: ty, ... }`: a user-declared effect whose
 /// operations are ordinary functions performing the label (design section
 /// 2). `params` holds the effect's region parameter, if any.
@@ -1489,6 +1570,14 @@ pub enum Decl {
     /// `type R params = refine (x :: T) with p` (refinement types
     /// design): a refinement of a container by a decidable predicate.
     Refine(RefineDecl),
+    /// `type family F params [:: Kind] [where { ... } | = rhs]`.
+    TypeFamily(TypeFamilyDecl),
+    /// `type instance F pat1 ... = rhs`.
+    TypeInstance(TypeInstanceDecl),
+    /// `data family D params`.
+    DataFamily(DataFamilyDecl),
+    /// `data instance D pat1 ... where { Ctor :: ... }`.
+    DataInstance(DataInstanceDecl),
     /// `opaque type T [params] :: Type` (foreign function interface
     /// specification section 2).
     OpaqueType(OpaqueTypeDecl),
@@ -1881,6 +1970,45 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             }
             collect_type_refs(&r.base, out);
             collect_type_refs(&r.pred, out);
+        }
+        Decl::TypeFamily(tf) => {
+            for b in &tf.params {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+            if let Some(rk) = &tf.return_kind {
+                collect_type_refs(rk, out);
+            }
+            for eq in &tf.eqs {
+                for arg in &eq.lhs_args {
+                    collect_type_refs(arg, out);
+                }
+                collect_type_refs(&eq.rhs, out);
+            }
+        }
+        Decl::TypeInstance(ti) => {
+            out.push(ref_of_path(RefKind::Type, &ti.family.segments, ti.family.span()));
+            for arg in &ti.lhs_args {
+                collect_type_refs(arg, out);
+            }
+            collect_type_refs(&ti.rhs, out);
+        }
+        Decl::DataFamily(df) => {
+            for b in &df.params {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+        }
+        Decl::DataInstance(di) => {
+            out.push(ref_of_path(RefKind::Type, &di.family.segments, di.family.span()));
+            for arg in &di.lhs_args {
+                collect_type_refs(arg, out);
+            }
+            for c in &di.ctors {
+                collect_type_refs(&c.ty, out);
+            }
         }
         Decl::Record(r) | Decl::Codata(r) => {
             for f in &r.fields {
@@ -3196,6 +3324,49 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
             r.params = params;
             Decl::Refine(r)
         }
+        Decl::TypeFamily(tf) => {
+            let mut tf = tf.clone();
+            let mut params = Vec::new();
+            for b in &tf.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            if let Some(rk) = &tf.return_kind {
+                tf.return_kind = Some(hyg_type(rk, cx, sc)?);
+            }
+            for _ in &params {
+                sc.types.pop();
+            }
+            tf.params = params;
+            Decl::TypeFamily(tf)
+        }
+        Decl::TypeInstance(ti) => Decl::TypeInstance(ti.clone()),
+        Decl::DataFamily(df) => {
+            let mut df = df.clone();
+            let mut params = Vec::new();
+            for b in &df.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            for _ in &params {
+                sc.types.pop();
+            }
+            df.params = params;
+            Decl::DataFamily(df)
+        }
+        Decl::DataInstance(di) => Decl::DataInstance(di.clone()),
         Decl::Record(r) | Decl::Codata(r) => {
             let is_codata = matches!(d, Decl::Codata(_));
             let mut r = r.clone();
@@ -3463,7 +3634,8 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         }
         Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
         | Decl::Foreign(_) | Decl::OpaqueType(_)
-        | Decl::Data(_) | Decl::Refine(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
+        | Decl::Data(_) | Decl::Refine(_) | Decl::TypeFamily(_) | Decl::TypeInstance(_)
+        | Decl::DataFamily(_) | Decl::DataInstance(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
         Decl::Attributed { attrs, inner } => Decl::Attributed {
             attrs: attrs.clone(),
@@ -3716,6 +3888,10 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Foreign(_)
         | Decl::OpaqueType(_)
         | Decl::Refine(_)
+        | Decl::TypeFamily(_)
+        | Decl::TypeInstance(_)
+        | Decl::DataFamily(_)
+        | Decl::DataInstance(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
         Decl::Conditional { when, inner } => {

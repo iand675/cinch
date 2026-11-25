@@ -81,6 +81,8 @@ fn sig_member_name(d: &Decl) -> Name {
     match d {
         Decl::OpaqueType(o) => o.name.clone(),
         Decl::Data(t) => t.name.clone(),
+        Decl::TypeFamily(tf) => tf.name.clone(),
+        Decl::DataFamily(df) => df.name.clone(),
         Decl::Record(r) | Decl::Codata(r) => r.name.clone(),
         Decl::Signature(s) => s.name.clone(),
         Decl::Attributed { inner, .. } => sig_member_name(inner),
@@ -688,7 +690,15 @@ impl<'a> Parser<'a> {
             Tok::Export => Ok(Decl::Export(self.parse_export()?)),
             Tok::Signature => Ok(Decl::Signature(self.parse_signature()?)),
             Tok::Instance | Tok::Implicit => Ok(Decl::Instance(self.parse_instance()?)),
-            Tok::Data => Ok(Decl::Data(self.parse_data()?)),
+            Tok::Data => {
+                if matches!(self.peek_tok_at(1), Some(Tok::VarId(s)) if s == "family") {
+                    Ok(Decl::DataFamily(self.parse_data_family()?))
+                } else if matches!(self.peek_tok_at(1), Some(Tok::Instance)) {
+                    Ok(Decl::DataInstance(self.parse_data_instance()?))
+                } else {
+                    Ok(Decl::Data(self.parse_data()?))
+                }
+            }
             Tok::Foreign => Ok(Decl::Foreign(self.parse_foreign()?)),
             Tok::Infix | Tok::Infixl | Tok::Infixr => Ok(Decl::Fixity(self.parse_fixity()?)),
             Tok::Record => Ok(Decl::Record(self.parse_record()?)),
@@ -696,7 +706,15 @@ impl<'a> Parser<'a> {
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::Generate => self.parse_generate(),
             Tok::Opaque => Ok(Decl::OpaqueType(self.parse_opaque_type()?)),
-            Tok::TypeKw => Ok(Decl::Refine(self.parse_refine()?)),
+            Tok::TypeKw => {
+                if matches!(self.peek_tok_at(1), Some(Tok::VarId(s)) if s == "family") {
+                    Ok(Decl::TypeFamily(self.parse_type_family()?))
+                } else if matches!(self.peek_tok_at(1), Some(Tok::Instance)) {
+                    Ok(Decl::TypeInstance(self.parse_type_instance()?))
+                } else {
+                    Ok(Decl::Refine(self.parse_refine()?))
+                }
+            }
             Tok::Rewrite => self.parse_rewrite(false),
             Tok::Prim => self.parse_prim(false),
             Tok::VarId(s) if s == "unsafe" && matches!(self.peek_tok_at(1), Some(Tok::Prim)) => {
@@ -1948,6 +1966,146 @@ impl<'a> Parser<'a> {
         self.expect(&Tok::With, "`with` before the refinement's predicate")?;
         let pred = self.parse_type()?;
         Ok(RefineDecl { name, params, binder, base, pred, span })
+    }
+
+    /// `type family Name params [:: Kind] [where { Name pats = rhs; ... } | = rhs]`
+    fn parse_type_family(&mut self) -> Result<TypeFamilyDecl> {
+        let span = self.expect(&Tok::TypeKw, "`type`")?.span;
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "family" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `family` after `type`, found {}",
+                    describe(&t)
+                )));
+            }
+        }
+        let name = self.parse_ctor_name("a type family name")?;
+        let params = self.parse_params()?;
+        let return_kind = if self.at(&Tok::ColonColon) {
+            self.bump();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        if self.at(&Tok::Where) {
+            self.bump();
+            let eqs = self.parse_block_items("the type family equations", |p| {
+                let eq_span = p.peek().span;
+                let head = p.parse_ctor_name("the type family name")?;
+                let mut lhs_args = Vec::new();
+                while p.starts_type_atom() {
+                    lhs_args.push(p.parse_type_atom()?);
+                }
+                p.expect(&Tok::Equals, "`=` in type family equation")?;
+                let rhs = p.parse_type()?;
+                Ok(TypeFamilyEq { head, lhs_args, rhs, span: eq_span })
+            })?;
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: true,
+                eqs,
+                span,
+            })
+        } else if self.at(&Tok::Equals) {
+            self.bump();
+            let rhs = self.parse_type()?;
+            let lhs_args = params
+                .iter()
+                .map(|b| Type::Var(b.name.clone(), b.name.span))
+                .collect();
+            let eq = TypeFamilyEq {
+                head: name.clone(),
+                lhs_args,
+                rhs,
+                span,
+            };
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: true,
+                eqs: vec![eq],
+                span,
+            })
+        } else {
+            Ok(TypeFamilyDecl {
+                name,
+                params,
+                return_kind,
+                closed: false,
+                eqs: Vec::new(),
+                span,
+            })
+        }
+    }
+
+    /// `type instance Family pat1 ... = rhs`
+    fn parse_type_instance(&mut self) -> Result<TypeInstanceDecl> {
+        let span = self.expect(&Tok::TypeKw, "`type`")?.span;
+        self.expect(&Tok::Instance, "`instance` after `type`")?;
+        let family = self.parse_con_path()?;
+        let mut lhs_args = Vec::new();
+        while self.starts_type_atom() {
+            lhs_args.push(self.parse_type_atom()?);
+        }
+        self.expect(&Tok::Equals, "`=` in `type instance`")?;
+        let rhs = self.parse_type()?;
+        Ok(TypeInstanceDecl { family, lhs_args, rhs, span })
+    }
+
+    /// `data family Name params [:: Type]`
+    fn parse_data_family(&mut self) -> Result<DataFamilyDecl> {
+        let span = self.expect(&Tok::Data, "`data`")?.span;
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "family" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `family` after `data`, found {}",
+                    describe(&t)
+                )));
+            }
+        }
+        let name = self.parse_ctor_name("a data family name")?;
+        let params = self.parse_params()?;
+        if self.at(&Tok::ColonColon) {
+            self.bump();
+            let rk = self.parse_type()?;
+            if !matches!(&rk, Type::Con(p, _) if p.parts().as_slice() == ["Type"]) {
+                return Err(Error::at(
+                    rk.span(),
+                    "a `data family` result kind must be `Type`",
+                ));
+            }
+        }
+        Ok(DataFamilyDecl { name, params, span })
+    }
+
+    /// `data instance Family pat1 ... where { Ctor :: ... }`
+    fn parse_data_instance(&mut self) -> Result<DataInstanceDecl> {
+        let span = self.expect(&Tok::Data, "`data`")?.span;
+        self.expect(&Tok::Instance, "`instance` after `data`")?;
+        let family = self.parse_con_path()?;
+        let mut lhs_args = Vec::new();
+        while self.starts_type_atom() {
+            lhs_args.push(self.parse_type_atom()?);
+        }
+        self.expect(&Tok::Where, "`where` in `data instance`")?;
+        let ctors = self.parse_block_items("the constructor block", |p| {
+            let attrs = p.parse_attr_list()?;
+            let name = p.parse_ctor_name("a constructor name")?;
+            p.expect(&Tok::ColonColon, "`::`")?;
+            let ty = p.parse_type()?;
+            let span = name.span;
+            Ok(CtorDecl { attrs, name, ty, span })
+        })?;
+        Ok(DataInstanceDecl { family, lhs_args, ctors, span })
     }
 
     fn parse_opaque_type(&mut self) -> Result<OpaqueTypeDecl> {
@@ -4000,6 +4158,43 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
             resolve_type(&mut r.base, fix)?;
             resolve_type(&mut r.pred, fix)?;
+        }
+        Decl::TypeFamily(tf) => {
+            for b in &mut tf.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            if let Some(rk) = &mut tf.return_kind {
+                resolve_type(rk, fix)?;
+            }
+            for eq in &mut tf.eqs {
+                for arg in &mut eq.lhs_args {
+                    resolve_type(arg, fix)?;
+                }
+                resolve_type(&mut eq.rhs, fix)?;
+            }
+        }
+        Decl::TypeInstance(ti) => {
+            for arg in &mut ti.lhs_args {
+                resolve_type(arg, fix)?;
+            }
+            resolve_type(&mut ti.rhs, fix)?;
+        }
+        Decl::DataFamily(df) => {
+            for b in &mut df.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+        }
+        Decl::DataInstance(di) => {
+            for arg in &mut di.lhs_args {
+                resolve_type(arg, fix)?;
+            }
+            for c in &mut di.ctors {
+                resolve_type(&mut c.ty, fix)?;
+            }
         }
         Decl::Rewrite(r) => {
             for b in &mut r.binders {

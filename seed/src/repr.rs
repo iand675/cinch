@@ -168,6 +168,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
         Ty::Bytes => Class::Obj,
         Ty::Param(n) => match params.iter().position(|p| p == n) {
             Some(i) => Class::Param(i as u16),
+            None if n.starts_with("$gadt_t_") => Class::Obj,
             None => {
                 miss(ty);
                 Class::Raw

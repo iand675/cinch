@@ -1424,6 +1424,13 @@ impl<'a> LowerCx<'a> {
 
 impl crate::repr::TypeReprs for Checker {
     fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
+        if self.uni.is_type_family(name) {
+            let reduced = self.uni.zonk(&Ty::Adt(name.into(), args.to_vec()));
+            if !matches!(&reduced, Ty::Adt(n, _) if n.as_str() == name) {
+                return crate::repr::AdtRepr::Base(reduced);
+            }
+            return crate::repr::AdtRepr::Obj;
+        }
         let kind = match self.known_type(name) {
             Some(k) => k,
             _ => return crate::repr::AdtRepr::Obj,
@@ -2797,7 +2804,7 @@ fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
     match t {
         ITerm::Var(n) => n != binder,
         ITerm::Inst(_) => !t.mentions(binder),
-        ITerm::LocalValue(_) | ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
+        ITerm::LocalValue(_) | ITerm::Num(_) | ITerm::Evidence(_) | ITerm::Fn(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => true,
         ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
         ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
         ITerm::App(f, args) => {
@@ -3130,6 +3137,20 @@ struct Checker {
     /// covers, by `(module, name)` (core specification section 2, mutual
     /// inductive groups). A non-recursive declaration's group is itself.
     data_groups: HashMap<(String, String), Vec<String>>,
+    /// Open `data family` nominal identities (can be extended by `data instance`).
+    open_data_families: std::collections::HashSet<String>,
+    /// Index-returning (`:: Nat`, etc.) type family nominal identities.
+    idx_type_families: std::collections::HashSet<String>,
+    /// Defining module for each `data instance` constructor `(family_identity, ctor_name) -> defining_module`.
+    data_family_ctor_modules: HashMap<(String, String), String>,
+    /// Registered `data instance` LHS patterns per data family identity (for non-overlap checks).
+    data_instance_patterns: HashMap<String, Vec<(Vec<String>, Vec<Ty>)>>,
+    /// Constructors defined by `data instance` per defining module: `module -> Vec<(family_identity, ctor_name, tag)>`.
+    data_instance_ctors: HashMap<String, Vec<(String, String, usize)>>,
+    /// Constructor-local type parameters for `data instance` constructors: `(ctor_module, ctor_name) -> Vec<String>`.
+    ctor_local_ty_params: HashMap<(String, String), Vec<String>>,
+    /// Counter for fresh branch-local rigid type/index parameters introduced by GADT / data-family pattern refinement.
+    gadt_skolem_counter: usize,
     provisional_declarations: bool,
     declaration_needs_headers: Cell<bool>,
     declaration_pending: Cell<usize>,
@@ -3920,7 +3941,7 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
                 term(b, out);
             }
             ITerm::Lam(_, b) => term(b, out),
-            ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+            ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => {}
         }
     }
     match p {
@@ -3983,6 +4004,13 @@ impl Checker {
             deferred_headers: HashMap::new(),
             declaration_bindings: HashMap::new(),
             data_groups: HashMap::new(),
+            open_data_families: std::collections::HashSet::new(),
+            idx_type_families: std::collections::HashSet::new(),
+            data_family_ctor_modules: HashMap::new(),
+            data_instance_patterns: HashMap::new(),
+            data_instance_ctors: HashMap::new(),
+            ctor_local_ty_params: HashMap::new(),
+            gadt_skolem_counter: 0,
             provisional_declarations: false,
             declaration_needs_headers: Cell::new(false),
             declaration_pending: Cell::new(0),
@@ -4676,7 +4704,7 @@ impl Checker {
                     // before exporting result facts; do not use a bare scheme.
                     for argument in call.terms() { terms(argument, out); }
                 }
-                ITerm::Lam(..) | ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+                ITerm::Lam(..) | ITerm::Var(_) | ITerm::LocalValue(_) | ITerm::Evidence(_) | ITerm::Num(_) | ITerm::MVar(_) | ITerm::TyFamily(..) => {}
             }
         }
         fn preds<'a>(p: &'a PTerm, out: &mut Vec<(&'a str, &'a [ITerm], &'a ITerm)>) {
@@ -6490,6 +6518,14 @@ impl Checker {
                     ],
                 )
             }
+            ITerm::TyFamily(name, _) => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "type family application `{name}` is not yet reduced to a runtime value; pass a concrete shape or witness"
+                    ),
+                ))
+            }
             ITerm::MVar(m) => {
                 return Err(Error::at(
                     span,
@@ -6961,7 +6997,9 @@ impl Checker {
     }
 
     fn unboxed_payload(&self, kind: &TypeKind) -> Option<&Ty> {
-        if self.unboxed_ctors.is_empty() { return None; }
+        if self.unboxed_ctors.is_empty() || self.open_data_families.contains(&kind.identity) {
+            return None;
+        }
         let (ctor, _) = kind.ctors.first()?;
         self.unboxed_ctors.get(&fn_id(&kind.module, ctor))
     }
@@ -7888,6 +7926,43 @@ impl Checker {
                         *cspan,
                         "a universe is not an index value (it classifies types)",
                     ));
+                }
+                if let Ok(info) = self.lookup_type_path(p) {
+                    if self.idx_type_families.contains(&info.identity) {
+                        if args.len() != info.arity {
+                            return Err(Error::at(
+                                *cspan,
+                                format!(
+                                    "type family {} expects {} argument{}, got {}",
+                                    parts.join("."),
+                                    info.arity,
+                                    if info.arity == 1 { "" } else { "s" },
+                                    args.len()
+                                ),
+                            ));
+                        }
+                        let mut conv_args = Vec::with_capacity(args.len());
+                        for (i, a) in args.iter().enumerate() {
+                            let arg = match info.param_kinds.get(i) {
+                                Some(ParamKind::Val(vty)) => {
+                                    Ty::Idx(Box::new(self.conv_idx(a, vars, vty)?))
+                                }
+                                Some(ParamKind::Prop) => {
+                                    Ty::Prp(Box::new(self.conv_prop(a, vars)?))
+                                }
+                                Some(ParamKind::Region) => {
+                                    self.conv_kind(a, vars, Some(&ParamKind::Region))?
+                                }
+                                Some(k @ ParamKind::Con(_)) => {
+                                    self.conv_kind(a, vars, Some(k))?
+                                }
+                                _ => self.conv_kind(a, vars, None)?,
+                            };
+                            conv_args.push(arg);
+                        }
+                        let raw = ITerm::TyFamily(info.identity.clone().into(), conv_args);
+                        return Ok(self.uni.resolve_idx(&raw));
+                    }
                 }
                 let name = parts.join(".");
                 self.idx_app(&name, p.segments.last(), &args, vars, expected, *cspan)
@@ -10116,6 +10191,15 @@ impl Checker {
                         let info = self.lookup_type_path(p).map_err(|_| {
                             Error::at(*span, format!("unknown type {}", parts.join(".")))
                         })?;
+                        if self.idx_type_families.contains(&info.identity) {
+                            return Err(Error::at(
+                                *span,
+                                format!(
+                                    "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                    parts.join(".")
+                                ),
+                            ));
+                        }
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
                         Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
@@ -10124,6 +10208,15 @@ impl Checker {
                         let info = self.lookup_type_path(p).map_err(|_| {
                             Error::at(*span, format!("unknown type {}", parts.join(".")))
                         })?;
+                        if self.idx_type_families.contains(&info.identity) {
+                            return Err(Error::at(
+                                *span,
+                                format!(
+                                    "type family {} computes an index value (`Nat`), not a type; index values appear as arguments of an indexed family or in a proposition",
+                                    parts.join(".")
+                                ),
+                            ));
+                        }
                         // Full application is enforced by `conv_type`; here a
                         // bare constructor may still collect arguments.
                         Ok(Ty::Adt(self.type_key(&info).into(), Vec::new()))
@@ -10985,6 +11078,7 @@ impl Checker {
                 self.length_index_unify(&actual, &cod, uni, span)?;
                 Ok(Ty::fun_mult(*dom, mult, eff, *cod))
             }
+            ITerm::TyFamily(..) => Ok(Ty::Nat),
             ITerm::Inst(call) => {
                 let IndexHead::Function(head) = &call.head else {
                     return Err(Error::at(span, "dictionary evidence is not a numeric index operand"));
@@ -11366,6 +11460,12 @@ impl Checker {
                 *op,
                 Box::new(Checker::subst_index_namespaces(a, map, rows, regions, evidence)),
                 Box::new(Checker::subst_index_namespaces(b, map, rows, regions, evidence)),
+            ),
+            ITerm::TyFamily(name, args) => ITerm::TyFamily(
+                name.clone(),
+                args.iter()
+                    .map(|a| Checker::subst_namespaces(a, map, rows, regions, evidence))
+                    .collect(),
             ),
             other => other.clone(),
         }

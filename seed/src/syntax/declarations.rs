@@ -19,6 +19,11 @@ fn binding_sites(decls: &mut [Decl], visit: &mut impl FnMut(&mut Name, &[RefKind
             Decl::Codata(record) => visit(&mut record.name, &[Type]),
             Decl::OpaqueType(opaque) => visit(&mut opaque.name, &[Type]),
             Decl::Refine(refine) => visit(&mut refine.name, &[Type, Value]),
+            Decl::TypeFamily(tf) => visit(&mut tf.name, &[Type]),
+            Decl::DataFamily(df) => visit(&mut df.name, &[Type]),
+            Decl::DataInstance(di) => {
+                for ctor in &mut di.ctors { visit(&mut ctor.name, &[Value]); }
+            }
             Decl::Foreign(foreign) => visit(&mut foreign.name, &[Value]),
             Decl::Prim(primitive) => visit(&mut primitive.name, &[Value]),
             Decl::Effect(effect) => {
@@ -624,6 +629,12 @@ fn declaration(decl: &mut Decl, visit: &mut impl FnMut(&mut Name, RefKind)) {
         Decl::Foreign(foreign) => visit(&mut foreign.name, RefKind::Value),
         Decl::OpaqueType(opaque) => visit(&mut opaque.name, RefKind::Type),
         Decl::Refine(refine) => visit(&mut refine.name, RefKind::Type),
+        Decl::TypeFamily(tf) => visit(&mut tf.name, RefKind::Type),
+        Decl::TypeInstance(..) => {}
+        Decl::DataFamily(df) => visit(&mut df.name, RefKind::Type),
+        Decl::DataInstance(di) => {
+            for ctor in &mut di.ctors { visit(&mut ctor.name, RefKind::Value); }
+        }
         Decl::Effect(effect) => {
             visit(&mut effect.name, RefKind::Effect);
             for (name, _) in &mut effect.ops { visit(name, RefKind::Value); }

@@ -1742,6 +1742,18 @@ fn index_defs(
             add(&o.name, SymKind::Type, defs);
             sig_text.insert(format!("kind:{}", o.name.text), render_ast_type(&o.kind));
         }
+        Decl::TypeFamily(tf) => {
+            add(&tf.name, SymKind::Type, defs);
+        }
+        Decl::DataFamily(df) => {
+            add(&df.name, SymKind::Type, defs);
+        }
+        Decl::DataInstance(di) => {
+            for c in &di.ctors {
+                add(&c.name, SymKind::Ctor, defs);
+                sig_text.insert(c.name.text.clone(), render_ast_type(&c.ty));
+            }
+        }
         Decl::Effect(e) => {
             add(&e.name, SymKind::Effect, defs);
             for (op, ty) in &e.ops {
