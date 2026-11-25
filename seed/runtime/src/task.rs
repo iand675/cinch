@@ -217,7 +217,10 @@ impl Scope {
         // at once: make it atomic while only this context can reach it.
         // Queueing the task below publishes the marks to the body.
         if crate::rc::reclaiming() {
-            unsafe { crate::rc::cinch_mark_mt(closure) };
+            unsafe {
+                crate::rc::cinch_mark_mt(closure);
+                crate::arena::mark_mt_all_active();
+            }
         }
         let state = Arc::new(TaskState::new());
         let handle = Arc::into_raw(state.clone()) as i64;

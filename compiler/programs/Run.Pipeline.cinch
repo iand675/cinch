@@ -25,8 +25,9 @@ module Main where
 
   import Bootstrap.Driver (read-argv)
   import Bootstrap.Report (render-diagnostic)
-  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode, compile-manifest-profile-mode, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
-  import Bootstrap.Pipeline (ServeIr, link-source-with-object, compile-object-profile-mode, compile-source-library-object-at, compile-requested-library-object, report-target-refusal)
+  import Bootstrap.Parallel (CompileStrategy, Latency, Throughput, CompileTuning, MkCompileTuning, tuning-workers, parse-compile-strategy, parse-nat-word, apply-worker-budget)
+  import Bootstrap.Pipeline (PipelineMode, TypesOnly, CheckOnly, BodiesOnly, IrOnly, EmitOnly, EmitWithInterfaces, InterfacesOnly, ObjectOnly, compile-source-library-object, CompileOnly, CompileAndRun, compile-source-profile-mode-tuned, compile-manifest-profile-mode-tuned, compile-source-with-object, compile-source-with-object-interfaces, four-words, pipeline-bad-args)
+  import Bootstrap.Pipeline (ServeIr, ServeStream, link-source-with-object-tuned, compile-object-profile-mode-tuned, compile-source-library-object-at-tuned, compile-requested-library-object-tuned, report-target-refusal)
   import Bootstrap.Target (TargetProfile, MkTargetProfile, configured-profile, configure-platform, profile-triple, host-profile)
   import Data.Path (path-from-string)
 
@@ -44,49 +45,84 @@ module Main where
       TypesOnly -> Ok (configure-platform platform portable required features)
       other -> Err "--check-platform requires --check or --check-types"
 
-  run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
-  run-words ws = run-options None CompileAndRun None None (CompilerTarget None, False, Nil, None) False True False False ws
+  resolve-tuning :: PipelineMode -> (Option CompileStrategy, Option Nat) -> CompileTuning
+  resolve-tuning mode choice = case choice of
+    (strategy-opt, workers-opt) ->
+      let strategy = case strategy-opt of
+            Some s -> s
+            None -> case mode of
+              ServeStream -> Latency
+              other -> Throughput in
+      let workers = case workers-opt of
+            Some n -> n
+            None -> 0 in
+      MkCompileTuning strategy workers
 
-  run-options :: forall r. using (io :: Io r) => Option String -> PipelineMode -> Option String -> Option String -> (RequestedPlatform, Bool, List String, Option (List String)) -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
-  run-options roots mode manifest object-config wanted debug reclaim inlining selected ws = case ws of
+  run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
+  run-words ws = run-options None CompileAndRun None None (CompilerTarget None, False, Nil, None) (None, None) False True False False ws
+
+  run-options :: forall r. using (io :: Io r) => Option String -> PipelineMode -> Option String -> Option String -> (RequestedPlatform, Bool, List String, Option (List String)) -> (Option CompileStrategy, Option Nat) -> Bool -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
+  run-options roots mode manifest object-config wanted tuning-opt debug reclaim inlining selected ws = case ws of
     Cons flag rest ->
       if string-compare flag "--check" == 0 then
-        if selected then pipeline-bad-args else run-options roots CheckOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots CheckOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--check-types" == 0 then
-        if selected then pipeline-bad-args else run-options roots TypesOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots TypesOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-bodies" == 0 then
-        if selected then pipeline-bad-args else run-options roots BodiesOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots BodiesOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--compile-only" == 0 then
-        if selected then pipeline-bad-args else run-options roots CompileOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots CompileOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-ir-only" == 0 then
-        if selected then pipeline-bad-args else run-options roots IrOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots IrOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--serve-ir" == 0 then
-        if selected then pipeline-bad-args else run-options roots ServeIr manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots ServeIr manifest object-config wanted tuning-opt debug reclaim inlining True rest
+      else if string-compare flag "--serve-stream" == 0 then
+        if selected then pipeline-bad-args else run-options roots ServeStream manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-ir" == 0 then
-        if selected then pipeline-bad-args else run-options roots EmitOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots EmitOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-ir-with-interfaces" == 0 then
-        if selected then pipeline-bad-args else run-options roots EmitWithInterfaces manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots EmitWithInterfaces manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-object" == 0 then
-        if selected then pipeline-bad-args else run-options roots ObjectOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots ObjectOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--emit-interfaces" == 0 then
-        if selected then pipeline-bad-args else run-options roots InterfacesOnly manifest object-config wanted debug reclaim inlining True rest
+        if selected then pipeline-bad-args else run-options roots InterfacesOnly manifest object-config wanted tuning-opt debug reclaim inlining True rest
       else if string-compare flag "--rc-debug" == 0 then
-        if debug then pipeline-bad-args else run-options roots mode manifest object-config wanted True reclaim inlining selected rest
+        if debug then pipeline-bad-args else run-options roots mode manifest object-config wanted tuning-opt True reclaim inlining selected rest
       else if string-compare flag "--no-reclaim" == 0 then
-        if not reclaim then pipeline-bad-args else run-options roots mode manifest object-config wanted debug False inlining selected rest
+        if not reclaim then pipeline-bad-args else run-options roots mode manifest object-config wanted tuning-opt debug False inlining selected rest
       else if string-compare flag "--inline" == 0 then
-        if inlining then pipeline-bad-args else run-options roots mode manifest object-config wanted debug reclaim True selected rest
+        if inlining then pipeline-bad-args else run-options roots mode manifest object-config wanted tuning-opt debug reclaim True selected rest
+      else if string-compare flag "--latency" == 0 then
+        case tuning-opt of
+          (None, workers-opt) -> run-options roots mode manifest object-config wanted (Some Latency, workers-opt) debug reclaim inlining selected rest
+          other -> pipeline-bad-args
+      else if string-compare flag "--throughput" == 0 then
+        case tuning-opt of
+          (None, workers-opt) -> run-options roots mode manifest object-config wanted (Some Throughput, workers-opt) debug reclaim inlining selected rest
+          other -> pipeline-bad-args
+      else if string-compare flag "--compile-profile" == 0 then
+        case (tuning-opt, rest) of
+          ((None, workers-opt), Cons word more) -> case parse-compile-strategy word of
+            Some strat -> run-options roots mode manifest object-config wanted (Some strat, workers-opt) debug reclaim inlining selected more
+            None -> pipeline-bad-args
+          other -> pipeline-bad-args
+      else if string-compare flag "-j" == 0 || string-compare flag "--jobs" == 0 then
+        case (tuning-opt, rest) of
+          ((strategy-opt, None), Cons word more) -> case parse-nat-word word of
+            Some count | count > 0 -> run-options roots mode manifest object-config wanted (strategy-opt, Some count) debug reclaim inlining selected more
+            other -> pipeline-bad-args
+          other -> pipeline-bad-args
       else if string-compare flag "--object-roots" == 0 then
         case (roots, rest) of
-          (None, Cons path more) -> run-options (Some path) mode manifest object-config wanted debug reclaim inlining selected more
+          (None, Cons path more) -> run-options (Some path) mode manifest object-config wanted tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--interfaces" == 0 then
         case (manifest, rest) of
-          (None, Cons file more) -> run-options roots mode (Some file) object-config wanted debug reclaim inlining selected more
+          (None, Cons file more) -> run-options roots mode (Some file) object-config wanted tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--objects" == 0 then
         case (object-config, rest) of
-          (None, Cons file more) -> run-options roots mode manifest (Some file) wanted debug reclaim inlining selected more
+          (None, Cons file more) -> run-options roots mode manifest (Some file) wanted tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--check-platform" == 0 then
         case (wanted, rest) of
@@ -94,62 +130,67 @@ module Main where
             if name == "" || triple == "" || os == "" || arch == "" || libc == "" || (width /= "32" && width /= "64") || (endian /= "little" && endian /= "big") then pipeline-bad-args
             else let bits = if width == "32" then (32 :: Nat) else (64 :: Nat) in
               let platform = MkTargetProfile name triple os arch libc bits endian False Nil Nil in
-              run-options roots mode manifest object-config (CheckPlatform platform, portable, required, features) debug reclaim inlining selected more
+              run-options roots mode manifest object-config (CheckPlatform platform, portable, required, features) tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--target" == 0 then
         case (wanted, rest) of
-          ((CompilerTarget None, portable, required, features), Cons triple more) -> run-options roots mode manifest object-config (CompilerTarget (Some triple), portable, required, features) debug reclaim inlining selected more
+          ((CompilerTarget None, portable, required, features), Cons triple more) -> run-options roots mode manifest object-config (CompilerTarget (Some triple), portable, required, features) tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--require-capability" == 0 then
         case (wanted, rest) of
           ((triple, portable, required, features), Cons capability more) | string-compare capability "" /= 0 ->
-            run-options roots mode manifest object-config (triple, portable, Cons capability required, features) debug reclaim inlining selected more
+            run-options roots mode manifest object-config (triple, portable, Cons capability required, features) tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--clear-features" == 0 then
         case wanted of
           (triple, portable, required, features) ->
-            run-options roots mode manifest object-config (triple, portable, required, Some Nil) debug reclaim inlining selected rest
+            run-options roots mode manifest object-config (triple, portable, required, Some Nil) tuning-opt debug reclaim inlining selected rest
       else if string-compare flag "--target-feature" == 0 then
         case (wanted, rest) of
           ((triple, portable, required, features), Cons feature more) | string-compare feature "" /= 0 ->
             let chosen = case features of None -> [feature]; Some prior -> Cons feature prior in
-            run-options roots mode manifest object-config (triple, portable, required, Some chosen) debug reclaim inlining selected more
+            run-options roots mode manifest object-config (triple, portable, required, Some chosen) tuning-opt debug reclaim inlining selected more
           other -> pipeline-bad-args
       else if string-compare flag "--portable-isa" == 0 then
         case wanted of
-          (triple, False, required, features) -> run-options roots mode manifest object-config (triple, True, required, features) debug reclaim inlining selected rest
+          (triple, False, required, features) -> run-options roots mode manifest object-config (triple, True, required, features) tuning-opt debug reclaim inlining selected rest
           other -> pipeline-bad-args
       else if string-compare flag "run" == 0 || string-compare flag "build" == 0 then
         case (roots, selected, manifest, object-config) of
           (None, False, Some contracts, Some provider) ->
-            link-words (string-compare flag "run" == 0) inlining debug reclaim (resolve-platform mode wanted) contracts provider rest
+            let tuning = resolve-tuning mode tuning-opt in
+            case apply-worker-budget (tuning-workers tuning) of
+              _ -> link-words tuning (string-compare flag "run" == 0) inlining debug reclaim (resolve-platform mode wanted) contracts provider rest
           other -> pipeline-bad-args
-      else case (roots, mode, debug, reclaim, manifest, object-config, ws) of
-        (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected mode manifest object-config (resolve-platform mode wanted) debug reclaim inlining ws
-        (Some path, ObjectOnly, False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi Nil)))) ->
-          (case resolve-platform mode wanted of
-            Err message -> report-target-refusal (path-from-string ir) message
-            Ok profile -> compile-requested-library-object inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi))
-        other -> pipeline-bad-args
+      else
+        let tuning = resolve-tuning mode tuning-opt in
+        case apply-worker-budget (tuning-workers tuning) of
+          _ -> case (roots, mode, debug, reclaim, manifest, object-config, ws) of
+            (None, chosen, other-debug, other-reclaim, docs, objects, words) -> run-selected tuning mode manifest object-config (resolve-platform mode wanted) debug reclaim inlining ws
+            (Some path, ObjectOnly, False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi Nil)))) ->
+              (case resolve-platform mode wanted of
+                Err message -> report-target-refusal (path-from-string ir) message
+                Ok profile -> compile-requested-library-object-tuned tuning inlining profile path contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi))
+            other -> pipeline-bad-args
     Nil -> pipeline-bad-args
 
-  link-words :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> List String ->{IO r, Diverge} Int
-  link-words run inlining debug reclaim profile contracts provider words =
+  link-words :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> List String ->{IO r, Diverge} Int
+  link-words tuning run inlining debug reclaim profile contracts provider words =
     case words of
       Cons flag rest | string-compare flag "--clang" == 0 -> (case rest of
         Cons clang paths | string-compare clang "" /= 0 ->
-          link-paths run inlining debug reclaim profile contracts provider clang paths
+          link-paths tuning run inlining debug reclaim profile contracts provider clang paths
         other -> pipeline-bad-args)
-      other -> link-paths run inlining debug reclaim profile contracts provider "clang" words
+      other -> link-paths tuning run inlining debug reclaim profile contracts provider "clang" words
 
-  link-paths :: forall r. using (io :: Io r) => Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> String -> List String ->{IO r, Diverge} Int
-  link-paths run inlining debug reclaim wanted contracts provider clang paths = case paths of
+  link-paths :: forall r. using (io :: Io r) => CompileTuning -> Bool -> Bool -> Bool -> Bool -> Result String TargetProfile -> String -> String -> String -> List String ->{IO r, Diverge} Int
+  link-paths tuning run inlining debug reclaim wanted contracts provider clang paths = case paths of
     Cons runtime (Cons prefix (Cons source words)) -> case (run, words) of
       (False, Cons extra rest) -> pipeline-bad-args
       other -> (case wanted of
         Err message -> report-target-refusal (path-from-string prefix) message
         Ok profile -> if string-compare (profile-triple profile) (profile-triple host-profile) == 0 then
-          link-source-with-object inlining debug reclaim profile contracts provider runtime prefix source clang (if run then Some (program-words words) else None)
+          link-source-with-object-tuned tuning inlining debug reclaim profile contracts provider runtime prefix source clang (if run then Some (program-words words) else None)
           else report-target-refusal (path-from-string prefix) (if run then "a foreign target cannot run on this host" else "native build requires a host target"))
     other -> pipeline-bad-args
 
@@ -161,55 +202,60 @@ module Main where
   -- Debug counting changes only the typed runtime emission. Checking emits
   -- no count operations, so it ignores the flag; a mode that emits code
   -- without a runtime object refuses it.
-  run-selected :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
-  run-selected mode manifest object-config wanted debug reclaim inlining ws = case mode of
+  run-selected :: forall r. using (io :: Io r) => CompileTuning -> PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> List String ->{IO r, Diverge} Int
+  run-selected tuning mode manifest object-config wanted debug reclaim inlining ws = case mode of
     ObjectOnly -> case (debug, reclaim, manifest, object-config, ws) of
       (False, True, Some contracts, Some provider, Cons source (Cons ir (Cons object (Cons abi Nil)))) ->
         case wanted of
           Err message -> report-target-refusal (path-from-string ir) message
-          Ok profile -> compile-source-library-object-at inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi)
+          Ok profile -> compile-source-library-object-at-tuned tuning inlining profile contracts provider source (path-from-string ir) (path-from-string object) (path-from-string abi)
       other -> pipeline-bad-args
     IrOnly -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
     ServeIr -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      other -> pipeline-bad-args
+    ServeStream -> case ws of
+      Cons source (Cons ir Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
     EmitOnly -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
     EmitWithInterfaces -> case ws of
-      Cons source (Cons ir Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source ir ir ir
+      Cons source (Cons ir Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir ir ir
       other -> pipeline-bad-args
     InterfacesOnly -> case ws of
-      Cons source (Cons prefix Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source prefix prefix prefix
+      Cons source (Cons prefix Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source prefix prefix prefix
       other -> pipeline-bad-args
     TypesOnly -> case ws of
-      Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
+      Cons source (Cons diagnostics Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
       other -> pipeline-bad-args
     CheckOnly -> case ws of
-      Cons source (Cons diagnostics Nil) -> run-source mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
+      Cons source (Cons diagnostics Nil) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source diagnostics diagnostics diagnostics
       other -> pipeline-bad-args
     BodiesOnly -> case (debug, ws) of
-      (False, Cons source (Cons out Nil)) -> run-source mode manifest object-config wanted debug reclaim inlining source out out out
+      (False, Cons source (Cons out Nil)) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source out out out
       other -> pipeline-bad-args
     other -> case four-words ws of
       None -> pipeline-bad-args
-      Some (source, ir, exe, report) -> run-source mode manifest object-config wanted debug reclaim inlining source ir exe report
+      Some (source, ir, exe, report) -> run-source tuning mode manifest object-config wanted debug reclaim inlining source ir exe report
 
-  run-source :: forall r. using (io :: Io r) => PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
-  run-source mode manifest object-config wanted debug reclaim inlining source ir exe report = case object-config of
+  run-source :: forall r. using (io :: Io r) => CompileTuning -> PipelineMode -> Option String -> Option String -> Result String TargetProfile -> Bool -> Bool -> Bool -> String -> String -> String -> String ->{IO r, Diverge} Int
+  run-source tuning mode manifest object-config wanted debug reclaim inlining source ir exe report = case object-config of
     Some configuration -> (case (mode, manifest) of
-      (IrOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
-      (ServeIr, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
-      (EmitOnly, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
-      (EmitWithInterfaces, Some file) -> compile-object-profile-mode inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (IrOnly, Some file) -> compile-object-profile-mode-tuned tuning inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (ServeIr, Some file) -> compile-object-profile-mode-tuned tuning inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (ServeStream, Some file) -> compile-object-profile-mode-tuned tuning inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitOnly, Some file) -> compile-object-profile-mode-tuned tuning inlining debug reclaim wanted mode file configuration source (path-from-string ir)
+      (EmitWithInterfaces, Some file) -> compile-object-profile-mode-tuned tuning inlining debug reclaim wanted mode file configuration source (path-from-string ir)
       other -> pipeline-bad-args)
     None -> case mode of
       ServeIr -> pipeline-bad-args
+      ServeStream -> pipeline-bad-args
       other -> if debug && emits-code mode then pipeline-bad-args else case manifest of
-        None -> compile-source-profile-mode inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
-        Some file -> compile-manifest-profile-mode inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
+        None -> compile-source-profile-mode-tuned tuning inlining reclaim wanted mode source (path-from-string ir) (path-from-string exe) (path-from-string report)
+        Some file -> compile-manifest-profile-mode-tuned tuning inlining reclaim wanted mode file source (path-from-string ir) (path-from-string exe) (path-from-string report)
 
   emits-code :: PipelineMode -> Bool
   emits-code mode = case mode of

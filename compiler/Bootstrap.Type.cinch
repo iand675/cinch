@@ -2,7 +2,7 @@
 -- only after a diagnostic; they are not evidence of type equality.
 module Bootstrap.Type where
 
-  import Bootstrap.Report (Diagnostic, MkDiagnostic, MkDeferredDiagnostic)
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Text.Lex (Span)
   import Bootstrap.Document
   import Data.Nat (nat-from-int, nat-to-int)
@@ -40,7 +40,7 @@ module Bootstrap.Type where
   export Store, empty-store, store-errors, store-error-count, store-level, enter-level, restore-level
   export store-law-scope, with-law-scope
   export store-let-depth, with-let-depth
-  export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
+  export add-error, add-diagnostics, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
   export type-kind, type-text, display-type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, generalize-application-with, abstract-metas, substitute-rigid-types
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
@@ -589,8 +589,14 @@ module Bootstrap.Type where
     PendingComparison :: Span -> UType -> List String -> PendingNumber
   -- Trial unification compares the sizes of immutable diagnostic snapshots.
   -- Retain the count with the reversed list so trial checks need no traversal.
+  -- Mismatch diagnostics stay unrendered as pure algebraic data until
+  -- `store-errors` is read, keeping rolled-back trials cheap while making
+  -- `Store` structurally `Share`.
+  data StoreError where
+    PlainError :: Diagnostic -> StoreError
+    MismatchError :: String -> Span -> UType -> UType -> StoreError
   data ErrorLog where
-    MkErrorLog :: Nat -> List Diagnostic -> ErrorLog
+    MkErrorLog :: Nat -> List StoreError -> ErrorLog
   data Store where
     MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
 
@@ -606,11 +612,19 @@ module Bootstrap.Type where
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
     MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors numbers active depth
+  render-store-error :: StoreError -> Diagnostic
+  render-store-error entry = case entry of
+    PlainError diagnostic -> diagnostic
+    MismatchError label sp a b -> MkDiagnostic label sp (mismatch-message a b)
+  render-store-errors :: List StoreError -> List Diagnostic
+  render-store-errors entries = case entries of
+    Nil -> Nil
+    Cons entry rest -> Cons (render-store-error entry) (render-store-errors rest)
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> reverse errors
+  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> render-store-errors (reverse errors)
   store-error-count :: Store -> Nat
   store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> count
-  prepend-error :: Diagnostic -> ErrorLog -> ErrorLog
+  prepend-error :: StoreError -> ErrorLog -> ErrorLog
   prepend-error diagnostic log = case log of MkErrorLog count errors -> MkErrorLog (count + 1) (Cons diagnostic errors)
   store-level :: Store -> Nat
   store-level st = case st of MkStore label next level cells errors numbers in-law depth -> level
@@ -620,13 +634,16 @@ module Bootstrap.Type where
   restore-level level st = case st of MkStore label next old cells errors numbers in-law depth -> MkStore label next level cells errors numbers in-law depth
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDiagnostic label sp message) errors) numbers in-law depth
-  -- A named diagnostic whose text is built when the report is read. A failed
-  -- trial unification discards its whole error list, so a mismatch that is
-  -- rolled back pays one closure instead of a rendering.
-  add-deferred-error :: Span -> (Unit -> String) -> Store -> Store
-  add-deferred-error sp render st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDeferredDiagnostic label sp render) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (PlainError (MkDiagnostic label sp message)) errors) numbers in-law depth
+  add-diagnostics :: List Diagnostic -> Store -> Store
+  add-diagnostics diagnostics st = case diagnostics of
+    Nil -> st
+    Cons d rest -> case st of
+      MkStore label next level cells errors numbers in-law depth ->
+        add-diagnostics rest (MkStore label next level cells (prepend-error (PlainError d) errors) numbers in-law depth)
+  add-mismatch-error :: Span -> UType -> UType -> Store -> Store
+  add-mismatch-error sp a b st = case st of
+    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MismatchError label sp a b) errors) numbers in-law depth
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -1238,7 +1255,7 @@ module Bootstrap.Type where
         UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
         other -> unify-structure sp a b checked
   mismatch :: Span -> UType -> UType -> Store -> Store
-  mismatch sp a b st = add-deferred-error sp (\u -> mismatch-message a b) st
+  mismatch sp a b st = add-mismatch-error sp a b st
   foreign-pointer :: UType -> Bool
   foreign-pointer ty = case ty of
     UApp (UCon name kind) pointee -> (same-tag name "RawPtr" || same-tag name "Borrowed" || same-tag name "MaybeNull")

@@ -618,6 +618,13 @@ extern "C" fn print_stats() {
     line.num(freed);
     line.push(b" live=");
     line.num(hblocks.saturating_sub(freed));
+    let (arena_blocks, arena_bytes, _, _) = crate::arena::stats();
+    if arena_blocks > 0 {
+        line.push(b" arena-blocks=");
+        line.num(arena_blocks);
+        line.push(b" arena-bytes=");
+        line.num(arena_bytes);
+    }
     line.push(b"\n");
     line.flush();
 }

@@ -403,7 +403,7 @@ impl Checker {
                 else if parts.as_slice() == ["->"] { "(->)".to_string() }
                 else if parts.as_slice() == ["Io"] { "Io".to_string() }
                 else if parts.len() == 1 && (Scalar::parse(&name).is_some()
-                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "Later")) { name }
+                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Later")) { name }
                 else {
                     let info = self.lookup_type(&parts).ok()?;
                     // Scope and Task are owned kernel type constructors,
@@ -804,7 +804,8 @@ impl Checker {
                 .collect::<Option<Vec<_>>>()?.join(", "))),
             // Adt carries the checked defining identity here. Registration reserves this
             // kernel head; a qualified source nominal never acquires its bare identity.
-            Ty::Adt(name, arguments) if matches!(name.as_str(), "TVar" | "MVarCell" | crate::known::LIST | crate::known::OPTION) =>
+            Ty::Adt(name, arguments) if name == "AtomicCell" && arguments.is_empty() => Some("AtomicCell".into()),
+            Ty::Adt(name, arguments) if matches!(name.as_str(), "TVar" | "MVarCell" | "RwLockCell" | crate::known::LIST | crate::known::OPTION) =>
                 match arguments.as_slice() {
                     [element] => Some(format!("({name} {})", self.interface_usage_field(element, parameters)?)),
                     _ => None,

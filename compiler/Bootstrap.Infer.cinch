@@ -41,12 +41,15 @@ module Bootstrap.Infer where
   import Text.Lex (Span, span-line, span-col)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Algebra.Semigroup
+  import Data.Array
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Bootstrap.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
   import Bootstrap.Temporal (ContractKind, Safety, Liveness, Recurrence, Stability, contract-kind-keyword, contract-kind-operator, check-contract-shape, contract-assumption-rows, contract-formula-row, contract-formula-clause, contract-kind)
   import Bootstrap.TemporalCheck (Parameter, parameter-name, parameter-id, parameter-type, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
 
   export needs-inference, infer-program, elaborate-program, elaborate-with-interfaces, elaborate-with-admitted-interfaces
-  export prepare-admitted-elaboration
+  export elaborate-with-interfaces-tuned, elaborate-with-admitted-interfaces-tuned
+  export prepare-admitted-elaboration, prepare-admitted-elaboration-tuned, prepare-admitted-elaboration-cached
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-method-scope, elaboration-contexts, elaboration-core, elaboration-law-observations
   export elaboration-core-contracts-closed, elaboration-rewrite-assumptions
   export guarded-members, source-method-symbol, source-conditional-head
@@ -202,8 +205,10 @@ module Bootstrap.Infer where
     -- environment.
     MkBindingIndex :: Nat -> CheckedBinding -> CheckedBinding -> CheckedBinding
     -- Temporary lookup boundary used only while adding a declaration's
-    -- bindings. The function captures the index of the existing environment.
-    MkRegistrationLookup :: (String -> CheckedBinding) -> CheckedBinding
+    -- bindings. Pure algebraic data (name -> slot index + binary trie over
+    -- slots) so `CheckedBinding` and `Elaboration` satisfy `Share`.
+    MkRegistrationLookup :: HashMap String Nat -> CheckedBinding -> CheckedBinding
+    MkRegNode :: CheckedBinding -> CheckedBinding -> CheckedBinding -> CheckedBinding
     MkRegistrationMissing :: CheckedBinding
     MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
     MkConditionalBinding :: ConditionalOrigin -> String -> String -> Nat -> String -> UType -> Scheme -> Option GuardedBinding -> CheckedBinding
@@ -219,11 +224,11 @@ module Bootstrap.Infer where
     MkOverloadBinding :: String -> List String -> CheckedBinding
     MkSyntaxBinding :: String -> CheckedBinding
   checked-name :: CheckedBinding -> String
-  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkRegistrationLookup get -> ""; MkRegistrationMissing -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
+  checked-name b = case b of MkBodyContext context names index cache -> ""; MkBindingIndex half left right -> ""; MkRegistrationLookup names trie -> ""; MkRegNode value zero one -> ""; MkRegistrationMissing -> ""; MkBodyBinding binding -> binding-name binding; MkCheckedBinding name sc role -> name; MkForeignExport name plan -> ""; MkForeignBinding name sc plan -> name; MkMethodBinding name sc owner slot -> name; MkConditionalBinding origin name owner slot dictionary head sc guarded -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkMemoBinding name ty id -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding origin invalidated fact -> ""; MkErasedBinding name predicate id origin invalidated -> name; MkOverloadBinding name candidates -> name; MkSyntaxBinding name -> name
   checked-scheme :: CheckedBinding -> Scheme
-  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkRegistrationLookup get -> mono UError; MkRegistrationMissing -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
+  checked-scheme b = case b of MkBodyContext context names index cache -> mono UError; MkBindingIndex half left right -> mono UError; MkRegistrationLookup names trie -> mono UError; MkRegNode value zero one -> mono UError; MkRegistrationMissing -> mono UError; MkBodyBinding binding -> binding-scheme binding; MkCheckedBinding name sc role -> sc; MkForeignExport name plan -> mono UError; MkForeignBinding name sc plan -> sc; MkMethodBinding name sc owner slot -> sc; MkConditionalBinding origin name owner slot dictionary head sc guarded -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkMemoBinding name ty id -> mono ty; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding origin invalidated fact -> mono UError; MkErasedBinding name predicate id origin invalidated -> mono predicate; MkOverloadBinding name candidates -> mono UError; MkSyntaxBinding name -> mono UError
   checked-role :: CheckedBinding -> String
-  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkRegistrationLookup get -> "registration-lookup"; MkRegistrationMissing -> "registration-missing"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
+  checked-role b = case b of MkBodyContext context names index cache -> "body-context"; MkBindingIndex half left right -> "binding-index"; MkRegistrationLookup names trie -> "registration-lookup"; MkRegNode value zero one -> "registration-node"; MkRegistrationMissing -> "registration-missing"; MkBodyBinding binding -> binding-role binding; MkCheckedBinding name sc role -> role; MkForeignExport name plan -> "foreign-export"; MkForeignBinding name sc plan -> "foreign"; MkMethodBinding name sc owner slot -> "method"; MkConditionalBinding origin name owner slot dictionary head sc guarded -> conditional-role origin; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkMemoBinding name ty id -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding origin invalidated fact -> "proof"; MkErasedBinding name predicate id origin invalidated -> "erased-proof"; MkOverloadBinding name candidates -> "overload"; MkSyntaxBinding name -> "builtin-syntax"
   -- Retain the declaring instance/slot for backend authorization. This
   -- does not introduce a source binding for the private implementation.
   checked-conditional-target :: CheckedBinding -> Option (String, String, Nat)
@@ -516,7 +521,7 @@ module Bootstrap.Infer where
   -- | Install only the compiler-owned MVar carrier kind, without finite-array positivity authority.
   cell-kinds :: List (String, Kind)
   cell-kinds = (if cell-type-name "TVar" then [("TVar", KFun KType KType)] else Nil)
-    <> (if cell-type-name "MVarCell" then [("MVarCell", KFun KType KType)] else Nil)
+    <> (if cell-type-name "MVarCell" then [("MVarCell", KFun KType KType), ("RwLockCell", KFun KType KType), ("AtomicCell", KType)] else Nil)
 
   map-primitive :: List String -> List (String, Kind)
   map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
@@ -961,9 +966,26 @@ module Bootstrap.Infer where
         None -> False)
       other -> string-length-row rest)
     other -> False
+  byte-observation-carrier :: TypeExpr -> Option String
+  byte-observation-carrier syntax = case syntax of
+    TFun sp domain result ->
+      let domain-ok = (case domain of
+        TName a name -> same name "Bytes"
+        TBound a b (TName c name) d -> same name "Bytes"
+        other -> False) in
+      if not domain-ok then None else case result of
+        TName a carrier -> if same carrier "Nat" || same carrier "I64" then Some carrier else None
+        TRefined a b (TName c carrier) -> if same carrier "Nat" || same carrier "I64" then Some carrier else None
+        other -> None
+    other -> None
   imported-observation-scheme :: String -> Json -> TypeContext -> Bool
   imported-observation-scheme name metadata context = case (context-byte-observation name context, field "scheme" metadata) of
-    (Some (ByteObservation binding (Some declared)), JStr actual) -> same declared actual
+    (Some (ByteObservation binding (Some declared)), JStr actual) ->
+      same declared actual || (case (parse-scheme name (string-to-bytes declared), parse-scheme name (string-to-bytes actual)) of
+        (Parsed decl Nil, Parsed act Nil) -> (case (byte-observation-carrier decl, byte-observation-carrier act) of
+          (Some dc, Some ac) -> same dc ac
+          other -> False)
+        other -> False)
     other -> False
   identity-observation :: String -> List ByteObservation -> Option Scheme
   identity-observation name observers = case observers of
@@ -1260,7 +1282,10 @@ module Bootstrap.Infer where
           Some index -> checked-typed-source-index sp index st
           None -> bad sp "length needs a checked pure container operand" st))
     CApply source ty (CUse at function symbol role Nil) input ->
-      if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" && (case normalize st function of UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (primitive-type "Nat"); other -> False) then
+      if is-byte-length-symbol symbol && same role "intrinsic" && (case normalize st function of
+        UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (byte-length-carrier symbol)
+        UPi id binder domain (URow UEnd) result -> same-type domain (primitive-type "Bytes") && same-type (predicate-base-carrier result) (byte-length-carrier symbol) && same-type (predicate-base-carrier (normalize st ty)) (byte-length-carrier symbol)
+        other -> False) then
         (case reify-argument sp env input st of
           (value, checked) -> checked-typed-source-index sp (UIndexByteLength value) checked)
       else if string-length-function (normalize st ty) (normalize st function) symbol role then
@@ -1272,7 +1297,7 @@ module Bootstrap.Infer where
         else case body of
           CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
           CApply at result (CUse source function symbol role Nil) input ->
-            if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" then reify-argument sp env body (unify sp carrier domain st)
+            if is-byte-length-symbol symbol && same role "intrinsic" then reify-argument sp env body (unify sp carrier domain st)
             else (case reify-argument sp env body st of
               (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked))
           other -> case reify-argument sp env body st of
@@ -2088,11 +2113,15 @@ module Bootstrap.Infer where
         None -> (env, add-error sp "imported array operation is unavailable in this ABI" st))
       other -> (env, add-error sp "incomplete imported array binding" st))
     None -> (env, add-error sp "imported array value lacks its defining foreign authority" st)
+  is-byte-length-symbol :: String -> Bool
+  is-byte-length-symbol symbol = same symbol "cinch.runtime.bytesLen" || same symbol "cinch.runtime.bytesLenI64"
+  byte-length-carrier :: String -> UType
+  byte-length-carrier symbol = if same symbol "cinch.runtime.bytesLenI64" then primitive-type "I64" else primitive-type "Nat"
   imported-byte-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   imported-byte-observers sp owner rows kinds st = case rows of
     JArr row rest -> case (field "kind" row, field "abi" row, field "external" row) of
       (JStr category, JStr abi, JStr external) ->
-        if same category "intrinsic" && same external "cinch.runtime.bytesLen" then
+        if same category "intrinsic" && is-byte-length-symbol external then
           (case (field "symbol" row, field "effects" row, field "type" row) of
             (JStr name, JStr effects, JStr scheme) -> if same abi "ccall" && string-length name > 0 && string-length effects == 0 then
               let identity = interface-global (string-concat-all [owner, ".", name]) in
@@ -2139,7 +2168,7 @@ module Bootstrap.Infer where
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
           (ks, sk) -> collect-kinds rest (context-add-alias d ks) sk
       DForeign s direction abi symbol name syntax ->
-        if same direction "import" && same abi "ccall" && same symbol "cinch.runtime.bytesLen" then
+        if same direction "import" && same abi "ccall" && is-byte-length-symbol symbol then
           collect-kinds rest (context-add-byte-observation name None kinds) st else collect-kinds rest kinds st
       DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
@@ -2194,14 +2223,28 @@ module Bootstrap.Infer where
   lookup-binding :: String -> List CheckedBinding -> Option CheckedBinding
   lookup-binding name env = case env of
     Nil -> None
-    Cons (MkRegistrationLookup get) rest -> case get name of
-      MkRegistrationMissing -> None
-      found -> Some found
+    Cons (MkRegistrationLookup names trie) rest -> (case hash-map-lookup name names of
+      None -> None
+      Some slot -> case reg-trie-lookup slot trie of
+        MkRegistrationMissing -> None
+        found -> Some found)
     Cons b rest -> if same name (checked-name b) then Some b else case b of
       MkBodyContext context names index cache -> (case hash-map-lookup name names of
         None -> None
         Some position -> binding-at index position)
       other -> lookup-binding name rest
+  reg-trie-lookup :: Nat -> CheckedBinding -> CheckedBinding
+  reg-trie-lookup key trie = case trie of
+    MkRegNode value zero one -> if key == 0 then value else if key % 2 == 0 then reg-trie-lookup (key / 2) zero else reg-trie-lookup (key / 2) one
+    other -> MkRegistrationMissing
+  reg-trie-insert :: Nat -> CheckedBinding -> CheckedBinding -> CheckedBinding
+  reg-trie-insert key binding trie = case trie of
+    MkRegNode value zero one -> if key == 0 then MkRegNode binding zero one
+      else if key % 2 == 0 then MkRegNode value (reg-trie-insert (key / 2) binding zero) one
+      else MkRegNode value zero (reg-trie-insert (key / 2) binding one)
+    other -> if key == 0 then MkRegNode binding MkRegistrationMissing MkRegistrationMissing
+      else if key % 2 == 0 then MkRegNode MkRegistrationMissing (reg-trie-insert (key / 2) binding MkRegistrationMissing) MkRegistrationMissing
+      else MkRegNode MkRegistrationMissing MkRegistrationMissing (reg-trie-insert (key / 2) binding MkRegistrationMissing)
   binding-at :: CheckedBinding -> Nat -> Option CheckedBinding
   binding-at index position = case index of
     MkBindingIndex half left right -> if half <= position then binding-at right (position - half) else binding-at left position
@@ -2843,22 +2886,29 @@ module Bootstrap.Infer where
           if same category "value" && (case context-mvar-observation name kinds of Some row -> True; None -> False) then register-imported-mvar sp name sc classes kinds env checked
           else if same category "value" && array-import-binding name kinds then register-imported-array sp name sc classes kinds env checked
           else if same category "value" && byte-length-binding name kinds then
-            (if not (imported-observation-scheme name metadata kinds) then (env, add-error sp "imported byte observation foreign/value schemes disagree" checked) else case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
-              (Nil, Nil, UFun domain result) -> if same-type domain (primitive-type "Bytes") && same-type (predicate-base-carrier result) (primitive-type "Nat") then
-                (case lookup-binding name env of
-                  None -> (Cons (MkIntrinsicBinding name sc "cinch.runtime.bytesLen") env, checked)
-                  Some (MkIntrinsicBinding prior-name prior-scheme prior-symbol) ->
-                    if same prior-name name && same prior-symbol "cinch.runtime.bytesLen" && scheme-equivalent prior-scheme sc then (env, checked)
-                    else (env, add-error sp "duplicate imported observation binding" checked)
-                  Some (MkBodyBinding prior) -> if binding-matches name "external" sc prior && byte-length-body prior then
-                    -- Keep the checked body for callers whose portable graphs
-                    -- refer to it. Runtime reads use the independently checked
-                    -- intrinsic declaration in front, not a guessed name.
-                    (Cons (MkIntrinsicBinding name sc "cinch.runtime.bytesLen") env, checked)
-                    else (env, add-error sp "imported byte observation body disagrees with its primitive" checked)
-                  Some prior -> (env, add-error sp "duplicate imported observation binding" checked))
-                else (env, add-error sp "imported byte observation disagrees with its checked value scheme" checked)
-              other -> (env, add-error sp "imported byte observation requires its monomorphic pure unary scheme" checked))
+            (if not (imported-observation-scheme name metadata kinds) then (env, add-error sp "imported byte observation foreign/value schemes disagree" checked) else case (case (scheme-params sc, scheme-requirements sc, scheme-body sc) of
+              (Nil, Nil, UFun domain result) -> Some (domain, result)
+              (Nil, Nil, UPi id binder domain (URow UEnd) result) -> Some (domain, result)
+              other -> None) of
+              Some (domain, result) ->
+                let carrier = predicate-base-carrier result in
+                let byte-sym = if same-type carrier (primitive-type "I64") then Some "cinch.runtime.bytesLenI64" else if same-type carrier (primitive-type "Nat") then Some "cinch.runtime.bytesLen" else None in
+                (case byte-sym of
+                  Some sym | same-type domain (primitive-type "Bytes") ->
+                    (case lookup-binding name env of
+                      None -> (Cons (MkIntrinsicBinding name sc sym) env, checked)
+                      Some (MkIntrinsicBinding prior-name prior-scheme prior-symbol) ->
+                        if same prior-name name && same prior-symbol sym && scheme-equivalent prior-scheme sc then (env, checked)
+                        else (env, add-error sp "duplicate imported observation binding" checked)
+                      Some (MkBodyBinding prior) -> if binding-matches name "external" sc prior && byte-length-body prior then
+                        -- Keep the checked body for callers whose portable graphs
+                        -- refer to it. Runtime reads use the independently checked
+                        -- intrinsic declaration in front, not a guessed name.
+                        (Cons (MkIntrinsicBinding name sc sym) env, checked)
+                        else (env, add-error sp "imported byte observation body disagrees with its primitive" checked)
+                      Some prior -> (env, add-error sp "duplicate imported observation binding" checked))
+                  other -> (env, add-error sp "imported byte observation disagrees with its checked value scheme" checked))
+              None -> (env, add-error sp "imported byte observation requires its monomorphic pure unary scheme" checked))
           else if same category "constructor" then add-binding sp name sc "constructor" env checked
           else register-total-value sp name sc kinds env checked
     else (env, add-error sp (unsupported-import category name) st)
@@ -3235,7 +3285,7 @@ module Bootstrap.Infer where
   register all rows classes kinds ds env st =
     -- Small scopes cost less to scan than to index. Limit the size probe to
     -- the cutoff so a wide declaration list is not traversed twice.
-    if registration-wide ds 512 then register-indexed all rows classes kinds ds env (registration-index env) st
+    if registration-wide ds 512 then register-indexed all rows classes kinds ds env (reg-trie-index env) st
     else register-linear all rows classes kinds ds env st
   registration-wide :: List Decl -> Nat -> Bool
   registration-wide ds remaining = if remaining == 0 then True else case ds of
@@ -3251,19 +3301,22 @@ module Bootstrap.Infer where
   registration-index env = case env of
     Nil -> hash-map-empty
     Cons binding rest -> hash-map-insert (checked-name binding) binding (registration-index rest)
-  registration-lookup :: HashMap String CheckedBinding -> String -> CheckedBinding
-  registration-lookup index name = case hash-map-lookup name index of
-    Some binding -> binding
-    None -> MkRegistrationMissing
+  reg-trie-add :: CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> (Nat, HashMap String Nat, CheckedBinding)
+  reg-trie-add binding state = case state of
+    (next, names, trie) -> (next + 1, hash-map-insert (checked-name binding) next names, reg-trie-insert next binding trie)
+  reg-trie-index :: List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding)
+  reg-trie-index env = case env of
+    Nil -> (0, hash-map-empty, MkRegistrationMissing)
+    Cons binding rest -> reg-trie-add binding (reg-trie-index rest)
   -- The registration routines prepend their new bindings. Move only this
   -- prefix into the index and return the list in its original order.
-  index-new-bindings :: List CheckedBinding -> HashMap String CheckedBinding -> (List CheckedBinding, HashMap String CheckedBinding)
+  index-new-bindings :: List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> (List CheckedBinding, (Nat, HashMap String Nat, CheckedBinding))
   index-new-bindings env index = case env of
-    Nil -> (Nil, hash-map-empty)
-    Cons (MkRegistrationLookup get) rest -> (rest, index)
+    Nil -> (Nil, (0, hash-map-empty, MkRegistrationMissing))
+    Cons (MkRegistrationLookup names trie) rest -> (rest, index)
     Cons binding rest -> case index-new-bindings rest index of
-      (more, previous) -> (Cons binding more, hash-map-insert (checked-name binding) binding previous)
-  register-indexed :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> HashMap String CheckedBinding -> Store -> (List CheckedBinding, Store)
+      (more, previous) -> (Cons binding more, reg-trie-add binding previous)
+  register-indexed :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
   register-indexed all rows classes kinds ds env index st = case ds of
     Nil -> (env, st)
     Cons (DFun sp name clauses) rest -> register-indexed all rows classes kinds rest env index st
@@ -3271,10 +3324,11 @@ module Bootstrap.Infer where
       -- Defining methods may replace kernel placeholders anywhere in the
       -- environment, so give this operation the actual list and reindex it.
       (case register-declaration all rows classes kinds (DClass sp name parameters members) env st of
-        (more, checked) -> register-indexed all rows classes kinds rest more (registration-index more) checked)
-    Cons d rest -> case register-declaration all rows classes kinds d (Cons (MkRegistrationLookup (registration-lookup index)) env) st of
-      (added, checked) -> case index-new-bindings added index of
-        (more, updated) -> register-indexed all rows classes kinds rest more updated checked
+        (more, checked) -> register-indexed all rows classes kinds rest more (reg-trie-index more) checked)
+    Cons d rest -> case index of
+      (next, names, trie) -> case register-declaration all rows classes kinds d (Cons (MkRegistrationLookup names trie) env) st of
+        (added, checked) -> case index-new-bindings added index of
+          (more, updated) -> register-indexed all rows classes kinds rest more updated checked
 
   register-declaration :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-declaration all rows classes kinds d env st = case d of
@@ -4356,7 +4410,7 @@ module Bootstrap.Infer where
     EApp sp function input -> (case decision-call-name function of
       None -> None
       Some name -> case lookup-binding name env of
-        Some (MkIntrinsicBinding display sc symbol) -> if same symbol "cinch.runtime.bytesLen" then Some (primitive-type "Nat") else None
+        Some (MkIntrinsicBinding display sc symbol) -> if is-byte-length-symbol symbol then Some (byte-length-carrier symbol) else None
         Some (MkBodyBinding binding) -> Some (primitive-type (total-result (binding-function binding)))
         other -> None)
     other -> None
@@ -7525,18 +7579,79 @@ module Bootstrap.Infer where
       other -> checked
   default-task-failure-terms :: List CoreTerm -> Store -> Store
   default-task-failure-terms terms st = case terms of Nil -> st; Cons first rest -> default-task-failure-terms rest (default-task-failure-term first st)
+  data BodyWork where
+    CheckFunctionWork :: Span -> String -> BodyWork
+    CheckMissingWork :: Span -> String -> BodyWork
+  data BodyOutcome where
+    BodyOk :: Option CoreDefinition -> BodyOutcome
+    BodyErr :: List Diagnostic -> BodyOutcome
+
+  collect-body-work :: HashMap String Nat -> HashMap String (List (List Pat, Expr)) -> List Decl -> List BodyWork -> List BodyWork
+  collect-body-work seen clauses ds backwards = case ds of
+    Nil -> reverse backwards
+    Cons d rest -> case d of
+      DFun s name cs -> if indexed name seen then collect-body-work seen clauses rest backwards
+        else collect-body-work (hash-map-insert name 0 seen) clauses rest (Cons (CheckFunctionWork s name) backwards)
+      DSig s name ty -> if indexed name clauses then collect-body-work seen clauses rest backwards
+        else collect-body-work seen clauses rest (Cons (CheckMissingWork s name) backwards)
+      other -> collect-body-work seen clauses rest backwards
+
+  check-body-work-item :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> HashMap String (List (List Pat, Expr)) -> HashMap String CoreDefinition -> Store -> BodyWork -> BodyOutcome
+  check-body-work-item classes kinds families env clauses cached st item = case item of
+    CheckMissingWork s name ->
+      BodyErr (store-errors (add-error s (string-concat "missing defining equation for " (diagnostic-member-name name)) st))
+    CheckFunctionWork s name -> case hash-map-lookup name cached of
+      Some reused -> BodyOk (Some reused)
+      None -> case check-definition classes kinds families env s name (indexed-clauses name clauses) st of
+        (definition, ss) -> case definition of
+          None -> case store-errors ss of
+            Nil -> BodyOk None
+            errors -> BodyErr errors
+          Some core -> case resolve-inventory-definition classes (env-inventory env) core ss of
+            (resolved, checked) -> let completed = default-task-failure-clauses (core-clauses resolved) checked in
+              case store-errors completed of
+                Nil -> BodyOk (Some (seal-definition-with-checked-contracts (env-body-context env) (env-guarded-bindings env) completed resolved))
+                errors -> BodyErr errors
+
+  check-body-work-batch :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> HashMap String (List (List Pat, Expr)) -> HashMap String CoreDefinition -> Store -> List BodyWork -> List BodyOutcome -> List BodyOutcome
+  check-body-work-batch classes kinds families env clauses cached st items backwards = case items of
+    Nil -> reverse backwards
+    Cons item rest -> case check-body-work-item classes kinds families env clauses cached st item of
+      BodyErr errors -> reverse (Cons (BodyErr errors) backwards)
+      BodyOk definition -> check-body-work-batch classes kinds families env clauses cached st rest (Cons (BodyOk definition) backwards)
+
+  merge-body-outcomes :: List BodyOutcome -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
+  merge-body-outcomes outcomes backwards st = case outcomes of
+    Nil -> (reverse backwards, st)
+    Cons outcome rest -> case outcome of
+      BodyErr errors -> (reverse backwards, add-diagnostics errors st)
+      BodyOk None -> merge-body-outcomes rest backwards st
+      BodyOk (Some core) -> merge-body-outcomes rest (Cons core backwards) st
+
   check-bodies :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
-  check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env (name-set seen) (clause-index all) ds Nil st
+  check-bodies classes kinds families env seen all ds st = check-bodies-tuned default-tuning hash-map-empty classes kinds families env seen all ds st
+
+  check-bodies-tuned :: CompileTuning -> HashMap String CoreDefinition -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
+  check-bodies-tuned tuning cached classes kinds families env seen all ds st = check-body-loop-tuned tuning cached classes kinds families env (name-set seen) (clause-index all) ds Nil st
+
   check-body-loop :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> HashMap String Nat -> HashMap String (List (List Pat, Expr)) -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
-  -- A failed body leaves recovery types and an undischarged store. Do not
-  -- treat that store as evidence while checking later definitions: their
-  -- coverage/type diagnostics would be artifacts of the original failure.
-  check-body-loop classes kinds families env seen clauses ds backwards st = case store-errors st of
+  check-body-loop classes kinds families env seen clauses ds backwards st = check-body-loop-tuned default-tuning hash-map-empty classes kinds families env seen clauses ds backwards st
+
+  -- Check every independent top-level body against the immutable module-level
+  -- store (per-definition local metavariable numbering) and merge results in
+  -- exact source order, stopping at the first failing definition in source order
+  -- so diagnostics are deterministic and identical across every worker count.
+  check-body-loop-tuned :: CompileTuning -> HashMap String CoreDefinition -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> HashMap String Nat -> HashMap String (List (List Pat, Expr)) -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
+  check-body-loop-tuned tuning cached classes kinds families env seen clauses ds backwards st = case store-errors st of
     Cons error rest -> (reverse backwards, st)
-    Nil -> case ds of
-      Nil -> (reverse backwards, st)
-      Cons d rest -> case check-body-declaration classes kinds families env seen clauses d st of
-        (names, definition, ss) -> check-body-loop classes kinds families env names clauses rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
+    Nil ->
+      let work = collect-body-work seen clauses ds Nil in
+      let total = list-length work in
+      if total <= 1 then merge-body-outcomes (check-body-work-batch classes kinds families env clauses cached st work Nil) backwards st
+      else
+        let chunks = chunk-list (tuning-chunk-size tuning total) work in
+        let batches = parMap (\batch -> check-body-work-batch classes kinds families env clauses cached st batch Nil) chunks in
+        merge-body-outcomes (flatten-lists batches) backwards st
   contexts :: List Decl -> List Json
   contexts ds = case ds of
     Nil -> Nil
@@ -7553,7 +7668,8 @@ module Bootstrap.Infer where
     MkBodyBinding binding -> b
     MkBodyContext context names index cache -> b
     MkBindingIndex half left right -> b
-    MkRegistrationLookup get -> b
+    MkRegistrationLookup names trie -> b
+    MkRegNode value zero one -> b
     MkRegistrationMissing -> b
     MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
     MkForeignBinding n sc plan -> MkForeignBinding n sc plan
@@ -7591,12 +7707,26 @@ module Bootstrap.Infer where
       field-globals rest (insert-global-declaration (GlobalValue (core-name definition) "instance-method" (core-scheme definition)) globals)
   instance-globals :: List CoreInstance -> GlobalDeclarations -> GlobalDeclarations
   instance-globals instances globals = case instances of Nil -> globals; Cons dictionary rest -> instance-globals rest (field-globals (instance-fields dictionary) globals)
-  check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
-  check-core-closed globals definitions st = case definitions of
+  check-core-batch :: TypingContext -> List CoreDefinition -> List (Option (Span, String)) -> List (Option (Span, String))
+  check-core-batch globals definitions backwards = case definitions of
+    Nil -> reverse backwards
+    Cons d rest -> check-core-batch globals rest (Cons (checked-definition-error globals d) backwards)
+  apply-core-errors :: List (Option (Span, String)) -> Store -> Store
+  apply-core-errors results st = case results of
     Nil -> st
-    Cons d rest -> check-core-closed globals rest (case checked-definition-error globals d of
+    Cons entry rest -> apply-core-errors rest (case entry of
       Some (sp, message) -> add-error sp message st
       None -> st)
+  check-core-closed :: TypingContext -> List CoreDefinition -> Store -> Store
+  check-core-closed globals definitions st = check-core-closed-tuned default-tuning globals definitions st
+  check-core-closed-tuned :: CompileTuning -> TypingContext -> List CoreDefinition -> Store -> Store
+  check-core-closed-tuned tuning globals definitions st =
+    let total = list-length definitions in
+    if total <= 1 then apply-core-errors (check-core-batch globals definitions Nil) st
+    else
+      let chunks = chunk-list (tuning-chunk-size tuning total) definitions in
+      let batches = parMap (\batch -> check-core-batch globals batch Nil) chunks in
+      apply-core-errors (flatten-lists batches) st
   check-field-globals :: TypingContext -> List CoreDictionaryField -> Store -> Store
   check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
   check-instance-globals :: TypingContext -> List CoreInstance -> Store -> Store
@@ -7671,10 +7801,21 @@ module Bootstrap.Infer where
   -- | Carry genuine private-field facts through the same final Core context used for every task and instance check.
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
+    check-global-core-tuned default-tuning hash-map-empty kinds bindings instances datas definitions usage st
+  unreused-core-definitions :: HashMap String CoreDefinition -> List CoreDefinition -> List CoreDefinition -> List CoreDefinition
+  unreused-core-definitions reused definitions backwards = case definitions of
+    Nil -> reverse backwards
+    Cons d rest -> case hash-map-lookup (core-name d) reused of
+      Some kept -> unreused-core-definitions reused rest backwards
+      None -> unreused-core-definitions reused rest (Cons d backwards)
+  check-global-core-tuned :: CompileTuning -> HashMap String CoreDefinition -> TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
+  check-global-core-tuned tuning reused kinds bindings instances datas definitions usage st =
     let headers = context-kind-declarations kinds in
     let globals = instance-globals instances (global-bindings st bindings empty-global-declarations) in
     case close-typing-context-with-indexes headers globals (context-effects kinds) datas definitions usage of
-      Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
+      Some closed ->
+        let to-check = unreused-core-definitions reused definitions Nil in
+        check-instance-globals closed instances (check-core-closed-tuned tuning closed to-check st)
       None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal (declared-kinds headers) (ordered-global-declarations globals) (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
   -- constructor type here would discard the exact nominal identities.
@@ -8711,7 +8852,10 @@ module Bootstrap.Infer where
     other -> imports
 
   elaborate-module :: Bool -> (List Decl -> (Result String InterfaceSet, Option PreparedContracts)) -> String -> Module -> Elaboration
-  elaborate-module materialized load label m =
+  elaborate-module materialized load label m = elaborate-module-tuned default-tuning hash-map-empty materialized load label m
+
+  elaborate-module-tuned :: CompileTuning -> HashMap String CoreDefinition -> Bool -> (List Decl -> (Result String InterfaceSet, Option PreparedContracts)) -> String -> Module -> Elaboration
+  elaborate-module-tuned tuning cached materialized load label m =
     let declarations = module-decls m in
     let (interfaces, prepared) = load declarations in
     let (classes, ordered, nominal-rows, read-usage, plans, carrier-kinds, foreign-rows, instance-syntax, total-instances) = (case prepared of
@@ -8725,7 +8869,7 @@ module Bootstrap.Infer where
     let syntax = prepare-import-syntax materialized declarations instance-syntax in
     let families = imported-families declarations in
     let imports = ElaborationImports interfaces classes (syntax, foreign-rows) ordered families nominal-rows read-usage plans (carrier-kinds, total-instances) in
-    elaborate-module-with-source-bodies imports True label m
+    elaborate-module-with-source-bodies-tuned tuning cached imports True label m
   data PreparedModule where
     PreparedModule :: List Decl -> List Decl -> List Decl -> HashMap String (List (List Pat, Expr)) -> List (String, Kind) -> TypeContext -> Store -> PreparedModule
 
@@ -8733,11 +8877,15 @@ module Bootstrap.Infer where
   -- kinds. A total-body pass with the same declarations can share this state.
   elaborate-module-with-source-bodies :: ElaborationImports -> Bool -> String -> Module -> Elaboration
   elaborate-module-with-source-bodies imports retain label m =
+    elaborate-module-with-source-bodies-tuned default-tuning hash-map-empty imports retain label m
+
+  elaborate-module-with-source-bodies-tuned :: CompileTuning -> HashMap String CoreDefinition -> ElaborationImports -> Bool -> String -> Module -> Elaboration
+  elaborate-module-with-source-bodies-tuned tuning cached imports retain label m =
     let prepared = prepare-module imports label (module-decls m) in
     let bodies = (case (retain, prepared) of
       (True, PreparedModule unkinded ds specs clauses classes kinds st) -> source-total-bodies imports label m prepared classes kinds
       other -> Nil) in
-    finish-module imports retain (module-name m) prepared bodies
+    finish-module-tuned tuning cached imports retain (module-name m) prepared bodies
 
   prepare-module :: ElaborationImports -> String -> List Decl -> PreparedModule
   prepare-module imports label original =
@@ -8778,7 +8926,10 @@ module Bootstrap.Infer where
     PreparedModule unkinded ds specs clauses classes (prepare-record-scopes method-kinds) method-store
 
   finish-module :: ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
-  finish-module imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
+  finish-module imports retain home prepared bodies = finish-module-tuned default-tuning hash-map-empty imports retain home prepared bodies
+
+  finish-module-tuned :: CompileTuning -> HashMap String CoreDefinition -> ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
+  finish-module-tuned tuning cached imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
     let (rows, ordered-classes, external-families, nominals, distinct, read-usage) = (case imports of
       ElaborationImports admitted signatures syntax ordered families (nominal-rows, unique) reader plans headers -> (signatures, ordered, families, nominal-rows, unique, reader)) in
     let (kinds, body-store) = add-source-bodies bodies method-kinds method-store in
@@ -8793,16 +8944,16 @@ module Bootstrap.Infer where
     let default-decls = source-default-definitions ds (context-source-classes kinds) in
     let law-store = case store-errors se of Nil -> check-source-laws classes kinds families env ds se; other -> se in
     let (defaults, default-store) = (case (store-errors law-store, default-decls) of
-      (Nil, Cons first rest) -> check-bodies classes kinds families env Nil (default-decls <> ds) default-decls law-store
+      (Nil, Cons first rest) -> check-bodies-tuned tuning hash-map-empty classes kinds families env Nil (default-decls <> ds) default-decls law-store
       other -> (Nil, law-store)) in
     let (effects, sx) = case store-errors default-store of Nil -> checked-effects kinds env ds default-store; other -> (Nil, default-store) in
     let linked-kinds = context-with-effects effects kinds in
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes linked-kinds families env ds (context-source-classes linked-kinds) sx; other -> (Nil, Nil, sx) in
     let (ordinary-core, body-checked) = (case store-errors sm of
       Nil -> (case conditional-declarations ds of
-        Nil -> check-body-loop classes linked-kinds families env hash-map-empty clauses ds Nil sm
+        Nil -> check-body-loop-tuned tuning cached classes linked-kinds families env hash-map-empty clauses ds Nil sm
         more -> let body-declarations = more <> ds in
-          check-bodies classes linked-kinds families env Nil body-declarations body-declarations sm)
+          check-bodies-tuned tuning cached classes linked-kinds families env Nil body-declarations body-declarations sm)
       other -> (Nil, sm)) in
     let core = defaults <> ordinary-core in
     let initialized = case store-errors body-checked of Nil -> check-eager-values ordinary-core body-checked; other -> body-checked in
@@ -8822,7 +8973,7 @@ module Bootstrap.Infer where
     let (rewrites, rewritten) = (case store-errors done of
       Nil -> check-source-rewrites classes linked-kinds families env ds rows ds Nil done
       other -> (Nil, done)) in
-    let finished = case store-errors rewritten of Nil -> check-data-closed datas (check-global-core linked-kinds env instances datas core usage rewritten); other -> rewritten in
+    let finished = case store-errors rewritten of Nil -> check-data-closed datas (check-global-core-tuned tuning cached linked-kinds env instances datas core usage rewritten); other -> rewritten in
     let verified = case (specs, store-errors finished) of
           (Cons first more, Nil) -> check-logical-declarations classes linked-kinds families env rows instances datas usage core specs finished
           other -> finished in
@@ -9913,20 +10064,32 @@ module Bootstrap.Infer where
     Nil -> (kinds, st)
     Cons first rest -> case context-add-total zero first kinds st of (more, checked) -> add-source-bodies rest more checked
   elaborate-modules :: Bool -> (List Decl -> (Result String InterfaceSet, Option PreparedContracts)) -> String -> List Module -> Elaboration
-  elaborate-modules materialized load label ms = case ms of
+  elaborate-modules materialized load label ms = elaborate-modules-tuned default-tuning hash-map-empty materialized load label ms
+  elaborate-modules-tuned :: CompileTuning -> HashMap String CoreDefinition -> Bool -> (List Decl -> (Result String InterfaceSet, Option PreparedContracts)) -> String -> List Module -> Elaboration
+  elaborate-modules-tuned tuning cached materialized load label ms = case ms of
     Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil Nil Nil Nil Nil
-    Cons m rest -> case (elaborate-module materialized load label m, elaborate-modules materialized load label rest) of
+    Cons m rest -> case (elaborate-module-tuned tuning cached materialized load label m, elaborate-modules-tuned tuning cached materialized load label rest) of
       (MkElaboration errors bindings ctx core datas effects descriptions instances declarations observations rewrites temporal, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances other-declarations other-observations other-rewrites other-temporal) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances) (declarations <> other-declarations) (observations <> other-observations) (rewrites <> other-rewrites) (temporal <> other-temporal)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-with-interfaces Nil label p
   elaborate-with-interfaces :: List LoadedInterface -> String -> Program -> Elaboration
-  elaborate-with-interfaces known label p =
-    elaborate-modules False (\declarations -> (load-body-interfaces-with-known known (total-interface-inputs declarations), None)) label (program-modules p)
+  elaborate-with-interfaces known label p = elaborate-with-interfaces-tuned default-tuning known label p
+  elaborate-with-interfaces-tuned :: CompileTuning -> List LoadedInterface -> String -> Program -> Elaboration
+  elaborate-with-interfaces-tuned tuning known label p =
+    elaborate-modules-tuned tuning hash-map-empty False (\declarations -> (load-body-interfaces-with-known known (total-interface-inputs declarations), None)) label (program-modules p)
   elaborate-with-admitted-interfaces :: ValidatedInterfaces -> String -> Program -> Elaboration
-  elaborate-with-admitted-interfaces admitted label p =
-    elaborate-modules False (\declarations -> (load-body-interfaces-with-admission admitted (total-interface-inputs declarations), None)) label (program-modules p)
+  elaborate-with-admitted-interfaces admitted label p = elaborate-with-admitted-interfaces-tuned default-tuning admitted label p
+  elaborate-with-admitted-interfaces-tuned :: CompileTuning -> ValidatedInterfaces -> String -> Program -> Elaboration
+  elaborate-with-admitted-interfaces-tuned tuning admitted label p =
+    elaborate-modules-tuned tuning hash-map-empty False (\declarations -> (load-body-interfaces-with-admission admitted (total-interface-inputs declarations), None)) label (program-modules p)
   prepare-admitted-elaboration :: ValidatedInterfaces -> String -> (Bool -> Program -> Elaboration)
-  prepare-admitted-elaboration admitted label =
+  prepare-admitted-elaboration admitted label = prepare-admitted-elaboration-tuned default-tuning admitted label
+  prepare-admitted-elaboration-tuned :: CompileTuning -> ValidatedInterfaces -> String -> (Bool -> Program -> Elaboration)
+  prepare-admitted-elaboration-tuned tuning admitted label =
+    let run = prepare-admitted-elaboration-cached admitted label in
+    \retained program -> run tuning retained hash-map-empty program
+  prepare-admitted-elaboration-cached :: ValidatedInterfaces -> String -> (CompileTuning -> Bool -> HashMap String CoreDefinition -> Program -> Elaboration)
+  prepare-admitted-elaboration-cached admitted label =
     let interfaces = validated-interfaces-members admitted in
     let declarations = map (\i -> DInterface zero (loaded-module i) (loaded-hash i) (loaded-contract i)) interfaces in
     let nominals = (case index-contract-nominals declarations hash-map-empty of Some rows -> rows; None -> hash-map-empty) in
@@ -9941,9 +10104,9 @@ module Bootstrap.Infer where
     let facts = PreparedContracts (classes, imported-class-rows classes) (nominals, distinct) usage planned headers foreign-rows instance-syntax total-instances in
     let import-view = \declarations -> case load (total-interface-inputs declarations) of
           (checked, exact) -> (checked, if exact then Some facts else None) in
-    \retained program -> case resident of
-      Some ready | retained -> elaborate-modules True (\declarations -> (Ok ready, Some facts)) label (program-modules program)
-      other -> elaborate-modules False import-view label (program-modules program)
+    \tuning retained cached program -> case resident of
+      Some ready | retained -> elaborate-modules-tuned tuning cached True (\declarations -> (Ok ready, Some facts)) label (program-modules program)
+      other -> elaborate-modules-tuned tuning cached False import-view label (program-modules program)
   infer-program :: String -> Program -> List Diagnostic
   infer-program label p = elaboration-errors (elaborate-program label p)
 

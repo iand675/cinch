@@ -1,0 +1,166 @@
+-- | Native lock-free 64-bit hardware atomic cells (`AtomicI64`, `AtomicU64`, `AtomicBool`).
+--
+-- Each atomic handle wraps a reference-counted `AtomicCell` box whose payload
+-- is a single hardware `AtomicI64`. Handles are `Copy` and `Share` across tasks
+-- and parallel scopes; operations carry the kernel `MVar` shared-memory effect.
+module Effect.Concurrent.Atomic where
+
+  import Data.Machine (wrapping-i64-to-u64, wrapping-u64-to-i64)
+
+  export MemoryOrder, Relaxed, Acquire, Release, AcqRel, SeqCst
+  export AtomicI64, AtomicU64, AtomicBool
+  export atomic-i64-new, atomic-i64-load, atomic-i64-store, atomic-i64-swap
+  export atomic-i64-fetch-add, atomic-i64-fetch-sub, atomic-i64-fetch-and, atomic-i64-fetch-or, atomic-i64-fetch-xor
+  export atomic-i64-cas
+  export atomic-u64-new, atomic-u64-load, atomic-u64-store, atomic-u64-swap
+  export atomic-u64-fetch-add, atomic-u64-fetch-sub, atomic-u64-fetch-and, atomic-u64-fetch-or, atomic-u64-fetch-xor
+  export atomic-u64-cas
+  export atomic-bool-new, atomic-bool-load, atomic-bool-store, atomic-bool-swap, atomic-bool-cas
+  export atomic-fence
+
+  -- | Memory ordering for hardware atomic operations and fences.
+  data MemoryOrder where
+    Relaxed :: MemoryOrder
+    Acquire :: MemoryOrder
+    Release :: MemoryOrder
+    AcqRel :: MemoryOrder
+    SeqCst :: MemoryOrder
+
+  -- | A shared lock-free 64-bit signed integer cell.
+  data AtomicI64 where
+    MkAtomicI64 :: AtomicCell -> AtomicI64
+
+  -- | A shared lock-free 64-bit unsigned integer cell.
+  data AtomicU64 where
+    MkAtomicU64 :: AtomicCell -> AtomicU64
+
+  -- | A shared lock-free boolean flag cell.
+  data AtomicBool where
+    MkAtomicBool :: AtomicCell -> AtomicBool
+
+  order-code :: MemoryOrder -> I64
+  order-code order = case order of
+    Relaxed -> 0
+    Acquire -> 1
+    Release -> 2
+    AcqRel -> 3
+    SeqCst -> 4
+
+  foreign import ccall "cinch.runtime.atomicNew" cell-new :: I64 ->{MVar} AtomicCell
+  foreign import ccall "cinch.runtime.atomicLoad" cell-load :: AtomicCell -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicStore" cell-store :: AtomicCell -> I64 -> I64 ->{MVar} Unit
+  foreign import ccall "cinch.runtime.atomicSwap" cell-swap :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicFetchAdd" cell-fetch-add :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicFetchSub" cell-fetch-sub :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicFetchAnd" cell-fetch-and :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicFetchOr" cell-fetch-or :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicFetchXor" cell-fetch-xor :: AtomicCell -> I64 -> I64 ->{MVar} I64
+  foreign import ccall "cinch.runtime.atomicCas" cell-cas :: AtomicCell -> I64 -> I64 -> I64 -> I64 ->{MVar} Bool
+  foreign import ccall "cinch.runtime.atomicFence" cell-fence :: I64 ->{MVar} Unit
+
+  -- | Allocate a new `AtomicI64` initialized to `initial`.
+  atomic-i64-new :: I64 ->{MVar} AtomicI64
+  atomic-i64-new initial = MkAtomicI64 (cell-new initial)
+
+  -- | Load the current value with `order` (`Relaxed`, `Acquire`, or `SeqCst`).
+  atomic-i64-load :: AtomicI64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-load (MkAtomicI64 cell) order = cell-load cell (order-code order)
+
+  -- | Store `value` with `order` (`Relaxed`, `Release`, or `SeqCst`).
+  atomic-i64-store :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} Unit
+  atomic-i64-store (MkAtomicI64 cell) value order = cell-store cell value (order-code order)
+
+  -- | Atomically exchange the stored value with `value`, returning the previous value.
+  atomic-i64-swap :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-swap (MkAtomicI64 cell) value order = cell-swap cell value (order-code order)
+
+  -- | Wrapping atomic fetch-add, returning the previous value.
+  atomic-i64-fetch-add :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-fetch-add (MkAtomicI64 cell) delta order = cell-fetch-add cell delta (order-code order)
+
+  -- | Wrapping atomic fetch-sub, returning the previous value.
+  atomic-i64-fetch-sub :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-fetch-sub (MkAtomicI64 cell) delta order = cell-fetch-sub cell delta (order-code order)
+
+  -- | Bitwise atomic fetch-and, returning the previous value.
+  atomic-i64-fetch-and :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-fetch-and (MkAtomicI64 cell) mask order = cell-fetch-and cell mask (order-code order)
+
+  -- | Bitwise atomic fetch-or, returning the previous value.
+  atomic-i64-fetch-or :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-fetch-or (MkAtomicI64 cell) mask order = cell-fetch-or cell mask (order-code order)
+
+  -- | Bitwise atomic fetch-xor, returning the previous value.
+  atomic-i64-fetch-xor :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
+  atomic-i64-fetch-xor (MkAtomicI64 cell) mask order = cell-fetch-xor cell mask (order-code order)
+
+  -- | Strong compare-and-exchange: replaces `expected` with `desired`, returning `True` on success.
+  atomic-i64-cas :: AtomicI64 -> I64 -> I64 -> MemoryOrder -> MemoryOrder ->{MVar} Bool
+  atomic-i64-cas (MkAtomicI64 cell) expected desired ok-order fail-order =
+    cell-cas cell expected desired (order-code ok-order) (order-code fail-order)
+
+  -- | Allocate a new `AtomicU64` initialized to `initial`.
+  atomic-u64-new :: U64 ->{MVar} AtomicU64
+  atomic-u64-new initial = MkAtomicU64 (cell-new (wrapping-u64-to-i64 initial))
+
+  -- | Load the current unsigned value with `order`.
+  atomic-u64-load :: AtomicU64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-load (MkAtomicU64 cell) order = wrapping-i64-to-u64 (cell-load cell (order-code order))
+
+  -- | Store `value` with `order`.
+  atomic-u64-store :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} Unit
+  atomic-u64-store (MkAtomicU64 cell) value order = cell-store cell (wrapping-u64-to-i64 value) (order-code order)
+
+  -- | Atomically exchange the stored unsigned value, returning the previous value.
+  atomic-u64-swap :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-swap (MkAtomicU64 cell) value order = wrapping-i64-to-u64 (cell-swap cell (wrapping-u64-to-i64 value) (order-code order))
+
+  -- | Wrapping atomic fetch-add on `AtomicU64`, returning the previous value.
+  atomic-u64-fetch-add :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-fetch-add (MkAtomicU64 cell) delta order = wrapping-i64-to-u64 (cell-fetch-add cell (wrapping-u64-to-i64 delta) (order-code order))
+
+  -- | Wrapping atomic fetch-sub on `AtomicU64`, returning the previous value.
+  atomic-u64-fetch-sub :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-fetch-sub (MkAtomicU64 cell) delta order = wrapping-i64-to-u64 (cell-fetch-sub cell (wrapping-u64-to-i64 delta) (order-code order))
+
+  -- | Bitwise atomic fetch-and on `AtomicU64`, returning the previous value.
+  atomic-u64-fetch-and :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-fetch-and (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-and cell (wrapping-u64-to-i64 mask) (order-code order))
+
+  -- | Bitwise atomic fetch-or on `AtomicU64`, returning the previous value.
+  atomic-u64-fetch-or :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-fetch-or (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-or cell (wrapping-u64-to-i64 mask) (order-code order))
+
+  -- | Bitwise atomic fetch-xor on `AtomicU64`, returning the previous value.
+  atomic-u64-fetch-xor :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
+  atomic-u64-fetch-xor (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-xor cell (wrapping-u64-to-i64 mask) (order-code order))
+
+  -- | Strong compare-and-exchange on `AtomicU64`.
+  atomic-u64-cas :: AtomicU64 -> U64 -> U64 -> MemoryOrder -> MemoryOrder ->{MVar} Bool
+  atomic-u64-cas (MkAtomicU64 cell) expected desired ok-order fail-order =
+    cell-cas cell (wrapping-u64-to-i64 expected) (wrapping-u64-to-i64 desired) (order-code ok-order) (order-code fail-order)
+
+  -- | Allocate a new `AtomicBool` initialized to `initial`.
+  atomic-bool-new :: Bool ->{MVar} AtomicBool
+  atomic-bool-new initial = MkAtomicBool (cell-new (if initial then 1 else 0))
+
+  -- | Load the current boolean with `order`.
+  atomic-bool-load :: AtomicBool -> MemoryOrder ->{MVar} Bool
+  atomic-bool-load (MkAtomicBool cell) order = cell-load cell (order-code order) /= 0
+
+  -- | Store `value` with `order`.
+  atomic-bool-store :: AtomicBool -> Bool -> MemoryOrder ->{MVar} Unit
+  atomic-bool-store (MkAtomicBool cell) value order = cell-store cell (if value then 1 else 0) (order-code order)
+
+  -- | Atomically exchange the stored boolean, returning the previous value.
+  atomic-bool-swap :: AtomicBool -> Bool -> MemoryOrder ->{MVar} Bool
+  atomic-bool-swap (MkAtomicBool cell) value order = cell-swap cell (if value then 1 else 0) (order-code order) /= 0
+
+  -- | Strong compare-and-exchange on `AtomicBool`.
+  atomic-bool-cas :: AtomicBool -> Bool -> Bool -> MemoryOrder -> MemoryOrder ->{MVar} Bool
+  atomic-bool-cas (MkAtomicBool cell) expected desired ok-order fail-order =
+    cell-cas cell (if expected then 1 else 0) (if desired then 1 else 0) (order-code ok-order) (order-code fail-order)
+
+  -- | Emit a hardware memory fence (`Acquire`, `Release`, `AcqRel`, or `SeqCst`).
+  atomic-fence :: MemoryOrder ->{MVar} Unit
+  atomic-fence order = cell-fence (order-code order)

@@ -1,7 +1,7 @@
 {
-  "description": "ABI 10 packed library provider and runtime with mapped packages and validated string views.",
-  "revision": "61f4ae91ab4b942dca5f0af874bf2aec0cf83e44",
+  "description": "ABI 10 packed library provider and runtime matching HEAD stdlib (Go-parity stdlib, bytes-load-le32/64, Data.Wide).",
+  "revision": "897d845c5fa839c89131b581d89d8d78e5738280",
   "runtime_abi": 10,
   "schema": 1,
-  "source_sha256": "db591a153077ca80af1ef95e598c6d0945a9944d1c8cff2ff4733aaa7465e9f6"
+  "source_sha256": "1e9163eb365a68ca8e531949c7d04054d3eff51007c47b78da7b82c245028385"
 }

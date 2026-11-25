@@ -24,7 +24,9 @@ module Bootstrap.Export where
   import Bootstrap.Document
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Lex (bytes-slice, Span)
+  import Data.Array
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Bootstrap.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
 
   export export-interfaces, export-interfaces-aliased, export-object-interfaces, interface-hash, build-manifest, build-profile-manifest, build-generated-manifest, checked-primitive-rows
   same :: String -> String -> Bool
@@ -1207,30 +1209,110 @@ module Bootstrap.Export where
     Nil -> JArrEnd
     Cons (name, hash, doc) rest -> append (field "laws" doc) (build-law-rows rest)
 
-  export-loop :: Elaboration -> ExportIndex -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
-  export-loop typed index interfaces source produced contexts = case contexts of
-    Nil -> Ok Nil
+  data ExportTask where
+    ExportTask :: Nat -> String -> Json -> String -> List String -> ExportTask
+
+  context-import-names :: Json -> List String
+  context-import-names rows = case rows of
+    JArr row rest -> case row of
+      JStr name -> Cons name (context-import-names rest)
+      other -> case field "module" row of
+        JStr name -> Cons name (context-import-names rest)
+        other2 -> context-import-names rest
+    other -> Nil
+
+  prepare-export-tasks :: Bytes -> Nat -> List Json -> List ExportTask -> Result String (List ExportTask)
+  prepare-export-tasks source position contexts backwards = case contexts of
+    Nil -> Ok (reverse backwards)
     Cons context rest -> case field "module" context of
-      JStr name -> case (exports typed index interfaces (field "exports" context) (field "exports" context), source-hash source context) of
-          (Ok (values, types), Ok hash) ->
-            (case instance-rows typed interfaces (indexed-references index) context (indexed-guarded index) (elaboration-instances typed) of
-              Err error -> Err error
-              Ok instances -> case signature-rows typed interfaces index (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
-                Err error -> Err error
-                Ok signatures -> case (imports (checked-imports name (field "imports" context) values types signatures instances) produced interfaces,
-                  source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
-                  law-observations context (elaboration-law-observations typed)) of
-                  (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
-                  (other, Err error, more) -> Err error
-                  (other, more, Err error) -> Err error
-                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
-                    (case export-loop typed index interfaces source (Cons (name, interface-hash doc) produced) rest of
-                      Err error -> Err error
-                      Ok more -> Ok (Cons (name, doc) more))
-            )
-          (Err error, other) -> Err (string-concat-all [name, ": ", error])
-          (other, Err error) -> Err (string-concat-all [name, ": ", error])
-      other -> export-loop typed index interfaces source produced rest
+      JStr name -> case source-hash source context of
+        Err error -> Err (string-concat-all [name, ": ", error])
+        Ok hash ->
+          let task = ExportTask position name context hash (context-import-names (field "imports" context)) in
+          prepare-export-tasks source (position + 1) rest (Cons task backwards)
+      other -> prepare-export-tasks source position rest backwards
+
+  export-task-names :: List ExportTask -> HashMap String Nat -> HashMap String Nat
+  export-task-names tasks known = case tasks of
+    Nil -> known
+    Cons (ExportTask position name context hash deps) rest -> export-task-names rest (hash-map-insert name 0 known)
+
+  task-deps-ready :: List String -> HashMap String Nat -> HashMap String Nat -> Bool
+  task-deps-ready deps local produced = case deps of
+    Nil -> True
+    Cons dep rest ->
+      let blocked = case hash-map-lookup dep local of
+            Some known -> (case hash-map-lookup dep produced of Some done -> False; None -> True)
+            None -> False in
+      if blocked then False else task-deps-ready rest local produced
+
+  split-export-wave :: List ExportTask -> HashMap String Nat -> HashMap String Nat -> List ExportTask -> List ExportTask -> (List ExportTask, List ExportTask)
+  split-export-wave tasks local produced ready waiting = case tasks of
+    Nil -> (reverse ready, reverse waiting)
+    Cons task rest -> case task of
+      ExportTask position name context hash deps ->
+        if task-deps-ready deps local produced then split-export-wave rest local produced (Cons task ready) waiting
+        else split-export-wave rest local produced ready (Cons task waiting)
+
+  export-one-task :: Elaboration -> ExportIndex -> List LoadedInterface -> List (String, String) -> ExportTask -> Result String (Nat, String, Json, String)
+  export-one-task typed index interfaces produced task = case task of
+    ExportTask position name context hash deps ->
+      case exports typed index interfaces (field "exports" context) (field "exports" context) of
+        Err error -> Err (string-concat-all [name, ": ", error])
+        Ok (values, types) -> case instance-rows typed interfaces (indexed-references index) context (indexed-guarded index) (elaboration-instances typed) of
+          Err error -> Err error
+          Ok instances -> case signature-rows typed interfaces index (field "exports" context) (JArr values (JArr instances JArrEnd)) types (elaboration-classes typed) of
+            Err error -> Err error
+            Ok signatures -> case (imports (checked-imports name (field "imports" context) values types signatures instances) produced interfaces,
+              source-foreign-rows name (elaboration-bindings typed) (source-intrinsic-foreign context (elaboration-contexts typed)),
+              law-observations context (elaboration-law-observations typed)) of
+              (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
+              (other, Err error, more) -> Err error
+              (other, more, Err error) -> Err error
+              (Ok dependencies, Ok foreign-rows, Ok laws) ->
+                let doc = document (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
+                Ok (position, name, doc, interface-hash doc)
+
+  collect-wave-outputs :: List (Result String (Nat, String, Json, String)) -> List (String, String) -> HashMap String Nat -> HashMap String Json -> Result String (List (String, String), HashMap String Nat, HashMap String Json)
+  collect-wave-outputs results produced done-set outputs = case results of
+    Nil -> Ok (produced, done-set, outputs)
+    Cons item rest -> case item of
+      Err error -> Err error
+      Ok (position, name, doc, hash) ->
+        collect-wave-outputs rest (Cons (name, hash) produced) (hash-map-insert name 0 done-set) (hash-map-insert name doc outputs)
+
+  export-waves :: Elaboration -> ExportIndex -> List LoadedInterface -> HashMap String Nat -> List (String, String) -> HashMap String Nat -> HashMap String Json -> List ExportTask -> Result String (HashMap String Json)
+  export-waves typed index interfaces local produced done-set outputs remaining = case remaining of
+    Nil -> Ok outputs
+    Cons first rest ->
+      let (wave, next-remaining) = case split-export-wave remaining local done-set Nil Nil of
+            (Nil, still) -> (Cons first Nil, rest)
+            pair -> pair in
+      let results = case wave of
+            Nil -> Nil
+            Cons single Nil -> Cons (export-one-task typed index interfaces produced single) Nil
+            multiple -> parMap (\task -> export-one-task typed index interfaces produced task) wave in
+      case collect-wave-outputs results produced done-set outputs of
+        Err error -> Err error
+        Ok (more-produced, more-done, more-outputs) ->
+          export-waves typed index interfaces local more-produced more-done more-outputs next-remaining
+
+  ordered-export-outputs :: List ExportTask -> HashMap String Json -> List (String, Json) -> List (String, Json)
+  ordered-export-outputs tasks outputs backwards = case tasks of
+    Nil -> reverse backwards
+    Cons (ExportTask position name context hash deps) rest -> case hash-map-lookup name outputs of
+      Some doc -> ordered-export-outputs rest outputs (Cons (name, doc) backwards)
+      None -> ordered-export-outputs rest outputs backwards
+
+  export-loop :: Elaboration -> ExportIndex -> List LoadedInterface -> Bytes -> List (String, String) -> List Json -> Result String (List (String, Json))
+  export-loop typed index interfaces source produced contexts =
+    case prepare-export-tasks source 0 contexts Nil of
+      Err error -> Err error
+      Ok tasks ->
+        let local = export-task-names tasks hash-map-empty in
+        case export-waves typed index interfaces local produced hash-map-empty hash-map-empty tasks of
+          Err error -> Err error
+          Ok outputs -> Ok (ordered-export-outputs tasks outputs Nil)
   -- A direct task forwarder is callable from source. Its transfer
   -- obligations cannot travel through this interface schema.
   source-only-task-forwarders :: List CoreDefinition -> List String

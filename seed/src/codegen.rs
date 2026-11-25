@@ -80,6 +80,8 @@ mod arrays_codegen;
 mod slots_codegen;
 #[path = "mvar_codegen.rs"]
 mod mvar_codegen;
+#[path = "sync_codegen.rs"]
+mod sync_codegen;
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
@@ -555,6 +557,19 @@ fn emit_module(
         "declare i64 @cinch_stm_yield(i64)",
         "declare i64 @cinch_mvar_new(i64, i64, i64)",
         "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
+        "declare i64 @cinch_atomic_new(i64)",
+        "declare i64 @cinch_atomic_load(i64, i64)",
+        "declare i64 @cinch_atomic_store(i64, i64, i64)",
+        "declare i64 @cinch_atomic_swap(i64, i64, i64)",
+        "declare i64 @cinch_atomic_fetch_add(i64, i64, i64)",
+        "declare i64 @cinch_atomic_fetch_sub(i64, i64, i64)",
+        "declare i64 @cinch_atomic_fetch_and(i64, i64, i64)",
+        "declare i64 @cinch_atomic_fetch_or(i64, i64, i64)",
+        "declare i64 @cinch_atomic_fetch_xor(i64, i64, i64)",
+        "declare i64 @cinch_atomic_cas(i64, i64, i64, i64, i64)",
+        "declare i64 @cinch_atomic_fence(i64)",
+        "declare i64 @cinch_rwlock_new(i64, i64)",
+        "declare i64 @cinch_rwlock_access(i64, i64, i64, ptr)",
         crate::slots::DECLARES[0],
         crate::slots::DECLARES[1],
         crate::slots::DECLARES[2],
@@ -624,6 +639,8 @@ fn emit_module(
         // leaves it, which frees the chunks wholesale.
         "declare i64 @cinch_arena_new(i64)",
         "declare i64 @cinch_arena_leave(i64)",
+        "declare i64 @cinch_arena_enter_phase(i64)",
+        "declare i64 @cinch_arena_exit_phase(i64)",
         // The networking family (`seed/runtime/src/net.rs`): TCP
         // sockets by handle and platform name resolution.
         "declare i64 @cinch_net_tcp_connect(i64, i64)",
@@ -2359,6 +2376,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
         PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
         PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::RwLock { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
     }
@@ -2408,6 +2426,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
                 .collect()
         }
+        PrimOp::RwLock { op, classes } => {
+            let params = op.params();
+            op.sig()
+                .0
+                .iter()
+                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                .collect()
+        }
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
         // The parallel units' parameters: two closures, or the callback and
         // the count / input array, or a participant count alone. The element classes are immediates in
@@ -2444,6 +2470,8 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
         PrimOp::Stm { op, .. } => op.consumes(i),
         PrimOp::MVar { op, .. } => op.consumes(i),
+        PrimOp::Atomic(op) => op.consumes(i),
+        PrimOp::RwLock { op, .. } => op.consumes(i),
         PrimOp::Slots { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
         _ => false,
@@ -2462,6 +2490,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
         };
     }
     if let PrimOp::MVar { op, classes } = op {
+        return if op.returns_option() { vec![classes[0]] } else { vec![] };
+    }
+    if let PrimOp::RwLock { op, classes } = op {
         return if op.returns_option() { vec![classes[0]] } else { vec![] };
     }
     if matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
@@ -4517,7 +4548,7 @@ fn build_unit(
     };
     match &body {
         UnitBody::Prim(op) => {
-            if matches!(op, PrimOp::MVar { .. }) { lang.pure = false; }
+            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. }) { lang.pure = false; }
             // Always inline pure single-instruction scalar/wide/float/bit/cmp/
             // conversion primitives and direct Bytes/Nat fast paths so LLVM
             // never hits its inline budget inside large crypto/math kernels.
@@ -5013,7 +5044,7 @@ impl NarrowSig {
         if !op.touches_wide() {
             return None;
         }
-        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
+        if matches!(op, PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
             let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
             return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
                 ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
@@ -6294,6 +6325,10 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
         mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
         return Ok(());
     }
+    if let RwLock { op: rw_op, classes } = op {
+        sync_codegen::emit_rwlock(b, reg, name, op, rw_op, classes);
+        return Ok(());
+    }
     if let Slots { op: slot_op, classes } = op {
         slots_codegen::emit(b, reg, slot_op, classes);
         return Ok(());
@@ -7529,6 +7564,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
         Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
         MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
+        Atomic(atomic_op) => sync_codegen::emit_atomic(b, atomic_op),
+        RwLock { op: rw_op, classes } => sync_codegen::emit_rwlock(b, reg, name, op, rw_op, classes),
         Stm { op: stm_op, classes } => {
             use crate::stm::StmOp::*;
             match stm_op {
@@ -7957,7 +7994,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 // The arena entries take and answer one machine word: the
                 // size or the handle, both never blocks.
-                PackageOffset | ArenaNew | ArenaLeave => {
+                PackageOffset | ArenaNew | ArenaLeave | ArenaEnterPhase | ArenaExitPhase => {
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     ret(b, &r);
                 }

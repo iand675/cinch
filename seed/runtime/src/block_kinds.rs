@@ -107,8 +107,12 @@ pub const KIND_BYTES_MAPPED: u8 = 19;
 pub const KIND_BYTES_VIEW: u8 = 20;
 /// The owner follows the length and data pointer of the byte span.
 pub const BYTES_VIEW_OWNER_WORD: u64 = 2;
+/// Native lock-free 64-bit hardware atomic word cell.
+pub const KIND_ATOMIC: u8 = 21;
+/// Native reader-writer lock box: Rust-owned RwLock guarding a single Cinch word.
+pub const KIND_RWLOCK: u8 = 22;
 /// Last live kind; keep range validation in step with new runtime kinds.
-pub const KIND_LAST: u8 = KIND_BYTES_VIEW;
+pub const KIND_LAST: u8 = KIND_RWLOCK;
 /// A freed block (debug poisoning): the largest value the field holds.
 pub const KIND_FREED: u8 = 31;
 

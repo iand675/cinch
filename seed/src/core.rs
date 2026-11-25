@@ -681,6 +681,11 @@ pub enum PlatformOp {
     /// `arenaLeave :: I64 -> I64`: free every chunk of the arena the
     /// handle names, restore the arena entered before it, and answer 0.
     ArenaLeave,
+    /// `arenaEnterPhase :: I64 -> I64`: always-on phase arena for batch
+    /// compiler phases (disabled only with `CINCH_ARENA=0`).
+    ArenaEnterPhase,
+    /// `arenaExitPhase :: I64 -> I64`: leave and free a phase arena.
+    ArenaExitPhase,
 }
 
 impl PlatformOp {
@@ -696,6 +701,8 @@ impl PlatformOp {
             PlatformOp::SignalSend => "signalSend",
             PlatformOp::ArenaNew => "arenaNew",
             PlatformOp::ArenaLeave => "arenaLeave",
+            PlatformOp::ArenaEnterPhase => "arenaEnterPhase",
+            PlatformOp::ArenaExitPhase => "arenaExitPhase",
         }
     }
 
@@ -712,6 +719,8 @@ impl PlatformOp {
             PlatformOp::SignalSend => "cinch_signal_send",
             PlatformOp::ArenaNew => "cinch_arena_new",
             PlatformOp::ArenaLeave => "cinch_arena_leave",
+            PlatformOp::ArenaEnterPhase => "cinch_arena_enter_phase",
+            PlatformOp::ArenaExitPhase => "cinch_arena_exit_phase",
         }
     }
 }
@@ -1062,6 +1071,10 @@ pub enum PrimOp {
     Stm { op: crate::stm::StmOp, classes: [Class; 2] },
     /// Native single-place variables, specialized by stored value class.
     MVar { op: crate::mvar::MVarOp, classes: [Class; 2] },
+    /// Lock-free 64-bit hardware atomic cells (`Effect.Concurrent.Atomic`).
+    Atomic(crate::sync_prim::AtomicOp),
+    /// Native reader-writer lock boxes (`Effect.Concurrent.RwLock`), specialized by stored value class.
+    RwLock { op: crate::sync_prim::RwLockOp, classes: [Class; 2] },
     /// Mutable slot arrays (`cinch.runtime.slots*`; runtime ABI,
     /// `cinch_slots_*`), specialized by the element's representation
     /// (`crate::slots`).
@@ -1226,6 +1239,16 @@ impl PrimOp {
                     return Some(Self::MVar { op, classes: [Class::Param(0), Class::Param(1)] });
                 }
             }
+            for op in crate::sync_prim::AtomicOp::ALL {
+                if name == op.name() {
+                    return Some(Self::Atomic(op));
+                }
+            }
+            for op in crate::sync_prim::RwLockOp::ALL {
+                if name == op.name() {
+                    return Some(Self::RwLock { op, classes: [Class::Param(0), Class::Param(1)] });
+                }
+            }
             for op in crate::stm::StmOp::ALL {
                 if name == op.name() {
                     return Some(Self::Stm { op, classes: [Class::Param(0), Class::Param(1)] });
@@ -1311,6 +1334,8 @@ impl PrimOp {
                 "signalSend" => Platform(PlatformOp::SignalSend),
                 "arenaNew" => Platform(PlatformOp::ArenaNew),
                 "arenaLeave" => Platform(PlatformOp::ArenaLeave),
+                "arenaEnterPhase" => Platform(PlatformOp::ArenaEnterPhase),
+                "arenaExitPhase" => Platform(PlatformOp::ArenaExitPhase),
                 "netTcpConnect" => Net(NetOp::TcpConnect),
                 "netTcpListen" => Net(NetOp::TcpListen),
                 "netTcpAccept" => Net(NetOp::TcpAccept),
@@ -1370,6 +1395,8 @@ impl PrimOp {
             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
             MVar { op, .. } => return format!("cinch.runtime.{}", op.name()),
+            Atomic(op) => return format!("cinch.runtime.{}", op.name()),
+            RwLock { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
@@ -1470,6 +1497,8 @@ impl PrimOp {
             Array { op, packed, .. } => op.sig(packed).0.len(),
             Stm { op, .. } => op.sig().0.len(),
             MVar { op, .. } => op.sig().0.len(),
+            Atomic(op) => op.sig().0.len(),
+            RwLock { op, .. } => op.sig().0.len(),
             Slots { op, .. } => op.sig().0.len(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
@@ -1481,7 +1510,13 @@ impl PrimOp {
                     | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
             )
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
-            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
+            | Platform(
+                PlatformOp::ArenaNew
+                    | PlatformOp::ArenaLeave
+                    | PlatformOp::ArenaEnterPhase
+                    | PlatformOp::ArenaExitPhase
+                    | PlatformOp::PackageOffset,
+            ) => 1,
             Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
             Bytes(
                 BytesOp::Set
@@ -1516,6 +1551,7 @@ impl PrimOp {
         match self {
             Array { op, .. } => op.returns_option(),
             MVar { op, .. } => op.returns_option(),
+            RwLock { op, .. } => op.returns_option(),
             CheckedDiv { .. } | CheckedRem { .. } | U32ToChar => true,
             Arith { mode: ArithMode::Checked, .. } => true,
             Neg { mode: ArithMode::Checked, .. } => true,
@@ -1551,6 +1587,8 @@ impl PrimOp {
             Array { op, packed, .. } => op.sig(packed),
             Stm { op, .. } => op.sig(),
             MVar { op, .. } => op.sig(),
+            Atomic(op) => op.sig(),
+            RwLock { op, .. } => op.sig(),
             Slots { op, .. } => op.sig(),
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
@@ -1626,7 +1664,12 @@ impl PrimOp {
             ),
             Platform(PlatformOp::PackageOffset) => (vec![Ty::Nat], i64t),
             Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
-            Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
+            Platform(
+                PlatformOp::ArenaNew
+                    | PlatformOp::ArenaLeave
+                    | PlatformOp::ArenaEnterPhase
+                    | PlatformOp::ArenaExitPhase,
+            ) => (vec![i64t.clone()], i64t),
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
             Net(NetOp::TcpListen) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
             Net(NetOp::TcpAccept) => (vec![i64t.clone()], res(i64t.clone())),
@@ -6372,7 +6415,7 @@ fn prim_is_pure(op: PrimOp) -> bool {
     // A zero-word application runs a closure with its own effect row.
     // The platform ops mutate the filesystem, consume entropy and
     // deliver signals, so they are effects too.
-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. })
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. })
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
@@ -7834,7 +7877,9 @@ impl PrimOp {
     /// Whether the operation's signature mentions a wide scalar anywhere,
     /// including generic cell/slot payloads and `Option` results (`design/wide-scalars.md`).
     pub fn touches_wide(self) -> bool {
-        if let PrimOp::MVar { classes, .. } = self { return classes[0] == Class::Wide; }
+        if let PrimOp::MVar { classes, .. } | PrimOp::RwLock { classes, .. } = self {
+            return classes[0] == Class::Wide;
+        }
         if let PrimOp::Slots { op, classes } = self {
             return op != crate::slots::SlotOp::FoldNat && classes[0] == Class::Wide;
         }

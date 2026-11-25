@@ -46,11 +46,14 @@ module Bootstrap.Check where
   import Bootstrap.Report
   import Bootstrap.Document
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Bootstrap.Core (CoreDefinition)
+  import Bootstrap.Parallel (CompileTuning, default-tuning)
   import Bootstrap.Load (LoadedInterface, ValidatedInterfaces)
-  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, prepare-admitted-elaboration, elaboration-errors, needs-inference, infer-program)
+  import Bootstrap.Infer (Elaboration, elaborate-with-interfaces, elaborate-with-admitted-interfaces, elaborate-with-interfaces-tuned, elaborate-with-admitted-interfaces-tuned, prepare-admitted-elaboration, prepare-admitted-elaboration-tuned, prepare-admitted-elaboration-cached, elaboration-errors, needs-inference, infer-program)
 
   export check-program, CheckedProgram, checked-generated, with-generated, check-and-retain, check-and-retain-with-interfaces, check-and-retain-with-admitted-interfaces, checked-surface, checked-elaboration
-  export prepare-admitted-check
+  export check-and-retain-with-interfaces-tuned, check-and-retain-with-admitted-interfaces-tuned
+  export prepare-admitted-check, prepare-admitted-check-tuned, prepare-admitted-check-cached
 
   -- The constructor stays private. A backend receives the resolved source
   -- and retained typed declarations only after the current independent
@@ -72,13 +75,23 @@ module Bootstrap.Check where
   check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain program = check-and-retain-with-interfaces Nil program
   check-and-retain-with-interfaces :: List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
-  check-and-retain-with-interfaces known program = check-and-retain-using (elaborate-with-interfaces known rung) program
+  check-and-retain-with-interfaces known program = check-and-retain-with-interfaces-tuned default-tuning known program
+  check-and-retain-with-interfaces-tuned :: CompileTuning -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain-with-interfaces-tuned tuning known program = check-and-retain-using (elaborate-with-interfaces-tuned tuning known rung) program
   check-and-retain-with-admitted-interfaces :: ValidatedInterfaces -> Program -> Result (List Diagnostic) CheckedProgram
-  check-and-retain-with-admitted-interfaces admitted program = check-and-retain-using (elaborate-with-admitted-interfaces admitted rung) program
+  check-and-retain-with-admitted-interfaces admitted program = check-and-retain-with-admitted-interfaces-tuned default-tuning admitted program
+  check-and-retain-with-admitted-interfaces-tuned :: CompileTuning -> ValidatedInterfaces -> Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain-with-admitted-interfaces-tuned tuning admitted program = check-and-retain-using (elaborate-with-admitted-interfaces-tuned tuning admitted rung) program
   prepare-admitted-check :: ValidatedInterfaces -> (Bool -> Program -> Result (List Diagnostic) CheckedProgram)
-  prepare-admitted-check admitted =
-    let elaborate = prepare-admitted-elaboration admitted rung in
+  prepare-admitted-check admitted = prepare-admitted-check-tuned default-tuning admitted
+  prepare-admitted-check-tuned :: CompileTuning -> ValidatedInterfaces -> (Bool -> Program -> Result (List Diagnostic) CheckedProgram)
+  prepare-admitted-check-tuned tuning admitted =
+    let elaborate = prepare-admitted-elaboration-tuned tuning admitted rung in
     \retained program -> check-and-retain-using (elaborate retained) program
+  prepare-admitted-check-cached :: ValidatedInterfaces -> (CompileTuning -> Bool -> HashMap String CoreDefinition -> Program -> Result (List Diagnostic) CheckedProgram)
+  prepare-admitted-check-cached admitted =
+    let elaborate = prepare-admitted-elaboration-cached admitted rung in
+    \tuning retained cached program -> check-and-retain-using (elaborate tuning retained cached) program
   check-and-retain-using :: (Program -> Elaboration) -> Program -> Result (List Diagnostic) CheckedProgram
   check-and-retain-using elaborate program =
     let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in

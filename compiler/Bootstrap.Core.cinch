@@ -2285,7 +2285,15 @@ module Bootstrap.Core where
   byte-length-variable :: Nat -> Arithmetic
   byte-length-variable id = AVariable (string-concat "#bytes-length:" (nat-to-string id))
   byte-length-function :: UType -> UType -> String -> String -> Bool
-  byte-length-function result function symbol role = string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False)
+  byte-length-function result function symbol role =
+    let carrier = numeric-carrier-view result in
+    let ok-symbol = (string-compare symbol "cinch.runtime.bytesLen" == 0 && nat-type carrier)
+          || (string-compare symbol "cinch.runtime.bytesLenI64" == 0 && contract-equal carrier (UCon "I64" KType)) in
+    let ok-arrow = (case function of
+      UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result
+      UPi id binder domain (URow UEnd) output -> contract-equal domain (UCon "Bytes" KType) && contract-equal (numeric-carrier-view output) carrier
+      other -> False) in
+    ok-symbol && string-compare role "intrinsic" == 0 && ok-arrow
   -- The length of immutable text is opaque to arithmetic. The independent
   -- Core check compares only observations of the same scoped String value.
   string-length-function :: UType -> UType -> String -> String -> Bool

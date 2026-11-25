@@ -1,405 +1,1887 @@
---- a/compiler/runtime/src/abi.rs
-+++ b/compiler/runtime/src/abi.rs
-@@ -138,15 +138,78 @@
-     boxed(crate::block::KIND_BYTES, crate::block::RC_FRESH, v)
- }
- 
-+/// Map a verified file extent as an owned read-only `Bytes` word.
-+/// A negative error signals an unavailable mapping. The descriptor remains
-+/// open at its original position so the compiler can read through it.
-+///
-+/// # Safety
-+///
-+/// A successful mapping requires an open, stable file with at least
-+/// `length` bytes. Publishers replace the file with a new inode.
-+#[unsafe(no_mangle)]
-+pub unsafe extern "C" fn cinch_map_package_bytes(fd: i64, length: i64) -> i64 {
-+    #[cfg(not(target_os = "unknown"))]
-+    {
-+        if length <= 0 || length > i64::from(u32::MAX) || i32::try_from(fd).is_err() {
-+            return -crate::sys::EINVAL;
-+        }
-+        let Ok(size) = usize::try_from(length) else {
-+            return -crate::sys::EINVAL;
-+        };
-+        let (address, error) = crate::sys::mmap_file_readonly(fd, size);
-+        if error != 0 {
-+            return -error;
-+        }
-+        let bytes = unsafe { crate::bytes::Bytes::from_mapping(address, length) };
-+        boxed(crate::block::KIND_BYTES_MAPPED, crate::block::RC_FRESH, bytes)
-+    }
-+    #[cfg(target_os = "unknown")]
-+    {
-+        let _ = (fd, length);
-+        -crate::sys::EINVAL
-+    }
-+}
+diff --git a/seed/prelude/Effect/Concurrent/Atomic.cinch b/seed/prelude/Effect/Concurrent/Atomic.cinch
+new file mode 100644
+index 0000000..edc67f6
+--- /dev/null
++++ b/seed/prelude/Effect/Concurrent/Atomic.cinch
+@@ -0,0 +1,166 @@
++-- | Native lock-free 64-bit hardware atomic cells (`AtomicI64`, `AtomicU64`, `AtomicBool`).
++--
++-- Each atomic handle wraps a reference-counted `AtomicCell` box whose payload
++-- is a single hardware `AtomicI64`. Handles are `Copy` and `Share` across tasks
++-- and parallel scopes; operations carry the kernel `MVar` shared-memory effect.
++module Effect.Concurrent.Atomic where
 +
-+/// Check a string span and return a fresh `String` word, or a negative
-+/// error code. Immutable bytes can be retained as a view, while mutable
-+/// buffers are copied once so no later write can change the string.
-+#[unsafe(no_mangle)]
-+pub unsafe extern "C" fn cinch_package_text(owner: i64, offset: i64, length: i64) -> i64 {
-+    use crate::block::{KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW, RC_FRESH};
-+    let (Ok(start), Ok(length)) = (usize::try_from(offset), usize::try_from(length)) else {
-+        return -crate::sys::EINVAL;
-+    };
-+    let Some(end) = start.checked_add(length) else {
-+        return -crate::sys::EINVAL;
-+    };
-+    let source = unsafe { as_bytes(owner) };
-+    let Some(span) = source.as_slice().get(start..end) else {
-+        return -crate::sys::EINVAL;
-+    };
-+    if std::str::from_utf8(span).is_err() {
-+        return -crate::sys::EINVAL;
-+    }
-+    let bytes = if !span.is_empty()
-+        && matches!(unsafe { box_kind(owner) }, KIND_BYTES_MAPPED | KIND_BYTES_STATIC | KIND_BYTES_VIEW)
-+    {
-+        boxed(KIND_BYTES_VIEW, RC_FRESH, unsafe { crate::bytes::ByteView::new(span, owner) })
-+    } else {
-+        box_bytes(span.to_vec().into())
-+    };
-+    // Data.String.StrBuf is the sole constructor, with a counted Bytes field.
-+    let string = unsafe { crate::block::allocate_ctor(8, crate::block::shape_field(0, 1), false) };
-+    unsafe { string.cast::<i64>().write(bytes) };
-+    string as usize as i64
-+}
++  import Data.Machine (wrapping-i64-to-u64, wrapping-u64-to-i64)
 +
- /// Box one interned name cell (the cell is handed out once per name and
- /// never freed, so its word is the name's identity): an immortal block.
- pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
-     boxed(crate::block::KIND_SYM, crate::block::RC_IMMORTAL, v)
- }
- 
--/// Release the Rust resources a runtime box owns (a `Nat`'s limbs, a heap
--/// buffer's data) before its block is deallocated. Every other kind owns
--/// nothing outside its block.
-+/// Release any external resources owned by a runtime box before its
-+/// block is deallocated.
- ///
- /// # Safety
- ///
-@@ -158,6 +221,7 @@
-         N => unsafe { std::ptr::drop_in_place(p.cast::<Nat>()) },
-         I => unsafe { std::ptr::drop_in_place(p.cast::<Int>()) },
++  export MemoryOrder, Relaxed, Acquire, Release, AcqRel, SeqCst
++  export AtomicI64, AtomicU64, AtomicBool
++  export atomic-i64-new, atomic-i64-load, atomic-i64-store, atomic-i64-swap
++  export atomic-i64-fetch-add, atomic-i64-fetch-sub, atomic-i64-fetch-and, atomic-i64-fetch-or, atomic-i64-fetch-xor
++  export atomic-i64-cas
++  export atomic-u64-new, atomic-u64-load, atomic-u64-store, atomic-u64-swap
++  export atomic-u64-fetch-add, atomic-u64-fetch-sub, atomic-u64-fetch-and, atomic-u64-fetch-or, atomic-u64-fetch-xor
++  export atomic-u64-cas
++  export atomic-bool-new, atomic-bool-load, atomic-bool-store, atomic-bool-swap, atomic-bool-cas
++  export atomic-fence
++
++  -- | Memory ordering for hardware atomic operations and fences.
++  data MemoryOrder where
++    Relaxed :: MemoryOrder
++    Acquire :: MemoryOrder
++    Release :: MemoryOrder
++    AcqRel :: MemoryOrder
++    SeqCst :: MemoryOrder
++
++  -- | A shared lock-free 64-bit signed integer cell.
++  data AtomicI64 where
++    MkAtomicI64 :: AtomicCell -> AtomicI64
++
++  -- | A shared lock-free 64-bit unsigned integer cell.
++  data AtomicU64 where
++    MkAtomicU64 :: AtomicCell -> AtomicU64
++
++  -- | A shared lock-free boolean flag cell.
++  data AtomicBool where
++    MkAtomicBool :: AtomicCell -> AtomicBool
++
++  order-code :: MemoryOrder -> I64
++  order-code order = case order of
++    Relaxed -> 0
++    Acquire -> 1
++    Release -> 2
++    AcqRel -> 3
++    SeqCst -> 4
++
++  foreign import ccall "cinch.runtime.atomicNew" cell-new :: I64 ->{MVar} AtomicCell
++  foreign import ccall "cinch.runtime.atomicLoad" cell-load :: AtomicCell -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicStore" cell-store :: AtomicCell -> I64 -> I64 ->{MVar} Unit
++  foreign import ccall "cinch.runtime.atomicSwap" cell-swap :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicFetchAdd" cell-fetch-add :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicFetchSub" cell-fetch-sub :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicFetchAnd" cell-fetch-and :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicFetchOr" cell-fetch-or :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicFetchXor" cell-fetch-xor :: AtomicCell -> I64 -> I64 ->{MVar} I64
++  foreign import ccall "cinch.runtime.atomicCas" cell-cas :: AtomicCell -> I64 -> I64 -> I64 -> I64 ->{MVar} Bool
++  foreign import ccall "cinch.runtime.atomicFence" cell-fence :: I64 ->{MVar} Unit
++
++  -- | Allocate a new `AtomicI64` initialized to `initial`.
++  atomic-i64-new :: I64 ->{MVar} AtomicI64
++  atomic-i64-new initial = MkAtomicI64 (cell-new initial)
++
++  -- | Load the current value with `order` (`Relaxed`, `Acquire`, or `SeqCst`).
++  atomic-i64-load :: AtomicI64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-load (MkAtomicI64 cell) order = cell-load cell (order-code order)
++
++  -- | Store `value` with `order` (`Relaxed`, `Release`, or `SeqCst`).
++  atomic-i64-store :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} Unit
++  atomic-i64-store (MkAtomicI64 cell) value order = cell-store cell value (order-code order)
++
++  -- | Atomically exchange the stored value with `value`, returning the previous value.
++  atomic-i64-swap :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-swap (MkAtomicI64 cell) value order = cell-swap cell value (order-code order)
++
++  -- | Wrapping atomic fetch-add, returning the previous value.
++  atomic-i64-fetch-add :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-fetch-add (MkAtomicI64 cell) delta order = cell-fetch-add cell delta (order-code order)
++
++  -- | Wrapping atomic fetch-sub, returning the previous value.
++  atomic-i64-fetch-sub :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-fetch-sub (MkAtomicI64 cell) delta order = cell-fetch-sub cell delta (order-code order)
++
++  -- | Bitwise atomic fetch-and, returning the previous value.
++  atomic-i64-fetch-and :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-fetch-and (MkAtomicI64 cell) mask order = cell-fetch-and cell mask (order-code order)
++
++  -- | Bitwise atomic fetch-or, returning the previous value.
++  atomic-i64-fetch-or :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-fetch-or (MkAtomicI64 cell) mask order = cell-fetch-or cell mask (order-code order)
++
++  -- | Bitwise atomic fetch-xor, returning the previous value.
++  atomic-i64-fetch-xor :: AtomicI64 -> I64 -> MemoryOrder ->{MVar} I64
++  atomic-i64-fetch-xor (MkAtomicI64 cell) mask order = cell-fetch-xor cell mask (order-code order)
++
++  -- | Strong compare-and-exchange: replaces `expected` with `desired`, returning `True` on success.
++  atomic-i64-cas :: AtomicI64 -> I64 -> I64 -> MemoryOrder -> MemoryOrder ->{MVar} Bool
++  atomic-i64-cas (MkAtomicI64 cell) expected desired ok-order fail-order =
++    cell-cas cell expected desired (order-code ok-order) (order-code fail-order)
++
++  -- | Allocate a new `AtomicU64` initialized to `initial`.
++  atomic-u64-new :: U64 ->{MVar} AtomicU64
++  atomic-u64-new initial = MkAtomicU64 (cell-new (wrapping-u64-to-i64 initial))
++
++  -- | Load the current unsigned value with `order`.
++  atomic-u64-load :: AtomicU64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-load (MkAtomicU64 cell) order = wrapping-i64-to-u64 (cell-load cell (order-code order))
++
++  -- | Store `value` with `order`.
++  atomic-u64-store :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} Unit
++  atomic-u64-store (MkAtomicU64 cell) value order = cell-store cell (wrapping-u64-to-i64 value) (order-code order)
++
++  -- | Atomically exchange the stored unsigned value, returning the previous value.
++  atomic-u64-swap :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-swap (MkAtomicU64 cell) value order = wrapping-i64-to-u64 (cell-swap cell (wrapping-u64-to-i64 value) (order-code order))
++
++  -- | Wrapping atomic fetch-add on `AtomicU64`, returning the previous value.
++  atomic-u64-fetch-add :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-fetch-add (MkAtomicU64 cell) delta order = wrapping-i64-to-u64 (cell-fetch-add cell (wrapping-u64-to-i64 delta) (order-code order))
++
++  -- | Wrapping atomic fetch-sub on `AtomicU64`, returning the previous value.
++  atomic-u64-fetch-sub :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-fetch-sub (MkAtomicU64 cell) delta order = wrapping-i64-to-u64 (cell-fetch-sub cell (wrapping-u64-to-i64 delta) (order-code order))
++
++  -- | Bitwise atomic fetch-and on `AtomicU64`, returning the previous value.
++  atomic-u64-fetch-and :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-fetch-and (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-and cell (wrapping-u64-to-i64 mask) (order-code order))
++
++  -- | Bitwise atomic fetch-or on `AtomicU64`, returning the previous value.
++  atomic-u64-fetch-or :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-fetch-or (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-or cell (wrapping-u64-to-i64 mask) (order-code order))
++
++  -- | Bitwise atomic fetch-xor on `AtomicU64`, returning the previous value.
++  atomic-u64-fetch-xor :: AtomicU64 -> U64 -> MemoryOrder ->{MVar} U64
++  atomic-u64-fetch-xor (MkAtomicU64 cell) mask order = wrapping-i64-to-u64 (cell-fetch-xor cell (wrapping-u64-to-i64 mask) (order-code order))
++
++  -- | Strong compare-and-exchange on `AtomicU64`.
++  atomic-u64-cas :: AtomicU64 -> U64 -> U64 -> MemoryOrder -> MemoryOrder ->{MVar} Bool
++  atomic-u64-cas (MkAtomicU64 cell) expected desired ok-order fail-order =
++    cell-cas cell (wrapping-u64-to-i64 expected) (wrapping-u64-to-i64 desired) (order-code ok-order) (order-code fail-order)
++
++  -- | Allocate a new `AtomicBool` initialized to `initial`.
++  atomic-bool-new :: Bool ->{MVar} AtomicBool
++  atomic-bool-new initial = MkAtomicBool (cell-new (if initial then 1 else 0))
++
++  -- | Load the current boolean with `order`.
++  atomic-bool-load :: AtomicBool -> MemoryOrder ->{MVar} Bool
++  atomic-bool-load (MkAtomicBool cell) order = cell-load cell (order-code order) /= 0
++
++  -- | Store `value` with `order`.
++  atomic-bool-store :: AtomicBool -> Bool -> MemoryOrder ->{MVar} Unit
++  atomic-bool-store (MkAtomicBool cell) value order = cell-store cell (if value then 1 else 0) (order-code order)
++
++  -- | Atomically exchange the stored boolean, returning the previous value.
++  atomic-bool-swap :: AtomicBool -> Bool -> MemoryOrder ->{MVar} Bool
++  atomic-bool-swap (MkAtomicBool cell) value order = cell-swap cell (if value then 1 else 0) (order-code order) /= 0
++
++  -- | Strong compare-and-exchange on `AtomicBool`.
++  atomic-bool-cas :: AtomicBool -> Bool -> Bool -> MemoryOrder -> MemoryOrder ->{MVar} Bool
++  atomic-bool-cas (MkAtomicBool cell) expected desired ok-order fail-order =
++    cell-cas cell (if expected then 1 else 0) (if desired then 1 else 0) (order-code ok-order) (order-code fail-order)
++
++  -- | Emit a hardware memory fence (`Acquire`, `Release`, `AcqRel`, or `SeqCst`).
++  atomic-fence :: MemoryOrder ->{MVar} Unit
++  atomic-fence order = cell-fence (order-code order)
+diff --git a/seed/prelude/Effect/Concurrent/RwLock.cinch b/seed/prelude/Effect/Concurrent/RwLock.cinch
+new file mode 100644
+index 0000000..2280e5c
+--- /dev/null
++++ b/seed/prelude/Effect/Concurrent/RwLock.cinch
+@@ -0,0 +1,46 @@
++-- | A native reader-writer lock box (`RwLock a`).
++--
++-- Multiple concurrent readers access the stored value without serializing
++-- behind a single mutex; writers take exclusive access to replace the value.
++-- Constructors are private; handles are `Copy`, and sharing across tasks
++-- requires the stored value type `a` to be `Share`.
++module Effect.Concurrent.RwLock where
++
++  import Data.Option
++
++  export RwLock, rwlock-new, rwlock-read, rwlock-write, rwlock-swap, rwlock-try-read, rwlock-try-write
++
++  -- | A shared reader-writer lock protecting a value of type `a`.
++  data RwLock a where
++    MkRwLock :: RwLockCell a -> RwLock a
++
++  foreign import ccall "cinch.runtime.rwlockNew" cell-new :: forall a. a ->{MVar} RwLockCell a
++  foreign import ccall "cinch.runtime.rwlockRead" cell-read :: forall a. RwLockCell a ->{MVar, Diverge} a
++  foreign import ccall "cinch.runtime.rwlockWrite" cell-write :: forall a. RwLockCell a -> a ->{MVar, Diverge} Unit
++  foreign import ccall "cinch.runtime.rwlockSwap" cell-swap :: forall a. RwLockCell a -> a ->{MVar, Diverge} a
++  foreign import ccall "cinch.runtime.rwlockTryRead" cell-try-read :: forall a. RwLockCell a ->{MVar} Option a
++  foreign import ccall "cinch.runtime.rwlockTryWrite" cell-try-write :: forall a. RwLockCell a -> a ->{MVar} Bool
++
++  -- | Create a new reader-writer lock initialized to `x`.
++  rwlock-new :: forall a. a ->{MVar} RwLock a
++  rwlock-new x = MkRwLock (cell-new x)
++
++  -- | Acquire shared read access and return a caller-owned reference to the stored value.
++  rwlock-read :: forall a. RwLock a ->{MVar, Diverge} a
++  rwlock-read (MkRwLock cell) = cell-read cell
++
++  -- | Acquire exclusive write access and replace the stored value.
++  rwlock-write :: forall a. RwLock a -> a ->{MVar, Diverge} Unit
++  rwlock-write (MkRwLock cell) x = cell-write cell x
++
++  -- | Acquire exclusive write access, replace the stored value, and return the previous value.
++  rwlock-swap :: forall a. RwLock a -> a ->{MVar, Diverge} a
++  rwlock-swap (MkRwLock cell) x = cell-swap cell x
++
++  -- | Non-blocking shared read: returns `Some value` if not write-locked, or `None` if contended.
++  rwlock-try-read :: forall a. RwLock a ->{MVar} Option a
++  rwlock-try-read (MkRwLock cell) = cell-try-read cell
++
++  -- | Non-blocking exclusive write: replaces the value and returns `True` if uncontended, else `False`.
++  rwlock-try-write :: forall a. RwLock a -> a ->{MVar} Bool
++  rwlock-try-write (MkRwLock cell) x = cell-try-write cell x
+diff --git a/seed/prelude/cinch-base.cinchpkg b/seed/prelude/cinch-base.cinchpkg
+index c0f5a38..3b6bfc3 100644
+--- a/seed/prelude/cinch-base.cinchpkg
++++ b/seed/prelude/cinch-base.cinchpkg
+@@ -144,6 +144,16 @@
+       "path": "Effect/Concurrent/MVar.cinch",
+       "embedded": true
+     },
++    {
++      "name": "Effect.Concurrent.Atomic",
++      "path": "Effect/Concurrent/Atomic.cinch",
++      "embedded": true
++    },
++    {
++      "name": "Effect.Concurrent.RwLock",
++      "path": "Effect/Concurrent/RwLock.cinch",
++      "embedded": true
++    },
+     {
+       "name": "Effect.Clock",
+       "path": "Effect/Clock.cinch",
+@@ -375,6 +385,8 @@
+     "Data.Path",
+     "Effect.Concurrent",
+     "Effect.Concurrent.MVar",
++    "Effect.Concurrent.Atomic",
++    "Effect.Concurrent.RwLock",
+     "Effect.Clock",
+     "Prim.Sys.Darwin",
+     "Prim.Sys.Linux",
+diff --git a/seed/runtime/src/abi.rs b/seed/runtime/src/abi.rs
+index 7f9b2ba..114248e 100644
+--- a/seed/runtime/src/abi.rs
++++ b/seed/runtime/src/abi.rs
+@@ -227,6 +227,7 @@ pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
          B => unsafe { (*p.cast::<crate::bytes::Bytes>()).release() },
-+        crate::block::KIND_BYTES_MAPPED => unsafe { (*p.cast::<crate::bytes::Bytes>()).unmap() },
+         crate::block::KIND_BYTES_MAPPED => unsafe { (*p.cast::<crate::bytes::Bytes>()).unmap() },
+         crate::block::KIND_MVAR => unsafe { std::ptr::drop_in_place(p.cast::<crate::mvar::MVar>()) },
++        crate::block::KIND_RWLOCK => unsafe { std::ptr::drop_in_place(p.cast::<crate::rwlock::RwLockBox>()) },
          _ => {}
      }
  }
-@@ -369,28 +433,21 @@
-     o as i64
- }
- 
--/// Read a `Bytes` word, faulting on null or wrong-kind blocks. Both
--/// buffer kinds read: heap buffers (`KIND_BYTES`) and read-only
--/// data-section buffers (`KIND_BYTES_STATIC`, a string literal's
--/// backing).
-+/// Read a byte buffer, constant, or owned file mapping.
- pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
--    let k = unsafe { box_kind(word) };
--    if k != crate::block::KIND_BYTES && k != crate::block::KIND_BYTES_STATIC {
-+    use crate::block::{KIND_BYTES, KIND_BYTES_MAPPED, KIND_BYTES_STATIC, KIND_BYTES_VIEW};
-+    if !matches!(unsafe { box_kind(word) }, KIND_BYTES | KIND_BYTES_STATIC | KIND_BYTES_MAPPED | KIND_BYTES_VIEW) {
-         raise(Error::CorruptValue);
-     }
-     unsafe { &*(word as usize as *const crate::bytes::Bytes) }
- }
- 
--/// Read a `Bytes` word for mutation. Buffer writes are part of the
--/// language-level `bytesSet` contract, so this is a deliberate mutable
--/// borrow at the extern boundary; generated code sequences the writes.
--/// A read-only data-section buffer (`KIND_BYTES_STATIC`, a string
--/// literal's backing) takes the defined read-only fault instead of a
--/// write to constant data.
-+/// Read a byte buffer for mutation. Generated code sequences all writes,
-+/// and read-only buffers take the defined fault.
- unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
-     match unsafe { box_kind(word) } {
-         crate::block::KIND_BYTES => unsafe { &mut *(word as usize as *mut crate::bytes::Bytes) },
--        crate::block::KIND_BYTES_STATIC => raise(Error::ReadOnly),
-+        crate::block::KIND_BYTES_STATIC | crate::block::KIND_BYTES_MAPPED | crate::block::KIND_BYTES_VIEW => raise(Error::ReadOnly),
-         _ => raise(Error::CorruptValue),
-     }
- }
---- a/compiler/runtime/src/alloc_kinds.rs
-+++ b/compiler/runtime/src/alloc_kinds.rs
-@@ -56,6 +56,9 @@
-     b"tensor",
-     b"columnar",
-     b"tvar",
-+    b"reserved",
-+    b"mapped-bytes",
-+    b"bytes-view",
+diff --git a/seed/runtime/src/alloc_kinds.rs b/seed/runtime/src/alloc_kinds.rs
+index 76262f9..2107162 100644
+--- a/seed/runtime/src/alloc_kinds.rs
++++ b/seed/runtime/src/alloc_kinds.rs
+@@ -59,6 +59,8 @@ const NAMES: [&[u8]; BUCKETS] = [
+     b"mvar",
+     b"mapped-bytes",
+     b"bytes-view",
++    b"atomic",
++    b"rwlock",
      b"other",
  ];
  
---- a/compiler/runtime/src/block.rs
-+++ b/compiler/runtime/src/block.rs
-@@ -490,6 +490,12 @@
-                 }
-                 Scan::mapped(words, k, 0, scan_slot(code, TVAR_VALUE_WORD))
-             }
-+            KIND_BYTES_VIEW => {
-+                if words != BYTES_VIEW_OWNER_WORD as usize + 1 {
-+                    crate::abi::panic_exit(b"compiler bug: corrupt byte view");
-+                }
-+                Scan::mapped(words, k, 0, scan_slot(SCAN_OBJ, BYTES_VIEW_OWNER_WORD))
-+            }
-             _ => Scan::mapped(words, k, 0, 0),
-         }
+diff --git a/seed/runtime/src/arena.rs b/seed/runtime/src/arena.rs
+index b346a52..c107b5e 100644
+--- a/seed/runtime/src/arena.rs
++++ b/seed/runtime/src/arena.rs
+@@ -131,6 +131,9 @@ pub struct Arena {
+     /// a cell may hold a heap `Bytes` or a boxed `Nat` that only this
+     /// reference kept alive, and those are the counted heap's to free.
+     served: Vec<*mut u8>,
++    /// Prefix of `served` whose heap children have already been marked
++    /// atomic (`cinch_mark_mt`) before a parallel publication.
++    marked_up_to: usize,
+ }
+ 
+ const _: () = assert!(CHUNK_HEADER % 8 == 0, "the data area keeps the allocation's alignment");
+@@ -151,6 +154,7 @@ const UNREAD: u8 = 0;
+ const ON: u8 = 1;
+ const OFF: u8 = 2;
+ static ENABLED: AtomicU8 = AtomicU8::new(UNREAD);
++static PHASE_ENABLED: AtomicU8 = AtomicU8::new(UNREAD);
+ 
+ /// Whether arena entry allocates anything. `CINCH_ARENA=1` says yes and
+ /// the default says no; the read happens on the first
+@@ -167,6 +171,21 @@ fn enabled() -> bool {
      }
---- a/compiler/runtime/src/block_kinds.rs
-+++ b/compiler/runtime/src/block_kinds.rs
-@@ -99,8 +99,14 @@
- /// scanned slot a live block ever has rewritten in place; its code is the
- /// cell's own `format` word (`SCAN_RAW`, `SCAN_OBJ` or `SCAN_TOBJ`).
- pub const KIND_TVAR: u8 = 17;
-+/// Read-only bytes backed by a file mapping released with the block.
-+pub const KIND_BYTES_MAPPED: u8 = 19;
-+/// Read-only byte span with a counted reference to its backing buffer.
-+pub const KIND_BYTES_VIEW: u8 = 20;
-+/// The owner follows the length and data pointer of the byte span.
-+pub const BYTES_VIEW_OWNER_WORD: u64 = 2;
+ }
+ 
++/// Whether phase arenas are enabled. Default is on; `CINCH_ARENA=0` turns
++/// them off so A/B benchmarks can measure the same binary with and without
++/// phase arenas.
++fn phase_enabled() -> bool {
++    match PHASE_ENABLED.load(Relaxed) {
++        ON => true,
++        OFF => false,
++        _ => {
++            let off = crate::heap::env_bytes(c"CINCH_ARENA") == Some(b"0");
++            PHASE_ENABLED.store(if off { OFF } else { ON }, Relaxed);
++            !off
++        }
++    }
++}
++
+ /// A snapshot of the arena counters: `(blocks, bytes, live_chunks,
+ /// live_chunk_bytes)`. `blocks` and `bytes` are cumulative over every
+ /// arena that has been left; the chunk pair is live now.
+@@ -238,6 +257,41 @@ fn enter(arena: *mut Arena) {
+     }
+ }
+ 
++/// Mark every unmarked heap child (such as `Bytes`, boxed `Nat`/`Int`, or
++/// `Array`) reachable from blocks served by the calling thread's active
++/// arenas before publishing work to parallel workers.
++///
++/// Arena blocks themselves stay [`RC_IMMORTAL`] (zero writes on `dup`/`drop`
++/// across all threads), while their non-arena heap leaves become atomically
++/// counted once so workers reading those leaves cannot race on plain RCs.
++/// Each served block is scanned at most once per arena lifetime.
++pub(crate) unsafe fn mark_mt_all_active() {
++    if ENTERED.load(Relaxed) == 0 || !crate::rc::reclaiming() {
++        return;
++    }
++    let mut ptr = current();
++    while !ptr.is_null() {
++        let arena = unsafe { &mut *ptr };
++        let len = arena.served.len();
++        if arena.marked_up_to < len {
++            let start = arena.marked_up_to;
++            arena.marked_up_to = len;
++            for i in start..len {
++                let served = arena.served[i];
++                let h = unsafe { crate::block::read_header(served) };
++                let scan = unsafe { crate::block::Scan::of(served, h) };
++                let mut at = scan.words();
++                while let Some((slot, _)) = scan.counted_below(at) {
++                    at = slot;
++                    let w = unsafe { served.cast::<i64>().add(slot).read() };
++                    unsafe { crate::rc::cinch_mark_mt(w) };
++                }
++            }
++        }
++        ptr = arena.prev;
++    }
++}
++
+ /// The 8-aligned data area of `chunk`.
+ #[inline]
+ unsafe fn data(chunk: *mut Chunk) -> *mut u8 {
+@@ -321,6 +375,7 @@ pub unsafe fn new(bytes: usize) -> *mut Arena {
+             blocks: 0,
+             bytes: 0,
+             served: Vec::new(),
++            marked_up_to: 0,
+         });
+         grow(&mut *arena, target);
+     }
+@@ -387,6 +442,21 @@ pub unsafe extern "C" fn cinch_arena_new(bytes: i64) -> i64 {
+     unsafe { new(bytes as usize) as usize as i64 }
+ }
+ 
++/// Always enter a fresh phase arena (regardless of `CINCH_ARENA`), returning
++/// its handle. Used by compiler batch phases whose only escaping value is a
++/// scalar exit code or heap `Bytes`, giving parallel workers `RC_IMMORTAL`
++/// zero-contention reads over shared AST/type/IR tables.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_arena_enter_phase(bytes: i64) -> i64 {
++    if bytes < 0 {
++        crate::abi::panic_exit(b"compiler bug: cinch_arena_enter_phase called with a negative size");
++    }
++    if !phase_enabled() {
++        return 0;
++    }
++    unsafe { new(bytes as usize) as usize as i64 }
++}
++
+ /// Leave and free the arena `handle` names, restoring the arena entered
+ /// before it, and return 0. The null handle (a disabled arena) is a
+ /// no-op. Leaving an arena that is not the current one is a compiler bug:
+@@ -404,6 +474,12 @@ pub unsafe extern "C" fn cinch_arena_leave(handle: i64) -> i64 {
+     0
+ }
+ 
++/// Leave a phase arena entered with [`cinch_arena_enter_phase`].
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_arena_exit_phase(handle: i64) -> i64 {
++    unsafe { cinch_arena_leave(handle) }
++}
++
+ /// The header a served block gets: its own kind and layout, and
+ /// [`RC_IMMORTAL`] as its count ([`crate::block::allocate_block`] writes
+ /// it into the grant).
+diff --git a/seed/runtime/src/atomic.rs b/seed/runtime/src/atomic.rs
+new file mode 100644
+index 0000000..a885a06
+--- /dev/null
++++ b/seed/runtime/src/atomic.rs
+@@ -0,0 +1,220 @@
++//! Native lock-free 64-bit hardware atomic cells (`AtomicI64`, `AtomicU64`,
++//! `AtomicBool` in `Effect.Concurrent.Atomic`).
++//!
++//! Each cell is a reference-counted runtime box (`KIND_ATOMIC`) holding a
++//! single cache-friendly `AtomicI64` payload word. Because the payload is a
++//! raw machine word with no counted children, the generic RC mark and drop
++//! walks scan zero slots; freeing the box when its last handle drops needs
++//! no Rust destructor beyond reclaiming the block.
++//!
++//! Memory order codes (ABI):
++//!   0 = Relaxed
++//!   1 = Acquire
++//!   2 = Release
++//!   3 = AcqRel
++//!   4 = SeqCst
++
++use std::sync::atomic::{fence, AtomicI64, Ordering};
++
++use crate::{abi, block};
++
++pub(crate) struct AtomicCell {
++    value: AtomicI64,
++}
++
++#[inline]
++fn load_ordering(order: i64) -> Ordering {
++    match order {
++        0 => Ordering::Relaxed,
++        1 => Ordering::Acquire,
++        4 => Ordering::SeqCst,
++        _ => abi::panic_exit(b"compiler bug: invalid atomic load ordering"),
++    }
++}
++
++#[inline]
++fn store_ordering(order: i64) -> Ordering {
++    match order {
++        0 => Ordering::Relaxed,
++        2 => Ordering::Release,
++        4 => Ordering::SeqCst,
++        _ => abi::panic_exit(b"compiler bug: invalid atomic store ordering"),
++    }
++}
++
++#[inline]
++fn rmw_ordering(order: i64) -> Ordering {
++    match order {
++        0 => Ordering::Relaxed,
++        1 => Ordering::Acquire,
++        2 => Ordering::Release,
++        3 => Ordering::AcqRel,
++        4 => Ordering::SeqCst,
++        _ => abi::panic_exit(b"compiler bug: invalid atomic RMW ordering"),
++    }
++}
++
++#[inline]
++fn fence_ordering(order: i64) -> Ordering {
++    match order {
++        1 => Ordering::Acquire,
++        2 => Ordering::Release,
++        3 => Ordering::AcqRel,
++        4 => Ordering::SeqCst,
++        _ => abi::panic_exit(b"compiler bug: invalid atomic fence ordering"),
++    }
++}
++
++#[inline]
++unsafe fn cell<'a>(word: i64) -> &'a AtomicCell {
++    if word == 0
++        || word & 7 != 0
++        || block::kind(unsafe { block::read_header(word as usize as *const u8) })
++            != block::KIND_ATOMIC
++    {
++        abi::panic_exit(b"compiler bug: corrupt Atomic cell");
++    }
++    unsafe { &*(word as usize as *const AtomicCell) }
++}
++
++/// Allocate a fresh atomic 64-bit word initialized to `initial`.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_new(initial: i64) -> i64 {
++    block::allocate_value(
++        block::KIND_ATOMIC,
++        block::RC_FRESH,
++        AtomicCell {
++            value: AtomicI64::new(initial),
++        },
++    ) as usize as i64
++}
++
++/// Load the 64-bit value with ordering `order`.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_load(word: i64, order: i64) -> i64 {
++    unsafe { cell(word) }.value.load(load_ordering(order))
++}
++
++/// Store `value` with ordering `order`. Returns 0 (`Unit`).
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_store(word: i64, value: i64, order: i64) -> i64 {
++    unsafe { cell(word) }.value.store(value, store_ordering(order));
++    0
++}
++
++/// Atomically replace the stored word with `value`, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_swap(word: i64, value: i64, order: i64) -> i64 {
++    unsafe { cell(word) }.value.swap(value, rmw_ordering(order))
++}
++
++/// Wrapping atomic fetch-add, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fetch_add(word: i64, delta: i64, order: i64) -> i64 {
++    unsafe { cell(word) }
++        .value
++        .fetch_add(delta, rmw_ordering(order))
++}
++
++/// Wrapping atomic fetch-sub, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fetch_sub(word: i64, delta: i64, order: i64) -> i64 {
++    unsafe { cell(word) }
++        .value
++        .fetch_sub(delta, rmw_ordering(order))
++}
++
++/// Bitwise atomic fetch-and, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fetch_and(word: i64, mask: i64, order: i64) -> i64 {
++    unsafe { cell(word) }
++        .value
++        .fetch_and(mask, rmw_ordering(order))
++}
++
++/// Bitwise atomic fetch-or, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fetch_or(word: i64, mask: i64, order: i64) -> i64 {
++    unsafe { cell(word) }
++        .value
++        .fetch_or(mask, rmw_ordering(order))
++}
++
++/// Bitwise atomic fetch-xor, returning the previous word.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fetch_xor(word: i64, mask: i64, order: i64) -> i64 {
++    unsafe { cell(word) }
++        .value
++        .fetch_xor(mask, rmw_ordering(order))
++}
++
++/// Strong compare-and-exchange. Returns 1 if the cell equaled `expected` and
++/// was replaced with `desired`, or 0 otherwise.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_cas(
++    word: i64,
++    expected: i64,
++    desired: i64,
++    success_order: i64,
++    failure_order: i64,
++) -> i64 {
++    let ok = rmw_ordering(success_order);
++    let fail = load_ordering(failure_order);
++    match unsafe { cell(word) }
++        .value
++        .compare_exchange(expected, desired, ok, fail)
++    {
++        Ok(_) => 1,
++        Err(_) => 0,
++    }
++}
++
++/// Issue a hardware/compiler atomic memory fence. Returns 0 (`Unit`).
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_atomic_fence(order: i64) -> i64 {
++    fence(fence_ordering(order));
++    0
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::rc;
++
++    #[test]
++    fn atomic_ops_and_multithreaded_fetch_add() {
++        unsafe {
++            let c = cinch_atomic_new(10);
++            assert_eq!(cinch_atomic_load(c, 4), 10);
++            assert_eq!(cinch_atomic_fetch_add(c, 5, 4), 10);
++            assert_eq!(cinch_atomic_load(c, 4), 15);
++            assert_eq!(cinch_atomic_cas(c, 15, 42, 4, 4), 1);
++            assert_eq!(cinch_atomic_cas(c, 15, 99, 4, 4), 0);
++            assert_eq!(cinch_atomic_load(c, 4), 42);
++            assert_eq!(cinch_atomic_swap(c, 0, 4), 42);
++            assert_eq!(cinch_atomic_fetch_or(c, 0b1010, 4), 0);
++            assert_eq!(cinch_atomic_fetch_and(c, 0b1100, 4), 0b1010);
++            assert_eq!(cinch_atomic_fetch_xor(c, 0b1111, 4), 0b1000);
++            assert_eq!(cinch_atomic_load(c, 4), 0b0111);
++            cinch_atomic_store(c, 0, 4);
++            cinch_atomic_fence(4);
++
++            rc::cinch_mark_mt(c);
++            let mut handles = Vec::new();
++            for _ in 0..4 {
++                rc::cinch_dup(c);
++                handles.push(std::thread::spawn(move || {
++                    for _ in 0..5000 {
++                        cinch_atomic_fetch_add(c, 1, 0);
++                    }
++                    rc::cinch_drop(c);
++                }));
++            }
++            for h in handles {
++                h.join().unwrap();
++            }
++            assert_eq!(cinch_atomic_load(c, 4), 20_000);
++            rc::cinch_drop(c);
++        }
++    }
++}
+diff --git a/seed/runtime/src/block_kinds.rs b/seed/runtime/src/block_kinds.rs
+index 2b8a466..ef2a091 100644
+--- a/seed/runtime/src/block_kinds.rs
++++ b/seed/runtime/src/block_kinds.rs
+@@ -107,8 +107,12 @@ pub const KIND_BYTES_MAPPED: u8 = 19;
+ pub const KIND_BYTES_VIEW: u8 = 20;
+ /// The owner follows the length and data pointer of the byte span.
+ pub const BYTES_VIEW_OWNER_WORD: u64 = 2;
++/// Native lock-free 64-bit hardware atomic word cell.
++pub const KIND_ATOMIC: u8 = 21;
++/// Native reader-writer lock box: Rust-owned RwLock guarding a single Cinch word.
++pub const KIND_RWLOCK: u8 = 22;
  /// Last live kind; keep range validation in step with new runtime kinds.
--pub const KIND_LAST: u8 = KIND_TVAR;
-+pub const KIND_LAST: u8 = KIND_BYTES_VIEW;
+-pub const KIND_LAST: u8 = KIND_BYTES_VIEW;
++pub const KIND_LAST: u8 = KIND_RWLOCK;
  /// A freed block (debug poisoning): the largest value the field holds.
  pub const KIND_FREED: u8 = 31;
  
---- a/compiler/runtime/src/bytes.rs
-+++ b/compiler/runtime/src/bytes.rs
-@@ -7,9 +7,8 @@
- //! constant backing) is the same block shape generated code can emit
- //! directly. The region is owned (heap buffers are allocated here and
- //! released only when `cinch_free` frees their block, [`Bytes::release`])
--//! or read-only constant data
--//! (the `KIND_BYTES_STATIC` block kind: mutation attempts fault instead
--//! of writing). Indexing is bounds-checked; out-of-range indices,
-+//! or read-only data (a static constant or a private file mapping).
-+//! Mutation attempts against either read-only kind fault. Indexing is bounds-checked; out-of-range indices,
- //! negative lengths, and byte values outside `0..=255` are
- //! [`Error::OutOfBounds`], never undefined behaviour. For generated
- //! code every one of these checks is a compiler-bug trap: a `Bytes`
-@@ -32,6 +31,28 @@
-     data: *mut u8,
+diff --git a/seed/runtime/src/heap.rs b/seed/runtime/src/heap.rs
+index af1d13e..457e7b8 100644
+--- a/seed/runtime/src/heap.rs
++++ b/seed/runtime/src/heap.rs
+@@ -618,6 +618,13 @@ extern "C" fn print_stats() {
+     line.num(freed);
+     line.push(b" live=");
+     line.num(hblocks.saturating_sub(freed));
++    let (arena_blocks, arena_bytes, _, _) = crate::arena::stats();
++    if arena_blocks > 0 {
++        line.push(b" arena-blocks=");
++        line.num(arena_blocks);
++        line.push(b" arena-bytes=");
++        line.num(arena_bytes);
++    }
+     line.push(b"\n");
+     line.flush();
+ }
+diff --git a/seed/runtime/src/lib.rs b/seed/runtime/src/lib.rs
+index 8199b60..eec0aa9 100644
+--- a/seed/runtime/src/lib.rs
++++ b/seed/runtime/src/lib.rs
+@@ -611,6 +611,8 @@ pub mod string;
+ pub mod stack;
+ pub mod stm;
+ pub mod mvar;
++pub mod atomic;
++pub mod rwlock;
+ pub mod sym;
+ pub mod sys;
+ pub mod task;
+diff --git a/seed/runtime/src/par.rs b/seed/runtime/src/par.rs
+index ad4b7c2..515e4a2 100644
+--- a/seed/runtime/src/par.rs
++++ b/seed/runtime/src/par.rs
+@@ -855,6 +855,66 @@ unsafe fn exec_both(job: *const JobHeader, _me: &'static Participant) {
+     }
  }
  
-+/// Shares the byte payload layout so read-only operations work on a span.
-+#[repr(C)]
-+pub(crate) struct ByteView {
-+    bytes: Bytes,
-+    owner: i64,
++/// Maximum payload words (3-word closure prefix + up to 21 captures) held in a
++/// stack-local immortal shadow closure per worker range.
++const LOCAL_CLOSURE_MAX_WORDS: usize = 24;
++
++/// A worker-local `RC_IMMORTAL` shallow copy of a `parMap`/`parTabulate`
++/// closure block. Passing this to `apply_closure` eliminates both `cinch_dup`
++/// and `cinch_drop` atomic RMWs on the shared closure header on every element
++/// invocation while preserving exact capture duplication semantics.
++#[repr(C, align(16))]
++struct LocalClosure {
++    buf: [u64; 2 + LOCAL_CLOSURE_MAX_WORDS],
++    active: bool,
 +}
 +
-+impl ByteView {
-+    /// Construct a span into a stable buffer with a counted owner.
-+    ///
-+    /// # Safety
-+    ///
-+    /// `span` is immutable and remains valid while `owner` is live.
-+    pub(crate) unsafe fn new(span: &[u8], owner: i64) -> Self {
-+        unsafe { crate::rc::cinch_dup(owner) };
-+        Self {
-+            bytes: Bytes { len: span.len() as i64, data: span.as_ptr().cast_mut() },
-+            owner,
++impl LocalClosure {
++    unsafe fn from_closure(f: i64) -> Self {
++        let mut out = Self {
++            buf: [0; 2 + LOCAL_CLOSURE_MAX_WORDS],
++            active: false,
++        };
++        if f == 0 || (f & 7) != 0 {
++            return out;
++        }
++        let p = f as usize as *const u8;
++        let h = unsafe { crate::block::read_header(p) };
++        if crate::block::kind(h) != crate::block::KIND_CLOSURE {
++            return out;
++        }
++        // An already-immortal closure needs no shadow copy.
++        if crate::block::rc(h) == crate::block::RC_IMMORTAL {
++            return out;
++        }
++        let nfilled = unsafe { (p as *const u64).add(2).read() } as usize;
++        let words = (crate::block::CLOSURE_PREFIX_WORDS as usize).saturating_add(nfilled);
++        if words > LOCAL_CLOSURE_MAX_WORDS {
++            return out;
++        }
++        let layout = crate::block::layout(h);
++        if crate::block::shape_escaped(layout) {
++            out.buf[0] = unsafe { (p as *const u64).sub(2).read() };
++        }
++        out.buf[1] = crate::block::header(crate::block::RC_IMMORTAL, crate::block::KIND_CLOSURE, layout);
++        unsafe {
++            std::ptr::copy_nonoverlapping(p as *const u64, out.buf.as_mut_ptr().add(2), words);
++        }
++        out.active = true;
++        out
++    }
++
++    #[inline]
++    unsafe fn invoke(&self, fallback: i64, arg: i64) -> i64 {
++        if self.active {
++            let local_word = unsafe { self.buf.as_ptr().add(2) } as usize as i64;
++            unsafe { apply_closure(local_word, arg) }
++        } else {
++            unsafe { call(fallback, arg) }
 +        }
 +    }
 +}
 +
- impl Bytes {
-     /// A zeroed buffer of `len` bytes; `len` must be non-negative.
-     pub fn new(len: i64) -> Result<Bytes> {
-@@ -64,8 +85,7 @@
-     /// Write `value` (0..=255) at `index`.
-     ///
-     /// The caller (`abi::as_bytes_mut`) hands out a mutable borrow only
--    /// for heap buffers; a read-only constant buffer (a string
--    /// literal's backing) faults before reaching here.
-+    /// for heap buffers. Read-only buffers fault before reaching here.
-     pub fn set(&mut self, index: i64, value: i64) -> Result<()> {
-         let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
-         let v = u8::try_from(value).map_err(|_| Error::OutOfBounds)?;
-@@ -74,6 +94,31 @@
-         }
-         unsafe { *self.data.add(i) = v };
-         Ok(())
-+    }
-+
-+    /// Adopt a read-only mapping for a `KIND_BYTES_MAPPED` block.
-+    ///
-+    /// # Safety
-+    ///
-+    /// The mapping starts at `data` and spans `len` bytes. Its file stays
-+    /// immutable while the mapping is owned, with replacements published
-+    /// by renaming a new file.
-+    #[cfg(not(target_os = "unknown"))]
-+    pub(crate) unsafe fn from_mapping(data: i64, len: i64) -> Self {
-+        Bytes { len, data: data as usize as *mut u8 }
-+    }
-+
-+    /// Release the mapping after the last reference to the block is gone.
-+    ///
-+    /// # Safety
-+    ///
-+    /// This block owns the mapping and its payload is never read again.
-+    pub(crate) unsafe fn unmap(&mut self) {
-+        let (result, _) = crate::sys::munmap(self.data as usize as i64, self.len as usize);
-+        if result != 0 {
-+            crate::abi::panic_exit(b"compiler bug: cannot release mapped bytes");
-+        }
-+        self.len = 0;
+ /// One `parTabulate` or `parMap` call: the closure, the input array (0
+ /// for `parTabulate`) and its format, and the result array.
+ struct RangeCtx {
+@@ -890,13 +950,31 @@ impl RangeCtx {
+         unsafe { arrays::write(self.out, i as i64, r) };
      }
  
-     /// Borrow the contents.
---- a/compiler/runtime/src/sys/darwin.rs
-+++ b/compiler/runtime/src/sys/darwin.rs
-@@ -198,6 +198,14 @@
-     pair(p as i64)
- }
- 
-+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
-+    let Ok(fd) = i32::try_from(fd) else {
-+        return (-1, super::EINVAL);
++    /// Invocation `i` using a worker-local immortal closure shadow when
++    /// available, avoiding atomic RC traffic on `self.f`'s header.
++    unsafe fn invoke_with(&self, local: &LocalClosure, i: usize) {
++        let arg = if self.input == 0 {
++            crate::abi::cinch_nat_from_i64(i as i64)
++        } else {
++            let x = unsafe { arrays::read(self.input, i as i64) };
++            if rc::reclaiming() && arrays::counted(self.input_format) {
++                unsafe { rc::cinch_dup(x) };
++            }
++            x
++        };
++        let r = unsafe { local.invoke(self.f, arg) };
++        unsafe { arrays::write(self.out, i as i64, r) };
++    }
++
+     /// Promote what a stolen range job reaches, the closure and the input
+-    /// array, before the first split is published.
++    /// array (plus any unmarked heap leaves of active parent arenas), before
++    /// the first split is published.
+     fn mark(&self) {
+         if rc::reclaiming() && !self.marked.load(Relaxed) {
+             unsafe {
+                 rc::cinch_mark_mt(self.f);
+                 rc::mark_mt_array(self.input);
++                crate::arena::mark_mt_all_active();
+             }
+             self.marked.store(true, Relaxed);
+         }
+@@ -932,10 +1010,20 @@ unsafe fn run_range(me: &'static Participant, ctx: &RangeCtx, lo: usize, hi: usi
+     let mut splits: [MaybeUninit<RangeJob>; MAX_SPLITS] = [const { MaybeUninit::uninit() }; MAX_SPLITS];
+     let mut made = 0;
+     let (mut i, mut end) = (lo, hi);
++    // Build the stack-local immortal closure shadow once per range so repeated
++    // invocations never write to `ctx.f`'s header cache line.
++    let mut local = if rc::reclaiming() {
++        unsafe { LocalClosure::from_closure(ctx.f) }
++    } else {
++        LocalClosure { buf: [0; 2 + LOCAL_CLOSURE_MAX_WORDS], active: false }
 +    };
-+    let p = unsafe { c::mmap(null_mut(), size, PROT_READ, MAP_PRIVATE, fd, 0) };
-+    pair(p as i64)
+     while i < end {
+         if end - i >= 2 && made < MAX_SPLITS && me.deque.is_empty() && wants_work() && me.deque.has_room() {
+             let mid = i + (end - i) / 2;
+             ctx.mark();
++            // If `ctx.mark()` promoted captures, refresh the local shadow so
++            // any saved fields stay aligned (headers live on the targets, not
++            // in `saved[]`, so words are identical, and `mark()` already ran).
+             let job = splits[made].write(RangeJob {
+                 header: JobHeader::new(exec_range, me),
+                 ctx,
+@@ -947,9 +1035,10 @@ unsafe fn run_range(me: &'static Participant, ctx: &RangeCtx, lo: usize, hi: usi
+             end = mid;
+             continue;
+         }
+-        unsafe { ctx.invoke(i) };
++        unsafe { ctx.invoke_with(&local, i) };
+         i += 1;
+     }
++    let _ = &mut local;
+     // Join in reverse: the last split is the deque's bottom job.
+     while made > 0 {
+         made -= 1;
+@@ -1037,7 +1126,10 @@ pub unsafe extern "C" fn cinch_par_both(f: i64, g: i64, out: i64) -> i64 {
+     if let Some(me) = parallel_participant() {
+         if wants_work() && me.deque.has_room() {
+             if rc::reclaiming() {
+-                unsafe { rc::cinch_mark_mt(g) };
++                unsafe {
++                    rc::cinch_mark_mt(g);
++                    crate::arena::mark_mt_all_active();
++                }
+             }
+             let job = BothJob { header: JobHeader::new(exec_both, me), closure: g, result: UnsafeCell::new(0) };
+             publish(me, &job.header);
+diff --git a/seed/runtime/src/rwlock.rs b/seed/runtime/src/rwlock.rs
+new file mode 100644
+index 0000000..9850b87
+--- /dev/null
++++ b/seed/runtime/src/rwlock.rs
+@@ -0,0 +1,221 @@
++//! Native reader-writer lock boxes (`RwLockCell a` in `Effect.Concurrent.RwLock`).
++//!
++//! Multiple concurrent readers read the stored value without serializing behind
++//! a single mutex; writers take exclusive ownership to replace the stored word.
++//!
++//! Ownership discipline matches [`crate::mvar`]:
++//! * Every value stored into an `RwLock` is marked shared (`cinch_mark_mt`)
++//!   *before* acquiring the lock, preventing deadlocks if the incoming graph
++//!   reaches this lock and guaranteeing every reader's `cinch_dup` is atomic.
++//! * Reads duplicate the stored word under the shared read lock and return an
++//!   owned reference.
++//! * Writes/swaps replace the stored word under the exclusive write lock and
++//!   drop (or return) the previous value *after* releasing the write lock.
++//! * Dropping the last reference to the `RwLock` box runs `Drop for RwLockBox`
++//!   via `abi::drop_box_payload`, releasing the stored value cleanly.
++
++use std::sync::RwLock;
++
++use crate::{abi, block, rc};
++
++// ABI operation codes shared with compiler intrinsics.
++const OP_READ: i64 = 0;
++const OP_WRITE: i64 = 1;
++const OP_SWAP: i64 = 2;
++const OP_TRY_READ: i64 = 3;
++const OP_TRY_WRITE: i64 = 4;
++
++struct Value {
++    word: i64,
++    format: i64,
 +}
 +
- pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
-     let p = unsafe { c::mmap(null_mut(), size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0) };
-     pair(p as i64)
---- a/compiler/runtime/src/sys/linux.rs
-+++ b/compiler/runtime/src/sys/linux.rs
-@@ -324,6 +324,13 @@
-     split(raw)
- }
++impl Value {
++    unsafe fn owned(word: i64, format: i64) -> Self {
++        if format != block::SCAN_RAW as i64 && rc::reclaiming() {
++            unsafe { rc::cinch_mark_mt(word) };
++        }
++        Self { word, format }
++    }
++
++    fn duplicate(&self) -> Self {
++        if self.format != block::SCAN_RAW as i64 && rc::reclaiming() {
++            unsafe { rc::cinch_dup(self.word) };
++        }
++        Self {
++            word: self.word,
++            format: self.format,
++        }
++    }
++
++    fn into_word(self) -> i64 {
++        let word = self.word;
++        std::mem::forget(self);
++        word
++    }
++}
++
++impl Drop for Value {
++    fn drop(&mut self) {
++        if self.format != block::SCAN_RAW as i64 && rc::reclaiming() {
++            unsafe { rc::cinch_drop(self.word) };
++        }
++    }
++}
++
++pub(crate) struct RwLockBox {
++    format: i64,
++    lock: RwLock<Value>,
++}
++
++#[inline]
++unsafe fn cell<'a>(word: i64) -> &'a RwLockBox {
++    if word == 0
++        || word & 7 != 0
++        || block::kind(unsafe { block::read_header(word as usize as *const u8) })
++            != block::KIND_RWLOCK
++    {
++        abi::panic_exit(b"compiler bug: corrupt RwLock box");
++    }
++    unsafe { &*(word as usize as *const RwLockBox) }
++}
++
++/// Allocate a new `RwLock` initialized with owned `value` of scan code `format`.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_rwlock_new(value: i64, format: i64) -> i64 {
++    if !(block::SCAN_RAW as i64..=block::SCAN_TOBJ as i64).contains(&format) {
++        abi::panic_exit(b"compiler bug: invalid RwLock value format");
++    }
++    let val = unsafe { Value::owned(value, format) };
++    block::allocate_value(
++        block::KIND_RWLOCK,
++        block::RC_FRESH,
++        RwLockBox {
++            format,
++            lock: RwLock::new(val),
++        },
++    ) as usize as i64
++}
++
++/// Access a borrowed `RwLock` box.
++/// * `OP_READ` (0): writes duplicated owned word to `*out`, returns 1.
++/// * `OP_WRITE` (1): consumes `value`, replaces stored value, drops old value
++///   outside the lock, writes 0 to `*out`, returns 1.
++/// * `OP_SWAP` (2): consumes `value`, replaces stored value, writes old owned
++///   word to `*out`, returns 1.
++/// * `OP_TRY_READ` (3): non-blocking read; returns 1 and writes `*out` on
++///   success, or 0 without writing `*out` if write-locked.
++/// * `OP_TRY_WRITE` (4): consumes `value` on every outcome; returns 1 on
++///   success, or 0 (dropping `value`) if contended.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_rwlock_access(
++    word: i64,
++    value: i64,
++    op: i64,
++    out: *mut i64,
++) -> i64 {
++    let bx = unsafe { cell(word) };
++    match op {
++        OP_READ => {
++            let guard = bx.lock.read().unwrap_or_else(|e| e.into_inner());
++            let dup = guard.duplicate();
++            drop(guard);
++            unsafe { out.write(dup.into_word()) };
++            1
++        }
++        OP_TRY_READ => match bx.lock.try_read() {
++            Ok(guard) => {
++                let dup = guard.duplicate();
++                drop(guard);
++                unsafe { out.write(dup.into_word()) };
++                1
++            }
++            Err(_) => 0,
++        },
++        OP_WRITE => {
++            let incoming = unsafe { Value::owned(value, bx.format) };
++            let old = {
++                let mut guard = bx.lock.write().unwrap_or_else(|e| e.into_inner());
++                std::mem::replace(&mut *guard, incoming)
++            };
++            drop(old);
++            unsafe { out.write(0) };
++            1
++        }
++        OP_SWAP => {
++            let incoming = unsafe { Value::owned(value, bx.format) };
++            let old = {
++                let mut guard = bx.lock.write().unwrap_or_else(|e| e.into_inner());
++                std::mem::replace(&mut *guard, incoming)
++            };
++            unsafe { out.write(old.into_word()) };
++            1
++        }
++        OP_TRY_WRITE => {
++            let incoming = unsafe { Value::owned(value, bx.format) };
++            match bx.lock.try_write() {
++                Ok(mut guard) => {
++                    let old = std::mem::replace(&mut *guard, incoming);
++                    drop(guard);
++                    drop(old);
++                    1
++                }
++                Err(_) => {
++                    drop(incoming);
++                    0
++                }
++            }
++        }
++        _ => abi::panic_exit(b"compiler bug: invalid RwLock operation"),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn rwlock_concurrent_readers_and_writers_preserve_rc() {
++        rc::cinch_reclaim_enable();
++        unsafe {
++            let initial = crate::abi::cinch_bytes_new(16);
++            let rw = cinch_rwlock_new(initial, block::SCAN_OBJ as i64);
++            rc::cinch_mark_mt(rw);
++
++            let mut readers = Vec::new();
++            for _ in 0..4 {
++                rc::cinch_dup(rw);
++                readers.push(std::thread::spawn(move || {
++                    for _ in 0..500 {
++                        let mut out = 0i64;
++                        assert_eq!(cinch_rwlock_access(rw, 0, OP_READ, &mut out), 1);
++                        assert_ne!(out, 0);
++                        rc::cinch_drop(out);
++                    }
++                    rc::cinch_drop(rw);
++                }));
++            }
++
++            for i in 1..=20 {
++                let next = crate::abi::cinch_bytes_new(16 + i);
++                let mut out = 0i64;
++                assert_eq!(cinch_rwlock_access(rw, next, OP_SWAP, &mut out), 1);
++                assert_ne!(out, 0);
++                rc::cinch_drop(out);
++            }
++
++            for h in readers {
++                h.join().unwrap();
++            }
++
++            let mut out = 0i64;
++            assert_eq!(cinch_rwlock_access(rw, 0, OP_TRY_READ, &mut out), 1);
++            assert_eq!(crate::abi::cinch_bytes_len(out), 36);
++            rc::cinch_drop(out);
++
++            let final_buf = crate::abi::cinch_bytes_new(8);
++            assert_eq!(cinch_rwlock_access(rw, final_buf, OP_TRY_WRITE, &mut out), 1);
++            rc::cinch_drop(rw);
++        }
++    }
++}
+diff --git a/seed/runtime/src/task.rs b/seed/runtime/src/task.rs
+index 5077d9f..d46b3f2 100644
+--- a/seed/runtime/src/task.rs
++++ b/seed/runtime/src/task.rs
+@@ -217,7 +217,10 @@ impl Scope {
+         // at once: make it atomic while only this context can reach it.
+         // Queueing the task below publishes the marks to the body.
+         if crate::rc::reclaiming() {
+-            unsafe { crate::rc::cinch_mark_mt(closure) };
++            unsafe {
++                crate::rc::cinch_mark_mt(closure);
++                crate::arena::mark_mt_all_active();
++            }
+         }
+         let state = Arc::new(TaskState::new());
+         let handle = Arc::into_raw(state.clone()) as i64;
+diff --git a/seed/src/check.rs b/seed/src/check.rs
+index 0ec0e4d..83805d6 100644
+--- a/seed/src/check.rs
++++ b/seed/src/check.rs
+@@ -5540,9 +5540,9 @@ impl Checker {
+             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
+                 || self.value_may_hide_scope(cod, seen, fuel - 1),
+             Ty::Adt(name, args) => {
+-                if is_capability_class(name) || name == "Scope" || name == "Copy" { return false; }
++                if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" { return false; }
+                 if name == "Task" { return true; }
+-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
++                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
+                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
+                 }
+                 seen.push(ty.clone());
+@@ -5601,10 +5601,10 @@ impl Checker {
+             },
+             Ty::Mut(_, _) | Ty::Lazy { .. } => false,
+             Ty::Bytes | Ty::Meta(_) | Ty::Thunk { .. } => transferring,
+-            // `Sym` is a handle to runtime-owned interned state; the
+-            // specification grants it `Eq`/`Ord`/`Show` only (primitive
+-            // types specification section 9), never `Copy`.
+-            Ty::Sym => transferring,
++            // `Sym` is an immortal, immutable handle to runtime-owned interned
++            // state: it is `Share` (design/parallel-evaluation.md section 2.4)
++            // while still never `Copy` (primitive types specification section 9).
++            Ty::Sym => usage != StructuralUsage::Copy,
+             // An owned boundary pointer transfers ownership exactly once
+             // (foreign function interface specification section 3), so it
+             // is not duplicable; raw and borrow roles are plain addresses
+@@ -5659,7 +5659,7 @@ impl Checker {
+                 // is reached from both sides whether the handle is shared
+                 // or moved (another copy of it may stay behind), so both
+                 // need the value's type to be safe to share.
+-                if matches!(name.as_str(), "TVar" | "MVarCell") {
++                if matches!(name.as_str(), "TVar" | "MVarCell" | "RwLockCell" | "AtomicCell") {
+                     return usage == StructuralUsage::Copy
+                         || args.iter().all(|a| self.structural_usage(a, scope, &mut Vec::new(), StructuralUsage::Share));
+                 }
+@@ -5671,6 +5671,16 @@ impl Checker {
+                     Ok(i) => i,
+                     Err(_) => return transferring,
+                 };
++                // `Data.String.String` wraps a module-private immutable `Bytes`
++                // buffer (`StrBuf :: Bytes -> String`): no operation mutates it,
++                // so it is `Share` (design/parallel-evaluation.md section 2.4).
++                // Other private `Bytes` wrappers remain transfer-only.
++                if usage == StructuralUsage::Share
++                    && info.module == "Data.String"
++                    && info.name == "String"
++                {
++                    return true;
++                }
+                 // A codata value is a record of observation closures: the
+                 // closures themselves are never `Copy`.
+                 if self.codata_types.contains(&(info.module.clone(), info.name.clone())) {
+diff --git a/seed/src/check_decls.rs b/seed/src/check_decls.rs
+index 8b6647c..ddc7b24 100644
+--- a/seed/src/check_decls.rs
++++ b/seed/src/check_decls.rs
+@@ -11,6 +11,17 @@ fn prim_scheme(op: PrimOp) -> Scheme {
+         let mut labels = vec![EffLabel::plain("MVar")];
+         if op.blocking() { labels.push(EffLabel::plain("Diverge")); }
+         Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
++    } else if let PrimOp::RwLock { op, .. } = op {
++        let mut args = args;
++        let last = args.pop().expect("RwLock intrinsic argument");
++        let mut labels = vec![EffLabel::plain("MVar")];
++        if op.blocking() { labels.push(EffLabel::plain("Diverge")); }
++        Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
++    } else if matches!(op, PrimOp::Atomic(_)) {
++        let mut args = args;
++        let last = args.pop().expect("Atomic intrinsic argument");
++        let labels = vec![EffLabel::plain("MVar")];
++        Ty::funs(&args, Ty::fun_eff(last, EffRow::closed(labels), res))
+     } else {
+         Ty::funs(&args, res)
+     };
+@@ -19,6 +30,7 @@ fn prim_scheme(op: PrimOp) -> Scheme {
+         PrimOp::Array { op, packed, .. } => scheme.params = op.params(packed),
+         PrimOp::Stm { op, .. } => scheme.params = op.params(),
+         PrimOp::MVar { op, .. } => scheme.params = op.params(),
++        PrimOp::RwLock { op, .. } => scheme.params = op.params(),
+         PrimOp::Slots { op, .. } => scheme.params = op.params(),
+         _ => {}
+     }
+@@ -354,7 +366,7 @@ fn builtin_type_name(name: &str) -> bool {
+     }
+     matches!(
+         name,
+-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "Type" | "Prop" | "True" | "False"
++        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
+             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
+             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
+             | "Scope" | "Task"
+@@ -373,7 +385,7 @@ fn builtin_type_name(name: &str) -> bool {
+ fn reserved_data_type_name(name: &str) -> bool {
+     Scalar::parse(name).is_some() || matches!(name,
+         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
+-            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
++            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+             | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
+             | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
+             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
+@@ -763,7 +775,7 @@ impl Checker {
+     }
  
-+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
-+    let raw = unsafe {
-+        syscall(nr::MMAP, 0, size as i64, i64::from(PROT_READ), i64::from(MAP_PRIVATE), fd, 0)
-+    };
-+    split(raw)
-+}
-+
- pub(crate) fn mmap_reserve(size: usize) -> (i64, i64) {
-     let raw = unsafe {
-         syscall(
---- a/compiler/runtime/src/sys/mod.rs
-+++ b/compiler/runtime/src/sys/mod.rs
-@@ -226,8 +226,13 @@
-     back::mmap_reserve(size)
- }
+     fn install_builtins(&mut self) {
+-        for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
++        for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym", "AtomicCell"] {
+             self.types.entry(n.to_string()).or_default().push(TypeKind {
+                 strict_positive_payload: None,
+                 data_family: false,
+@@ -780,7 +792,7 @@ impl Checker {
+         // a shape, a column layout or a transactional variable's cell.
+         for (name, payload) in [
+             ("Array", Some(StrictPositivePayload::FiniteOwnedArray)),
+-            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None),
++            ("Tensor", None), ("Columnar", None), ("TVar", None), ("MVarCell", None), ("RwLockCell", None),
+         ] {
+             self.types.entry(name.into()).or_default().push(TypeKind {
+                 strict_positive_payload: payload,
+@@ -3152,7 +3164,7 @@ impl Checker {
+                         params: &rec.params,
+                         references,
+                         data_family: false,
+-                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"),
++                        reserved: matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"),
+                         fields: Some(rec.fields.iter().map(|f| f.name.text.clone()).collect()),
+                         field_erased: rec.fields.iter().map(|f| f.erased).collect(),
+                     });
+@@ -3685,13 +3697,13 @@ impl Checker {
+                                 .map_err(|m| Error::at(f.span, crate::diagnostic!("intrinsic {} is declared {}, but {}", f.symbol, s.ty, m)))?;
+                         }
+                         let rendered = render_scheme(&s);
+-                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. }) {
++                        let kind = if matches!(op, PrimOp::Array { .. } | PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. }) {
+                             let (args, result) = op.sig();
+                             let repr_params = args.iter().map(|t| crate::repr::repr_of(t, &expected.params, self, &mut |_| {})).collect();
+                             // A cell read answers the value's own class,
+                             // which the unit's copies resolve per vector;
+                             // every array operation answers a block.
+-                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::Slots { .. })
++                            let repr_result = matches!(op, PrimOp::Stm { .. } | PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. })
+                                 .then(|| crate::repr::repr_of(&result, &expected.params, self, &mut |_| {}));
+                             self.fns.push(FnDef {
+                                 id: fn_id(&module, &f.name.text),
+@@ -4469,7 +4481,7 @@ impl Checker {
+                 }
+                 ast::Decl::Record(rec) => {
+                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+-                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell") {
++                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
+                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
+                     }
+                     // The head is already registered, with its parameter
+@@ -4710,7 +4722,7 @@ impl Checker {
+                         || matches!(
+                             rec.name.text.as_str(),
+                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
+-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell"
++                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
+                                 | "Type" | "Prop"
+                         )
+diff --git a/seed/src/check_interface.rs b/seed/src/check_interface.rs
+index 99c05f4..1019035 100644
+--- a/seed/src/check_interface.rs
++++ b/seed/src/check_interface.rs
+@@ -403,7 +403,7 @@ impl Checker {
+                 else if parts.as_slice() == ["->"] { "(->)".to_string() }
+                 else if parts.as_slice() == ["Io"] { "Io".to_string() }
+                 else if parts.len() == 1 && (Scalar::parse(&name).is_some()
+-                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "Later")) { name }
++                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Later")) { name }
+                 else {
+                     let info = self.lookup_type(&parts).ok()?;
+                     // Scope and Task are owned kernel type constructors,
+@@ -804,7 +804,8 @@ impl Checker {
+                 .collect::<Option<Vec<_>>>()?.join(", "))),
+             // Adt carries the checked defining identity here. Registration reserves this
+             // kernel head; a qualified source nominal never acquires its bare identity.
+-            Ty::Adt(name, arguments) if matches!(name.as_str(), "TVar" | "MVarCell" | crate::known::LIST | crate::known::OPTION) =>
++            Ty::Adt(name, arguments) if name == "AtomicCell" && arguments.is_empty() => Some("AtomicCell".into()),
++            Ty::Adt(name, arguments) if matches!(name.as_str(), "TVar" | "MVarCell" | "RwLockCell" | crate::known::LIST | crate::known::OPTION) =>
+                 match arguments.as_slice() {
+                     [element] => Some(format!("({name} {})", self.interface_usage_field(element, parameters)?)),
+                     _ => None,
+diff --git a/seed/src/codegen.rs b/seed/src/codegen.rs
+index 84439ff..e524cdb 100644
+--- a/seed/src/codegen.rs
++++ b/seed/src/codegen.rs
+@@ -80,6 +80,8 @@ mod arrays_codegen;
+ mod slots_codegen;
+ #[path = "mvar_codegen.rs"]
+ mod mvar_codegen;
++#[path = "sync_codegen.rs"]
++mod sync_codegen;
  
--/// Release a mapping `mmap_anon` made: 0, or `-1` and the error
--/// number.
-+/// Create a private read-only mapping of the first `size` bytes of a file.
-+#[cfg(not(target_os = "unknown"))]
-+pub(crate) fn mmap_file_readonly(fd: i64, size: usize) -> (i64, i64) {
-+    back::mmap_file_readonly(fd, size)
-+}
-+
-+/// Release a mapping: 0, or `-1` and the error number.
- pub(crate) fn munmap(addr: i64, size: usize) -> (i64, i64) {
-     back::munmap(addr, size)
- }
---- a/compiler/src/codegen.rs
-+++ b/compiler/src/codegen.rs
-@@ -528,6 +528,8 @@
-         "declare i64 @cinch_fs_mkdir(i64, i64)",
-         "declare i64 @cinch_fs_remove(i64, i64)",
-         "declare i64 @cinch_fs_temp_dir()",
-+        "declare i64 @cinch_map_package_bytes(i64, i64)",
-+        "declare i64 @cinch_package_text(i64, i64, i64)",
-         "declare i64 @cinch_signal_send(i64, i64)",
-         // The bump arena (`compiler/runtime/src/arena.rs`): a scope enters
-         // one, allocates its constructor cells from it uncounted, and
-@@ -5685,9 +5687,15 @@
+ use crate::core::{
+     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
+@@ -555,6 +557,19 @@ fn emit_module(
+         "declare i64 @cinch_stm_yield(i64)",
+         "declare i64 @cinch_mvar_new(i64, i64, i64)",
+         "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
++        "declare i64 @cinch_atomic_new(i64)",
++        "declare i64 @cinch_atomic_load(i64, i64)",
++        "declare i64 @cinch_atomic_store(i64, i64, i64)",
++        "declare i64 @cinch_atomic_swap(i64, i64, i64)",
++        "declare i64 @cinch_atomic_fetch_add(i64, i64, i64)",
++        "declare i64 @cinch_atomic_fetch_sub(i64, i64, i64)",
++        "declare i64 @cinch_atomic_fetch_and(i64, i64, i64)",
++        "declare i64 @cinch_atomic_fetch_or(i64, i64, i64)",
++        "declare i64 @cinch_atomic_fetch_xor(i64, i64, i64)",
++        "declare i64 @cinch_atomic_cas(i64, i64, i64, i64, i64)",
++        "declare i64 @cinch_atomic_fence(i64)",
++        "declare i64 @cinch_rwlock_new(i64, i64)",
++        "declare i64 @cinch_rwlock_access(i64, i64, i64, ptr)",
+         crate::slots::DECLARES[0],
+         crate::slots::DECLARES[1],
+         crate::slots::DECLARES[2],
+@@ -624,6 +639,8 @@ fn emit_module(
+         // leaves it, which frees the chunks wholesale.
+         "declare i64 @cinch_arena_new(i64)",
+         "declare i64 @cinch_arena_leave(i64)",
++        "declare i64 @cinch_arena_enter_phase(i64)",
++        "declare i64 @cinch_arena_exit_phase(i64)",
+         // The networking family (`seed/runtime/src/net.rs`): TCP
+         // sockets by handle and platform name resolution.
+         "declare i64 @cinch_net_tcp_connect(i64, i64)",
+@@ -2359,6 +2376,7 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
+         PrimOp::Array { op, classes, packed } => Some(subst(op.params(packed), &op.sig(packed).1, &classes)),
+         PrimOp::Stm { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
++        PrimOp::RwLock { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+         _ => prim_sig(op).map(|(_, result)| sig_class(&result)),
+     }
+@@ -2408,6 +2426,14 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
+                 .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
+                 .collect()
+         }
++        PrimOp::RwLock { op, classes } => {
++            let params = op.params();
++            op.sig()
++                .0
++                .iter()
++                .map(|t| crate::repr::repr_of(t, &params, &SigTypes, &mut |_| {}).subst(&classes))
++                .collect()
++        }
+         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased | PrimOp::Eval => vec![Class::Obj],
+         // The parallel units' parameters: two closures, or the callback and
+         // the count / input array, or a participant count alone. The element classes are immediates in
+@@ -2444,6 +2470,8 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
+         PrimOp::Delay | PrimOp::Force | PrimOp::ApplyErased => i == 0,
+         PrimOp::Stm { op, .. } => op.consumes(i),
+         PrimOp::MVar { op, .. } => op.consumes(i),
++        PrimOp::Atomic(op) => op.consumes(i),
++        PrimOp::RwLock { op, .. } => op.consumes(i),
+         PrimOp::Slots { op, .. } => op.consumes(i),
+         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
+         _ => false,
+@@ -2464,6 +2492,9 @@ fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
+     if let PrimOp::MVar { op, classes } = op {
+         return if op.returns_option() { vec![classes[0]] } else { vec![] };
+     }
++    if let PrimOp::RwLock { op, classes } = op {
++        return if op.returns_option() { vec![classes[0]] } else { vec![] };
++    }
+     if matches!(op, PrimOp::Stm { .. } | PrimOp::Slots { .. }) {
+         return vec![];
+     }
+@@ -4517,7 +4548,7 @@ fn build_unit(
+     };
+     match &body {
+         UnitBody::Prim(op) => {
+-            if matches!(op, PrimOp::MVar { .. }) { lang.pure = false; }
++            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. }) { lang.pure = false; }
+             // Always inline pure single-instruction scalar/wide/float/bit/cmp/
+             // conversion primitives and direct Bytes/Nat fast paths so LLVM
+             // never hits its inline budget inside large crypto/math kernels.
+@@ -5013,7 +5044,7 @@ impl NarrowSig {
+         if !op.touches_wide() {
+             return None;
+         }
+-        if matches!(op, PrimOp::MVar { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
++        if matches!(op, PrimOp::MVar { .. } | PrimOp::RwLock { .. } | PrimOp::Slots { .. } | PrimOp::Array { packed: None, .. }) {
+             let cross = |c| if c == Class::Wide { Cross::WIDE } else { Cross::WORD };
+             return Some(NarrowSig { params: prim_param_classes(op).into_iter().map(cross).collect(),
+                 ret: cross(prim_result_class(op).unwrap_or(Class::Raw)) });
+@@ -6294,6 +6325,10 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
+         mvar_codegen::emit(b, reg, name, op, mvar_op, classes);
+         return Ok(());
+     }
++    if let RwLock { op: rw_op, classes } = op {
++        sync_codegen::emit_rwlock(b, reg, name, op, rw_op, classes);
++        return Ok(());
++    }
+     if let Slots { op: slot_op, classes } = op {
+         slots_codegen::emit(b, reg, slot_op, classes);
+         return Ok(());
+@@ -7529,6 +7564,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
+         } => arrays_codegen::emit(b, reg, name, op, array_op, classes, packed),
+         Slots { op: slot_op, classes } => slots_codegen::emit(b, reg, slot_op, classes),
+         MVar { op: mvar_op, classes } => mvar_codegen::emit(b, reg, name, op, mvar_op, classes),
++        Atomic(atomic_op) => sync_codegen::emit_atomic(b, atomic_op),
++        RwLock { op: rw_op, classes } => sync_codegen::emit_rwlock(b, reg, name, op, rw_op, classes),
+         Stm { op: stm_op, classes } => {
+             use crate::stm::StmOp::*;
+             match stm_op {
+@@ -7957,7 +7994,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                  }
                  // The arena entries take and answer one machine word: the
                  // size or the handle, both never blocks.
--                ArenaNew | ArenaLeave => {
-+                PackageOffset | ArenaNew | ArenaLeave => {
+-                PackageOffset | ArenaNew | ArenaLeave => {
++                PackageOffset | ArenaNew | ArenaLeave | ArenaEnterPhase | ArenaExitPhase => {
                      let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                      ret(b, &r);
-+                }
-+                MapPackageBytes | PackageText => {
-+                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
-+                    let r = rt_call(b, k.extern_name(), &args);
-+                    let word = freeze_word(b, &r);
-+                    ret_result(b, reg, op, &word, |_| word.clone());
                  }
-                 FsTempDir => {
-                     let r = rt_call(b, k.extern_name(), &[]);
---- a/compiler/src/core.rs
-+++ b/compiler/src/core.rs
-@@ -630,6 +630,12 @@
-     /// `fsTempDir :: Unit -> Bytes`: the platform temp directory as a
-     /// `Bytes` path.
-     FsTempDir,
-+    /// Map a stable package file as an owned read-only byte buffer.
-+    MapPackageBytes,
-+    /// Validate text and retain an immutable package string span.
-+    PackageText,
-+    /// Unbox a bounded packed-package offset without constructing an Option.
-+    PackageOffset,
-     /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
-     SignalSend,
-     /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
-@@ -649,6 +655,9 @@
-             PlatformOp::FsMkdir => "fsMkdir",
-             PlatformOp::FsRemove => "fsRemove",
-             PlatformOp::FsTempDir => "fsTempDir",
-+            PlatformOp::MapPackageBytes => "mapPackageBytes",
-+            PlatformOp::PackageText => "packageText",
-+            PlatformOp::PackageOffset => "packageOffset",
+diff --git a/seed/src/core.rs b/seed/src/core.rs
+index f7ff4c4..c636882 100644
+--- a/seed/src/core.rs
++++ b/seed/src/core.rs
+@@ -681,6 +681,11 @@ pub enum PlatformOp {
+     /// `arenaLeave :: I64 -> I64`: free every chunk of the arena the
+     /// handle names, restore the arena entered before it, and answer 0.
+     ArenaLeave,
++    /// `arenaEnterPhase :: I64 -> I64`: always-on phase arena for batch
++    /// compiler phases (disabled only with `CINCH_ARENA=0`).
++    ArenaEnterPhase,
++    /// `arenaExitPhase :: I64 -> I64`: leave and free a phase arena.
++    ArenaExitPhase,
+ }
+ 
+ impl PlatformOp {
+@@ -696,6 +701,8 @@ impl PlatformOp {
              PlatformOp::SignalSend => "signalSend",
              PlatformOp::ArenaNew => "arenaNew",
              PlatformOp::ArenaLeave => "arenaLeave",
-@@ -662,6 +671,9 @@
-             PlatformOp::FsMkdir => "cinch_fs_mkdir",
-             PlatformOp::FsRemove => "cinch_fs_remove",
-             PlatformOp::FsTempDir => "cinch_fs_temp_dir",
-+            PlatformOp::MapPackageBytes => "cinch_map_package_bytes",
-+            PlatformOp::PackageText => "cinch_package_text",
-+            PlatformOp::PackageOffset => "cinch_nat_to_i64",
++            PlatformOp::ArenaEnterPhase => "arenaEnterPhase",
++            PlatformOp::ArenaExitPhase => "arenaExitPhase",
+         }
+     }
+ 
+@@ -712,6 +719,8 @@ impl PlatformOp {
              PlatformOp::SignalSend => "cinch_signal_send",
              PlatformOp::ArenaNew => "cinch_arena_new",
              PlatformOp::ArenaLeave => "cinch_arena_leave",
-@@ -1211,6 +1223,9 @@
-                 "fsMkdir" => Platform(PlatformOp::FsMkdir),
-                 "fsRemove" => Platform(PlatformOp::FsRemove),
-                 "fsTempDir" => Platform(PlatformOp::FsTempDir),
-+                "mapPackageBytes" => Platform(PlatformOp::MapPackageBytes),
-+                "packageText" => Platform(PlatformOp::PackageText),
-+                "packageOffset" => Platform(PlatformOp::PackageOffset),
++            PlatformOp::ArenaEnterPhase => "cinch_arena_enter_phase",
++            PlatformOp::ArenaExitPhase => "cinch_arena_exit_phase",
+         }
+     }
+ }
+@@ -1062,6 +1071,10 @@ pub enum PrimOp {
+     Stm { op: crate::stm::StmOp, classes: [Class; 2] },
+     /// Native single-place variables, specialized by stored value class.
+     MVar { op: crate::mvar::MVarOp, classes: [Class; 2] },
++    /// Lock-free 64-bit hardware atomic cells (`Effect.Concurrent.Atomic`).
++    Atomic(crate::sync_prim::AtomicOp),
++    /// Native reader-writer lock boxes (`Effect.Concurrent.RwLock`), specialized by stored value class.
++    RwLock { op: crate::sync_prim::RwLockOp, classes: [Class; 2] },
+     /// Mutable slot arrays (`cinch.runtime.slots*`; runtime ABI,
+     /// `cinch_slots_*`), specialized by the element's representation
+     /// (`crate::slots`).
+@@ -1226,6 +1239,16 @@ impl PrimOp {
+                     return Some(Self::MVar { op, classes: [Class::Param(0), Class::Param(1)] });
+                 }
+             }
++            for op in crate::sync_prim::AtomicOp::ALL {
++                if name == op.name() {
++                    return Some(Self::Atomic(op));
++                }
++            }
++            for op in crate::sync_prim::RwLockOp::ALL {
++                if name == op.name() {
++                    return Some(Self::RwLock { op, classes: [Class::Param(0), Class::Param(1)] });
++                }
++            }
+             for op in crate::stm::StmOp::ALL {
+                 if name == op.name() {
+                     return Some(Self::Stm { op, classes: [Class::Param(0), Class::Param(1)] });
+@@ -1311,6 +1334,8 @@ impl PrimOp {
                  "signalSend" => Platform(PlatformOp::SignalSend),
                  "arenaNew" => Platform(PlatformOp::ArenaNew),
                  "arenaLeave" => Platform(PlatformOp::ArenaLeave),
-@@ -1360,8 +1375,8 @@
++                "arenaEnterPhase" => Platform(PlatformOp::ArenaEnterPhase),
++                "arenaExitPhase" => Platform(PlatformOp::ArenaExitPhase),
+                 "netTcpConnect" => Net(NetOp::TcpConnect),
+                 "netTcpListen" => Net(NetOp::TcpListen),
+                 "netTcpAccept" => Net(NetOp::TcpAccept),
+@@ -1370,6 +1395,8 @@ impl PrimOp {
+             Array { op, packed, .. } => return format!("cinch.runtime.{}{}", op.name(), packed.map(|s| s.name()).unwrap_or("")),
+             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
+             MVar { op, .. } => return format!("cinch.runtime.{}", op.name()),
++            Atomic(op) => return format!("cinch.runtime.{}", op.name()),
++            RwLock { op, .. } => return format!("cinch.runtime.{}", op.name()),
+             Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
+             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
+             Int(op) => return format!("cinch.runtime.int{}", op.name()),
+@@ -1470,6 +1497,8 @@ impl PrimOp {
+             Array { op, packed, .. } => op.sig(packed).0.len(),
+             Stm { op, .. } => op.sig().0.len(),
+             MVar { op, .. } => op.sig().0.len(),
++            Atomic(op) => op.sig().0.len(),
++            RwLock { op, .. } => op.sig().0.len(),
+             Slots { op, .. } => op.sig().0.len(),
+             Bound { .. } => 0,
+             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
+@@ -1481,7 +1510,13 @@ impl PrimOp {
                      | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
              )
              | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
--            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => 1,
--            Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
-+            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
-+            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
-             Bytes(BytesOp::Set) => 3,
-             Bytes(BytesOp::Copy) => 5,
-             Sym(SymOp::Intern | SymOp::Name) => 1,
-@@ -1461,6 +1476,12 @@
-                 (vec![Ty::Bytes, Ty::Bool], i64t)
-             }
-             Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
-+            Platform(PlatformOp::MapPackageBytes) => (vec![i64t.clone(), i64t.clone()], res(Ty::Bytes)),
-+            Platform(PlatformOp::PackageText) => (
-+                vec![Ty::Bytes, i64t.clone(), i64t.clone()],
-+                res(Ty::Adt(crate::known::STRING.into(), vec![])),
-+            ),
-+            Platform(PlatformOp::PackageOffset) => (vec![Ty::Nat], i64t),
+-            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
++            | Platform(
++                PlatformOp::ArenaNew
++                    | PlatformOp::ArenaLeave
++                    | PlatformOp::ArenaEnterPhase
++                    | PlatformOp::ArenaExitPhase
++                    | PlatformOp::PackageOffset,
++            ) => 1,
+             Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
+             Bytes(
+                 BytesOp::Set
+@@ -1516,6 +1551,7 @@ impl PrimOp {
+         match self {
+             Array { op, .. } => op.returns_option(),
+             MVar { op, .. } => op.returns_option(),
++            RwLock { op, .. } => op.returns_option(),
+             CheckedDiv { .. } | CheckedRem { .. } | U32ToChar => true,
+             Arith { mode: ArithMode::Checked, .. } => true,
+             Neg { mode: ArithMode::Checked, .. } => true,
+@@ -1551,6 +1587,8 @@ impl PrimOp {
+             Array { op, packed, .. } => op.sig(packed),
+             Stm { op, .. } => op.sig(),
+             MVar { op, .. } => op.sig(),
++            Atomic(op) => op.sig(),
++            RwLock { op, .. } => op.sig(),
+             Slots { op, .. } => op.sig(),
+             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
+                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
+@@ -1626,7 +1664,12 @@ impl PrimOp {
+             ),
+             Platform(PlatformOp::PackageOffset) => (vec![Ty::Nat], i64t),
              Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
-             Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
+-            Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
++            Platform(
++                PlatformOp::ArenaNew
++                    | PlatformOp::ArenaLeave
++                    | PlatformOp::ArenaEnterPhase
++                    | PlatformOp::ArenaExitPhase,
++            ) => (vec![i64t.clone()], i64t),
              Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
+             Net(NetOp::TcpListen) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
+             Net(NetOp::TcpAccept) => (vec![i64t.clone()], res(i64t.clone())),
+@@ -6372,7 +6415,7 @@ fn prim_is_pure(op: PrimOp) -> bool {
+     // A zero-word application runs a closure with its own effect row.
+     // The platform ops mutate the filesystem, consume entropy and
+     // deliver signals, so they are effects too.
+-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. })
++    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::ApplyErased | PrimOp::Platform(_) | PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. })
+ }
+ 
+ /// A term's allocation and demand structure (supercompilation section 3:
+@@ -7834,7 +7877,9 @@ impl PrimOp {
+     /// Whether the operation's signature mentions a wide scalar anywhere,
+     /// including generic cell/slot payloads and `Option` results (`design/wide-scalars.md`).
+     pub fn touches_wide(self) -> bool {
+-        if let PrimOp::MVar { classes, .. } = self { return classes[0] == Class::Wide; }
++        if let PrimOp::MVar { classes, .. } | PrimOp::RwLock { classes, .. } = self {
++            return classes[0] == Class::Wide;
++        }
+         if let PrimOp::Slots { op, classes } = self {
+             return op != crate::slots::SlotOp::FoldNat && classes[0] == Class::Wide;
+         }
+diff --git a/seed/src/driver.rs b/seed/src/driver.rs
+index 2b2d67b..91f8146 100644
+--- a/seed/src/driver.rs
++++ b/seed/src/driver.rs
+@@ -157,6 +157,14 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
+         "Effect/Concurrent/MVar.cinch",
+         include_str!("../prelude/Effect/Concurrent/MVar.cinch"),
+     ),
++    (
++        "Effect/Concurrent/Atomic.cinch",
++        include_str!("../prelude/Effect/Concurrent/Atomic.cinch"),
++    ),
++    (
++        "Effect/Concurrent/RwLock.cinch",
++        include_str!("../prelude/Effect/Concurrent/RwLock.cinch"),
++    ),
+     (
+         "Effect/Clock.cinch",
+         include_str!("../prelude/Effect/Clock.cinch"),
+diff --git a/seed/src/lib.rs b/seed/src/lib.rs
+index af8d602..20088a1 100644
+--- a/seed/src/lib.rs
++++ b/seed/src/lib.rs
+@@ -49,6 +49,7 @@ pub mod stack;
+ pub mod stm;
+ pub mod slots;
+ pub mod store;
++pub mod sync_prim;
+ pub mod types;
+ pub mod wide;
+ pub mod total;
+diff --git a/seed/src/specialize.rs b/seed/src/specialize.rs
+index f9e56ac..5bca9d7 100644
+--- a/seed/src/specialize.rs
++++ b/seed/src/specialize.rs
+@@ -189,7 +189,7 @@ impl<'a> Cx<'a> {
+ 
+     fn generic(&self, id: &str) -> Option<&'a FnDef> {
+         let f = *self.fns.get(id)?;
+-        let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. } | crate::core::PrimOp::Stm { .. } | crate::core::PrimOp::MVar { .. } | crate::core::PrimOp::Slots { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
++        let body = (f.prim.is_none() || matches!(f.prim, Some(crate::core::PrimOp::Array { .. } | crate::core::PrimOp::Stm { .. } | crate::core::PrimOp::MVar { .. } | crate::core::PrimOp::RwLock { .. } | crate::core::PrimOp::Slots { .. }))) && f.ctor.is_none() && !f.meta.prim_body;
+         (body && f.repr.tparams > 0 && !self.pinned.contains(id)).then_some(f)
+     }
+ 
+@@ -498,7 +498,7 @@ fn specialize_with_roots(program: &Program, report: &mut OptReport, roots: &[Obj
+                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                 copy.repr.result = copy.repr.result.map(|c| c.subst(v));
+                 copy.repr.tparams = 0;
+-                if let Some(crate::core::PrimOp::Array { classes, .. } | crate::core::PrimOp::Stm { classes, .. } | crate::core::PrimOp::MVar { classes, .. } | crate::core::PrimOp::Slots { classes, .. }) = &mut copy.prim {
++                if let Some(crate::core::PrimOp::Array { classes, .. } | crate::core::PrimOp::Stm { classes, .. } | crate::core::PrimOp::MVar { classes, .. } | crate::core::PrimOp::RwLock { classes, .. } | crate::core::PrimOp::Slots { classes, .. }) = &mut copy.prim {
+                     *classes = [v.first().copied().unwrap_or(Class::Raw), v.get(1).copied().unwrap_or(Class::Raw)];
+                 }
+                 out.fns.push(copy);
+diff --git a/seed/src/sync_codegen.rs b/seed/src/sync_codegen.rs
+new file mode 100644
+index 0000000..3aea585
+--- /dev/null
++++ b/seed/src/sync_codegen.rs
+@@ -0,0 +1,102 @@
++//! Native codegen wrappers for `AtomicCell` and `RwLockCell a`.
++use super::*;
++use crate::sync_prim::{AtomicOp, RwLockOp};
++
++pub(super) fn emit_atomic(b: &mut Builder, op: AtomicOp) {
++    let arity = op.sig().0.len();
++    let args: Vec<String> = (0..arity).map(|i| format!("i64 %p{i}")).collect();
++    let out = rt_call(b, op.extern_name(), &args);
++    if matches!(op, AtomicOp::Store | AtomicOp::Fence) {
++        ret(b, "0");
++    } else {
++        ret(b, &out);
++    }
++}
++
++pub(super) fn emit_rwlock(
++    b: &mut Builder,
++    reg: &Registry,
++    name: &str,
++    prim: PrimOp,
++    op: RwLockOp,
++    classes: [Class; 2],
++) {
++    use RwLockOp::*;
++    let wide = classes[0] == Class::Wide;
++    if op == New {
++        let value = if wide {
++            wide_box(b, reg, "%p0")
++        } else {
++            "%p0".into()
++        };
++        let out = rt_call(
++            b,
++            "cinch_rwlock_new",
++            &[
++                format!("i64 {value}"),
++                format!("i64 {}", scan_code(frame_class(classes[0]))),
++            ],
++        );
++        ret(b, &out);
++        return;
++    }
++    // ABI op codes matching seed/runtime/src/rwlock.rs.
++    let operation = match op {
++        Read => 0,
++        Write => 1,
++        Swap => 2,
++        TryRead => 3,
++        TryWrite => 4,
++        New => unreachable!(),
++    };
++    let value = if op.consumes(1) && wide {
++        wide_box(b, reg, "%p1")
++    } else if op.consumes(1) {
++        "%p1".into()
++    } else {
++        "0".into()
++    };
++    let slot = b.reg();
++    b.line(&format!("{slot} = alloca i64, align 8"));
++    let status = rt_call(
++        b,
++        "cinch_rwlock_access",
++        &[
++            "i64 %p0".into(),
++            format!("i64 {value}"),
++            format!("i64 {operation}"),
++            format!("ptr {slot}"),
++        ],
++    );
++    if op.returns_option() {
++        let none = b.reg();
++        b.line(&format!("{none} = icmp eq i64 {status}, 0"));
++        let load = |b: &mut Builder| {
++            let out = b.reg();
++            b.line(&format!("{out} = load i64, ptr {slot}, align 8"));
++            if wide {
++                wide_unbox(b, reg, &out)
++            } else {
++                out
++            }
++        };
++        if wide {
++            ret_option_wide_with(b, reg, name, &none, load);
++        } else {
++            ret_option(b, reg, prim, name, &none, load);
++        }
++    } else if op == TryWrite {
++        ret(b, &status);
++    } else if op == Write {
++        ret(b, "0");
++    } else {
++        let out = b.reg();
++        b.line(&format!("{out} = load i64, ptr {slot}, align 8"));
++        if wide {
++            let value = wide_unbox(b, reg, &out);
++            b.line(&format!("ret i128 {value}"));
++        } else {
++            ret(b, &out);
++        }
++    }
++}
+diff --git a/seed/src/sync_prim.rs b/seed/src/sync_prim.rs
+new file mode 100644
+index 0000000..99554f8
+--- /dev/null
++++ b/seed/src/sync_prim.rs
+@@ -0,0 +1,157 @@
++//! Typed native concurrency primitives:
++//! - `AtomicCell`: lock-free 64-bit hardware atomic word (`Effect.Concurrent.Atomic`).
++//! - `RwLockCell a`: reader-writer lock box (`Effect.Concurrent.RwLock`).
++
++use crate::types::Ty;
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
++pub enum AtomicOp {
++    New,
++    Load,
++    Store,
++    Swap,
++    FetchAdd,
++    FetchSub,
++    FetchAnd,
++    FetchOr,
++    FetchXor,
++    Cas,
++    Fence,
++}
++
++impl AtomicOp {
++    pub const ALL: [Self; 11] = [
++        Self::New,
++        Self::Load,
++        Self::Store,
++        Self::Swap,
++        Self::FetchAdd,
++        Self::FetchSub,
++        Self::FetchAnd,
++        Self::FetchOr,
++        Self::FetchXor,
++        Self::Cas,
++        Self::Fence,
++    ];
++
++    pub fn name(self) -> &'static str {
++        match self {
++            Self::New => "atomicNew",
++            Self::Load => "atomicLoad",
++            Self::Store => "atomicStore",
++            Self::Swap => "atomicSwap",
++            Self::FetchAdd => "atomicFetchAdd",
++            Self::FetchSub => "atomicFetchSub",
++            Self::FetchAnd => "atomicFetchAnd",
++            Self::FetchOr => "atomicFetchOr",
++            Self::FetchXor => "atomicFetchXor",
++            Self::Cas => "atomicCas",
++            Self::Fence => "atomicFence",
++        }
++    }
++
++    pub fn extern_name(self) -> &'static str {
++        match self {
++            Self::New => "cinch_atomic_new",
++            Self::Load => "cinch_atomic_load",
++            Self::Store => "cinch_atomic_store",
++            Self::Swap => "cinch_atomic_swap",
++            Self::FetchAdd => "cinch_atomic_fetch_add",
++            Self::FetchSub => "cinch_atomic_fetch_sub",
++            Self::FetchAnd => "cinch_atomic_fetch_and",
++            Self::FetchOr => "cinch_atomic_fetch_or",
++            Self::FetchXor => "cinch_atomic_fetch_xor",
++            Self::Cas => "cinch_atomic_cas",
++            Self::Fence => "cinch_atomic_fence",
++        }
++    }
++
++    pub fn sig(self) -> (Vec<Ty>, Ty) {
++        use AtomicOp::*;
++        let i64t = Ty::Prim(crate::types::Scalar::I64);
++        let cell = Ty::Adt("AtomicCell".into(), vec![]);
++        match self {
++            New => (vec![i64t], cell),
++            Load => (vec![cell, i64t.clone()], i64t),
++            Store => (vec![cell, i64t.clone(), i64t], Ty::Unit),
++            Swap | FetchAdd | FetchSub | FetchAnd | FetchOr | FetchXor => {
++                (vec![cell, i64t.clone(), i64t.clone()], i64t)
++            }
++            Cas => (
++                vec![cell, i64t.clone(), i64t.clone(), i64t.clone(), i64t],
++                Ty::Bool,
++            ),
++            Fence => (vec![i64t], Ty::Unit),
++        }
++    }
++
++    pub fn consumes(self, _i: usize) -> bool {
++        false
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
++pub enum RwLockOp {
++    New,
++    Read,
++    Write,
++    Swap,
++    TryRead,
++    TryWrite,
++}
++
++impl RwLockOp {
++    pub const ALL: [Self; 6] = [
++        Self::New,
++        Self::Read,
++        Self::Write,
++        Self::Swap,
++        Self::TryRead,
++        Self::TryWrite,
++    ];
++
++    pub fn name(self) -> &'static str {
++        match self {
++            Self::New => "rwlockNew",
++            Self::Read => "rwlockRead",
++            Self::Write => "rwlockWrite",
++            Self::Swap => "rwlockSwap",
++            Self::TryRead => "rwlockTryRead",
++            Self::TryWrite => "rwlockTryWrite",
++        }
++    }
++
++    pub fn params(self) -> Vec<String> {
++        vec!["a".into()]
++    }
++
++    pub fn returns_option(self) -> bool {
++        self == Self::TryRead
++    }
++
++    pub fn blocking(self) -> bool {
++        matches!(self, Self::Read | Self::Write | Self::Swap)
++    }
++
++    pub fn sig(self) -> (Vec<Ty>, Ty) {
++        use RwLockOp::*;
++        let a = Ty::Param("a".into());
++        let cell = Ty::Adt("RwLockCell".into(), vec![a.clone()]);
++        let option = Ty::Adt(crate::known::OPTION.into(), vec![a.clone()]);
++        match self {
++            New => (vec![a], cell),
++            Read => (vec![cell], a),
++            Write => (vec![cell, a], Ty::Unit),
++            Swap => (vec![cell, a.clone()], a),
++            TryRead => (vec![cell], option),
++            TryWrite => (vec![cell, a], Ty::Bool),
++        }
++    }
++
++    /// New/Write/Swap/TryWrite take ownership of the supplied value word on
++    /// every outcome (the runtime drops it if TryWrite fails).
++    pub fn consumes(self, i: usize) -> bool {
++        (self == Self::New && i == 0)
++            || (i == 1 && matches!(self, Self::Write | Self::Swap | Self::TryWrite))
++    }
++}
+diff --git a/seed/src/wide.rs b/seed/src/wide.rs
+index f94db93..542a58f 100644
+--- a/seed/src/wide.rs
++++ b/seed/src/wide.rs
+@@ -164,7 +164,7 @@ fn prim_sig(op: PrimOp) -> Option<Sig> {
+     let r = |t: &crate::types::Ty| match t {
+         crate::types::Ty::Prim(s) if s.is_wide() => Rep::Wide,
+         crate::types::Ty::Param(_) if matches!(op,
+-            PrimOp::MVar { classes, .. } | PrimOp::Slots { classes, .. }
++            PrimOp::MVar { classes, .. } | PrimOp::RwLock { classes, .. } | PrimOp::Slots { classes, .. }
+                 | PrimOp::Array { classes, packed: None, .. }
+                 if classes[0] == Class::Wide) => Rep::Wide,
+         _ => Rep::Word,

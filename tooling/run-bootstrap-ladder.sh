@@ -61,8 +61,10 @@ dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 
 # The toolkit the artifacts import and the package does not embed.
-toolkit=(Lex Scan Parse Json Builder)
-for m in "${toolkit[@]}"; do cp "$seed/prelude/Text/$m.cinch" "$dir/"; done
+toolkit=(Lex Scan Parse Json Builder Fnv)
+for m in "${toolkit[@]}"; do cp "$seed/prelude/Text/$m.cinch" "$dir/Text.$m.cinch"; done
+cp "$seed/prelude/Data/Array.cinch" "$dir/Data.Array.cinch"
+cp "$seed/prelude/Data/Bytes/Word.cinch" "$dir/Data.Bytes.Word.cinch"
 # Every bootstrap module.
 cp "$root"/compiler/*.cinch "$dir/"
 

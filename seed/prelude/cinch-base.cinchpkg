@@ -145,6 +145,16 @@
       "embedded": true
     },
     {
+      "name": "Effect.Concurrent.Atomic",
+      "path": "Effect/Concurrent/Atomic.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Concurrent.RwLock",
+      "path": "Effect/Concurrent/RwLock.cinch",
+      "embedded": true
+    },
+    {
       "name": "Effect.Clock",
       "path": "Effect/Clock.cinch",
       "embedded": true
@@ -375,6 +385,8 @@
     "Data.Path",
     "Effect.Concurrent",
     "Effect.Concurrent.MVar",
+    "Effect.Concurrent.Atomic",
+    "Effect.Concurrent.RwLock",
     "Effect.Clock",
     "Prim.Sys.Darwin",
     "Prim.Sys.Linux",

@@ -30,13 +30,79 @@
 
 module Bootstrap.Ast where
 
-  import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, lt-token, lt-virtual
+  import Text.Lex (Span, span-start, span-end, span-line, span-col, LToken, Token, mk-ltoken, lt-span, lt-token, lt-virtual
     , TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF)
   import Bootstrap.Document (Json, JArr, JArrEnd, JStr, JBool, JNull)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert)
-  import Data.String (string-from-bytes, empty-string)
+  import Data.String (string-from-bytes, string-to-bytes, empty-string)
   import Text.Show (nat-to-string)
   import Algebra.Semigroup
+
+  -- Share-safe mirror of `Text.Lex.LToken` stored inside `EMacroCall` and
+  -- `DEmitMacro` so the entire AST (`Program`, `Module`, `Decl`, `Expr`) holds
+  -- no mutable `Bytes` buffers and can be shared freely across parallel phases.
+  data MacroTok where
+    MVar :: String -> MacroTok
+    MCon :: String -> MacroTok
+    MOp :: String -> MacroTok
+    MInt :: String -> MacroTok
+    MFloat :: String -> MacroTok
+    MStr :: String -> MacroTok
+    MChar :: Nat -> MacroTok
+    MWord :: String -> MacroTok
+    MPunct :: String -> MacroTok
+    MAttr :: String -> MacroTok
+    MPrimFrag :: String -> MacroTok
+    MTickName :: String -> MacroTok
+    MTickType :: String -> MacroTok
+    MEOF :: MacroTok
+
+  data MacroToken where
+    MkMacroToken :: Span -> Bool -> MacroTok -> MacroToken
+
+  freeze-macro-tok :: Token -> MacroTok
+  freeze-macro-tok t = case t of
+    TVar s -> MVar s
+    TCon s -> MCon s
+    TOp s -> MOp s
+    TInt s -> MInt s
+    TFloat s -> MFloat s
+    TStr b -> MStr (case string-from-bytes b of Some s -> s; None -> empty-string)
+    TChar n -> MChar n
+    TWord s -> MWord s
+    TPunct s -> MPunct s
+    TAttr s -> MAttr s
+    TPrimFrag s -> MPrimFrag s
+    TTickName s -> MTickName s
+    TTickType s -> MTickType s
+    TEOF -> MEOF
+
+  thaw-macro-tok :: MacroTok -> Token
+  thaw-macro-tok t = case t of
+    MVar s -> TVar s
+    MCon s -> TCon s
+    MOp s -> TOp s
+    MInt s -> TInt s
+    MFloat s -> TFloat s
+    MStr s -> TStr (string-to-bytes s)
+    MChar n -> TChar n
+    MWord s -> TWord s
+    MPunct s -> TPunct s
+    MAttr s -> TAttr s
+    MPrimFrag s -> TPrimFrag s
+    MTickName s -> TTickName s
+    MTickType s -> TTickType s
+    MEOF -> TEOF
+
+  freeze-macro-tokens :: List LToken -> List MacroToken
+  freeze-macro-tokens toks = case toks of
+    Nil -> Nil
+    Cons t rest -> Cons (MkMacroToken (lt-span t) (lt-virtual t) (freeze-macro-tok (lt-token t))) (freeze-macro-tokens rest)
+
+  thaw-macro-tokens :: List MacroToken -> List LToken
+  thaw-macro-tokens toks = case toks of
+    Nil -> Nil
+    Cons (MkMacroToken sp v t) rest -> Cons (mk-ltoken sp v (thaw-macro-tok t)) (thaw-macro-tokens rest)
 
   -- ------------------------------------------------------------------ spans
 
@@ -359,7 +425,7 @@ module Bootstrap.Ast where
     ESyntaxReference :: Span -> String -> BindingSpelling -> Expr
     ESyntaxCaptureUnder :: Span -> String -> BindingSpelling -> Expr -> Expr
     EArgumentScope :: Span -> Expr -> Expr
-    EMacroCall :: Span -> String -> List LToken -> Expr
+    EMacroCall :: Span -> String -> List MacroToken -> Expr
     EForget :: Span -> TypeExpr -> Expr -> Expr
     EUnmodeled :: Span -> String -> Expr
 
@@ -592,7 +658,7 @@ module Bootstrap.Ast where
     DMacroBinding :: Span -> String -> Decl
     DNamedDeclaration :: Span -> Expr -> Decl -> Decl
     DDeclarationMacro :: Span -> String -> List Pat -> Decl -> Decl
-    DEmitMacro :: Span -> String -> List LToken -> Decl
+    DEmitMacro :: Span -> String -> List MacroToken -> Decl
     -- Lexical owner of the generated syntax and qualified macro name for diagnostics.
     DGeneratedGroup :: Span -> String -> String -> Decl -> Decl
     DMacro :: Span -> Decl -> Decl
@@ -1170,32 +1236,28 @@ module Bootstrap.Ast where
   source-identity-names values = case values of Nil -> JArrEnd; Cons first rest -> JArr (JStr first) (source-identity-names rest)
   -- A token tree's identity is the tokens' own spelling. A layout-inserted
   -- token is not in the source, so it cannot distinguish two spellings.
-  source-identity-tokens :: List LToken -> Json
+  source-identity-tokens :: List MacroToken -> Json
   source-identity-tokens values = case values of
     Nil -> JArrEnd
-    Cons first rest -> if lt-virtual first then source-identity-tokens rest
-      else JArr (JStr (token-identity-spelling (lt-token first))) (source-identity-tokens rest)
+    Cons (MkMacroToken sp virt tok) rest -> if virt then source-identity-tokens rest
+      else JArr (JStr (macro-token-identity-spelling tok)) (source-identity-tokens rest)
 
-  -- The spelling a token contributes to a source identity. Every token
-  -- kind that can appear in a macro argument has one; the layout and
-  -- fragment kinds are spelled by nothing, so they add the empty string,
-  -- which two identical trees agree on.
-  token-identity-spelling :: Token -> String
-  token-identity-spelling t = case t of
-    TVar s -> s
-    TCon s -> s
-    TOp s -> s
-    TInt s -> s
-    TFloat s -> s
-    TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
-    TChar n -> nat-to-string n
-    TWord s -> s
-    TPunct s -> s
-    TAttr s -> s
-    TPrimFrag s -> s
-    TTickName s -> s
-    TTickType s -> s
-    TEOF -> empty-string
+  macro-token-identity-spelling :: MacroTok -> String
+  macro-token-identity-spelling t = case t of
+    MVar s -> s
+    MCon s -> s
+    MOp s -> s
+    MInt s -> s
+    MFloat s -> s
+    MStr s -> s
+    MChar n -> nat-to-string n
+    MWord s -> s
+    MPunct s -> s
+    MAttr s -> s
+    MPrimFrag s -> s
+    MTickName s -> s
+    MTickType s -> s
+    MEOF -> empty-string
   source-identity-optional :: Option String -> Json
   source-identity-optional value = case value of None -> JNull; Some name -> JStr name
   source-clauses-document :: List (List Pat, Expr) -> Json
