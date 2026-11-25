@@ -399,6 +399,15 @@ pub fn negate_literal(digits: &str) -> String {
     }
 }
 
+/// Toggle the sign of a float literal's text, preserving IEEE `-0.0`.
+pub fn negate_float_literal(raw: &str) -> String {
+    if let Some(rest) = raw.strip_prefix('-') {
+        rest.to_string()
+    } else {
+        format!("-{raw}")
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Alt {
     /// `#[...]` attributes before the pattern (attribute annotations
@@ -580,6 +589,9 @@ pub enum Term {
     /// a signed literal (`-42`) or a folded pattern negation (same form
     /// as [`Pat::Int`]).
     Int(String, Span),
+    /// Floating-point literal: decimal/scientific string, with an optional
+    /// leading `-`; elaborated polymorphically to `F32` or `F64` (default `F64`).
+    Float(String, Span),
     Str(String, Span),
     Char(String, Span),
     /// `'name` in expression position: the interned `Sym` constant of
@@ -696,6 +708,7 @@ impl Term {
             Term::Var(p) => p.span(),
             Term::Con(p) => p.span(),
             Term::Int(_, s)
+            | Term::Float(_, s)
             | Term::Str(_, s)
             | Term::Char(_, s) | Term::Sym(_, s)
             | Term::Unit(s)
@@ -866,7 +879,7 @@ impl Term {
                 target.visit_mut(visit);
                 witness.visit_types_mut(visit);
             }
-            Term::Var(..) | Term::Con(..) | Term::Int(..) | Term::Str(..) | Term::Char(..)
+            Term::Var(..) | Term::Con(..) | Term::Int(..) | Term::Float(..) | Term::Str(..) | Term::Char(..)
             | Term::Sym(..) | Term::Unit(..) | Term::Hole(..) | Term::SeqOp(..)
             | Term::MacroCall { .. } | Term::SpliceHole { .. } => {}
         }
@@ -1579,6 +1592,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         }),
         Term::Con(p) => out.push(ref_of_path(RefKind::Value, &p.segments, p.span())),
         Term::Int(_, _)
+        | Term::Float(_, _)
         | Term::Str(_, _)
         | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)
@@ -2701,6 +2715,7 @@ fn hyg_term_scoped(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> 
         }
         Term::Con(p) => Term::Con(if sc.capture { capture_con(p, RefKind::Value, sc, cx) } else { qualify_con(cx, p, p.span())? }),
         Term::Int(v, s) => Term::Int(v.clone(), *s),
+        Term::Float(v, s) => Term::Float(v.clone(), *s),
         Term::Str(v, s) => Term::Str(v.clone(), *s),
         Term::Char(v, s) => Term::Char(v.clone(), *s),
         Term::Sym(v, s) => Term::Sym(v.clone(), *s),
@@ -3261,7 +3276,7 @@ fn hyg_decl_scoped(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> 
 pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
     match t {
         Term::SpliceHole { idx, .. } => vals[*idx].clone(),
-        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Str(_, _) | Term::Char(_, _) | Term::Sym(_, _)
+        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Float(_, _) | Term::Str(_, _) | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_) | Term::Hole(_) | Term::SeqOp(_, _) => t.clone(),
         Term::App(f, args, s) => Term::App(
             Box::new(subst_holes(f, vals)),
@@ -3544,6 +3559,7 @@ fn collect_template_holes_with_macros(t: &mut Term, holes: &mut Vec<HoleExpr>, m
         Term::Var(_)
         | Term::Con(_)
         | Term::Int(_, _)
+        | Term::Float(_, _)
         | Term::Str(_, _)
         | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)

@@ -1064,18 +1064,29 @@ impl Lexer {
                 break;
             }
         }
-        // A float needs `.` immediately followed by a digit; `.` otherwise
-        // starts qualification or projection.
-        if self.peek() == Some('.') && self.peek_at(1).map(|c| c.is_ascii_digit()).unwrap_or(false) {
-            raw.push(self.bump().unwrap());
-            while let Some(c) = self.peek() {
-                if c.is_ascii_digit() {
-                    raw.push(c);
-                    self.bump();
-                } else if c == '_' {
-                    self.bump();
-                } else {
-                    break;
+        // A float has `.` followed by a digit (`. ` otherwise starts
+        // qualification or projection) OR an exponent `e`/`E` followed by an
+        // optional sign and at least one digit (`1e-4`, `1e50`).
+        let has_frac = self.peek() == Some('.')
+            && self.peek_at(1).map(|c| c.is_ascii_digit()).unwrap_or(false);
+        let has_exp = matches!(self.peek(), Some('e') | Some('E'))
+            && match self.peek_at(1) {
+                Some(c) if c.is_ascii_digit() => true,
+                Some('+') | Some('-') => self.peek_at(2).map(|c| c.is_ascii_digit()).unwrap_or(false),
+                _ => false,
+            };
+        if has_frac || has_exp {
+            if has_frac {
+                raw.push(self.bump().unwrap());
+                while let Some(c) = self.peek() {
+                    if c.is_ascii_digit() {
+                        raw.push(c);
+                        self.bump();
+                    } else if c == '_' {
+                        self.bump();
+                    } else {
+                        break;
+                    }
                 }
             }
             if matches!(self.peek(), Some('e') | Some('E')) {
@@ -1086,6 +1097,8 @@ impl Lexer {
                 while let Some(c) = self.peek() {
                     if c.is_ascii_digit() {
                         raw.push(c);
+                        self.bump();
+                    } else if c == '_' {
                         self.bump();
                     } else {
                         break;

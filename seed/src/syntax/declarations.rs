@@ -594,7 +594,7 @@ fn term(body: &mut Term, visit: &mut impl FnMut(&mut Name, RefKind)) {
                 for (kind, name) in declarations { visit(name, *kind); }
             }
         }
-        Term::Int(..) | Term::Str(..) | Term::Char(..) | Term::Sym(..) | Term::Unit(..)
+        Term::Int(..) | Term::Float(..) | Term::Str(..) | Term::Char(..) | Term::Sym(..) | Term::Unit(..)
         | Term::Hole(..) | Term::SeqOp(..) | Term::SpliceHole { .. } => {}
     }
 }

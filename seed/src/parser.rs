@@ -2968,9 +2968,10 @@ impl<'a> Parser<'a> {
             Tok::TypeNameLit(s) => Err(self.err(format!(
                 "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12); type-level symbols are deferred (the spelling is reserved)"
             ))),
-            Tok::FloatLit(_) => Err(self.err(
-                "float literals are not supported in the bootstrap slice (there is no AST node for them)",
-            )),
+            Tok::FloatLit(v) => {
+                self.bump();
+                Ok(Term::Float(v, span))
+            }
             Tok::LParen => {
                 self.bump();
                 if self.at(&Tok::RParen) {
@@ -4306,7 +4307,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
         }
         Term::Splice { body, .. } => resolve_term(body, fix)?,
         Term::MacroCall { .. } | Term::SpliceHole { .. } | Term::Str(_, _) | Term::Char(_, _)
-        | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) => {}
+        | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Float(_, _) => {}
         Term::Infix(_, _, _) => {
             let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span::new(0, 0))) {
                 Term::Infix(terms, ops, span) => (terms, ops, span),
@@ -5158,8 +5159,12 @@ mod tests {
 
     #[test]
     fn not_supported_terms_are_named() {
-        let e = err("module T where\n  f = 1.5\n");
-        assert!(e.contains("float literals are not supported"), "{e}");
+        // Float literals now parse as `Term::Float`.
+        let p = ok("module T where\n  f = 1.5\n");
+        match eq_body(&p.module, "f") {
+            Term::Float(v, _) => assert_eq!(v, "1.5"),
+            other => panic!("expected a float literal, got {other:?}"),
+        }
         // A macro invocation needs a balanced token tree. A spaced `!` is
         // the bang operator, so nothing is absorbed into the name.
         let e = err("module T where\n  f = m ! x\n");

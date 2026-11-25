@@ -1065,14 +1065,36 @@ impl Checker {
 
     fn infer_inner(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         match term {
-            // In inference position a literal keeps the default `Int` type
-            // (the mathematical `Int`, decision D7); against a known
-            // expected type it elaborates to that type with range checking
-            // (primitive types specification, section 7).
-            ast::Term::Int(v, _) => Ok((
-                ECore::ConstBig { nat: false, digits: v.clone() },
-                Ty::Int,
-            )),
+            // Haskell-style polymorphic numeric literals: in inference
+            // position, allocate a fresh type metavariable and defer the
+            // constant through `literal_pends` so surrounding calls, lists,
+            // tuples, let-bindings, or annotations infer any numeric scalar
+            // (`I8`..`I64`, `U8`..`U64`, `I128`, `U128`, `Isize`, `Usize`,
+            // `F32`, `F64`, `Nat`, `Int`, or refined numerics), defaulting
+            // unconstrained integer literals to `Int` and float literals to
+            // `F64`.
+            ast::Term::Int(v, span) => {
+                let ty = self.uni.fresh();
+                let idx = self.literal_pends.len();
+                self.literal_pends.push(PendLit {
+                    ty: ty.clone(),
+                    value: v.clone(),
+                    span: *span,
+                    kind: LitKind::Int,
+                });
+                Ok((ECore::Lit(idx), ty))
+            }
+            ast::Term::Float(v, span) => {
+                let ty = self.uni.fresh();
+                let idx = self.literal_pends.len();
+                self.literal_pends.push(PendLit {
+                    ty: ty.clone(),
+                    value: v.clone(),
+                    span: *span,
+                    kind: LitKind::Float,
+                });
+                Ok((ECore::Lit(idx), ty))
+            }
             ast::Term::Unit(_) => Ok((ECore::Unit, Ty::Unit)),
             ast::Term::Str(s, _span) => {
                 // A runtime `String` literal (D43's deferral closed):
@@ -1757,7 +1779,29 @@ impl Checker {
                 "internal error: unresolved infix chain reached the checker",
             )),
             ast::Term::Neg(e, span) => {
-                // Prefix negation is the class method `negate`, never a builtin.
+                if let Some(digits) = neg_fold(e) {
+                    let ty = self.uni.fresh();
+                    let idx = self.literal_pends.len();
+                    self.literal_pends.push(PendLit {
+                        ty: ty.clone(),
+                        value: digits,
+                        span: *span,
+                        kind: LitKind::Int,
+                    });
+                    return Ok((ECore::Lit(idx), ty));
+                }
+                if let Some(raw) = neg_fold_float(e) {
+                    let ty = self.uni.fresh();
+                    let idx = self.literal_pends.len();
+                    self.literal_pends.push(PendLit {
+                        ty: ty.clone(),
+                        value: raw,
+                        span: *span,
+                        kind: LitKind::Float,
+                    });
+                    return Ok((ECore::Lit(idx), ty));
+                }
+                // Prefix negation on non-literals is the class method `negate`, never a builtin.
                 let negate = ast::Term::Var(ast::VarPath {
                     quals: Vec::new(),
                     name: ast::Name::new("negate", *span),
@@ -2343,6 +2387,7 @@ impl Checker {
                 Ok(core)
             }
             ast::Term::Int(v, span) => self.check_scoped_numeric_literal(env, term, expected, v, *span),
+            ast::Term::Float(v, span) => self.float_lit_check(expected, v, *span),
             ast::Term::Quote { body, span } => {
                 // Against a known `Code t`, check the template at `t`
                 // directly (better errors than infer-and-unify).
@@ -2359,17 +2404,20 @@ impl Checker {
             }
             ast::Term::Neg(inner, span) => {
                 // Prefix `-` folds into a literal and is range-checked with
-                // it when the expected type is known (primitive types
-                // specification, section 7); otherwise it elaborates to the
-                // class method `negate`, so `-x` on a machine integer is
-                // rejected for its missing `Neg` instance. A folded `-` at
-                // `Nat` is rejected as an out-of-range literal.
+                // it when the expected type is numeric or an open metavariable
+                // (primitive types specification, section 7); otherwise it
+                // elaborates to the class method `negate`, so `-x` on a machine
+                // integer is rejected for its missing `Neg` instance. A folded
+                // `-` at `Nat` is rejected as an out-of-range literal.
                 let t = self.uni.zonk(expected);
                 let numeric_refinement = self.refine_view(&t).and_then(|view| view.base)
-                    .is_some_and(|base| matches!(base, Ty::Int | Ty::Nat | Ty::Prim(_)));
-                if matches!(t, Ty::Int | Ty::Nat | Ty::Prim(_)) || numeric_refinement {
+                    .is_some_and(|base| matches!(self.uni.zonk(&base), Ty::Int | Ty::Nat | Ty::Prim(_) | Ty::Meta(_)));
+                if matches!(t, Ty::Int | Ty::Nat | Ty::Prim(_) | Ty::Meta(_)) || numeric_refinement {
                     if let Some(value) = neg_fold(inner) {
                         return self.check_scoped_numeric_literal(env, term, &t, &value, *span);
+                    }
+                    if let Some(value) = neg_fold_float(inner) {
+                        return self.float_lit_check(&t, &value, *span);
                     }
                 }
                 let (core, ty) = self.infer(env, term)?;
@@ -10326,6 +10374,7 @@ impl Checker {
                 }
                 ast::Term::Con(_)
                 | ast::Term::Int(_, _)
+                | ast::Term::Float(_, _)
                 | ast::Term::Str(_, _)
                 | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
                 | ast::Term::Unit(_)
@@ -10591,6 +10640,7 @@ impl Checker {
             ast::Term::Var(_)
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -12507,6 +12557,14 @@ fn neg_fold(t: &ast::Term) -> Option<String> {
     match t {
         ast::Term::Int(v, _) => Some(ast::negate_literal(v)),
         ast::Term::Neg(inner, _) => neg_fold(inner).map(|v| ast::negate_literal(&v)),
+        _ => None,
+    }
+}
+
+fn neg_fold_float(t: &ast::Term) -> Option<String> {
+    match t {
+        ast::Term::Float(v, _) => Some(ast::negate_float_literal(v)),
+        ast::Term::Neg(inner, _) => neg_fold_float(inner).map(|v| ast::negate_float_literal(&v)),
         _ => None,
     }
 }

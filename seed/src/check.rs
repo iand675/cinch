@@ -2146,16 +2146,25 @@ struct Want {
     evidence_index: Option<ITerm>,
 }
 
-/// A deferred integer literal (primitive types specification, section 7):
-/// it elaborates against its expected type, which may only become known
-/// after unification and instance resolution, so the constant is fixed by
-/// [`Checker::resolved_literals`] once the definition is complete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LitKind {
+    Int,
+    Float,
+}
+
+/// A deferred numeric literal (primitive types specification, section 7):
+/// it elaborates against its expected/inferred type, which may only become
+/// known after unification and instance resolution, so the constant is fixed
+/// by [`Checker::resolved_literals`] once the definition is complete.
+/// Unconstrained integer literals default to `Int`, and unconstrained float
+/// literals default to `F64` (Haskell-style `default (Int, F64)`).
 struct PendLit {
-    /// The literal's type metavariable.
+    /// The literal's type metavariable (or refinement over one).
     ty: Ty,
-    /// The decimal digit string, with an optional leading `-`.
+    /// The decimal/float string, with an optional leading `-`.
     value: String,
     span: ast::Span,
+    kind: LitKind,
 }
 
 /// A deferred implicit index argument (insert-and-solve, dependent core
@@ -2398,6 +2407,7 @@ fn is_syntactic_value(t: &ast::Term) -> bool {
         | ast::Term::Var(_)
         | ast::Term::Con(_)
         | ast::Term::Int(_, _)
+        | ast::Term::Float(_, _)
         | ast::Term::Unit(_) => true,
         ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
             items.iter().all(is_syntactic_value)
@@ -5746,10 +5756,97 @@ impl Checker {
         };
         if open {
             let idx = self.literal_pends.len();
-            self.literal_pends.push(PendLit { ty: t, value: digits.to_string(), span });
+            self.literal_pends.push(PendLit {
+                ty: t,
+                value: digits.to_string(),
+                span,
+                kind: LitKind::Int,
+            });
             return Ok(ECore::Lit(idx));
         }
         self.literal_const(&t, digits, span)
+    }
+
+    fn float_lit_check(&mut self, expected: &Ty, raw: &str, span: ast::Span) -> Result<ECore> {
+        let t = self.uni.zonk(expected);
+        let open = match &t {
+            Ty::Meta(_) => true,
+            _ => self
+                .refine_view(&t)
+                .and_then(|v| v.base)
+                .is_some_and(|b| matches!(self.uni.zonk(&b), Ty::Meta(_))),
+        };
+        if open {
+            let idx = self.literal_pends.len();
+            self.literal_pends.push(PendLit {
+                ty: t,
+                value: raw.to_string(),
+                span,
+                kind: LitKind::Float,
+            });
+            return Ok(ECore::Lit(idx));
+        }
+        self.float_literal_const(&t, raw, span)
+    }
+
+    fn literal_const_kind(
+        &self,
+        ty: &Ty,
+        value: &str,
+        kind: LitKind,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        match kind {
+            LitKind::Int => self.literal_const(ty, value, span),
+            LitKind::Float => self.float_literal_const(ty, value, span),
+        }
+    }
+
+    fn float_literal_const(&self, ty: &Ty, raw: &str, span: ast::Span) -> Result<ECore> {
+        let cleaned = raw.replace('_', "");
+        match ty {
+            Ty::Prim(Scalar::F32) => {
+                let f: f32 = cleaned.parse().map_err(|_| {
+                    Error::at(span, format!("float literal {raw} is not a valid F32 number"))
+                })?;
+                if !f.is_finite() {
+                    return Err(Error::at(
+                        span,
+                        format!("float literal {raw} overflows F32"),
+                    ));
+                }
+                Ok(ECore::Int(f.to_bits() as i64))
+            }
+            Ty::Prim(Scalar::F64) => {
+                let f: f64 = cleaned.parse().map_err(|_| {
+                    Error::at(span, format!("float literal {raw} is not a valid F64 number"))
+                })?;
+                if !f.is_finite() {
+                    return Err(Error::at(
+                        span,
+                        format!("float literal {raw} overflows F64"),
+                    ));
+                }
+                Ok(ECore::Int(f.to_bits() as i64))
+            }
+            Ty::Adt(..) if self.refine_view(ty).is_some() => {
+                let Some(RefineView { base: Some(base), .. }) = self.refine_view(ty) else {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!("float literal {} cannot have type {}", raw, ty),
+                    ));
+                };
+                self.float_literal_const(&self.uni.zonk(&base), raw, span)
+            }
+            other => Err(Error::at(
+                span,
+                crate::diagnostic!(
+                    "float literal {} cannot have type {} (float literals have type F32 or F64)",
+                    raw,
+                    other
+                ),
+            )),
+        }
     }
 
     /// The constant of literal `digits` at type `ty`. `Nat` and `Int` are
@@ -5917,11 +6014,50 @@ impl Checker {
         out
     }
 
-    /// The resolved constant words of one definition's deferred literals
-    /// (section 7: a literal whose type is not determined by context is
-    /// an error in this draft), positional against the `ECore::Lit`
-    /// indices shared by the body and its `letrec` member units.
+    /// Choose the Haskell-style default type for a deferred literal
+    /// metavariable: `F64` if any pending literal tied to `meta` is a float
+    /// literal (`1.5`, `0.0`, `1e-4`), otherwise `Int`.
+    fn literal_default_ty(&self, meta: EitherMeta) -> Ty {
+        for p in &self.literal_pends {
+            if p.kind == LitKind::Float {
+                let t = self.uni.zonk(&p.ty);
+                if self.uni.free_metas(&t).contains(&meta) {
+                    return Ty::Prim(Scalar::F64);
+                }
+            }
+        }
+        Ty::Int
+    }
+
+    /// Default any remaining open literal metavariables (`Int` for integer
+    /// literals, `F64` for float literals) before zonking or lowering.
+    fn default_open_literals(&mut self) {
+        let len = self.literal_pends.len();
+        for i in 0..len {
+            let t = self.uni.zonk(&self.literal_pends[i].ty);
+            let open_meta = match &t {
+                Ty::Meta(id) => Some(*id),
+                _ => self
+                    .refine_view(&t)
+                    .and_then(|v| v.base)
+                    .and_then(|b| match self.uni.zonk(&b) {
+                        Ty::Meta(id) => Some(id),
+                        _ => None,
+                    }),
+            };
+            if let Some(id) = open_meta {
+                let def = self.literal_default_ty(EitherMeta::Type(id));
+                let _ = self.uni.unify(&Ty::Meta(id), &def);
+            }
+        }
+    }
+
+    /// The resolved constant words of one definition's deferred literals,
+    /// positional against the `ECore::Lit` indices shared by the body and
+    /// its `letrec` member units. Unconstrained numeric literals default
+    /// like Haskell (`Int` for integer literals, `F64` for float literals).
     fn resolved_literals(&mut self) -> Result<Vec<ECore>> {
+        self.default_open_literals();
         let pends = std::mem::take(&mut self.literal_pends);
         let mut lits: Vec<ECore> = Vec::with_capacity(pends.len());
         for p in &pends {
@@ -5929,10 +6065,10 @@ impl Checker {
             if matches!(t, Ty::Meta(_)) {
                 return Err(Error::at(
                     p.span,
-                    "the type of this integer literal is not determined by context; add a type annotation",
+                    "the type of this numeric literal is not determined by context; add a type annotation",
                 ));
             }
-            lits.push(self.literal_const(&t, &p.value, p.span)?);
+            lits.push(self.literal_const_kind(&t, &p.value, p.kind, p.span)?);
         }
         Ok(lits)
     }
@@ -11708,10 +11844,11 @@ impl Checker {
                                     EitherMeta::Type(id) => Ty::Meta(id),
                                     EitherMeta::Row(_) => continue,
                                 };
+                                let def = self.literal_default_ty(m);
                                 self.uni
-                                    .unify(&ty, &Ty::Int)
+                                    .unify(&ty, &def)
                                     .unwrap_or_else(|_| {
-                                        panic!("literal defaulting to Int must succeed")
+                                        panic!("literal defaulting must succeed")
                                     });
                                 defaulted = true;
                             }

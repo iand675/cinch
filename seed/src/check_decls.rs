@@ -527,6 +527,7 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
         ast::Term::Var(_)
         | ast::Term::Con(_)
         | ast::Term::Int(_, _)
+        | ast::Term::Float(_, _)
         | ast::Term::Str(_, _)
         | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
         | ast::Term::Unit(_)
@@ -7228,6 +7229,7 @@ impl Checker {
             }
             ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -10643,18 +10645,7 @@ impl Checker {
         if let Some(req) = &mut req_ec {
             Self::fill_holes(req, &sol)?;
         }
-        let lit_pends = std::mem::take(&mut self.literal_pends);
-        let mut lits: Vec<ECore> = Vec::with_capacity(lit_pends.len());
-        for p in &lit_pends {
-            let t = self.uni.zonk(&p.ty);
-            if matches!(t, Ty::Meta(_)) {
-                return Err(Error::at(
-                    p.span,
-                    "the type of this integer literal is not determined by context; add a type annotation",
-                ));
-            }
-            lits.push(self.literal_const(&t, &p.value, p.span)?);
-        }
+        let lits = self.resolved_literals()?;
         let idx_pends = std::mem::take(&mut self.idx_pends);
         let mut vals: Vec<ECore> = Vec::with_capacity(idx_pends.len());
         for p in &idx_pends {
@@ -13473,7 +13464,7 @@ impl<'a> FactWalk<'a> {
                     closure: self.closure,
                 });
             }
-            ast::Term::Int(..) | ast::Term::Char(..) | ast::Term::Sym(..) | ast::Term::Unit(_)
+            ast::Term::Int(..) | ast::Term::Float(..) | ast::Term::Char(..) | ast::Term::Sym(..) | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. } | ast::Term::SeqOp(..) => {}
             ast::Term::Str(_, s) => {
@@ -15439,6 +15430,7 @@ impl Checker {
         let mut flag = established;
         match t {
             ast::Term::Int(..)
+            | ast::Term::Float(..)
             | ast::Term::Str(..)
             | ast::Term::Char(..)
             | ast::Term::Sym(..)
@@ -15650,6 +15642,7 @@ impl Checker {
             ast::Term::Var(p) => f(&p.span()),
             ast::Term::Con(p) => f(&p.span()),
             ast::Term::Int(_, s)
+            | ast::Term::Float(_, s)
             | ast::Term::Str(_, s)
             | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
             | ast::Term::Unit(s)
@@ -20959,6 +20952,7 @@ impl Checker {
             ast::Term::Var(_)
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -21400,6 +21394,7 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             | ast::Term::Var(_)
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
+            | ast::Term::Float(_, _)
             | ast::Term::Str(_, _)
             | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
@@ -21529,6 +21524,7 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
             }
         }
         ast::Term::Int(_, s)
+        | ast::Term::Float(_, s)
         | ast::Term::Str(_, s)
         | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
         | ast::Term::Unit(s)
@@ -25451,8 +25447,9 @@ impl Checker {
                                     EitherMeta::Type(id) => Ty::Meta(id),
                                     EitherMeta::Row(_) => continue,
                                 };
-                                self.uni.unify(&ty, &Ty::Int).unwrap_or_else(|_| {
-                                    panic!("literal defaulting to Int must succeed")
+                                let def = self.literal_default_ty(m);
+                                self.uni.unify(&ty, &def).unwrap_or_else(|_| {
+                                    panic!("literal defaulting must succeed")
                                 });
                                 defaulted = true;
                             }
@@ -25512,6 +25509,9 @@ impl Checker {
             .partition(|w| w.id >= want_base);
         self.wants = rest;
         let (sol, residual) = self.solve_wants_residual(probe_wants)?;
+        if residual.is_empty() {
+            self.default_open_literals();
+        }
         // The scheme: generalized like a let binding (the value
         // restriction), with the residual constraints as its context,
         // rendered against the same quantified names.

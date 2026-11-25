@@ -16,11 +16,7 @@ module Main where
   import Data.Result
 
   blur-weights :: Array I32
-  blur-weights = array-from-i32s
-    [ wrapping-i64-to-i32 1, wrapping-i64-to-i32 2, wrapping-i64-to-i32 1
-    , wrapping-i64-to-i32 2, wrapping-i64-to-i32 4, wrapping-i64-to-i32 2
-    , wrapping-i64-to-i32 1, wrapping-i64-to-i32 2, wrapping-i64-to-i32 1
-    ]
+  blur-weights = array-from-i32s [1, 2, 1, 2, 4, 2, 1, 2, 1]
 
   -- Run the full pipeline on the Metal GPU: upload once, stencil + histogram
   -- resident on device, download only the `frames x 256` histogram counts.
@@ -29,7 +25,7 @@ module Main where
     case device-upload dev batch of
       Err e -> Err e
       Ok d-in ->
-        case device-stencil-histogram-u8 dev d-in frames h w blur-weights (wrapping-i64-to-i32 16) EdgeClamp steps 256 of
+        case device-stencil-histogram-u8 dev d-in frames h w blur-weights 16 EdgeClamp steps 256 of
           Err e ->
             let _ = ignore (device-buffer-free d-in)
             in Err e
@@ -41,13 +37,13 @@ module Main where
 
   main :: Int
   main =
-    let frames = (64 :: Nat)
-        h = (64 :: Nat)
-        w = (64 :: Nat)
+    let frames = 64
+        h = 64
+        w = 64
         total = frames * h * w
         imgs = array-tabulate-u8 total (\i ->
           if i <= 100000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 37)
-          else wrapping-i64-to-u8 0)
+          else 0)
     in case device-open-metal-required () of
       Err _ -> 1
       Ok dev ->
@@ -58,7 +54,7 @@ module Main where
             let _ = ignore (device-close dev)
             in case view3-of frames h w imgs of
               None -> 3
-              Some v3 -> case stencil-histogram-batch-u8 v3 blur-weights (wrapping-i64-to-i32 16) EdgeClamp 3 256 of
+              Some v3 -> case stencil-histogram-batch-u8 v3 blur-weights 16 EdgeClamp 3 256 of
                 None -> 4
                 Some cpu-v2 ->
                   let cpu-hist = view2-data cpu-v2

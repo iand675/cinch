@@ -298,14 +298,14 @@ module Data.Array.Compute where
     let mc = float-mode-code mode
     in if view1-is-contiguous a && view1-is-contiguous b
        then case array-zip-binop-f32 (view1-data a) (view1-data b) 2 of
-         None -> i64-to-f32 0
+         None -> 0.0
          Some prod -> array-reduce-f32 prod mc
        else array-strided-dot-f32 (view1-data a) (view1-offset a) (view1-stride a) (view1-data b) (view1-offset b) (view1-stride b) (view1-len a) mc
 
   dot-view1-i32 :: forall (n :: Nat). View1 n I32 -> View1 n I32 -> I32
   dot-view1-i32 a b =
     case array-zip-binop-i32 (view1-data a) (view1-data b) 2 of
-      None -> wrapping-i64-to-i32 0
+      None -> 0
       Some prod -> array-reduce-i32 prod 0
 
   -- Shape-checked row reduction: `View2 m n F32 -> Option (View1 m F32)`.
@@ -378,11 +378,11 @@ module Data.Array.Compute where
   radix-pass-u32 :: Array U32 -> U32 -> Array U32
   radix-pass-u32 xs shift =
     let n = array-length xs
-        keys = array-map-u32 (\v -> bit-and-u32 (wrapping-shr-u32 v shift) (wrapping-i64-to-u32 255)) xs
+        keys = array-map-u32 (\v -> bit-and-u32 (wrapping-shr-u32 v shift) 255) xs
         counts = array-histogram-u32 keys 256
         offsets = array-scan-u32 counts 0 False
-        zeros1 = array-tabulate-u32 n (\_ -> wrapping-i64-to-u32 0)
-        zeros2 = array-tabulate-u32 n (\_ -> wrapping-i64-to-u32 0)
+        zeros1 = array-tabulate-u32 n (\_ -> 0)
+        zeros2 = array-tabulate-u32 n (\_ -> 0)
         dest-idx = radix-compute-dests keys offsets 0 n zeros1
     in array-scatter-unique-u32 zeros2 dest-idx xs
 
@@ -396,7 +396,7 @@ module Data.Array.Compute where
         in case array-get offsets bi of
           None -> out
           Some pos ->
-            let next-off = case array-set offsets bi (wrapping-add-u32 pos (wrapping-i64-to-u32 1)) of
+            let next-off = case array-set offsets bi (wrapping-add-u32 pos 1) of
                   None -> offsets
                   Some updated -> updated
                 next-out = case array-set out i pos of

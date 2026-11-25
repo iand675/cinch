@@ -341,6 +341,7 @@ pub fn walk_term(term: &Term, visit: &mut impl FnMut(&Term) -> Result<()>) -> Re
         Term::Var(_)
         | Term::Con(_)
         | Term::Int(..)
+        | Term::Float(..)
         | Term::Str(..)
         | Term::Char(..)
         | Term::Sym(..)

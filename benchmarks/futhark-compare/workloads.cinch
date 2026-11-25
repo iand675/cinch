@@ -13,12 +13,12 @@ module Workloads where
   -- (automatically fused by Typed Array IR to zero-temp `arrayDotF32`/`arrayDotI32`).
   dot-f32-composed :: Array F32 -> Array F32 -> FloatMode -> F32
   dot-f32-composed xs ys mode = case array-zip-binop-f32 xs ys 2 of
-    None -> i64-to-f32 0
+    None -> 0.0
     Some prods -> array-reduce-f32 prods (float-mode-code mode)
 
   dot-i32-composed :: Array I32 -> Array I32 -> I32
   dot-i32-composed xs ys = case array-zip-binop-i32 xs ys 2 of
-    None -> wrapping-i64-to-i32 0
+    None -> 0
     Some prods -> array-reduce-i32 prods 0
 
   -- 2. Inclusive prefix scan and stable compaction

@@ -51,7 +51,7 @@ fn shape_indexed_views_zero_copy_transpose_fin_and_sigma_filter() {
 
   main :: Int
   main =
-    let xs = array-from-f32s [i64-to-f32 1, i64-to-f32 2, i64-to-f32 3, i64-to-f32 4, i64-to-f32 5, i64-to-f32 6]
+    let xs = array-from-f32s [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
         dims = array-from-list [2, 3]
     in case tensor-reshape dims xs of
       None -> 1
@@ -76,10 +76,10 @@ fn shape_indexed_views_zero_copy_transpose_fin_and_sigma_filter() {
                      Some v ->
                        if saturating-f32-to-i64 v /= 7 then 7
                        else
-                         let iv = array-from-i32s [wrapping-i64-to-i32 (-3), wrapping-i64-to-i32 10, wrapping-i64-to-i32 2, wrapping-i64-to-i32 25, wrapping-i64-to-i32 1]
+                         let iv = array-from-i32s [-3, 10, 2, 25, 1]
                          in case view1-of 5 iv of
                            None -> 8
-                           Some v1 -> case filter-view1-i32-gt v1 (wrapping-i64-to-i32 3) of
+                           Some v1 -> case filter-view1-i32-gt v1 3 of
                              None -> 9
                              Some (k, bv) ->
                                if k == 2 && view1-len (bounded-view1 bv) == 2 then 0 else 10
@@ -132,13 +132,13 @@ fn producer_consumer_fusion_through_imported_helper_eliminates_allocation() {
 
   dot-via-helper :: Array F32 -> Array F32 -> F32
   dot-via-helper xs ys = case mul-vecs xs ys of
-    None -> i64-to-f32 0
+    None -> 0.0
     Some prod -> array-reduce-f32 prod 10
 
   main :: Int
   main =
-    let xs = array-from-f32s [i64-to-f32 2, i64-to-f32 3, i64-to-f32 4]
-        ys = array-from-f32s [i64-to-f32 5, i64-to-f32 6, i64-to-f32 7]
+    let xs = array-from-f32s [2.0, 3.0, 4.0]
+        ys = array-from-f32s [5.0, 6.0, 7.0]
         ans = dot-via-helper xs ys
     in if saturating-f32-to-i64 ans == 56 then 0 else 1
 "#;
@@ -203,17 +203,17 @@ fn radix_sort_spmv_scan_scatter_and_reference_agreement() {
   main :: Int
   main =
     -- 1. Radix sort built from map + histogram + exclusive scan + scatter-unique
-    let unsorted = array-from-u32s [wrapping-i64-to-u32 300, wrapping-i64-to-u32 5, wrapping-i64-to-u32 1024, wrapping-i64-to-u32 5, wrapping-i64-to-u32 0, wrapping-i64-to-u32 65537]
+    let unsorted = array-from-u32s [300, 5, 1024, 5, 0, 65537]
         sorted = radix-sort-u32 unsorted
-        s0 = case array-get sorted 0 of Some x -> u32-to-i64 x; None -> (-1)
-        s1 = case array-get sorted 1 of Some x -> u32-to-i64 x; None -> (-1)
-        s2 = case array-get sorted 2 of Some x -> u32-to-i64 x; None -> (-1)
-        s5 = case array-get sorted 5 of Some x -> u32-to-i64 x; None -> (-1)
+        s0 = case array-get sorted 0 of Some x -> u32-to-i64 x; None -> -1
+        s1 = case array-get sorted 1 of Some x -> u32-to-i64 x; None -> -1
+        s2 = case array-get sorted 2 of Some x -> u32-to-i64 x; None -> -1
+        s5 = case array-get sorted 5 of Some x -> u32-to-i64 x; None -> -1
     in if s0 /= 0 || s1 /= 5 || s2 /= 5 || s5 /= 65537 then 1
     else
       -- 2. Direct packed tabulate (no List!) + exact-tree vs reference agreement
-      let xs = array-tabulate-f32 256 (\i -> if i <= 1000000 then i64-to-f32 (nat-to-i64 i) else i64-to-f32 0)
-          ys = array-tabulate-f32 256 (\i -> i64-to-f32 1)
+      let xs = array-tabulate-f32 256 (\i -> if i <= 1000000 then i64-to-f32 (nat-to-i64 i) else 0.0)
+          ys = array-tabulate-f32 256 (\i -> 1.0)
           _ = array-set-exec-mode 1
           ref-dot = array-dot-f32 xs ys 10
           _ = array-set-exec-mode 0
@@ -221,15 +221,15 @@ fn radix_sort_spmv_scan_scatter_and_reference_agreement() {
       in if saturating-f32-to-i64 ref-dot /= saturating-f32-to-i64 cpu-dot || saturating-f32-to-i64 cpu-dot /= 32640 then 2
       else
         -- 3. CSR SpMV with empty rows (composed gather + zip-mul + segmented-reduce, fused!)
-        let vals = array-from-f32s [i64-to-f32 2, i64-to-f32 3, i64-to-f32 4, i64-to-f32 5]
-            cols = array-from-i32s [wrapping-i64-to-i32 0, wrapping-i64-to-i32 2, wrapping-i64-to-i32 1, wrapping-i64-to-i32 2]
-            rptr = array-from-u32s [wrapping-i64-to-u32 0, wrapping-i64-to-u32 2, wrapping-i64-to-u32 2, wrapping-i64-to-u32 4, wrapping-i64-to-u32 4]
-            xv = array-from-f32s [i64-to-f32 10, i64-to-f32 20, i64-to-f32 30]
+        let vals = array-from-f32s [2.0, 3.0, 4.0, 5.0]
+            cols = array-from-i32s [0, 2, 1, 2]
+            rptr = array-from-u32s [0, 2, 2, 4, 4]
+            xv = array-from-f32s [10.0, 20.0, 30.0]
             yv = spmv-csr-composed-f32 vals cols rptr xv FloatExactTree
-            y0 = case array-get yv 0 of Some v -> saturating-f32-to-i64 v; None -> (-1)
-            y1 = case array-get yv 1 of Some v -> saturating-f32-to-i64 v; None -> (-1)
-            y2 = case array-get yv 2 of Some v -> saturating-f32-to-i64 v; None -> (-1)
-            y3 = case array-get yv 3 of Some v -> saturating-f32-to-i64 v; None -> (-1)
+            y0 = case array-get yv 0 of Some v -> saturating-f32-to-i64 v; None -> -1
+            y1 = case array-get yv 1 of Some v -> saturating-f32-to-i64 v; None -> -1
+            y2 = case array-get yv 2 of Some v -> saturating-f32-to-i64 v; None -> -1
+            y3 = case array-get yv 3 of Some v -> saturating-f32-to-i64 v; None -> -1
         in if y0 == 110 && y1 == 0 && y2 == 230 && y3 == 0 then 0 else 3
 "#,
     );
@@ -300,11 +300,11 @@ fn required_metal_target_diagnoses_unsupported_ops_at_compile_time() {
   import Data.Machine
 
   bad-gpu :: Array F32 -> F32
-  bad-gpu xs = array-foldl-f32 (\a b -> add-f32 a b) (i64-to-f32 0) xs
+  bad-gpu xs = array-foldl-f32 (\a b -> add-f32 a b) 0.0 xs
 
   main :: Int
   main =
-    let xs = array-from-f32s [i64-to-f32 1, i64-to-f32 2]
+    let xs = array-from-f32s [1.0, 2.0]
         s = bad-gpu xs
     in if saturating-f32-to-i64 s == 3 then 0 else 1
 "#;
@@ -362,17 +362,17 @@ fn metal_gpu_resident_stencil_histogram_pipeline_in_idiomatic_cinch() {
 
   main :: Int
   main =
-    let frames = (32 :: Nat)
-        h = (32 :: Nat)
-        w = (32 :: Nat)
+    let frames = 32
+        h = 32
+        w = 32
         total = frames * h * w
-        imgs = array-tabulate-u8 total (\i -> if i <= 10000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 17) else wrapping-i64-to-u8 0)
-        weights = array-from-i32s [wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1, wrapping-i64-to-i32 1]
+        imgs = array-tabulate-u8 total (\i -> if i <= 10000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 17) else 0)
+        weights = array-from-i32s [1, 1, 1, 1, 1, 1, 1, 1, 1]
     in case device-open-metal-required () of
       Err _ -> 1
       Ok dev -> case device-upload dev imgs of
         Err _ -> 2
-        Ok d-in -> case device-stencil-histogram-u8 dev d-in frames h w weights (wrapping-i64-to-i32 9) EdgeClamp 2 256 of
+        Ok d-in -> case device-stencil-histogram-u8 dev d-in frames h w weights 9 EdgeClamp 2 256 of
           Err _ -> 3
           Ok d-hist -> case device-download-u32 dev d-hist of
             Err _ -> 4
@@ -382,13 +382,13 @@ fn metal_gpu_resident_stencil_histogram_pipeline_in_idiomatic_cinch() {
                   _ = ignore (device-buffer-free d-hist)
                   -- Also verify few-large-frames launch plan on the same GPU context
                   _ = ignore (device-reset-telemetry dev)
-                  f2 = (2 :: Nat)
-                  h2 = (256 :: Nat)
-                  w2 = (256 :: Nat)
-                  imgs2 = array-tabulate-u8 (f2 * h2 * w2) (\i -> if i <= 10000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 13) else wrapping-i64-to-u8 0)
+                  f2 = 2
+                  h2 = 256
+                  w2 = 256
+                  imgs2 = array-tabulate-u8 (f2 * h2 * w2) (\i -> if i <= 10000000 then wrapping-i64-to-u8 (wrapping-mul-i64 (nat-to-i64 i) 13) else 0)
                   ok2 = case device-upload dev imgs2 of
                     Err _ -> False
-                    Ok d2-in -> case device-stencil-histogram-u8 dev d2-in f2 h2 w2 weights (wrapping-i64-to-i32 9) EdgeClamp 2 256 of
+                    Ok d2-in -> case device-stencil-histogram-u8 dev d2-in f2 h2 w2 weights 9 EdgeClamp 2 256 of
                       Err _ -> False
                       Ok d2-hist -> case device-download-u32 dev d2-hist of
                         Err _ -> False
@@ -401,7 +401,7 @@ fn metal_gpu_resident_stencil_histogram_pipeline_in_idiomatic_cinch() {
               in if not ok2 || not (bytes-has rep "many-small-frames") || not (bytes-has rep "\"uploads\":1") || not (bytes-has rep "\"downloads\":1") then 8
               else case view3-of frames h w imgs of
                 None -> 5
-                Some v3 -> case stencil-histogram-batch-u8 v3 weights (wrapping-i64-to-i32 9) EdgeClamp 2 256 of
+                Some v3 -> case stencil-histogram-batch-u8 v3 weights 9 EdgeClamp 2 256 of
                   None -> 6
                   Some cpu-v2 ->
                     let cpu-hist = view2-data cpu-v2

@@ -610,17 +610,77 @@ module Main where
 }
 
 #[test]
-fn unconstrained_literal_is_an_error() {
+fn haskell_style_numeric_literal_inference_and_defaulting() {
     let source = "module Main where\n  discard :: forall a. a -> Int\n  discard x = 0\n  main :: Int\n  main = discard [1, 2]\n";
     check_sources(source, "lit-collection-default").expect("the FromList factory selects List Int");
-    expect_err(
-        "lit-undetermined",
+
+    // Unconstrained integer literals default to Int and unconstrained float
+    // literals default to F64 (Haskell-style `default (Int, F64)`), while
+    // context infers I8..I64, U8..U64, F32, F64, Nat, and Int without casts.
+    run_ok(
+        "lit-haskell-inference",
         r#"
 module Main where
   main :: Int
-  main = let x = identity 5 in 0
+  main =
+    let _unused_int = identity 5
+        _unused_flt = identity 1.5
+        a = -5
+        b = wrapping-add-i32 a 12
+        c = 1.5
+        d = add-f32 c -0.25
+        e = 2.5
+        f = add-f64 e 0.5
+        negz = (-0.0 :: F32)
+        negz_bits = f32-bits negz
+        mixed = [1, 2.5, -0.5]
+        s = case mixed of
+          Cons x (Cons y (Cons z Nil)) -> add-f64 x (add-f64 y z)
+          _ -> 0.0
+    in if b == 7
+          && saturating-f32-to-i64 (mul-f32 d 4.0) == 5
+          && saturating-f64-to-i64 f == 3
+          && saturating-f64-to-i64 s == 3
+          && negz_bits == 0x80000000
+       then 0
+       else 1
 "#,
-        "not determined by context",
+        0,
+    );
+
+    // Float literals cannot elaborate to non-float types.
+    expect_err(
+        "lit-float-at-i32",
+        r#"
+module Main where
+  main :: Int
+  main = let x = (1.5 :: I32) in 0
+"#,
+        "float literal 1.5 cannot have type I32",
+    );
+
+    // Overflowing float literals are rejected at compile time.
+    expect_err(
+        "lit-float-overflow-f32",
+        r#"
+module Main where
+  main :: Int
+  main = let x = (1e50 :: F32) in 0
+"#,
+        "float literal 1e50 overflows F32",
+    );
+
+    // Deferred integer literals inferred through `let` still range-check!
+    expect_err(
+        "lit-deferred-range-u8",
+        r#"
+module Main where
+  take-u8 :: U8 -> Int
+  take-u8 _ = 0
+  main :: Int
+  main = let x = 300 in take-u8 x
+"#,
+        "integer literal 300 is out of range for U8",
     );
 }
 
