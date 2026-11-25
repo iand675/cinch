@@ -254,7 +254,7 @@ fn sealed_string_count_kernels_compile_for_wasm_arm_and_big_endian() {
     let start = STRING
         .find("  -- | Add bounded private machine counters")
         .unwrap();
-    let source=format!("-- | Actual sealed String scalar-count production kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n{}\n  -- | Keep the private backing owner through the complete raw traversal.\n  held :: forall a. Bytes -> a -> a\n  held raw value = case bytes-len raw of _ -> value\n  -- | Root packed blocks and scalar fringes in actual object code.\n  main :: Int\n  main = let raw = bytes-from-u8s [97,0,195,169,231,149,140,240,159,153,130,97,97,97,97,97,97] in let count = held raw (string-count-from (bytes-data raw) 0 (nat-to-i64 (bytes-len raw)) 0) in if eq-i64 count 11 then 0 else 1\n",&STRING[start..]);
+    let source=format!("-- | Actual sealed String scalar-count production kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n  import Prim.Wide\n{}\n  -- | Root packed blocks and scalar fringes in actual object code.\n  main :: Int\n  main = let raw = bytes-from-u8s [97,0,195,169,231,149,140,240,159,153,130,97,97,97,97,97,97] in let count = string-count-from raw 0 (bytes-len-i64 raw) 0 in if eq-i64 count 11 then 0 else 1\n",&STRING[start..]);
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -288,8 +288,8 @@ fn sealed_string_count_kernels_compile_for_wasm_arm_and_big_endian() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("load <16 x i8>"));
-        assert!(ir.contains("bitcast <16 x i8> %flags to <2 x i64>"));
+        assert!(ir.contains("icmp eq <16 x i8>"));
+        assert!(ir.contains("bitcast <16 x i1>"));
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let result = std::process::Command::new(

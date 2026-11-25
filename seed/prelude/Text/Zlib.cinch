@@ -4,14 +4,14 @@
 -- blocks and dynamic Huffman blocks (the code-length alphabet's
 -- 16/17/18 repeat codes included), LZ77 back-references over the full
 -- length and distance tables, the header's CM/CINFO/FDICT/FCHECK
--- fields, and the trailing Adler-32. `deflate` is the other direction
--- only, and deliberately asymmetric: it is a STORED-BLOCK encoder
--- (RFC 1951 3.2.4), so what it writes is a legal zlib stream that
--- every decoder accepts, never a compressed one. Bit-exactness with
--- any particular encoder was never the shape; `inflate (deflate x) ==
--- x` is, and the other direction is pinned by handing the encoder's
--- output to a real decoder (python's `zlib`, in
--- seed/tests/lib_zlib.rs).
+-- fields, and the trailing Adler-32. `deflate` and `deflate-raw`
+-- perform real RFC 1951 DEFLATE compression via `Text.Flate` (LZ77
+-- matching with fixed/dynamic/stored block selection), with explicit
+-- `deflate-level` / `deflate-raw-level` variants for choosing a
+-- `FlateCompression` level and `deflate-stored` / `deflate-raw-stored`
+-- preserved for uncompressed stored-block output. `inflate (deflate x)
+-- == x` holds for every input, and interoperability is verified against
+-- independent decoders in seed/tests/lib_zlib.rs.
 --
 -- THE DESIGN LAW SHAPE: decoding never guesses. Nothing here produces
 -- bytes it cannot justify, and every refusal names itself:
@@ -35,13 +35,14 @@
 --
 -- NAMED REFUSALS at the boundary (what this module deliberately does
 -- not do): gzip framing lives with the gzip codec; raw blocks are available
--- through inflate-raw-at and deflate-raw. There is no
--- preset dictionary (an FDICT stream refuses as `BadHeader`), no
--- streaming or incremental API (inflate takes the whole stream and
--- returns the whole result, and so does the encoder). The optional
--- deflate-raw-rle encoder compresses repeated bytes with fixed Huffman
--- codes. The zlib wrapper has no trailing-data check (bytes
--- after the Adler-32 belong to no stream this module reads).
+-- through inflate-raw-at, deflate-raw, deflate-raw-level, and
+-- deflate-raw-stored. There is no preset dictionary (an FDICT stream
+-- refuses as `BadHeader`), no streaming or incremental API (inflate takes
+-- the whole stream and returns the whole result, and so does the encoder).
+-- The optional deflate-raw-rle encoder compresses repeated bytes with
+-- fixed Huffman codes and falls back to stored blocks. The zlib wrapper
+-- has no trailing-data check (bytes after the Adler-32 belong to no
+-- stream this module reads).
 --
 -- The window claimed is CINFO 7 in both directions: the decoder
 -- accepts the 32K maximum and the encoder declares exactly what it
@@ -81,13 +82,14 @@ module Text.Zlib where
   import Data.Result
   import Data.Bytes
   import Data.Machine
+  import Text.Flate
 
   import Algebra.Semigroup
 
 
   export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
-  export inflate, deflate, adler32, crc32
-  export inflate-raw-at, deflate-raw, deflate-raw-rle
+  export inflate, deflate, deflate-level, deflate-stored, adler32, crc32
+  export inflate-raw-at, deflate-raw, deflate-raw-level, deflate-raw-stored, deflate-raw-rle
 
 
   -- ---------------------------------------------------------------------
@@ -728,28 +730,79 @@ module Text.Zlib where
   fixed-dist-table = table-build (replicate 32 5)
 
   -- ---------------------------------------------------------------------
-  -- Encoding. Stored blocks only (see the header): the encoder's
-  -- obligation is a legal stream that round-trips, and its output is
-  -- exactly the stream a decoder would have produced had the input
-  -- arrived as a stored block already.
+  -- Encoding. Real RFC 1951 DEFLATE compression via Text.Flate, with
+  -- explicit stored-block encoders preserved for uncompressed output and
+  -- fallback paths.
   -- ---------------------------------------------------------------------
 
-  -- The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
-  -- FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
-  -- stored block per 65535-byte chunk with the last one final (one
-  -- empty final block for no bytes: a stream still needs one), and the
-  -- Adler-32 of `src` big-endian. The buffer is sized exactly, so
-  -- nothing is copied twice.
+  -- | RFC 1950 FLG byte for CMF 0x78 (CM 8, CINFO 7, FDICT 0) with FLEVEL
+  -- matching the requested compression level and FCHECK satisfying
+  -- (0x78 * 256 + FLG) mod 31 == 0.
+  zlib-flg :: FlateCompression -> InRange 0 255 Nat
+  zlib-flg level = case level of
+    FlateNoCompression -> 1
+    FlateBestSpeed -> 1
+    FlateHuffmanOnly -> 1
+    FlateDefaultCompression -> 156
+    FlateBestCompression -> 218
+    FlateLevel n ->
+      if n <= 1 then 1
+      else if n <= 5 then 94
+      else if n == 6 then 156
+      else 218
+
+  -- | Wrap a raw DEFLATE payload in the 2-byte zlib header and trailing
+  -- big-endian Adler-32 checksum of the uncompressed input.
+  zlib-wrap :: InRange 0 255 Nat -> Bytes -> Bytes -> Bytes
+  zlib-wrap flg src payload =
+    let plen = bytes-len payload in
+    let out = bytes-new (plen + 6) in
+    let u0 = bytes-set out 0 120 in
+    let u1 = bytes-set out 1 flg in
+    let u2 = bytes-move out 2 payload 0 plen in
+    let u3 = write-be32 out (plen + 2) (adler-nat src) in
+    out
+
+  -- | Encode a zlib stream (RFC 1950) using default DEFLATE compression.
   deflate :: Bytes -> Bytes
-  deflate src =
+  deflate src = deflate-level FlateDefaultCompression src
+
+  -- | Encode a zlib stream (RFC 1950) at the given DEFLATE compression level,
+  -- setting the header FLEVEL bits accordingly and falling back to stored
+  -- blocks if the level is invalid.
+  deflate-level :: FlateCompression -> Bytes -> Bytes
+  deflate-level level src = case level of
+    FlateNoCompression -> deflate-stored src
+    _ -> case flate-compress level src of
+      Ok payload -> zlib-wrap (zlib-flg level) src payload
+      Err _ -> deflate-stored src
+
+  -- | Encode a zlib stream (RFC 1950) using uncompressed stored blocks
+  -- (header 0x78 0x01, one stored block per 65535-byte chunk, trailing Adler-32).
+  deflate-stored :: Bytes -> Bytes
+  deflate-stored src =
     let out = write-blocks 2 src 0 (Some (adler-nat src)) in
     let u = bytes-set out 0 120 in
     let v = bytes-set out 1 1 in
     out
 
-  -- | Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
+  -- | Encode a raw DEFLATE stream (RFC 1951) using default compression.
   deflate-raw :: Bytes -> Bytes
-  deflate-raw src = write-blocks 0 src 0 None
+  deflate-raw src = deflate-raw-level FlateDefaultCompression src
+
+  -- | Encode a raw DEFLATE stream (RFC 1951) at the given compression level,
+  -- falling back to stored blocks if the level is invalid.
+  deflate-raw-level :: FlateCompression -> Bytes -> Bytes
+  deflate-raw-level level src = case level of
+    FlateNoCompression -> deflate-raw-stored src
+    _ -> case flate-compress level src of
+      Ok payload -> payload
+      Err _ -> deflate-raw-stored src
+
+  -- | Encode a raw DEFLATE stream (RFC 1951) using stored blocks of up to
+  -- 65535 bytes each.
+  deflate-raw-stored :: Bytes -> Bytes
+  deflate-raw-stored src = write-blocks 0 src 0 None
 
   -- | Encode a raw DEFLATE stream using fixed Huffman codes and distance-one
   -- runs of up to 258 bytes. Choose stored blocks when they would be smaller.
@@ -763,7 +816,7 @@ module Text.Zlib where
     let size = nat-div (end + 7) 8 in
     let blocks = if n == 0 then (1 :: Nat) else nat-div (n + 65534) 65535 in
     if size <= n + 5 * blocks && size <= bytes-len out then out-slice out size
-    else deflate-raw src
+    else deflate-raw-stored src
 
   -- | Add up to nine low-first bits at a bit offset. Existing low bits in
   -- the first byte are preserved; subsequent bytes have not yet been written.

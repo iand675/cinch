@@ -106,7 +106,7 @@ fn jpeg_kernels_compile_for_arm_wasm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i32>"));
+        assert!(ir.contains("<4 x i32>") && ir.contains("<8 x i16>"));
         let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .args(["-target", triple, "-O2", "-c", "-x", "ir"])
             .arg(project.join("program.ll"))

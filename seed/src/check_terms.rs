@@ -3893,7 +3893,7 @@ impl Checker {
                 if !args.iter().all(|a| self.fact_term_ok(env, a)) {
                     return false;
                 }
-                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len))) {
+                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64))) {
                     return args.len() == 1;
                 }
                 // A pure arithmetic intrinsic applied to all of its
@@ -3901,6 +3901,9 @@ impl Checker {
                 // `nat-rem n 10`) is a value of its arguments alone.
                 if let ValueKind::Prim(op) = v.kind {
                     return op.is_pure_arith() && args.len() == op.arity();
+                }
+                if let ValueKind::PrimDecl { arity, .. } = &v.kind {
+                    return !prim_effectful(&v.scheme.ty) && args.len() == *arity;
                 }
                 if !matches!(v.kind, ValueKind::TopFn) {
                     return false;

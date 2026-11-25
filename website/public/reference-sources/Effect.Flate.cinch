@@ -1,0 +1,288 @@
+-- | Streaming raw DEFLATE (RFC 1951) readers and writers over Effect.Stream.
+-- Writers buffer uncompressed input into bounded blocks, support explicit
+-- byte-aligned sync flushes and idempotent finish, retain a 32 KiB sliding
+-- window across chunks and preset dictionaries, and keep failures sticky.
+-- Readers decode incrementally one DEFLATE block at a time with optional
+-- preset dictionaries and output byte limits, stopping at the final block.
+module Effect.Flate where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Stream
+  import Text.Flate
+
+  export FlateWriter, flate-writer, flate-writer-dict, flate-write
+  export flate-flush, flate-finish, flate-writer-sink, flate-writer-reset
+  export flate-reader, flate-reader-dict, flate-reader-limit
+
+  -- ---------------------------------------------------------------------
+  -- Byte buffer helpers (owned snapshots; never alias caller buffers).
+  -- ---------------------------------------------------------------------
+
+  -- | Maximum DEFLATE sliding window size (32 KiB).
+  flate-window-size :: Nat
+  flate-window-size = 32768
+
+  -- | Default output bound for unbounded streaming readers (1 GiB).
+  flate-default-limit :: Nat
+  flate-default-limit = 1073741824
+
+  -- | Copy an owned slice [start .. start + count) from a buffer.
+  slice-part :: Bytes -> Nat -> Nat -> Bytes
+  slice-part input start count =
+    if start + count <= bytes-len input then
+      let out = bytes-new count in
+      let copied = bytes-copy-range out input 0 start count in
+      out
+    else bytes-new 0
+
+  -- | Concatenate two buffers into fresh owned storage.
+  join-bytes :: Bytes -> Bytes -> Bytes
+  join-bytes a b =
+    let na = bytes-len a in
+    let nb = bytes-len b in
+    let out = bytes-new (na + nb) in
+    let c1 = bytes-copy-range out a 0 0 na in
+    let c2 = bytes-copy-range out b na 0 nb in
+    out
+
+  -- | Retain at most the last 32 KiB of a buffer as a sliding-window history.
+  tail-window :: Bytes -> Bytes
+  tail-window b =
+    let n = bytes-len b in
+    if n <= flate-window-size then slice-part b 0 n
+    else slice-part b (n - flate-window-size) flate-window-size
+
+  -- | Append newly produced bytes to the sliding window and retain its last 32 KiB.
+  advance-window :: Bytes -> Bytes -> Bytes
+  advance-window win added =
+    let wlen = bytes-len win in
+    let alen = bytes-len added in
+    if alen >= flate-window-size then slice-part added (alen - flate-window-size) flate-window-size
+    else
+      let keep = if wlen < flate-window-size - alen then wlen else flate-window-size - alen in
+      let out = bytes-new (keep + alen) in
+      let c1 = if wlen >= keep && keep <= bytes-len out then bytes-copy-range out win 0 (wlen - keep) keep else () in
+      let c2 = if keep + alen <= bytes-len out then bytes-copy-range out added keep 0 alen else () in
+      out
+
+  -- | Saturating natural subtraction.
+  sub-clamped :: Nat -> Nat -> Nat
+  sub-clamped a b = if b <= a then a - b else 0
+
+  -- | Translate a Text.Flate error into an Effect.Stream encoding error.
+  to-stream-error :: Nat -> FlateError -> StreamError
+  to-stream-error fallback-off err = case err of
+    FlateCorruptInput off -> StreamEncodingError "flate" off (flate-error-message err)
+    _ -> StreamEncodingError "flate" fallback-off (flate-error-message err)
+
+  -- ---------------------------------------------------------------------
+  -- Streaming DEFLATE writer.
+  -- ---------------------------------------------------------------------
+
+  -- | Explicitly advanced raw DEFLATE compressing sink with sticky error state
+  -- and explicit flush and finish transitions.
+  data FlateWriter r where
+    -- | Private active encoder: level, initial dictionary tail, sliding window,
+    -- buffered uncompressed bytes, leftover low bits (0..7), bit count, sink.
+    ActiveWriter :: FlateCompression -> Bytes -> Bytes -> Bytes -> U64 -> Nat -> ByteWriter r -> FlateWriter r
+    -- | Private finished encoder retaining level, initial dictionary, and advanced sink.
+    FinishedWriter :: FlateCompression -> Bytes -> ByteWriter r -> FlateWriter r
+    -- | Private terminal failure retaining level, initial dictionary, error, and advanced sink.
+    FailedWriter :: FlateCompression -> Bytes -> StreamError -> ByteWriter r -> FlateWriter r
+
+  -- | Create a streaming raw DEFLATE writer at the given compression level.
+  -- Returns FlateBadLevel if the requested level is out of range.
+  flate-writer :: forall r. FlateCompression -> ByteWriter r -> Result FlateError (FlateWriter r)
+  flate-writer level sink = flate-writer-dict level (bytes-new 0) sink
+
+  -- | Create a streaming raw DEFLATE writer seeded with a preset dictionary (last 32 KiB).
+  -- Returns FlateBadLevel if the requested level is out of range.
+  flate-writer-dict :: forall r. FlateCompression -> Bytes -> ByteWriter r -> Result FlateError (FlateWriter r)
+  flate-writer-dict level dict sink =
+    case flate-compress level (bytes-new 0) of
+      Err e -> Err e
+      Ok _ ->
+        let init-dict = tail-window dict in
+        Ok (ActiveWriter level init-dict init-dict (bytes-new 0) 0 0 sink)
+
+  -- | Inspect the advanced underlying sink, including after flush, finish, or failure.
+  flate-writer-sink :: forall r. FlateWriter r -> ByteWriter r
+  flate-writer-sink writer = case writer of
+    ActiveWriter _ _ _ _ _ _ sink -> sink
+    FinishedWriter _ _ sink -> sink
+    FailedWriter _ _ _ sink -> sink
+
+  -- | Reset a writer to compress a fresh stream into a new sink while preserving
+  -- its validated compression level and initial preset dictionary.
+  flate-writer-reset :: forall r. FlateWriter r -> ByteWriter r -> FlateWriter r
+  flate-writer-reset writer new-sink = case writer of
+    ActiveWriter level init-dict _ _ _ _ _ -> ActiveWriter level init-dict init-dict (bytes-new 0) 0 0 new-sink
+    FinishedWriter level init-dict _ -> ActiveWriter level init-dict init-dict (bytes-new 0) 0 0 new-sink
+    FailedWriter level init-dict _ _ -> ActiveWriter level init-dict init-dict (bytes-new 0) 0 0 new-sink
+
+  -- | Buffer input bytes and emit complete non-final DEFLATE blocks whenever the
+  -- pending buffer reaches 32 KiB. Reports accepted input bytes on success.
+  flate-write :: forall r. using (io :: Io r) => FlateWriter r -> Bytes ->{IO r} (Result StreamError Nat, FlateWriter r)
+  flate-write writer input =
+    if bytes-len input == 0 then (Ok 0, writer)
+    else case writer of
+      FinishedWriter _ _ _ -> (Err (StreamClosed "flate"), writer)
+      FailedWriter _ _ err _ -> (Err err, writer)
+      ActiveWriter level init-dict window pending bitbuf nbits sink ->
+        let combined = if bytes-len pending == 0 then slice-part input 0 (bytes-len input) else join-bytes pending input in
+        drain-full-blocks level init-dict window combined bitbuf nbits sink (bytes-len input)
+
+  -- | Emit full 32 KiB non-final blocks while pending input meets the block threshold.
+  drain-full-blocks :: forall r. using (io :: Io r) => FlateCompression -> Bytes -> Bytes -> Bytes -> U64 -> Nat -> ByteWriter r -> Nat ->{IO r} (Result StreamError Nat, FlateWriter r)
+  drain-full-blocks level init-dict window pending bitbuf nbits sink accepted =
+    if bytes-len pending < flate-window-size then
+      (Ok accepted, ActiveWriter level init-dict window pending bitbuf nbits sink)
+    else
+      let chunk = slice-part pending 0 flate-window-size in
+      let rest = slice-part pending flate-window-size (bytes-len pending - flate-window-size) in
+      case flate-compress-chunk level window chunk bitbuf nbits False of
+        Err fe ->
+          let se = to-stream-error 0 fe in
+          (Err se, FailedWriter level init-dict se sink)
+        Ok (out, bits2, nbits2, win2) ->
+          case stream-write-all sink out of
+            (Err se, advanced) -> (Err se, FailedWriter level init-dict se advanced)
+            (Ok _, advanced) -> drain-full-blocks level init-dict win2 rest bits2 nbits2 advanced accepted
+
+  -- | Compress all pending buffered input as a non-final block and emit an RFC 1951
+  -- byte-aligned sync flush so a reader can immediately decode everything written so far.
+  flate-flush :: forall r. using (io :: Io r) => FlateWriter r ->{IO r} (Result StreamError Unit, FlateWriter r)
+  flate-flush writer = case writer of
+    FinishedWriter _ _ _ -> (Err (StreamClosed "flate"), writer)
+    FailedWriter _ _ err _ -> (Err err, writer)
+    ActiveWriter level init-dict window pending bitbuf nbits sink ->
+      if bytes-len pending == 0 then
+        let (sync-out, _, _) = flate-sync-flush bitbuf nbits in
+        case stream-write-all sink sync-out of
+          (Err se, advanced) -> (Err se, FailedWriter level init-dict se advanced)
+          (Ok _, advanced) -> (Ok (), ActiveWriter level init-dict window (bytes-new 0) 0 0 advanced)
+      else case flate-compress-chunk level window pending bitbuf nbits False of
+        Err fe ->
+          let se = to-stream-error 0 fe in
+          (Err se, FailedWriter level init-dict se sink)
+        Ok (blk-out, bits1, nbits1, win1) ->
+          let (sync-out, _, _) = flate-sync-flush bits1 nbits1 in
+          let combined = join-bytes blk-out sync-out in
+          case stream-write-all sink combined of
+            (Err se, advanced) -> (Err se, FailedWriter level init-dict se advanced)
+            (Ok _, advanced) -> (Ok (), ActiveWriter level init-dict win1 (bytes-new 0) 0 0 advanced)
+
+  -- | Compress any remaining buffered input as the final DEFLATE block (BFINAL=1),
+  -- pad to a byte boundary, write it to the sink, and transition to finished state.
+  -- Calling flate-finish on an already finished writer succeeds without writing.
+  flate-finish :: forall r. using (io :: Io r) => FlateWriter r ->{IO r} (Result StreamError Unit, FlateWriter r)
+  flate-finish writer = case writer of
+    FinishedWriter _ _ _ -> (Ok (), writer)
+    FailedWriter _ _ err _ -> (Err err, writer)
+    ActiveWriter level init-dict window pending bitbuf nbits sink ->
+      case flate-compress-chunk level window pending bitbuf nbits True of
+        Err fe ->
+          let se = to-stream-error 0 fe in
+          (Err se, FailedWriter level init-dict se sink)
+        Ok (out, _, _, _) ->
+          case stream-write-all sink out of
+            (Err se, advanced) -> (Err se, FailedWriter level init-dict se advanced)
+            (Ok _, advanced) -> (Ok (), FinishedWriter level init-dict advanced)
+
+  -- ---------------------------------------------------------------------
+  -- Streaming DEFLATE reader.
+  -- ---------------------------------------------------------------------
+
+  -- | Retain a sticky terminal failure across all subsequent positive reads.
+  failed-flate-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  failed-flate-reader err = stream-reader (\n -> (Err err, failed-flate-reader err))
+
+  -- | An exhausted reader returning EOF on all subsequent reads.
+  eof-flate-reader :: forall r. using (io :: Io r) => ByteReader r
+  eof-flate-reader = stream-reader (\n -> (Ok (bytes-new 0), eof-flate-reader))
+
+  -- | Decompress a raw DEFLATE byte stream incrementally without a preset dictionary.
+  flate-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  flate-reader source = flate-reader-limit flate-default-limit (bytes-new 0) source
+
+  -- | Decompress a raw DEFLATE byte stream incrementally using a preset dictionary.
+  flate-reader-dict :: forall r. using (io :: Io r) => Bytes -> ByteReader r -> ByteReader r
+  flate-reader-dict dict source = flate-reader-limit flate-default-limit dict source
+
+  -- | Decompress a raw DEFLATE byte stream incrementally with an explicit output
+  -- byte bound and preset dictionary (up to its last 32 KiB).
+  flate-reader-limit :: forall r. using (io :: Io r) => Nat -> Bytes -> ByteReader r -> ByteReader r
+  flate-reader-limit limit dict source =
+    decoding-flate-reader source (bytes-new 0) 0 False (tail-window dict) (bytes-new 0) 0 limit False 0
+
+  -- | Internal incremental reader continuation holding buffered compressed input,
+  -- current bit cursor, EOF status, 32 KiB sliding window, decoded surplus, and limit.
+  decoding-flate-reader :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> Bool -> Bytes -> Bytes -> Nat -> Nat -> Bool -> Nat -> ByteReader r
+  decoding-flate-reader source in-buf in-bit in-eof window pending ppos rem-limit done in-base =
+    stream-reader (\n -> read-flate-step source in-buf in-bit in-eof window pending ppos rem-limit done in-base n)
+
+  -- | Serve pending decoded bytes first; otherwise decode the next DEFLATE block,
+  -- pulling more input from the source only when the buffered block is incomplete.
+  read-flate-step :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> Bool -> Bytes -> Bytes -> Nat -> Nat -> Bool -> Nat -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-flate-step source in-buf in-bit in-eof window pending ppos rem-limit done in-base n =
+    if n == 0 then
+      (Ok (bytes-new 0), decoding-flate-reader source in-buf in-bit in-eof window pending ppos rem-limit done in-base)
+    else if ppos < bytes-len pending then
+      let avail = bytes-len pending - ppos in
+      let take = if n < avail then n else avail in
+      let chunk = slice-part pending ppos take in
+      let next-pos = ppos + take in
+      let next-reader = (if next-pos >= bytes-len pending && done then eof-flate-reader
+        else decoding-flate-reader source in-buf in-bit in-eof window pending next-pos rem-limit done in-base) in
+      (Ok chunk, next-reader)
+    else if done then
+      (Ok (bytes-new 0), eof-flate-reader)
+    else if bytes-len in-buf == 0 && not in-eof then
+      pull-more-input source in-buf in-bit window rem-limit in-base n
+    else case flate-decompress-block rem-limit window in-buf in-bit of
+      Ok (block-out, next-bit, is-final) ->
+        let consumed-bytes = nat-div next-bit 8 in
+        let next-in-buf = (if consumed-bytes < bytes-len in-buf then
+          slice-part in-buf consumed-bytes (bytes-len in-buf - consumed-bytes)
+        else bytes-new 0) in
+        let next-in-bit = nat-rem next-bit 8 in
+        let next-base = in-base + consumed-bytes in
+        let next-win = advance-window window block-out in
+        let next-limit = sub-clamped rem-limit (bytes-len block-out) in
+        if bytes-len block-out == 0 then
+          if is-final then (Ok (bytes-new 0), eof-flate-reader)
+          else read-flate-step source next-in-buf next-in-bit in-eof next-win (bytes-new 0) 0 next-limit False next-base n
+        else
+          let take = if n < bytes-len block-out then n else bytes-len block-out in
+          let out = slice-part block-out 0 take in
+          let next-reader = (if take >= bytes-len block-out && is-final then eof-flate-reader
+            else decoding-flate-reader source next-in-buf next-in-bit in-eof next-win block-out take next-limit is-final next-base) in
+          (Ok out, next-reader)
+      Err FlateUnexpectedEof ->
+        if in-eof then
+          let err = StreamEncodingError "flate" (in-base + bytes-len in-buf) (flate-error-message FlateUnexpectedEof) in
+          (Err err, failed-flate-reader err)
+        else pull-more-input source in-buf in-bit window rem-limit in-base n
+      Err fe ->
+        let err = (case fe of
+          FlateCorruptInput off -> StreamEncodingError "flate" (in-base + off) (flate-error-message (FlateCorruptInput (in-base + off)))
+          _ -> to-stream-error in-base fe) in
+        (Err err, failed-flate-reader err)
+
+  -- | Pull up to 16 KiB from the underlying source and resume block decoding.
+  pull-more-input :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  pull-more-input source in-buf in-bit window rem-limit in-base n =
+    case stream-read source 16384 of
+      (Err se, _) -> (Err se, failed-flate-reader se)
+      (Ok more, advanced) ->
+        if bytes-len more == 0 then
+          read-flate-step advanced in-buf in-bit True window (bytes-new 0) 0 rem-limit False in-base n
+        else
+          let combined = if bytes-len in-buf == 0 then more else join-bytes in-buf more in
+          read-flate-step advanced combined in-bit False window (bytes-new 0) 0 rem-limit False in-base n

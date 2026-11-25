@@ -124,23 +124,9 @@ fn json_value_declarations_have_canonical_documentation() {
     }
 }
 
-/// Compile the actual private vector classifier for little- and big-endian foreign objects.
+/// Compile the actual public JSON vector classifier and hex-float paths for little- and big-endian foreign objects.
 #[test]
 fn rust_json_kernels_compile_for_wasm_arm_and_big_endian_targets() {
-    let source = include_str!("../prelude/Text/Json/Value.cinch");
-    let start = source.find("  prim block16 ::").unwrap();
-    let remaining = &source[start..];
-    let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
-    let mut kernels = String::from("-- | Isolated JSON vector classification.\nmodule Main where\n  import Data.Machine\n  -- | Actual complete-interval load-only classifier.\n");
-    kernels.push_str(&remaining[..end]);
-    for name in ["numeric-hex-round", "numeric-float-from-bits"] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str("\n  -- | Actual raw numeric representation and rounding primitive.\n");
-        kernels.push_str(&rest[..end]);
-    }
-    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (block16 (bytes-data bytes) 0) in let b = keep bytes (block16 (bytes-data bytes) 1) in let prefix = wrapping-i64-to-u64 (bytes-data bytes) in let count = bit-and-u32 (wrapping-i64-to-u32 (bytes-data bytes)) 127 in if eq-u8 a b && is-finite-f64 (numeric-float-from-bits (numeric-hex-round prefix count 1)) then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -159,24 +145,65 @@ fn rust_json_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, contents) in [
+            (
+                "Text.Json.Binary32",
+                include_str!("../prelude/Text/Json/Binary32.cinch"),
+            ),
+            (
+                "Text.Json.Value",
+                include_str!("../prelude/Text/Json/Value.cinch"),
+            ),
+            ("Data.Array", include_str!("../prelude/Data/Array.cinch")),
+            (
+                "Data.Bytes.Word",
+                include_str!("../prelude/Data/Bytes/Word.cinch"),
+            ),
+            (
+                "Data.Unicode.Kernel",
+                include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+            ),
+            (
+                "Data.Unicode.Tables",
+                include_str!("../prelude/Data/Unicode/Tables.cinch"),
+            ),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), contents).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public JSON value scanning and float conversion paths for foreign targets.\nmodule Main where\n  import Text.Json.Value\n  import Data.Bytes\n  import Data.Machine\n  import Data.Nat\n  import Data.Result\n\n  -- | Exercise public 16-byte SIMD classification and hex-float rounding paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 32 in\n    let quoted = json-quote-bytes input True in\n    let parsed = json-number-float64-result (json-number-from-bytes input) in\n    case json-compact quoted of\n      Ok out -> if bytes-len out > 0 && is-finite-f64 (json-numeric-value parsed) then 0 else 1\n      Err err -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "json-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<16 x i8>") && ir.contains("load <16 x i8>"));
         assert!(
-            ir.contains("icmp ult i32") && ir.contains("select i1") && ir.contains("bitcast i64")
+            ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>") && ir.contains("load i128")
         );
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(ir.contains("bitcast i64"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

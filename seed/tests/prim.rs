@@ -189,26 +189,8 @@ module Main where
         ir.contains("declare void @\"free\"(i64)"),
         "the free contract is not declared: {ir}"
     );
-    // The Rust checker and code generator carry the contract end to end.
-    // The self-hosted Cinch checker refuses a `uses` entry until its
-    // foreign contracts land, so it can never emit a module whose fragment
-    // calls an undeclared symbol; that refusal is what the stage frontends
-    // reach here, and it is named rather than silent.
-    match common::external_frontend::configured().expect("frontend selection") {
-        Some(_) => {
-            let refusal = common::source_frontend::check_sources(src, "<test>")
-                .expect_err("the uses entry is refused")
-                .to_string();
-            assert!(
-                refusal.contains("uses") || refusal.contains("elaboration"),
-                "the refusal does not name the unimplemented `uses` contract: {refusal}"
-            );
-        }
-        None => {
-            let code = run_source(src).expect("the prim with uses compiles, links and runs");
-            assert_eq!(code, 0);
-        }
-    }
+    let code = run_source(src).expect("the prim with uses compiles, links and runs");
+    assert_eq!(code, 0);
 }
 
 #[test]

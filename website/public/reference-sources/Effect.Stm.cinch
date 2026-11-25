@@ -152,7 +152,7 @@ module Effect.Stm where
   -- be wrong, and on the two supported architectures only the stores
   -- cost more than a plain access.
   prim word-load :: I64 -> I64 ->{STM} I64 where
-    llvm {
+    unsafe llvm {
       %a = add i64 %0, %1
       %p = inttoptr i64 %a to ptr
       %v = load atomic i64, ptr %p seq_cst, align 8
@@ -160,7 +160,7 @@ module Effect.Stm where
     }
 
   prim word-store :: I64 -> I64 -> I64 ->{STM} I64 where
-    llvm {
+    unsafe llvm {
       %a = add i64 %0, %1
       %p = inttoptr i64 %a to ptr
       store atomic i64 %2, ptr %p seq_cst, align 8
@@ -170,7 +170,7 @@ module Effect.Stm where
   -- Replace the word at the address with the third argument if it holds
   -- the second: 1 when it did.
   prim word-cas :: I64 -> I64 -> I64 ->{STM} I64 where
-    llvm {
+    unsafe llvm {
       %p = inttoptr i64 %0 to ptr
       %r = cmpxchg ptr %p, i64 %1, i64 %2 seq_cst seq_cst
       %ok = extractvalue { i64, i1 } %r, 1
@@ -180,71 +180,71 @@ module Effect.Stm where
 
   -- Add to the word at the address: the sum it now holds.
   prim word-add :: I64 -> I64 ->{STM} I64 where
-    llvm {
+    unsafe llvm {
       %p = inttoptr i64 %0 to ptr
       %old = atomicrmw add ptr %p, i64 %1 seq_cst
       %new = add i64 %old, %1
       ret i64 %new
     }
 
+  prim raw-load-i64 :: I64 -> I64 ->{STM} I64 where
+    unsafe llvm {
+      %a = add i64 %0, %1
+      %p = inttoptr i64 %a to ptr
+      %v = load i64, ptr %p, align 8
+      ret i64 %v
+    }
+
+  prim raw-store-i64 :: I64 -> I64 -> I64 ->{STM} I64 where
+    unsafe llvm {
+      %a = add i64 %0, %1
+      %p = inttoptr i64 %a to ptr
+      store i64 %2, ptr %p, align 8
+      ret i64 %2
+    }
+
   -- Exchange the value words of a variable's cell and a staging cell.
   -- The caller holds the variable's write lock, so no other thread
   -- writes either word; readers may still load the variable's, which is
   -- why that one store is atomic. The staging cell is private.
-  prim value-swap :: I64 -> I64 ->{STM} I64 where
-    llvm {
-      %ta = add i64 %0, 8
-      %tp = inttoptr i64 %ta to ptr
-      %sa = add i64 %1, 8
-      %sp = inttoptr i64 %sa to ptr
-      %old = load i64, ptr %tp, align 8
-      %new = load i64, ptr %sp, align 8
-      store atomic i64 %new, ptr %tp seq_cst, align 8
-      store i64 %old, ptr %sp, align 8
-      ret i64 0
-    }
+  value-swap :: I64 -> I64 ->{STM} I64
+  value-swap dest staged =
+    let old = raw-load-i64 dest 8 in
+    let val = raw-load-i64 staged 8 in
+    case word-store dest 8 val of
+      _ -> case raw-store-i64 staged 8 old of
+        _ -> 0
 
   -- The version of a lock word, and the word with its pin bit cleared.
-  prim word-version :: I64 -> I64 where
-    llvm {
-      %v = and i64 %0, -4
-      ret i64 %v
-    }
+  word-version :: I64 -> I64
+  word-version w = bit-and-i64 w (wrapping-neg-i64 4)
 
-  prim word-unpinned :: I64 -> I64 where
-    llvm {
-      %v = and i64 %0, -3
-      ret i64 %v
-    }
+  word-unpinned :: I64 -> I64
+  word-unpinned w = bit-and-i64 w (wrapping-neg-i64 3)
 
   -- One of 64 bits for a cell's address: the bit a transaction's filters
   -- carry for the variable. The multiplier is 2^64 divided by the golden
   -- ratio, which spreads the low address bits (cells are 32 bytes apart
   -- at their closest) over the top six.
-  prim addr-bit :: I64 -> I64 where
-    llvm {
-      %h = mul i64 %0, -7046029254386353131
-      %s = lshr i64 %h, 58
-      %b = shl i64 1, %s
-      ret i64 %b
-    }
+  addr-bit :: I64 -> I64
+  addr-bit addr =
+    let h = wrapping-mul-u64 (wrapping-i64-to-u64 addr) 11400714819323198485 in
+    let s = wrapping-u64-to-u32 (wrapping-shr-u64 h 58) in
+    wrapping-u64-to-i64 (wrapping-shl-u64 1 s)
 
-  -- How many hints the backoff after attempt number `%0` spins: the low
-  -- bits of `%1` under a cap of 16 hints that doubles per attempt up to
+  -- How many hints the backoff after attempt number `tries` spins: the low
+  -- bits of `ticks` under a cap of 16 hints that doubles per attempt up to
   -- 4096.
-  prim backoff-span :: I64 -> I64 -> I64 where
-    llvm {
-      %few = icmp ult i64 %0, 8
-      %shift = select i1 %few, i64 %0, i64 8
-      %cap = shl i64 16, %shift
-      %mask = sub i64 %cap, 1
-      %n = and i64 %1, %mask
-      ret i64 %n
-    }
+  backoff-span :: I64 -> I64 -> I64
+  backoff-span tries ticks =
+    let shift = if lt-u64 (wrapping-i64-to-u64 tries) 8 then wrapping-i64-to-u32 tries else 8 in
+    let cap = wrapping-shl-u64 16 shift in
+    let mask = wrapping-sub-u64 cap 1 in
+    bit-and-i64 ticks (wrapping-u64-to-i64 mask)
 
   -- Tell the processor this is a spin-wait: it relaxes the pipeline and
-  -- lets a sibling hyperthread run. There is no portable instruction, so
-  -- each architecture names its own and every other target spins bare.
+  -- lets a sibling hyperthread run. Lowered to `pause` on x86_64, `isb`
+  -- on aarch64, and a no-op elsewhere.
   prim cpu-relax :: I64 ->{STM} I64 where
     unsafe llvm {
       call void asm sideeffect "pause", "~{dirflag},~{fpsr},~{flags}"()
@@ -259,9 +259,8 @@ module Effect.Stm where
     }
 
   -- A number that differs between threads and between calls: the cycle
-  -- counter where user code may read one. Backoff takes its low bits so
-  -- that two transactions that collided do not collide again in step.
-  -- The fallback answers its argument, which the caller varies.
+  -- counter where user code may read one (`rdtsc` on x86_64, `cntvct_el0`
+  -- on aarch64). The fallback answers its argument, which the caller varies.
   prim cpu-ticks :: I64 ->{STM} I64 where
     unsafe llvm {
       %t = call { i32, i32 } asm sideeffect "rdtsc", "={ax},={dx},~{dirflag},~{fpsr},~{flags}"()
@@ -283,8 +282,8 @@ module Effect.Stm where
   -- waiting transactions at 128.
   prim rt-state :: I64 ->{STM} I64 where
     unsafe llvm {
-      %s = call i64 @cinch_stm_state(i64 %0)
-      ret i64 %s
+      %r = call i64 @cinch_stm_state(i64 %0)
+      ret i64 %r
     } uses (cinch_stm_state :: I64 -> I64)
 
   -- Take one more reference to the block behind a counted value word

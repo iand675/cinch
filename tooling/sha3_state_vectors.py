@@ -12,11 +12,46 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_sha3_kernels import permute  # noqa: E402
+MASK64 = (1 << 64) - 1
+ROTATIONS = [[0, 36, 3, 41, 18], [1, 44, 10, 45, 2], [62, 6, 43, 15, 61], [28, 55, 25, 21, 56], [27, 20, 39, 8, 14]]
+
+
+def _round_constants() -> list[int]:
+    state = 1
+    def bit() -> int:
+        nonlocal state
+        out = state & 1
+        state = ((state << 1) ^ (0x71 if state & 0x80 else 0)) & 0xFF
+        return out
+    constants = []
+    for _ in range(24):
+        value = 0
+        for j in range(7):
+            if bit():
+                value |= 1 << ((1 << j) - 1)
+        constants.append(value)
+    return constants
+
+
+def _rotl(value: int, amount: int) -> int:
+    return ((value << amount) | (value >> (64 - amount))) & MASK64 if amount else value
+
+
+def permute(lanes: list[int]) -> list[int]:
+    """Reference Keccak-f[1600] permutation."""
+    a = lanes[:]
+    for rc in _round_constants():
+        c = [a[x] ^ a[x + 5] ^ a[x + 10] ^ a[x + 15] ^ a[x + 20] for x in range(5)]
+        d = [c[(x - 1) % 5] ^ _rotl(c[(x + 1) % 5], 1) for x in range(5)]
+        b = [0] * 25
+        for x in range(5):
+            for y in range(5):
+                b[y + 5 * ((2 * x + 3 * y) % 5)] = _rotl(a[x + 5 * y] ^ d[x], ROTATIONS[x][y])
+        a = [b[x + 5 * y] ^ (~b[(x + 1) % 5 + 5 * y] & b[(x + 2) % 5 + 5 * y]) for y in range(5) for x in range(5)]
+        a = [a[i] if i else a[0] ^ rc for i in range(25)]
+    return a
+
 
 RATE = {1: 144, 2: 136, 3: 104, 4: 72, 5: 168, 6: 136, 7: 168, 8: 136}
 SIZE = {1: 28, 2: 32, 3: 48, 4: 64, 5: 32, 6: 64, 7: 32, 8: 64}

@@ -4,7 +4,7 @@ Decode and encode GIF images and animations: palettes, transparency, delays, dis
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Gif</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Gif/source/">View source</a><a href="/packages/search/?q=%2BImage.Gif">Search module</a><a href="/reference-sources/Image.Gif.cinch" download="Image.Gif.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -30,7 +30,7 @@ it for frames whose palettes match it apart from the transparent entry.
 # Types
 
 <article class="doc-entry" id="t-Gif">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Gif</strong></code><span class="doc-sig-links"><a href="#t-Gif" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Gif</strong></code><span class="doc-sig-links"><a href="#t-Gif" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L70" title="View source at line 70">Source</a></span></div>
 <div class="doc-body">
 
 Fields in the order listed above.
@@ -40,7 +40,7 @@ Fields in the order listed above.
 </article>
 
 <article class="doc-entry" id="t-GifDisposal">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifDisposal</strong></code><span class="doc-sig-links"><a href="#t-GifDisposal" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifDisposal</strong></code><span class="doc-sig-links"><a href="#t-GifDisposal" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L50" title="View source at line 50">Source</a></span></div>
 <div class="doc-body">
 
 What happens to a frame's area before the next frame is drawn.
@@ -50,7 +50,7 @@ What happens to a frame's area before the next frame is drawn.
 </article>
 
 <article class="doc-entry" id="t-GifError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifError</strong></code><span class="doc-sig-links"><a href="#t-GifError" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifError</strong></code><span class="doc-sig-links"><a href="#t-GifError" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L125" title="View source at line 125">Source</a></span></div>
 <div class="doc-body">
 
 Why decoding or encoding failed.
@@ -60,7 +60,7 @@ Why decoding or encoding failed.
 </article>
 
 <article class="doc-entry" id="t-GifFrame">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifFrame</strong></code><span class="doc-sig-links"><a href="#t-GifFrame" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifFrame</strong></code><span class="doc-sig-links"><a href="#t-GifFrame" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L65" title="View source at line 65">Source</a></span></div>
 <div class="doc-body">
 
 Fields in the order listed above.
@@ -70,7 +70,7 @@ Fields in the order listed above.
 </article>
 
 <article class="doc-entry" id="t-GifLoop">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifLoop</strong></code><span class="doc-sig-links"><a href="#t-GifLoop" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GifLoop</strong></code><span class="doc-sig-links"><a href="#t-GifLoop" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L41" title="View source at line 41">Source</a></span></div>
 <div class="doc-body">
 
 How many times an animation plays.
@@ -82,7 +82,7 @@ How many times an animation plays.
 # Values
 
 <article class="doc-entry" id="v-gif">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifLoop" title="Image.Gif.GifLoop">GifLoop</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a></code><span class="doc-sig-links"><a href="#v-gif" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifLoop" title="Image.Gif.GifLoop">GifLoop</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a></code><span class="doc-sig-links"><a href="#v-gif" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L73" title="View source at line 73">Source</a></span></div>
 <div class="doc-body">
 
 Make a GIF from its parts.
@@ -91,7 +91,7 @@ Make a GIF from its parts.
 </article>
 
 <article class="doc-entry" id="v-gif-background-index">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-background-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-background-index" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-background-index</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-background-index" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L97" title="View source at line 97">Source</a></span></div>
 <div class="doc-body">
 
 Background palette index.
@@ -100,7 +100,7 @@ Background palette index.
 </article>
 
 <article class="doc-entry" id="v-gif-config">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-gif-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-gif-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L214" title="View source at line 214">Source</a></span></div>
 <div class="doc-body">
 
 The screen width, height and global palette, from the header alone.
@@ -109,7 +109,7 @@ The screen width, height and global palette, from the header alone.
 </article>
 
 <article class="doc-entry" id="v-gif-decode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-gif-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L207" title="View source at line 207">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-gif-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L208" title="View source at line 208">Source</a></span></div>
 <div class="doc-body">
 
 Decode the first frame's raster, ignoring the rest of the file.
@@ -118,7 +118,7 @@ Decode the first frame's raster, ignoring the rest of the file.
 </article>
 
 <article class="doc-entry" id="v-gif-decode-all">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-decode-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a></code><span class="doc-sig-links"><a href="#v-gif-decode-all" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-decode-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a></code><span class="doc-sig-links"><a href="#v-gif-decode-all" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L204" title="View source at line 204">Source</a></span></div>
 <div class="doc-body">
 
 Decode every frame of a file.
@@ -127,7 +127,7 @@ Decode every frame of a file.
 </article>
 
 <article class="doc-entry" id="v-gif-encode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L465" title="View source at line 465">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L485" title="View source at line 485">Source</a></span></div>
 <div class="doc-body">
 
 Encode one indexed raster as a single-frame GIF whose global palette is the raster's.
@@ -136,7 +136,7 @@ Encode one indexed raster as a single-frame GIF whose global palette is the rast
 </article>
 
 <article class="doc-entry" id="v-gif-encode-all">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-encode-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-encode-all" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L469" title="View source at line 469">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-encode-all</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-encode-all" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L489" title="View source at line 489">Source</a></span></div>
 <div class="doc-body">
 
 Encode an animation.
@@ -145,7 +145,7 @@ Encode an animation.
 </article>
 
 <article class="doc-entry" id="v-gif-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-gif-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifError" title="Image.Gif.GifError">GifError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-gif-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L166" title="View source at line 166">Source</a></span></div>
 <div class="doc-body">
 
 Render an error.
@@ -154,7 +154,7 @@ Render an error.
 </article>
 
 <article class="doc-entry" id="v-gif-frame">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifDisposal" title="Image.Gif.GifDisposal">GifDisposal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a></code><span class="doc-sig-links"><a href="#v-gif-frame" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifDisposal" title="Image.Gif.GifDisposal">GifDisposal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a></code><span class="doc-sig-links"><a href="#v-gif-frame" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L77" title="View source at line 77">Source</a></span></div>
 <div class="doc-body">
 
 Make a frame from an indexed raster, its offsets, delay (hundredths of a second) and disposal.
@@ -163,7 +163,7 @@ Make a frame from an indexed raster, its offsets, delay (hundredths of a second)
 </article>
 
 <article class="doc-entry" id="v-gif-frame-delay">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-delay</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-delay" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-delay</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-delay" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L117" title="View source at line 117">Source</a></span></div>
 <div class="doc-body">
 
 A frame's delay in hundredths of a second.
@@ -172,7 +172,7 @@ A frame's delay in hundredths of a second.
 </article>
 
 <article class="doc-entry" id="v-gif-frame-disposal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-disposal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifDisposal" title="Image.Gif.GifDisposal">GifDisposal</a></code><span class="doc-sig-links"><a href="#v-gif-frame-disposal" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-disposal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifDisposal" title="Image.Gif.GifDisposal">GifDisposal</a></code><span class="doc-sig-links"><a href="#v-gif-frame-disposal" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L121" title="View source at line 121">Source</a></span></div>
 <div class="doc-body">
 
 A frame's disposal method.
@@ -181,7 +181,7 @@ A frame's disposal method.
 </article>
 
 <article class="doc-entry" id="v-gif-frame-left">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-left</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-left" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-left</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-left" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L109" title="View source at line 109">Source</a></span></div>
 <div class="doc-body">
 
 A frame's left offset.
@@ -190,7 +190,7 @@ A frame's left offset.
 </article>
 
 <article class="doc-entry" id="v-gif-frame-raster">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-gif-frame-raster" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-raster</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-gif-frame-raster" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L105" title="View source at line 105">Source</a></span></div>
 <div class="doc-body">
 
 A frame's indexed raster (its palette is the frame's effective palette).
@@ -199,7 +199,7 @@ A frame's indexed raster (its palette is the frame's effective palette).
 </article>
 
 <article class="doc-entry" id="v-gif-frame-top">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-top</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-top" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frame-top</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-frame-top" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L113" title="View source at line 113">Source</a></span></div>
 <div class="doc-body">
 
 A frame's top offset.
@@ -208,7 +208,7 @@ A frame's top offset.
 </article>
 
 <article class="doc-entry" id="v-gif-frames">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frames</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a></code><span class="doc-sig-links"><a href="#v-gif-frames" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-frames</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifFrame" title="Image.Gif.GifFrame">GifFrame</a></code><span class="doc-sig-links"><a href="#v-gif-frames" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L89" title="View source at line 89">Source</a></span></div>
 <div class="doc-body">
 
 Frames in order.
@@ -217,7 +217,7 @@ Frames in order.
 </article>
 
 <article class="doc-entry" id="v-gif-height">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-height</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-height" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L85" title="View source at line 85">Source</a></span></div>
 <div class="doc-body">
 
 Screen height.
@@ -226,7 +226,7 @@ Screen height.
 </article>
 
 <article class="doc-entry" id="v-gif-loop">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-loop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifLoop" title="Image.Gif.GifLoop">GifLoop</a></code><span class="doc-sig-links"><a href="#v-gif-loop" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-loop</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-GifLoop" title="Image.Gif.GifLoop">GifLoop</a></code><span class="doc-sig-links"><a href="#v-gif-loop" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L93" title="View source at line 93">Source</a></span></div>
 <div class="doc-body">
 
 Looping.
@@ -235,7 +235,7 @@ Looping.
 </article>
 
 <article class="doc-entry" id="v-gif-palette">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-palette</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-palette" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-palette</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gif-palette" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L101" title="View source at line 101">Source</a></span></div>
 <div class="doc-body">
 
 Global palette as RGBA quadruples, empty when there is none.
@@ -244,7 +244,7 @@ Global palette as RGBA quadruples, empty when there is none.
 </article>
 
 <article class="doc-entry" id="v-gif-width">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gif-width</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Gif/#t-Gif" title="Image.Gif.Gif">Gif</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-gif-width" title="Permalink">#</a><a href="/packages/stdlib/Image.Gif/source/#L81" title="View source at line 81">Source</a></span></div>
 <div class="doc-body">
 
 Screen width.

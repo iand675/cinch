@@ -1,0 +1,1631 @@
+-- | Wire-compatible gob binary encoder and decoder over typed descriptors and values.
+-- Implements the self-describing gob binary stream format: variable-width big-endian
+-- unsigned integers, zigzag signed integers, byte-reversed binary64 floats, complex128
+-- pairs, length-prefixed byte slices and UTF-8 strings, slices, fixed-length arrays,
+-- maps, and delta-indexed structs with omitted zero fields. Stateful encoders and
+-- decoders retain transmitted user type IDs across multi-message streams so repeated
+-- descriptors are transmitted once. All decoding is bounds-checked and depth-bounded.
+module Text.Gob where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string, int-to-string)
+
+  export GobType, GobTBool, GobTInt, GobTUint, GobTFloat, GobTBytes, GobTString, GobTComplex
+  export GobTSlice, GobTArray, GobTMap, GobTStruct
+  export GobFieldTypes, GobFieldTypesEnd, GobFieldTypeCons
+  export gob-type-struct, gob-type-fields, gob-type-eq
+  export GobValue, GobBool, GobInt, GobUint, GobFloat, GobBytes, GobString, GobComplex
+  export GobSlice, GobArray, GobMap, GobStruct
+  export GobValueList, GobValueEnd, GobValueCons
+  export GobMapEntries, GobMapEnd, GobMapCons
+  export GobStructFields, GobFieldEnd, GobFieldCons
+  export gob-slice, gob-array, gob-map, gob-struct
+  export gob-slice-items, gob-map-entries, gob-struct-fields, gob-struct-field
+  export gob-field-bool, gob-field-int, gob-field-uint, gob-field-float
+  export gob-field-bytes, gob-field-string, gob-field-complex
+  export gob-value-eq, gob-zero-value, gob-is-zero
+  export GobError, GobTruncated, GobOverflow, GobUnknownTypeId, GobMalformedWire, GobTypeMismatch, GobDepthLimit
+  export gob-error-message
+  export gob-encode-uint, gob-decode-uint, gob-encode-int, gob-decode-int, gob-encode-float, gob-decode-float
+  export GobEncoderState, gob-encoder-new, gob-encoder-encode, gob-encoder-type-id
+  export GobDecoderState, gob-decoder-new, gob-decoder-decode-message, gob-decoder-decode-at, gob-decoder-type
+  export gob-encode, gob-decode, gob-decode-as, gob-encode-stream, gob-decode-stream
+
+  -- ---------------------------------------------------------------------
+  -- Type descriptors and values.
+  -- ---------------------------------------------------------------------
+
+  -- | Field descriptors of a gob struct type, kept as a direct recursive spine.
+  data GobFieldTypes where
+    -- | End of a struct type's ordered field descriptors.
+    GobFieldTypesEnd :: GobFieldTypes
+    -- | One named field type followed by the remaining field descriptors.
+    GobFieldTypeCons :: String -> GobType -> GobFieldTypes -> GobFieldTypes
+
+  -- | A gob wire type descriptor.
+  data GobType where
+    -- | Boolean type (builtin wire type ID 1).
+    GobTBool :: GobType
+    -- | Signed integer type (builtin wire type ID 2).
+    GobTInt :: GobType
+    -- | Unsigned integer type (builtin wire type ID 3).
+    GobTUint :: GobType
+    -- | Binary64 floating-point type (builtin wire type ID 4).
+    GobTFloat :: GobType
+    -- | Raw byte-slice type (builtin wire type ID 5).
+    GobTBytes :: GobType
+    -- | UTF-8 string type (builtin wire type ID 6).
+    GobTString :: GobType
+    -- | Complex128 type (builtin wire type ID 7).
+    GobTComplex :: GobType
+    -- | Slice of elements of the given type.
+    GobTSlice :: GobType -> GobType
+    -- | Fixed-length array of elements of the given type and length.
+    GobTArray :: GobType -> Nat -> GobType
+    -- | Map from key type to element type.
+    GobTMap :: GobType -> GobType -> GobType
+    -- | Named struct with ordered field descriptors (construct with gob-type-struct).
+    GobTStruct :: String -> GobFieldTypes -> GobType
+
+  -- | Elements of a gob slice or fixed array, kept as a direct recursive spine.
+  data GobValueList where
+    -- | End of a slice or array element list.
+    GobValueEnd :: GobValueList
+    -- | One element followed by the remaining elements.
+    GobValueCons :: GobValue -> GobValueList -> GobValueList
+
+  -- | Key-value entries of a gob map, kept as a direct recursive spine.
+  data GobMapEntries where
+    -- | End of a map's entry list.
+    GobMapEnd :: GobMapEntries
+    -- | One key-value entry followed by the remaining entries.
+    GobMapCons :: GobValue -> GobValue -> GobMapEntries -> GobMapEntries
+
+  -- | Named field values of a gob struct, kept as a direct recursive spine.
+  data GobStructFields where
+    -- | End of a struct's field value list.
+    GobFieldEnd :: GobStructFields
+    -- | One named field value followed by the remaining fields.
+    GobFieldCons :: String -> GobValue -> GobStructFields -> GobStructFields
+
+  -- | A typed gob value corresponding to a GobType descriptor.
+  data GobValue where
+    -- | Boolean value.
+    GobBool :: Bool -> GobValue
+    -- | Signed 64-bit integer value.
+    GobInt :: I64 -> GobValue
+    -- | Unsigned 64-bit integer value.
+    GobUint :: U64 -> GobValue
+    -- | Binary64 floating-point value.
+    GobFloat :: F64 -> GobValue
+    -- | Raw byte slice value.
+    GobBytes :: Bytes -> GobValue
+    -- | UTF-8 string value.
+    GobString :: String -> GobValue
+    -- | Complex number as real and imaginary binary64 components.
+    GobComplex :: F64 -> F64 -> GobValue
+    -- | Slice value (construct with gob-slice).
+    GobSlice :: GobValueList -> GobValue
+    -- | Fixed-length array value (construct with gob-array).
+    GobArray :: GobValueList -> GobValue
+    -- | Map value (construct with gob-map).
+    GobMap :: GobMapEntries -> GobValue
+    -- | Named struct value (construct with gob-struct).
+    GobStruct :: String -> GobStructFields -> GobValue
+
+  -- | Named failures returned when encoding or decoding gob wire streams.
+  data GobError where
+    -- | The input ended before the current integer, frame or value completed.
+    GobTruncated :: GobError
+    -- | An encoded integer or size exceeded the 64-bit wire or buffer bounds.
+    GobOverflow :: GobError
+    -- | A value message or descriptor referenced an undefined wire type ID.
+    GobUnknownTypeId :: I64 -> GobError
+    -- | The wire stream violated gob framing, delimiter, UTF-8 or descriptor rules.
+    GobMalformedWire :: String -> GobError
+    -- | A supplied value or struct field did not match the declared GobType.
+    GobTypeMismatch :: String -> GobError
+    -- | Type descriptors or values exceeded the maximum nesting depth limit.
+    GobDepthLimit :: GobError
+
+  -- | Render a human-readable diagnostic message for a GobError.
+  gob-error-message :: GobError -> String
+  gob-error-message err = case err of
+    GobTruncated -> "gob: unexpected end of input"
+    GobOverflow -> "gob: encoded integer or length overflow"
+    GobUnknownTypeId tid -> string-concat "gob: unknown type id " (int-to-string (int-from-i64 tid))
+    GobMalformedWire detail -> string-concat "gob: malformed wire data: " detail
+    GobTypeMismatch detail -> string-concat "gob: type mismatch: " detail
+    GobDepthLimit -> "gob: nesting depth limit exceeded"
+
+  -- ---------------------------------------------------------------------
+  -- Smart constructors, accessors and equality.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert a list of (name, type) pairs into a struct field-type spine.
+  field-types-from-list :: List (String, GobType) -> GobFieldTypes
+  field-types-from-list items = case items of
+    Nil -> GobFieldTypesEnd
+    Cons pair rest -> case pair of
+      (name, ty) -> GobFieldTypeCons name ty (field-types-from-list rest)
+
+  -- | Construct a named gob struct type from an ordered list of field descriptors.
+  gob-type-struct :: String -> List (String, GobType) -> GobType
+  gob-type-struct name fields = GobTStruct name (field-types-from-list fields)
+
+  -- | Extract the ordered field descriptors of a GobFieldTypes spine as a list.
+  gob-type-fields :: GobFieldTypes -> List (String, GobType)
+  gob-type-fields fields = case fields of
+    GobFieldTypesEnd -> Nil
+    GobFieldTypeCons name ty rest -> Cons (name, ty) (gob-type-fields rest)
+
+  -- | Compare two GobFieldTypes spines for structural equality.
+  field-types-eq :: GobFieldTypes -> GobFieldTypes -> Bool
+  field-types-eq a b = case a of
+    GobFieldTypesEnd -> case b of
+      GobFieldTypesEnd -> True
+      GobFieldTypeCons _ _ _ -> False
+    GobFieldTypeCons na ta ra -> case b of
+      GobFieldTypesEnd -> False
+      GobFieldTypeCons nb tb rb ->
+        eq-i64 (string-compare na nb) 0 && gob-type-eq ta tb && field-types-eq ra rb
+
+  -- | Structural equality between two gob type descriptors.
+  gob-type-eq :: GobType -> GobType -> Bool
+  gob-type-eq a b = case a of
+    GobTBool -> case b of GobTBool -> True; _ -> False
+    GobTInt -> case b of GobTInt -> True; _ -> False
+    GobTUint -> case b of GobTUint -> True; _ -> False
+    GobTFloat -> case b of GobTFloat -> True; _ -> False
+    GobTBytes -> case b of GobTBytes -> True; _ -> False
+    GobTString -> case b of GobTString -> True; _ -> False
+    GobTComplex -> case b of GobTComplex -> True; _ -> False
+    GobTSlice ea -> case b of GobTSlice eb -> gob-type-eq ea eb; _ -> False
+    GobTArray ea na -> case b of GobTArray eb nb -> na == nb && gob-type-eq ea eb; _ -> False
+    GobTMap ka va -> case b of GobTMap kb vb -> gob-type-eq ka kb && gob-type-eq va vb; _ -> False
+    GobTStruct na fa -> case b of
+      GobTStruct nb fb -> eq-i64 (string-compare na nb) 0 && field-types-eq fa fb
+      _ -> False
+
+  -- | Convert a list of GobValue elements into a GobValueList spine.
+  value-list-from-list :: List GobValue -> GobValueList
+  value-list-from-list items = case items of
+    Nil -> GobValueEnd
+    Cons x rest -> GobValueCons x (value-list-from-list rest)
+
+  -- | Convert a GobValueList spine into a list of GobValue elements.
+  value-list-to-list :: GobValueList -> List GobValue
+  value-list-to-list items = case items of
+    GobValueEnd -> Nil
+    GobValueCons x rest -> Cons x (value-list-to-list rest)
+
+  -- | Convert a list of (key, value) pairs into a GobMapEntries spine.
+  map-entries-from-list :: List (GobValue, GobValue) -> GobMapEntries
+  map-entries-from-list items = case items of
+    Nil -> GobMapEnd
+    Cons pair rest -> case pair of
+      (k, v) -> GobMapCons k v (map-entries-from-list rest)
+
+  -- | Convert a GobMapEntries spine into a list of (key, value) pairs.
+  map-entries-to-list :: GobMapEntries -> List (GobValue, GobValue)
+  map-entries-to-list items = case items of
+    GobMapEnd -> Nil
+    GobMapCons k v rest -> Cons (k, v) (map-entries-to-list rest)
+
+  -- | Convert a list of (name, value) pairs into a GobStructFields spine.
+  struct-fields-from-list :: List (String, GobValue) -> GobStructFields
+  struct-fields-from-list items = case items of
+    Nil -> GobFieldEnd
+    Cons pair rest -> case pair of
+      (name, val) -> GobFieldCons name val (struct-fields-from-list rest)
+
+  -- | Convert a GobStructFields spine into a list of (name, value) pairs.
+  struct-fields-to-list :: GobStructFields -> List (String, GobValue)
+  struct-fields-to-list items = case items of
+    GobFieldEnd -> Nil
+    GobFieldCons name val rest -> Cons (name, val) (struct-fields-to-list rest)
+
+  -- | Construct a gob slice value from a list of elements.
+  gob-slice :: List GobValue -> GobValue
+  gob-slice items = GobSlice (value-list-from-list items)
+
+  -- | Construct a gob fixed-length array value from a list of elements.
+  gob-array :: List GobValue -> GobValue
+  gob-array items = GobArray (value-list-from-list items)
+
+  -- | Construct a gob map value from a list of (key, value) pairs.
+  gob-map :: List (GobValue, GobValue) -> GobValue
+  gob-map entries = GobMap (map-entries-from-list entries)
+
+  -- | Construct a named gob struct value from a list of (field, value) pairs.
+  gob-struct :: String -> List (String, GobValue) -> GobValue
+  gob-struct name fields = GobStruct name (struct-fields-from-list fields)
+
+  -- | Extract the elements of a gob slice or fixed array; other values return Nil.
+  gob-slice-items :: GobValue -> List GobValue
+  gob-slice-items val = case val of
+    GobSlice items -> value-list-to-list items
+    GobArray items -> value-list-to-list items
+    _ -> Nil
+
+  -- | Extract the key-value entries of a gob map; other values return Nil.
+  gob-map-entries :: GobValue -> List (GobValue, GobValue)
+  gob-map-entries val = case val of
+    GobMap entries -> map-entries-to-list entries
+    _ -> Nil
+
+  -- | Extract the named fields of a gob struct; other values return Nil.
+  gob-struct-fields :: GobValue -> List (String, GobValue)
+  gob-struct-fields val = case val of
+    GobStruct _ fields -> struct-fields-to-list fields
+    _ -> Nil
+
+  -- | Look up a named field inside a GobStructFields spine.
+  lookup-struct-field :: String -> GobStructFields -> Option GobValue
+  lookup-struct-field name fields = case fields of
+    GobFieldEnd -> None
+    GobFieldCons fname fval rest ->
+      if eq-i64 (string-compare name fname) 0 then Some fval
+      else lookup-struct-field name rest
+
+  -- | Look up a named field on a GobStruct value.
+  gob-struct-field :: String -> GobValue -> Option GobValue
+  gob-struct-field name val = case val of
+    GobStruct _ fields -> lookup-struct-field name fields
+    _ -> None
+
+  -- | Extract a typed Bool field from a GobStruct value.
+  gob-field-bool :: String -> GobValue -> Result GobError Bool
+  gob-field-bool name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobBool b -> Ok b
+      _ -> Err (GobTypeMismatch (string-concat "expected bool for field " name))
+
+  -- | Extract a typed I64 field from a GobStruct value.
+  gob-field-int :: String -> GobValue -> Result GobError I64
+  gob-field-int name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobInt i -> Ok i
+      _ -> Err (GobTypeMismatch (string-concat "expected int for field " name))
+
+  -- | Extract a typed U64 field from a GobStruct value.
+  gob-field-uint :: String -> GobValue -> Result GobError U64
+  gob-field-uint name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobUint u -> Ok u
+      _ -> Err (GobTypeMismatch (string-concat "expected uint for field " name))
+
+  -- | Extract a typed F64 field from a GobStruct value.
+  gob-field-float :: String -> GobValue -> Result GobError F64
+  gob-field-float name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobFloat f -> Ok f
+      _ -> Err (GobTypeMismatch (string-concat "expected float for field " name))
+
+  -- | Extract a typed Bytes field from a GobStruct value.
+  gob-field-bytes :: String -> GobValue -> Result GobError Bytes
+  gob-field-bytes name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobBytes bs -> Ok bs
+      _ -> Err (GobTypeMismatch (string-concat "expected bytes for field " name))
+
+  -- | Extract a typed String field from a GobStruct value.
+  gob-field-string :: String -> GobValue -> Result GobError String
+  gob-field-string name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobString s -> Ok s
+      _ -> Err (GobTypeMismatch (string-concat "expected string for field " name))
+
+  -- | Extract a typed complex128 (real, imag) field from a GobStruct value.
+  gob-field-complex :: String -> GobValue -> Result GobError (F64, F64)
+  gob-field-complex name val = case gob-struct-field name val of
+    None -> Err (GobTypeMismatch (string-concat "missing field " name))
+    Some found -> case found of
+      GobComplex re im -> Ok (re, im)
+      _ -> Err (GobTypeMismatch (string-concat "expected complex for field " name))
+
+  -- | Compare two GobValueList spines for structural equality.
+  value-list-eq :: GobValueList -> GobValueList -> Bool
+  value-list-eq a b = case a of
+    GobValueEnd -> case b of GobValueEnd -> True; GobValueCons _ _ -> False
+    GobValueCons xa ra -> case b of
+      GobValueEnd -> False
+      GobValueCons xb rb -> gob-value-eq xa xb && value-list-eq ra rb
+
+  -- | Compare two GobMapEntries spines in order for structural equality.
+  map-entries-eq :: GobMapEntries -> GobMapEntries -> Bool
+  map-entries-eq a b = case a of
+    GobMapEnd -> case b of GobMapEnd -> True; GobMapCons _ _ _ -> False
+    GobMapCons ka va ra -> case b of
+      GobMapEnd -> False
+      GobMapCons kb vb rb -> gob-value-eq ka kb && gob-value-eq va vb && map-entries-eq ra rb
+
+  -- | Compare two GobStructFields spines in order for structural equality.
+  struct-fields-eq :: GobStructFields -> GobStructFields -> Bool
+  struct-fields-eq a b = case a of
+    GobFieldEnd -> case b of GobFieldEnd -> True; GobFieldCons _ _ _ -> False
+    GobFieldCons na va ra -> case b of
+      GobFieldEnd -> False
+      GobFieldCons nb vb rb ->
+        eq-i64 (string-compare na nb) 0 && gob-value-eq va vb && struct-fields-eq ra rb
+
+  -- | Exact structural equality on GobValue, using bit-exact IEEE-754 comparison for floats.
+  gob-value-eq :: GobValue -> GobValue -> Bool
+  gob-value-eq a b = case a of
+    GobBool ba -> case b of GobBool bb -> ba == bb; _ -> False
+    GobInt ia -> case b of GobInt ib -> eq-i64 ia ib; _ -> False
+    GobUint ua -> case b of GobUint ub -> eq-u64 ua ub; _ -> False
+    GobFloat fa -> case b of GobFloat fb -> eq-u64 (f64-bits fa) (f64-bits fb); _ -> False
+    GobBytes bsa -> case b of GobBytes bsb -> eq-i64 (bytes-compare bsa bsb) 0; _ -> False
+    GobString sa -> case b of GobString sb -> eq-i64 (string-compare sa sb) 0; _ -> False
+    GobComplex ra ia -> case b of
+      GobComplex rb ib -> eq-u64 (f64-bits ra) (f64-bits rb) && eq-u64 (f64-bits ia) (f64-bits ib)
+      _ -> False
+    GobSlice la -> case b of GobSlice lb -> value-list-eq la lb; _ -> False
+    GobArray la -> case b of GobArray lb -> value-list-eq la lb; _ -> False
+    GobMap ma -> case b of GobMap mb -> map-entries-eq ma mb; _ -> False
+    GobStruct na fa -> case b of
+      GobStruct nb fb -> eq-i64 (string-compare na nb) 0 && struct-fields-eq fa fb
+      _ -> False
+
+  -- | Positive zero as a binary64 floating-point constant.
+  f64-zero :: F64
+  f64-zero = f64-from-bits 0
+
+  -- | Repeat a zero element count times into a GobValueList spine.
+  zero-array-elems :: GobType -> Nat -> GobValueList -> GobValueList
+  zero-array-elems elem-ty remaining acc =
+    if remaining == 0 then acc
+    else zero-array-elems elem-ty (remaining - 1) (GobValueCons (gob-zero-value elem-ty) acc)
+
+  -- | Build zero-valued struct fields for every descriptor in a GobFieldTypes spine.
+  zero-struct-fields :: GobFieldTypes -> GobStructFields
+  zero-struct-fields fields = case fields of
+    GobFieldTypesEnd -> GobFieldEnd
+    GobFieldTypeCons fname fty rest ->
+      GobFieldCons fname (gob-zero-value fty) (zero-struct-fields rest)
+
+  -- | Construct the canonical zero value for any GobType descriptor.
+  gob-zero-value :: GobType -> GobValue
+  gob-zero-value ty = case ty of
+    GobTBool -> GobBool False
+    GobTInt -> GobInt 0
+    GobTUint -> GobUint 0
+    GobTFloat -> GobFloat f64-zero
+    GobTBytes -> GobBytes (bytes-new 0)
+    GobTString -> GobString ""
+    GobTComplex -> GobComplex f64-zero f64-zero
+    GobTSlice _ -> GobSlice GobValueEnd
+    GobTArray elem-ty count -> GobArray (zero-array-elems elem-ty count GobValueEnd)
+    GobTMap _ _ -> GobMap GobMapEnd
+    GobTStruct name fields -> GobStruct name (zero-struct-fields fields)
+
+  -- | Whether a GobValue is zero for struct field omission rules.
+  -- Fixed arrays and nested structs always return False because they are always transmitted.
+  gob-is-zero :: GobValue -> Bool
+  gob-is-zero val = case val of
+    GobBool b -> not b
+    GobInt i -> eq-i64 i 0
+    GobUint u -> eq-u64 u 0
+    GobFloat f -> feq-f64 f f64-zero
+    GobBytes bs -> bytes-len bs == 0
+    GobString s -> string-byte-length s == 0
+    GobComplex re im -> feq-f64 re f64-zero && feq-f64 im f64-zero
+    GobSlice items -> case items of GobValueEnd -> True; GobValueCons _ _ -> False
+    GobArray _ -> False
+    GobMap entries -> case entries of GobMapEnd -> True; GobMapCons _ _ _ -> False
+    GobStruct _ _ -> False
+
+  -- ---------------------------------------------------------------------
+  -- Low-level wire primitives (unsigned, signed, float64).
+  -- ---------------------------------------------------------------------
+
+  -- | Maximum permitted type/value nesting depth to guard against cycles and stack abuse.
+  max-gob-depth :: Nat
+  max-gob-depth = 64
+
+  -- | Maximum permitted single message size (64 MiB) for safe bounded decoding.
+  max-gob-message-bytes :: Nat
+  max-gob-message-bytes = 67108864
+
+  -- | Extract one byte of an unsigned 64-bit word at the given bit shift.
+  u64-byte-at :: U64 -> U32 -> InRange 0 255 Nat
+  u64-byte-at x shift = i64-le-byte (wrapping-u64-to-i64 x) shift
+
+  -- | Minimal number of big-endian bytes (1..8) needed for an unsigned word above 127.
+  u64-byte-width :: U64 -> InRange 1 8 Nat
+  u64-byte-width x =
+    let lz = u32-to-nat (leading-zeros-u64 x) in
+    if lz >= 56 then 1
+    else if lz >= 48 then 2
+    else if lz >= 40 then 3
+    else if lz >= 32 then 4
+    else if lz >= 24 then 5
+    else if lz >= 16 then 6
+    else if lz >= 8 then 7
+    else 8
+
+  -- | Fill big-endian bytes of x into out starting at offset 1 for width bytes.
+  write-u64-be :: Bytes -> U64 -> Nat -> Nat -> Unit
+  write-u64-be out x width idx =
+    if idx < width then
+      let pos = idx + 1 in
+      let rem-bytes = width - 1 - idx in
+      let shift-nat = rem-bytes * 8 in
+      if pos < bytes-len out && shift-nat <= 56 then
+        let shift = wrapping-i64-to-u32 (nat-to-i64 shift-nat) in
+        let written = bytes-set out pos (u64-byte-at x shift) in
+        write-u64-be out x width (idx + 1)
+      else ()
+    else ()
+
+  -- | Encode an unsigned 64-bit integer in gob wire format.
+  -- Values 0..127 emit one byte; larger values emit (256 - width) followed by big-endian bytes.
+  gob-encode-uint :: U64 -> Bytes
+  gob-encode-uint x =
+    if le-u64 x 127 then
+      let out = bytes-new 1 in
+      let written = bytes-set out 0 (u64-byte-at x 0) in
+      out
+    else
+      let width = u64-byte-width x in
+      let out = bytes-new (width + 1) in
+      let lead = nat-rem (256 - width) 256 in
+      let written = bytes-set out 0 lead in
+      let filled = write-u64-be out x width 0 in
+      out
+
+  -- | Read count big-endian bytes from buf starting at offset pos into a U64 accumulator.
+  read-u64-be :: Bytes -> Nat -> Nat -> U64 -> U64
+  read-u64-be buf pos remaining acc =
+    if remaining == 0 then acc
+    else if pos < bytes-len buf then
+      let b = wrapping-i64-to-u64 (nat-to-i64 (bytes-get buf pos)) in
+      let next-acc = bit-or-u64 (wrapping-shl-u64 acc 8) b in
+      read-u64-be buf (pos + 1) (remaining - 1) next-acc
+    else acc
+
+  -- | Decode a gob unsigned 64-bit integer at byte offset pos, returning (value, next-offset).
+  gob-decode-uint :: Bytes -> Nat -> Result GobError (U64, Nat)
+  gob-decode-uint buf pos =
+    if pos >= bytes-len buf then Err GobTruncated
+    else
+      let first = bytes-get buf pos in
+      if first <= 127 then
+        Ok (wrapping-i64-to-u64 (nat-to-i64 first), pos + 1)
+      else if first < 248 then
+        Err GobOverflow
+      else
+        let width = 256 - first in
+        let start = pos + 1 in
+        if start + width > bytes-len buf then Err GobTruncated
+        else Ok (read-u64-be buf start width 0, start + width)
+
+  -- | Encode a signed 64-bit integer using gob zigzag encoding.
+  gob-encode-int :: I64 -> Bytes
+  gob-encode-int i =
+    if lt-i64 i 0 then
+      let comp = wrapping-i64-to-u64 (bit-not-i64 i) in
+      gob-encode-uint (bit-or-u64 (wrapping-shl-u64 comp 1) 1)
+    else
+      gob-encode-uint (wrapping-shl-u64 (wrapping-i64-to-u64 i) 1)
+
+  -- | Decode a gob signed 64-bit integer at byte offset pos, returning (value, next-offset).
+  gob-decode-int :: Bytes -> Nat -> Result GobError (I64, Nat)
+  gob-decode-int buf pos = case gob-decode-uint buf pos of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (word, next) ->
+        let half = wrapping-u64-to-i64 (wrapping-shr-u64 word 1) in
+        let val = if eq-u64 (bit-and-u64 word 1) 1 then bit-not-i64 half else half in
+        Ok (val, next)
+
+  -- | Encode a binary64 float using byte-reversed IEEE-754 bits as a gob unsigned integer.
+  gob-encode-float :: F64 -> Bytes
+  gob-encode-float f = gob-encode-uint (swap-bytes-u64 (f64-bits f))
+
+  -- | Decode a binary64 float from a gob unsigned integer at byte offset pos.
+  gob-decode-float :: Bytes -> Nat -> Result GobError (F64, Nat)
+  gob-decode-float buf pos = case gob-decode-uint buf pos of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (word, next) -> Ok (f64-from-bits (swap-bytes-u64 word), next)
+
+  -- | Convert a decoded U64 into a Nat if it fits in non-negative I64.
+  u64-to-nat-checked :: U64 -> Option Nat
+  u64-to-nat-checked u = checked-nat-from-i64 (wrapping-u64-to-i64 u)
+
+  -- | Convert a Nat into a U64 if it fits in non-negative I64.
+  nat-to-u64-checked :: Nat -> Option U64
+  nat-to-u64-checked n = case checked-nat-to-i64 n of
+    None -> None
+    Some i -> Some (wrapping-i64-to-u64 i)
+
+  -- | Slice an exact checked subrange out of a Bytes buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes buf start count =
+    if start + count <= bytes-len buf then
+      let out = bytes-new count in
+      let copied = bytes-copy-range out buf 0 start count in
+      out
+    else bytes-new 0
+
+  -- | Single zero byte used as struct terminator and top-level non-struct delimiter.
+  zero-byte :: Bytes
+  zero-byte = bytes-new 1
+
+  -- | Wrap a message payload with its gob unsigned byte-length prefix.
+  frame-message :: Bytes -> Bytes
+  frame-message payload =
+    let len-u64 = wrapping-i64-to-u64 (nat-to-i64 (bytes-len payload)) in
+    bytes-concat [gob-encode-uint len-u64, payload]
+
+  -- ---------------------------------------------------------------------
+  -- Builtin wire type IDs and encoder state.
+  -- ---------------------------------------------------------------------
+
+  -- | Builtin wire type ID for bool.
+  tid-bool :: I64
+  tid-bool = 1
+
+  -- | Builtin wire type ID for signed integers.
+  tid-int :: I64
+  tid-int = 2
+
+  -- | Builtin wire type ID for unsigned integers.
+  tid-uint :: I64
+  tid-uint = 3
+
+  -- | Builtin wire type ID for binary64 floats.
+  tid-float :: I64
+  tid-float = 4
+
+  -- | Builtin wire type ID for byte slices.
+  tid-bytes :: I64
+  tid-bytes = 5
+
+  -- | Builtin wire type ID for UTF-8 strings.
+  tid-string :: I64
+  tid-string = 6
+
+  -- | Builtin wire type ID for complex128 numbers.
+  tid-complex :: I64
+  tid-complex = 7
+
+  -- | Lowest user-defined wire type ID accepted by decoders.
+  first-user-type-id :: I64
+  first-user-type-id = 64
+
+  -- | First user-defined wire type ID allocated by new encoders.
+  initial-encoder-type-id :: I64
+  initial-encoder-type-id = 65
+
+  -- | Persistent encoder state tracking already-transmitted user types and the next ID.
+  data GobEncoderState where
+    -- | Sent (type, wireId) bindings and the next positive user type ID to assign.
+    GobEncState :: List (GobType, I64) -> I64 -> GobEncoderState
+
+  -- | Create a fresh gob encoder state with no transmitted user types.
+  gob-encoder-new :: GobEncoderState
+  gob-encoder-new = GobEncState Nil initial-encoder-type-id
+
+  -- | Look up a GobType in a list of already-transmitted (type, id) bindings.
+  lookup-sent-type :: GobType -> List (GobType, I64) -> Option I64
+  lookup-sent-type ty entries = case entries of
+    Nil -> None
+    Cons entry rest -> case entry of
+      (known, tid) -> if gob-type-eq ty known then Some tid else lookup-sent-type ty rest
+
+  -- | Query the wire type ID of a GobType if it is builtin or already transmitted.
+  gob-encoder-type-id :: GobEncoderState -> GobType -> Option I64
+  gob-encoder-type-id state ty = case ty of
+    GobTBool -> Some tid-bool
+    GobTInt -> Some tid-int
+    GobTUint -> Some tid-uint
+    GobTFloat -> Some tid-float
+    GobTBytes -> Some tid-bytes
+    GobTString -> Some tid-string
+    GobTComplex -> Some tid-complex
+    _ -> case state of
+      GobEncState sent _ -> lookup-sent-type ty sent
+
+  -- | Encode a CommonType struct (field 0: Name string, field 1: Id int).
+  encode-common-type :: String -> I64 -> List Bytes -> List Bytes
+  encode-common-type name tid acc =
+    if string-byte-length name == 0 then
+      let acc1 = Cons (gob-encode-uint 2) acc in
+      let acc2 = Cons (gob-encode-int tid) acc1 in
+      Cons zero-byte acc2
+    else
+      let raw = string-to-bytes name in
+      let nlen = wrapping-i64-to-u64 (nat-to-i64 (bytes-len raw)) in
+      let acc1 = Cons (gob-encode-uint 1) acc in
+      let acc2 = Cons (gob-encode-uint nlen) acc1 in
+      let acc3 = Cons raw acc2 in
+      let acc4 = Cons (gob-encode-uint 1) acc3 in
+      let acc5 = Cons (gob-encode-int tid) acc4 in
+      Cons zero-byte acc5
+
+  -- | Encode one fieldType struct (field 0: Name string, field 1: Id int).
+  encode-field-type :: String -> I64 -> List Bytes -> List Bytes
+  encode-field-type fname ftid acc = encode-common-type fname ftid acc
+
+  -- | Encode a list of (fieldName, fieldTypeId) pairs as fieldType structs.
+  encode-field-type-list :: List (String, I64) -> List Bytes -> List Bytes
+  encode-field-type-list fields acc = case fields of
+    Nil -> acc
+    Cons pair rest -> case pair of
+      (fname, ftid) -> encode-field-type-list rest (encode-field-type fname ftid acc)
+
+  -- | Count elements in any list with constant stack space.
+  list-count :: forall a. List a -> Nat -> Nat
+  list-count xs n = case xs of
+    Nil -> n
+    Cons _ rest -> list-count rest (n + 1)
+
+  -- | Encode a wireType definition message for a slice type.
+  encode-wire-slice :: I64 -> I64 -> Bytes
+  encode-wire-slice tid elem-id =
+    let acc0 = [gob-encode-int (wrapping-neg-i64 tid)] in
+    let acc1 = Cons (gob-encode-uint 2) acc0 in
+    let acc2 = Cons (gob-encode-uint 1) acc1 in
+    let acc3 = encode-common-type "" tid acc2 in
+    let acc4 = Cons (gob-encode-uint 1) acc3 in
+    let acc5 = Cons (gob-encode-int elem-id) acc4 in
+    let acc6 = Cons zero-byte acc5 in
+    let acc7 = Cons zero-byte acc6 in
+    frame-message (bytes-concat (reverse acc7))
+
+  -- | Encode a wireType definition message for a fixed-length array type.
+  encode-wire-array :: I64 -> I64 -> Nat -> Result GobError Bytes
+  encode-wire-array tid elem-id count = case checked-nat-to-i64 count of
+    None -> Err GobOverflow
+    Some count-i64 ->
+      let acc0 = [gob-encode-int (wrapping-neg-i64 tid)] in
+      let acc1 = Cons (gob-encode-uint 1) acc0 in
+      let acc2 = Cons (gob-encode-uint 1) acc1 in
+      let acc3 = encode-common-type "" tid acc2 in
+      let acc4 = Cons (gob-encode-uint 1) acc3 in
+      let acc5 = Cons (gob-encode-int elem-id) acc4 in
+      let acc6 = (if eq-i64 count-i64 0 then acc5
+        else Cons (gob-encode-int count-i64) (Cons (gob-encode-uint 1) acc5)) in
+      let acc7 = Cons zero-byte acc6 in
+      let acc8 = Cons zero-byte acc7 in
+      Ok (frame-message (bytes-concat (reverse acc8)))
+
+  -- | Encode a wireType definition message for a map type.
+  encode-wire-map :: I64 -> I64 -> I64 -> Bytes
+  encode-wire-map tid key-id elem-id =
+    let acc0 = [gob-encode-int (wrapping-neg-i64 tid)] in
+    let acc1 = Cons (gob-encode-uint 4) acc0 in
+    let acc2 = Cons (gob-encode-uint 1) acc1 in
+    let acc3 = encode-common-type "" tid acc2 in
+    let acc4 = Cons (gob-encode-uint 1) acc3 in
+    let acc5 = Cons (gob-encode-int key-id) acc4 in
+    let acc6 = Cons (gob-encode-uint 1) acc5 in
+    let acc7 = Cons (gob-encode-int elem-id) acc6 in
+    let acc8 = Cons zero-byte acc7 in
+    let acc9 = Cons zero-byte acc8 in
+    frame-message (bytes-concat (reverse acc9))
+
+  -- | Encode a wireType definition message for a struct type.
+  encode-wire-struct :: I64 -> String -> List (String, I64) -> Result GobError Bytes
+  encode-wire-struct tid name fields =
+    let count = list-count fields 0 in
+    case nat-to-u64-checked count of
+      None -> Err GobOverflow
+      Some count-u64 ->
+        let acc0 = [gob-encode-int (wrapping-neg-i64 tid)] in
+        let acc1 = Cons (gob-encode-uint 3) acc0 in
+        let acc2 = Cons (gob-encode-uint 1) acc1 in
+        let acc3 = encode-common-type name tid acc2 in
+        let acc4 = (if count == 0 then acc3
+          else
+            let with-delta = Cons (gob-encode-uint 1) acc3 in
+            let with-len = Cons (gob-encode-uint count-u64) with-delta in
+            encode-field-type-list fields with-len) in
+        let acc5 = Cons zero-byte acc4 in
+        let acc6 = Cons zero-byte acc5 in
+        Ok (frame-message (bytes-concat (reverse acc6)))
+
+  -- | Ensure all field types of a struct are transmitted and return their (name, typeId) list.
+  ensure-struct-field-types :: GobEncoderState -> GobFieldTypes -> Nat -> List Bytes -> List (String, I64) -> Result GobError (List (String, I64), List Bytes, GobEncoderState)
+  ensure-struct-field-types state fields depth frames acc = case fields of
+    GobFieldTypesEnd -> Ok (reverse acc, frames, state)
+    GobFieldTypeCons fname fty rest ->
+      case ensure-type state fty (depth + 1) frames of
+        Err err -> Err err
+        Ok res -> case res of
+          (ftid, frames2, state2) ->
+            ensure-struct-field-types state2 rest depth frames2 (Cons (fname, ftid) acc)
+
+  -- | Ensure a GobType and all nested types have assigned wire IDs, emitting any new wireType frames.
+  ensure-type :: GobEncoderState -> GobType -> Nat -> List Bytes -> Result GobError (I64, List Bytes, GobEncoderState)
+  ensure-type state ty depth frames =
+    if depth > max-gob-depth then Err GobDepthLimit
+    else case gob-encoder-type-id state ty of
+      Some existing -> Ok (existing, frames, state)
+      None -> case ty of
+        GobTSlice elem-ty ->
+          case ensure-type state elem-ty (depth + 1) frames of
+            Err err -> Err err
+            Ok res -> case res of
+              (elem-id, frames1, state1) -> case state1 of
+                GobEncState sent next-id ->
+                  let frame = encode-wire-slice next-id elem-id in
+                  let next-state = GobEncState (Cons (ty, next-id) sent) (wrapping-add-i64 next-id 1) in
+                  Ok (next-id, Cons frame frames1, next-state)
+        GobTArray elem-ty count ->
+          case ensure-type state elem-ty (depth + 1) frames of
+            Err err -> Err err
+            Ok res -> case res of
+              (elem-id, frames1, state1) -> case state1 of
+                GobEncState sent next-id ->
+                  case encode-wire-array next-id elem-id count of
+                    Err err -> Err err
+                    Ok frame ->
+                      let next-state = GobEncState (Cons (ty, next-id) sent) (wrapping-add-i64 next-id 1) in
+                      Ok (next-id, Cons frame frames1, next-state)
+        GobTMap key-ty elem-ty ->
+          case ensure-type state key-ty (depth + 1) frames of
+            Err err -> Err err
+            Ok res1 -> case res1 of
+              (key-id, frames1, state1) ->
+                case ensure-type state1 elem-ty (depth + 1) frames1 of
+                  Err err -> Err err
+                  Ok res2 -> case res2 of
+                    (elem-id, frames2, state2) -> case state2 of
+                      GobEncState sent next-id ->
+                        let frame = encode-wire-map next-id key-id elem-id in
+                        let next-state = GobEncState (Cons (ty, next-id) sent) (wrapping-add-i64 next-id 1) in
+                        Ok (next-id, Cons frame frames2, next-state)
+        GobTStruct name fields ->
+          case ensure-struct-field-types state fields depth frames Nil of
+            Err err -> Err err
+            Ok res -> case res of
+              (field-ids, frames1, state1) -> case state1 of
+                GobEncState sent next-id ->
+                  case encode-wire-struct next-id name field-ids of
+                    Err err -> Err err
+                    Ok frame ->
+                      let next-state = GobEncState (Cons (ty, next-id) sent) (wrapping-add-i64 next-id 1) in
+                      Ok (next-id, Cons frame frames1, next-state)
+        _ -> Err (GobMalformedWire "unexpected primitive type in ensure-type")
+
+  -- ---------------------------------------------------------------------
+  -- Value encoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Count elements in a GobValueList spine.
+  value-list-len :: GobValueList -> Nat -> Nat
+  value-list-len items n = case items of
+    GobValueEnd -> n
+    GobValueCons _ rest -> value-list-len rest (n + 1)
+
+  -- | Count entries in a GobMapEntries spine.
+  map-entries-len :: GobMapEntries -> Nat -> Nat
+  map-entries-len entries n = case entries of
+    GobMapEnd -> n
+    GobMapCons _ _ rest -> map-entries-len rest (n + 1)
+
+  -- | Check whether a field name exists in a GobFieldTypes spine.
+  has-field-type :: String -> GobFieldTypes -> Bool
+  has-field-type name fields = case fields of
+    GobFieldTypesEnd -> False
+    GobFieldTypeCons fname _ rest ->
+      if eq-i64 (string-compare name fname) 0 then True
+      else has-field-type name rest
+
+  -- | Verify that every field supplied in a GobStructFields value exists in the declared struct type.
+  validate-struct-field-names :: GobFieldTypes -> GobStructFields -> Result GobError Unit
+  validate-struct-field-names decls provided = case provided of
+    GobFieldEnd -> Ok ()
+    GobFieldCons name _ rest ->
+      if has-field-type name decls then validate-struct-field-names decls rest
+      else Err (GobTypeMismatch (string-concat "unknown struct field " name))
+
+  -- | Encode every element in a GobValueList spine according to elem-ty.
+  encode-value-list :: GobType -> GobValueList -> Nat -> List Bytes -> Result GobError (List Bytes)
+  encode-value-list elem-ty items depth acc = case items of
+    GobValueEnd -> Ok acc
+    GobValueCons item rest ->
+      case encode-value elem-ty item (depth + 1) acc of
+        Err err -> Err err
+        Ok acc1 -> encode-value-list elem-ty rest depth acc1
+
+  -- | Encode every (key, value) pair in a GobMapEntries spine.
+  encode-map-entries :: GobType -> GobType -> GobMapEntries -> Nat -> List Bytes -> Result GobError (List Bytes)
+  encode-map-entries key-ty elem-ty entries depth acc = case entries of
+    GobMapEnd -> Ok acc
+    GobMapCons k v rest ->
+      case encode-value key-ty k (depth + 1) acc of
+        Err err -> Err err
+        Ok acc1 -> case encode-value elem-ty v (depth + 1) acc1 of
+          Err err -> Err err
+          Ok acc2 -> encode-map-entries key-ty elem-ty rest depth acc2
+
+  -- | Check whether a value matches its GobType enough to safely omit it as a zero struct field.
+  check-value-matches-zero :: GobType -> GobValue -> Result GobError Bool
+  check-value-matches-zero ty val = case ty of
+    GobTBool -> case val of GobBool b -> Ok (not b); _ -> Err (GobTypeMismatch "expected GobBool")
+    GobTInt -> case val of GobInt i -> Ok (eq-i64 i 0); _ -> Err (GobTypeMismatch "expected GobInt")
+    GobTUint -> case val of GobUint u -> Ok (eq-u64 u 0); _ -> Err (GobTypeMismatch "expected GobUint")
+    GobTFloat -> case val of GobFloat f -> Ok (feq-f64 f f64-zero); _ -> Err (GobTypeMismatch "expected GobFloat")
+    GobTBytes -> case val of GobBytes bs -> Ok (bytes-len bs == 0); _ -> Err (GobTypeMismatch "expected GobBytes")
+    GobTString -> case val of GobString s -> Ok (string-byte-length s == 0); _ -> Err (GobTypeMismatch "expected GobString")
+    GobTComplex -> case val of
+      GobComplex re im -> Ok (feq-f64 re f64-zero && feq-f64 im f64-zero)
+      _ -> Err (GobTypeMismatch "expected GobComplex")
+    GobTSlice _ -> case val of
+      GobSlice items -> Ok (case items of GobValueEnd -> True; GobValueCons _ _ -> False)
+      _ -> Err (GobTypeMismatch "expected GobSlice")
+    GobTArray _ _ -> case val of
+      GobArray _ -> Ok False
+      _ -> Err (GobTypeMismatch "expected GobArray")
+    GobTMap _ _ -> case val of
+      GobMap entries -> Ok (case entries of GobMapEnd -> True; GobMapCons _ _ _ -> False)
+      _ -> Err (GobTypeMismatch "expected GobMap")
+    GobTStruct _ _ -> case val of
+      GobStruct _ _ -> Ok False
+      _ -> Err (GobTypeMismatch "expected GobStruct")
+
+  -- | Encode ordered struct fields with field-number deltas, omitting zero fields except arrays and structs.
+  encode-struct-body :: GobFieldTypes -> GobStructFields -> Nat -> Bool -> Nat -> Nat -> List Bytes -> Result GobError (List Bytes)
+  encode-struct-body decls provided idx has-prev prev-idx depth acc = case decls of
+    GobFieldTypesEnd -> Ok (Cons zero-byte acc)
+    GobFieldTypeCons fname fty rest ->
+      let fval = case lookup-struct-field fname provided of
+            Some found -> found
+            None -> gob-zero-value fty in
+      case check-value-matches-zero fty fval of
+        Err err -> Err err
+        Ok omit ->
+          if omit then
+            encode-struct-body rest provided (idx + 1) has-prev prev-idx depth acc
+          else
+            let delta-nat = if not has-prev then idx + 1 else if prev-idx <= idx then idx - prev-idx else 0 in
+            case nat-to-u64-checked delta-nat of
+              None -> Err GobOverflow
+              Some delta-u64 ->
+                let acc1 = Cons (gob-encode-uint delta-u64) acc in
+                case encode-value fty fval (depth + 1) acc1 of
+                  Err err -> Err err
+                  Ok acc2 -> encode-struct-body rest provided (idx + 1) True idx depth acc2
+
+  -- | Encode a GobValue body (without top-level frame, type ID, or singleton delimiter).
+  encode-value :: GobType -> GobValue -> Nat -> List Bytes -> Result GobError (List Bytes)
+  encode-value ty val depth acc =
+    if depth > max-gob-depth then Err GobDepthLimit
+    else case ty of
+      GobTBool -> case val of
+        GobBool b -> Ok (Cons (gob-encode-uint (if b then 1 else 0)) acc)
+        _ -> Err (GobTypeMismatch "expected GobBool")
+      GobTInt -> case val of
+        GobInt i -> Ok (Cons (gob-encode-int i) acc)
+        _ -> Err (GobTypeMismatch "expected GobInt")
+      GobTUint -> case val of
+        GobUint u -> Ok (Cons (gob-encode-uint u) acc)
+        _ -> Err (GobTypeMismatch "expected GobUint")
+      GobTFloat -> case val of
+        GobFloat f -> Ok (Cons (gob-encode-float f) acc)
+        _ -> Err (GobTypeMismatch "expected GobFloat")
+      GobTBytes -> case val of
+        GobBytes bs ->
+          let blen = wrapping-i64-to-u64 (nat-to-i64 (bytes-len bs)) in
+          let acc1 = Cons (gob-encode-uint blen) acc in
+          Ok (if bytes-len bs == 0 then acc1 else Cons bs acc1)
+        _ -> Err (GobTypeMismatch "expected GobBytes")
+      GobTString -> case val of
+        GobString s ->
+          let raw = string-to-bytes s in
+          let slen = wrapping-i64-to-u64 (nat-to-i64 (bytes-len raw)) in
+          let acc1 = Cons (gob-encode-uint slen) acc in
+          Ok (if bytes-len raw == 0 then acc1 else Cons raw acc1)
+        _ -> Err (GobTypeMismatch "expected GobString")
+      GobTComplex -> case val of
+        GobComplex re im ->
+          let acc1 = Cons (gob-encode-float re) acc in
+          Ok (Cons (gob-encode-float im) acc1)
+        _ -> Err (GobTypeMismatch "expected GobComplex")
+      GobTSlice elem-ty -> case val of
+        GobSlice items ->
+          let count = value-list-len items 0 in
+          case nat-to-u64-checked count of
+            None -> Err GobOverflow
+            Some count-u64 ->
+              let acc1 = Cons (gob-encode-uint count-u64) acc in
+              encode-value-list elem-ty items depth acc1
+        _ -> Err (GobTypeMismatch "expected GobSlice")
+      GobTArray elem-ty expected-len -> case val of
+        GobArray items ->
+          let actual-len = value-list-len items 0 in
+          if not (actual-len == expected-len) then Err (GobTypeMismatch "array length mismatch")
+          else case nat-to-u64-checked expected-len of
+            None -> Err GobOverflow
+            Some count-u64 ->
+              let acc1 = Cons (gob-encode-uint count-u64) acc in
+              encode-value-list elem-ty items depth acc1
+        _ -> Err (GobTypeMismatch "expected GobArray")
+      GobTMap key-ty elem-ty -> case val of
+        GobMap entries ->
+          let count = map-entries-len entries 0 in
+          case nat-to-u64-checked count of
+            None -> Err GobOverflow
+            Some count-u64 ->
+              let acc1 = Cons (gob-encode-uint count-u64) acc in
+              encode-map-entries key-ty elem-ty entries depth acc1
+        _ -> Err (GobTypeMismatch "expected GobMap")
+      GobTStruct _ decls -> case val of
+        GobStruct _ provided ->
+          case validate-struct-field-names decls provided of
+            Err err -> Err err
+            Ok _ -> encode-struct-body decls provided 0 False 0 depth acc
+        _ -> Err (GobTypeMismatch "expected GobStruct")
+
+  -- | Whether a GobType is a struct (top-level structs omit the leading zero delimiter).
+  is-struct-type :: GobType -> Bool
+  is-struct-type ty = case ty of
+    GobTStruct _ _ -> True
+    _ -> False
+
+  -- | Encode one value using persistent encoder state, transmitting any unseen user type descriptors.
+  -- Returns the wire bytes for this value (preceded by any new type definitions) and updated state.
+  gob-encoder-encode :: GobEncoderState -> GobType -> GobValue -> Result GobError (Bytes, GobEncoderState)
+  gob-encoder-encode state ty val =
+    case ensure-type state ty 0 Nil of
+      Err err -> Err err
+      Ok ensured -> case ensured of
+        (tid, type-frames, next-state) ->
+          let body-start = (if is-struct-type ty then [gob-encode-int tid]
+            else [zero-byte, gob-encode-int tid]) in
+          case encode-value ty val 0 body-start of
+            Err err -> Err err
+            Ok chunks ->
+              let val-frame = frame-message (bytes-concat (reverse chunks)) in
+              let all-frames = reverse (Cons val-frame type-frames) in
+              Ok (bytes-concat all-frames, next-state)
+
+  -- ---------------------------------------------------------------------
+  -- Wire type descriptors and decoder state.
+  -- ---------------------------------------------------------------------
+
+  -- | One field entry parsed from a wireType struct descriptor.
+  data WireField where
+    -- | Field name and referenced wire type ID.
+    WireField :: String -> I64 -> WireField
+
+  -- | Unresolved wire-type descriptor parsed from a negative type-definition message.
+  data WireType where
+    -- | Fixed-length array descriptor: name, element type ID and declared length.
+    WireArray :: String -> I64 -> Nat -> WireType
+    -- | Slice descriptor: name and element type ID.
+    WireSlice :: String -> I64 -> WireType
+    -- | Struct descriptor: name and ordered field entries.
+    WireStruct :: String -> List WireField -> WireType
+    -- | Map descriptor: name, key type ID and element type ID.
+    WireMap :: String -> I64 -> I64 -> WireType
+    -- | External encoder descriptor carrying opaque byte payloads.
+    WireOpaque :: String -> WireType
+
+  -- | Persistent decoder state mapping transmitted user type IDs to wire descriptors.
+  data GobDecoderState where
+    -- | Received (typeId, wireType) entries.
+    GobDecState :: List (I64, WireType) -> GobDecoderState
+
+  -- | Create a fresh gob decoder state with no user type definitions yet received.
+  gob-decoder-new :: GobDecoderState
+  gob-decoder-new = GobDecState Nil
+
+  -- | Look up a user wire type descriptor by positive type ID.
+  lookup-wire-type :: I64 -> List (I64, WireType) -> Option WireType
+  lookup-wire-type tid entries = case entries of
+    Nil -> None
+    Cons entry rest -> case entry of
+      (known, wt) -> if eq-i64 tid known then Some wt else lookup-wire-type tid rest
+
+  -- | Decode a length-prefixed raw byte slice at offset pos.
+  decode-raw-bytes :: Bytes -> Nat -> Result GobError (Bytes, Nat)
+  decode-raw-bytes buf pos = case gob-decode-uint buf pos of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (len-u64, start) -> case u64-to-nat-checked len-u64 of
+        None -> Err GobOverflow
+        Some count ->
+          if start + count > bytes-len buf then Err GobTruncated
+          else Ok (slice-bytes buf start count, start + count)
+
+  -- | Decode a length-prefixed UTF-8 string at offset pos.
+  decode-raw-string :: Bytes -> Nat -> Result GobError (String, Nat)
+  decode-raw-string buf pos = case decode-raw-bytes buf pos of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (raw, next) -> case string-from-bytes raw of
+        None -> Err (GobMalformedWire "invalid UTF-8 in string")
+        Some text -> Ok (text, next)
+
+  -- | Step a delta-encoded struct field index from (has-prev, prev-idx) by delta >= 1.
+  step-field-index :: Bool -> Nat -> U64 -> Result GobError Nat
+  step-field-index has-prev prev-idx delta = case u64-to-nat-checked delta of
+    None -> Err GobOverflow
+    Some d ->
+      if d == 0 then Err (GobMalformedWire "zero field delta")
+      else if not has-prev then Ok (d - 1)
+      else Ok (prev-idx + d)
+
+  -- | Decode a CommonType struct (field 0: Name string, field 1: Id int).
+  decode-common-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> Result GobError (String, I64, Nat)
+  decode-common-type buf pos has-prev prev-idx name tid =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then Ok (name, tid, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-raw-string buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, pos2) -> decode-common-type buf pos2 True fidx n tid
+              else if fidx == 1 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (i, pos2) -> decode-common-type buf pos2 True fidx name i
+              else Err (GobMalformedWire "unknown field in CommonType")
+
+  -- | Decode one fieldType struct (field 0: Name string, field 1: Id int).
+  decode-field-type :: Bytes -> Nat -> Result GobError (WireField, Nat)
+  decode-field-type buf pos =
+    case decode-common-type buf pos False 0 "" 0 of
+      Err err -> Err err
+      Ok res -> case res of
+        (fname, ftid, next) -> Ok (WireField fname ftid, next)
+
+  -- | Decode count fieldType entries from buf starting at offset pos.
+  decode-field-type-slice :: Bytes -> Nat -> Nat -> List WireField -> Result GobError (List WireField, Nat)
+  decode-field-type-slice buf pos remaining acc =
+    if remaining == 0 then Ok (reverse acc, pos)
+    else if pos >= bytes-len buf then Err GobTruncated
+    else case decode-field-type buf pos of
+      Err err -> Err err
+      Ok res -> case res of
+        (wf, next) -> decode-field-type-slice buf next (remaining - 1) (Cons wf acc)
+
+  -- | Decode an arrayType struct (field 0: CommonType, field 1: Elem int, field 2: Len int).
+  decode-array-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> I64 -> I64 -> Result GobError (String, I64, WireType, Nat)
+  decode-array-type buf pos has-prev prev-idx name cid elem-id arr-len =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then
+            case checked-nat-from-i64 arr-len of
+              None -> Err (GobMalformedWire "negative array length")
+              Some len-nat -> Ok (name, cid, WireArray name elem-id len-nat, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-common-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, i, pos2) -> decode-array-type buf pos2 True fidx n i elem-id arr-len
+              else if fidx == 1 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (e, pos2) -> decode-array-type buf pos2 True fidx name cid e arr-len
+              else if fidx == 2 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (l, pos2) -> decode-array-type buf pos2 True fidx name cid elem-id l
+              else Err (GobMalformedWire "unknown field in arrayType")
+
+  -- | Decode a sliceType struct (field 0: CommonType, field 1: Elem int).
+  decode-slice-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> I64 -> Result GobError (String, I64, WireType, Nat)
+  decode-slice-type buf pos has-prev prev-idx name cid elem-id =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then Ok (name, cid, WireSlice name elem-id, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-common-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, i, pos2) -> decode-slice-type buf pos2 True fidx n i elem-id
+              else if fidx == 1 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (e, pos2) -> decode-slice-type buf pos2 True fidx name cid e
+              else Err (GobMalformedWire "unknown field in sliceType")
+
+  -- | Decode a structType struct (field 0: CommonType, field 1: Field []fieldType).
+  decode-struct-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> List WireField -> Result GobError (String, I64, WireType, Nat)
+  decode-struct-type buf pos has-prev prev-idx name cid fields =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then Ok (name, cid, WireStruct name fields, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-common-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, i, pos2) -> decode-struct-type buf pos2 True fidx n i fields
+              else if fidx == 1 then
+                case gob-decode-uint buf pos1 of
+                  Err err -> Err err
+                  Ok lres -> case lres of
+                    (count-u64, pos2) -> case u64-to-nat-checked count-u64 of
+                      None -> Err GobOverflow
+                      Some count ->
+                        let rem = if pos2 <= bytes-len buf then bytes-len buf - pos2 else 0 in
+                        if count > rem then Err GobTruncated
+                        else case decode-field-type-slice buf pos2 count Nil of
+                          Err err -> Err err
+                          Ok fres -> case fres of
+                            (fs, pos3) -> decode-struct-type buf pos3 True fidx name cid fs
+              else Err (GobMalformedWire "unknown field in structType")
+
+  -- | Decode a mapType struct (field 0: CommonType, field 1: Key int, field 2: Elem int).
+  decode-map-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> I64 -> I64 -> Result GobError (String, I64, WireType, Nat)
+  decode-map-type buf pos has-prev prev-idx name cid key-id elem-id =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then Ok (name, cid, WireMap name key-id elem-id, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-common-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, i, pos2) -> decode-map-type buf pos2 True fidx n i key-id elem-id
+              else if fidx == 1 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (k, pos2) -> decode-map-type buf pos2 True fidx name cid k elem-id
+              else if fidx == 2 then
+                case gob-decode-int buf pos1 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (e, pos2) -> decode-map-type buf pos2 True fidx name cid key-id e
+              else Err (GobMalformedWire "unknown field in mapType")
+
+  -- | Decode a gobEncoderType struct (field 0: CommonType).
+  decode-opaque-type :: Bytes -> Nat -> Bool -> Nat -> String -> I64 -> Result GobError (String, I64, WireType, Nat)
+  decode-opaque-type buf pos has-prev prev-idx name cid =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then Ok (name, cid, WireOpaque name, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-common-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (n, i, pos2) -> decode-opaque-type buf pos2 True fidx n i
+              else Err (GobMalformedWire "unknown field in gobEncoderType")
+
+  -- | Validate that a wireType variant has not already been populated and matches expected-tid.
+  accept-wire-variant :: Option WireType -> I64 -> I64 -> WireType -> Result GobError (Option WireType)
+  accept-wire-variant current expected-tid common-id wt = case current of
+    Some _ -> Err (GobMalformedWire "multiple variants set in wireType")
+    None ->
+      if ne-i64 common-id 0 && ne-i64 common-id expected-tid then
+        Err (GobMalformedWire "wireType common id mismatch")
+      else Ok (Some wt)
+
+  -- | Decode a top-level wireType struct defining expected-tid.
+  decode-wire-type :: Bytes -> Nat -> Bool -> Nat -> I64 -> Option WireType -> Result GobError (WireType, Nat)
+  decode-wire-type buf pos has-prev prev-idx expected-tid found =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then
+            case found of
+              None -> Err (GobMalformedWire "empty wireType descriptor")
+              Some wt -> Ok (wt, pos1)
+          else case step-field-index has-prev prev-idx delta of
+            Err err -> Err err
+            Ok fidx ->
+              if fidx == 0 then
+                case decode-array-type buf pos1 False 0 "" 0 0 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (_, cid, wt, pos2) -> case accept-wire-variant found expected-tid cid wt of
+                      Err err -> Err err
+                      Ok next-found -> decode-wire-type buf pos2 True fidx expected-tid next-found
+              else if fidx == 1 then
+                case decode-slice-type buf pos1 False 0 "" 0 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (_, cid, wt, pos2) -> case accept-wire-variant found expected-tid cid wt of
+                      Err err -> Err err
+                      Ok next-found -> decode-wire-type buf pos2 True fidx expected-tid next-found
+              else if fidx == 2 then
+                case decode-struct-type buf pos1 False 0 "" 0 Nil of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (_, cid, wt, pos2) -> case accept-wire-variant found expected-tid cid wt of
+                      Err err -> Err err
+                      Ok next-found -> decode-wire-type buf pos2 True fidx expected-tid next-found
+              else if fidx == 3 then
+                case decode-map-type buf pos1 False 0 "" 0 0 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (_, cid, wt, pos2) -> case accept-wire-variant found expected-tid cid wt of
+                      Err err -> Err err
+                      Ok next-found -> decode-wire-type buf pos2 True fidx expected-tid next-found
+              else if fidx == 4 || fidx == 5 || fidx == 6 then
+                case decode-opaque-type buf pos1 False 0 "" 0 of
+                  Err err -> Err err
+                  Ok res -> case res of
+                    (_, cid, wt, pos2) -> case accept-wire-variant found expected-tid cid wt of
+                      Err err -> Err err
+                      Ok next-found -> decode-wire-type buf pos2 True fidx expected-tid next-found
+              else Err (GobMalformedWire "unknown field in wireType")
+
+  -- ---------------------------------------------------------------------
+  -- Type resolution and value decoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Resolve a list of WireFields into a GobFieldTypes spine.
+  resolve-wire-fields :: GobDecoderState -> List WireField -> Nat -> Result GobError GobFieldTypes
+  resolve-wire-fields state fields depth = case fields of
+    Nil -> Ok GobFieldTypesEnd
+    Cons wf rest -> case wf of
+      WireField fname ftid ->
+        case resolve-type-id state ftid (depth + 1) of
+          Err err -> Err err
+          Ok fty -> case resolve-wire-fields state rest depth of
+            Err err -> Err err
+            Ok tail-fields -> Ok (GobFieldTypeCons fname fty tail-fields)
+
+  -- | Resolve a positive wire type ID into a GobType descriptor using received wireTypes.
+  resolve-type-id :: GobDecoderState -> I64 -> Nat -> Result GobError GobType
+  resolve-type-id state tid depth =
+    if depth > max-gob-depth then Err GobDepthLimit
+    else if eq-i64 tid tid-bool then Ok GobTBool
+    else if eq-i64 tid tid-int then Ok GobTInt
+    else if eq-i64 tid tid-uint then Ok GobTUint
+    else if eq-i64 tid tid-float then Ok GobTFloat
+    else if eq-i64 tid tid-bytes then Ok GobTBytes
+    else if eq-i64 tid tid-string then Ok GobTString
+    else if eq-i64 tid tid-complex then Ok GobTComplex
+    else if lt-i64 tid first-user-type-id then Err (GobUnknownTypeId tid)
+    else case state of
+      GobDecState entries -> case lookup-wire-type tid entries of
+        None -> Err (GobUnknownTypeId tid)
+        Some wt -> case wt of
+          WireArray _ elem-id count ->
+            case resolve-type-id state elem-id (depth + 1) of
+              Err err -> Err err
+              Ok elem-ty -> Ok (GobTArray elem-ty count)
+          WireSlice _ elem-id ->
+            case resolve-type-id state elem-id (depth + 1) of
+              Err err -> Err err
+              Ok elem-ty -> Ok (GobTSlice elem-ty)
+          WireMap _ key-id elem-id ->
+            case resolve-type-id state key-id (depth + 1) of
+              Err err -> Err err
+              Ok key-ty -> case resolve-type-id state elem-id (depth + 1) of
+                Err err -> Err err
+                Ok elem-ty -> Ok (GobTMap key-ty elem-ty)
+          WireStruct name fields ->
+            case resolve-wire-fields state fields depth of
+              Err err -> Err err
+              Ok resolved-fields -> Ok (GobTStruct name resolved-fields)
+          WireOpaque _ -> Ok GobTBytes
+
+  -- | Look up and resolve a wire type ID in a GobDecoderState.
+  gob-decoder-type :: GobDecoderState -> I64 -> Result GobError GobType
+  gob-decoder-type state tid = resolve-type-id state tid 0
+
+  -- | Decode count elements of elem-ty into a GobValueList spine.
+  decode-value-list :: GobType -> Bytes -> Nat -> Nat -> Nat -> List GobValue -> Result GobError (GobValueList, Nat)
+  decode-value-list elem-ty buf pos remaining depth acc =
+    if remaining == 0 then Ok (value-list-from-list (reverse acc), pos)
+    else if pos >= bytes-len buf then Err GobTruncated
+    else case decode-value elem-ty buf pos (depth + 1) of
+      Err err -> Err err
+      Ok res -> case res of
+        (item, next) -> decode-value-list elem-ty buf next (remaining - 1) depth (Cons item acc)
+
+  -- | Decode count (key, value) map entries into a GobMapEntries spine.
+  decode-map-entries :: GobType -> GobType -> Bytes -> Nat -> Nat -> Nat -> List (GobValue, GobValue) -> Result GobError (GobMapEntries, Nat)
+  decode-map-entries key-ty elem-ty buf pos remaining depth acc =
+    if remaining == 0 then Ok (map-entries-from-list (reverse acc), pos)
+    else if pos >= bytes-len buf then Err GobTruncated
+    else case decode-value key-ty buf pos (depth + 1) of
+      Err err -> Err err
+      Ok kres -> case kres of
+        (k, pos1) -> case decode-value elem-ty buf pos1 (depth + 1) of
+          Err err -> Err err
+          Ok vres -> case vres of
+            (v, pos2) -> decode-map-entries key-ty elem-ty buf pos2 (remaining - 1) depth (Cons (k, v) acc)
+
+  -- | Fill all remaining struct fields with their canonical zero values in reversed accumulator order.
+  fill-remaining-zeros :: GobFieldTypes -> List (String, GobValue) -> List (String, GobValue)
+  fill-remaining-zeros fields acc = case fields of
+    GobFieldTypesEnd -> acc
+    GobFieldTypeCons fname fty rest ->
+      fill-remaining-zeros rest (Cons (fname, gob-zero-value fty) acc)
+
+  -- | Skip skip-count omitted struct fields, emitting their zero values, and return the target field.
+  skip-zero-fields :: Nat -> GobFieldTypes -> List (String, GobValue) -> Result GobError (String, GobType, GobFieldTypes, List (String, GobValue))
+  skip-zero-fields skip fields acc = case fields of
+    GobFieldTypesEnd -> Err (GobMalformedWire "struct field number out of bounds")
+    GobFieldTypeCons fname fty rest ->
+      if skip == 0 then Ok (fname, fty, rest, acc)
+      else skip-zero-fields (skip - 1) rest (Cons (fname, gob-zero-value fty) acc)
+
+  -- | Decode a delta-encoded struct body, populating omitted fields with canonical zero values.
+  decode-struct-body :: GobFieldTypes -> Bytes -> Nat -> Nat -> List (String, GobValue) -> Result GobError (GobStructFields, Nat)
+  decode-struct-body remaining-fields buf pos depth acc =
+    case gob-decode-uint buf pos of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (delta, pos1) ->
+          if eq-u64 delta 0 then
+            let full = fill-remaining-zeros remaining-fields acc in
+            Ok (struct-fields-from-list (reverse full), pos1)
+          else case u64-to-nat-checked delta of
+            None -> Err GobOverflow
+            Some d ->
+              let skip = if d > 0 then d - 1 else 0 in
+              case skip-zero-fields skip remaining-fields acc of
+                Err err -> Err err
+                Ok skipped -> case skipped of
+                  (fname, fty, tail-fields, acc1) ->
+                    case decode-value fty buf pos1 (depth + 1) of
+                      Err err -> Err err
+                      Ok vres -> case vres of
+                        (fval, pos2) ->
+                          decode-struct-body tail-fields buf pos2 depth (Cons (fname, fval) acc1)
+
+  -- | Decode a single GobValue of type ty starting at offset pos inside a message payload.
+  decode-value :: GobType -> Bytes -> Nat -> Nat -> Result GobError (GobValue, Nat)
+  decode-value ty buf pos depth =
+    if depth > max-gob-depth then Err GobDepthLimit
+    else case ty of
+      GobTBool -> case gob-decode-uint buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (u, next) -> Ok (GobBool (ne-u64 u 0), next)
+      GobTInt -> case gob-decode-int buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (i, next) -> Ok (GobInt i, next)
+      GobTUint -> case gob-decode-uint buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (u, next) -> Ok (GobUint u, next)
+      GobTFloat -> case gob-decode-float buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (f, next) -> Ok (GobFloat f, next)
+      GobTBytes -> case decode-raw-bytes buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (bs, next) -> Ok (GobBytes bs, next)
+      GobTString -> case decode-raw-string buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (s, next) -> Ok (GobString s, next)
+      GobTComplex -> case gob-decode-float buf pos of
+        Err err -> Err err
+        Ok rpair -> case rpair of
+          (re, pos1) -> case gob-decode-float buf pos1 of
+            Err err -> Err err
+            Ok ipair -> case ipair of
+              (im, pos2) -> Ok (GobComplex re im, pos2)
+      GobTSlice elem-ty -> case gob-decode-uint buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (count-u64, pos1) -> case u64-to-nat-checked count-u64 of
+            None -> Err GobOverflow
+            Some count ->
+              let rem = if pos1 <= bytes-len buf then bytes-len buf - pos1 else 0 in
+              if count > rem then Err GobTruncated
+              else case decode-value-list elem-ty buf pos1 count depth Nil of
+                Err err -> Err err
+                Ok lres -> case lres of
+                  (items, pos2) -> Ok (GobSlice items, pos2)
+      GobTArray elem-ty expected-len -> case gob-decode-uint buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (count-u64, pos1) -> case u64-to-nat-checked count-u64 of
+            None -> Err GobOverflow
+            Some count ->
+              if not (count == expected-len) then Err (GobMalformedWire "array length mismatch")
+              else
+                let rem = if pos1 <= bytes-len buf then bytes-len buf - pos1 else 0 in
+                if count > rem then Err GobTruncated
+                else case decode-value-list elem-ty buf pos1 count depth Nil of
+                  Err err -> Err err
+                  Ok lres -> case lres of
+                    (items, pos2) -> Ok (GobArray items, pos2)
+      GobTMap key-ty elem-ty -> case gob-decode-uint buf pos of
+        Err err -> Err err
+        Ok pair -> case pair of
+          (count-u64, pos1) -> case u64-to-nat-checked count-u64 of
+            None -> Err GobOverflow
+            Some count ->
+              let rem = if pos1 <= bytes-len buf then bytes-len buf - pos1 else 0 in
+              if count > rem || count * 2 > rem then Err GobTruncated
+              else case decode-map-entries key-ty elem-ty buf pos1 count depth Nil of
+                Err err -> Err err
+                Ok mres -> case mres of
+                  (entries, pos2) -> Ok (GobMap entries, pos2)
+      GobTStruct name fields ->
+        case decode-struct-body fields buf pos depth Nil of
+          Err err -> Err err
+          Ok sres -> case sres of
+            (sfields, pos1) -> Ok (GobStruct name sfields, pos1)
+
+  -- | Decode one already-deframed gob message payload (after its unsigned byte length prefix).
+  -- Returns None for a type-definition message (updating state) or Some (type, value) for a value message.
+  gob-decoder-decode-message :: GobDecoderState -> Bytes -> Result GobError (Option (GobType, GobValue), GobDecoderState)
+  gob-decoder-decode-message state payload =
+    if bytes-len payload == 0 then Err (GobMalformedWire "empty gob message")
+    else case gob-decode-int payload 0 of
+      Err err -> Err err
+      Ok pair -> case pair of
+        (signed-id, pos1) ->
+          if eq-i64 signed-id 0 then Err (GobUnknownTypeId 0)
+          else if lt-i64 signed-id 0 then
+            if eq-i64 signed-id min-bound-i64 then Err GobOverflow
+            else
+              let tid = wrapping-neg-i64 signed-id in
+              if lt-i64 tid first-user-type-id then
+                Err (GobMalformedWire "type definition id below 64")
+              else case state of
+                GobDecState entries -> case lookup-wire-type tid entries of
+                  Some _ -> Err (GobMalformedWire "duplicate type definition")
+                  None -> case decode-wire-type payload pos1 False 0 tid None of
+                    Err err -> Err err
+                    Ok wres -> case wres of
+                      (wt, end-pos) ->
+                        if not (end-pos == bytes-len payload) then
+                          Err (GobMalformedWire "trailing bytes in wireType message")
+                        else Ok (None, GobDecState (Cons (tid, wt) entries))
+          else
+            case resolve-type-id state signed-id 0 of
+              Err err -> Err err
+              Ok ty ->
+                if is-struct-type ty then
+                  case decode-value ty payload pos1 0 of
+                    Err err -> Err err
+                    Ok vres -> case vres of
+                      (val, end-pos) ->
+                        if not (end-pos == bytes-len payload) then
+                          Err (GobMalformedWire "trailing bytes in value message")
+                        else Ok (Some (ty, val), state)
+                else
+                  case gob-decode-uint payload pos1 of
+                    Err err -> Err err
+                    Ok dpair -> case dpair of
+                      (delim, pos2) ->
+                        if ne-u64 delim 0 then
+                          Err (GobMalformedWire "non-zero delta for top-level non-struct value")
+                        else case decode-value ty payload pos2 0 of
+                          Err err -> Err err
+                          Ok vres -> case vres of
+                            (val, end-pos) ->
+                              if not (end-pos == bytes-len payload) then
+                                Err (GobMalformedWire "trailing bytes in value message")
+                              else Ok (Some (ty, val), state)
+
+  -- | Decode one gob value starting at byte offset pos, consuming any preceding type definitions.
+  gob-decoder-decode-at :: GobDecoderState -> Bytes -> Nat -> Result GobError (GobType, GobValue, Nat, GobDecoderState)
+  gob-decoder-decode-at state input pos =
+    if pos >= bytes-len input then Err GobTruncated
+    else case gob-decode-uint input pos of
+      Err err -> Err err
+      Ok lpair -> case lpair of
+        (msg-len-u64, start) -> case u64-to-nat-checked msg-len-u64 of
+          None -> Err GobOverflow
+          Some msg-len ->
+            if msg-len == 0 then Err (GobMalformedWire "empty gob message")
+            else if msg-len > max-gob-message-bytes then Err GobOverflow
+            else if start + msg-len > bytes-len input then Err GobTruncated
+            else
+              let payload = slice-bytes input start msg-len in
+              let next-pos = start + msg-len in
+              case gob-decoder-decode-message state payload of
+                Err err -> Err err
+                Ok mres -> case mres of
+                  (None, next-state) -> gob-decoder-decode-at next-state input next-pos
+                  (Some tv, next-state) -> case tv of
+                    (ty, val) -> Ok (ty, val, next-pos, next-state)
+
+  -- ---------------------------------------------------------------------
+  -- One-shot and multi-message buffer conveniences.
+  -- ---------------------------------------------------------------------
+
+  -- | Encode a single typed value into a complete self-contained gob message buffer.
+  gob-encode :: GobType -> GobValue -> Result GobError Bytes
+  gob-encode ty val = case gob-encoder-encode gob-encoder-new ty val of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (out, _) -> Ok out
+
+  -- | Decode a single gob value occupying the entire input buffer.
+  gob-decode :: Bytes -> Result GobError (GobType, GobValue)
+  gob-decode input = case gob-decoder-decode-at gob-decoder-new input 0 of
+    Err err -> Err err
+    Ok res -> case res of
+      (ty, val, next-pos, _) ->
+        if next-pos == bytes-len input then Ok (ty, val)
+        else Err (GobMalformedWire "trailing bytes after gob value")
+
+  -- | Decode a single gob value and verify that its wire type matches the expected GobType.
+  gob-decode-as :: GobType -> Bytes -> Result GobError GobValue
+  gob-decode-as expected input = case gob-decode input of
+    Err err -> Err err
+    Ok pair -> case pair of
+      (actual, val) ->
+        if gob-type-eq expected actual then Ok val
+        else Err (GobTypeMismatch "decoded wire type does not match expected type")
+
+  -- | Encode a sequence of typed values while reusing transmitted type descriptors across messages.
+  encode-stream-loop :: GobEncoderState -> List (GobType, GobValue) -> List Bytes -> Result GobError Bytes
+  encode-stream-loop state items acc = case items of
+    Nil -> Ok (bytes-concat (reverse acc))
+    Cons pair rest -> case pair of
+      (ty, val) -> case gob-encoder-encode state ty val of
+        Err err -> Err err
+        Ok res -> case res of
+          (chunk, next-state) -> encode-stream-loop next-state rest (Cons chunk acc)
+
+  -- | Encode a sequence of (GobType, GobValue) pairs into one gob stream sharing type IDs.
+  gob-encode-stream :: List (GobType, GobValue) -> Result GobError Bytes
+  gob-encode-stream items = encode-stream-loop gob-encoder-new items Nil
+
+  -- | Decode all values in a gob stream buffer, reusing transmitted type descriptors across values.
+  decode-stream-loop :: GobDecoderState -> Bytes -> Nat -> List (GobType, GobValue) -> Result GobError (List (GobType, GobValue))
+  decode-stream-loop state input pos acc =
+    if pos >= bytes-len input then Ok (reverse acc)
+    else case gob-decoder-decode-at state input pos of
+      Err err -> Err err
+      Ok res -> case res of
+        (ty, val, next-pos, next-state) ->
+          decode-stream-loop next-state input next-pos (Cons (ty, val) acc)
+
+  -- | Decode every value from a multi-message gob byte buffer.
+  gob-decode-stream :: Bytes -> Result GobError (List (GobType, GobValue))
+  gob-decode-stream input = decode-stream-loop gob-decoder-new input 0 Nil

@@ -4,7 +4,7 @@ The ChaCha8 pseudorandom generator: four interleaved eight-round blocks per vect
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.ChaCha8</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.ChaCha8/source/">View source</a><a href="/packages/search/?q=%2BData.ChaCha8">Search module</a><a href="/reference-sources/Data.ChaCha8.cinch" download="Data.ChaCha8.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -12,11 +12,12 @@ ChaCha8: a fast, seekable-by-state, cryptographically strong pseudorandom genera
 values from a 32-byte seed, with byte reads and a compact binary encoding of its state.
 
 The generator runs four ChaCha blocks with eight rounds at a time, word-interleaved so every quarter
-round is one <4 x i32> operation per word; one block call yields thirty-two 64-bit outputs. After four
-calls the last four outputs of the fourth become the next seed instead of being returned, so earlier
-outputs cannot be recovered from a captured state. A state is an immutable value: drawing returns the
-value and the next state, so a retained state replays exactly. The encoding records the seed and the
-number of outputs used within the current reseed period, plus any bytes a partial read left unread.
+round is one <4 x i32> vector operation per word via Data.Wide SIMD; one block call computes all sixteen
+output vectors in a single pass and yields thirty-two 64-bit outputs. After four calls the last four
+outputs of the fourth become the next seed instead of being returned, so earlier outputs cannot be
+recovered from a captured state. A state is an immutable value: drawing returns the value and the next
+state, so a retained state replays exactly. The encoding records the seed and the number of outputs used
+within the current reseed period, plus any bytes a partial read left unread.
 
 </details>
 
@@ -59,7 +60,7 @@ A readable description of an error.
 </article>
 
 <article class="doc-entry" id="v-chacha8-marshal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-marshal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chacha8-marshal" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-marshal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chacha8-marshal" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L264" title="View source at line 264">Source</a></span></div>
 <div class="doc-body">
 
 The state's encoding: "readbuf:", a length byte and the unread bytes when there are any, then "chacha8:",
@@ -69,7 +70,7 @@ the outputs used in this reseed period (big-endian 64-bit) and the seed (four li
 </article>
 
 <article class="doc-entry" id="v-chacha8-new">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-new" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L94" title="View source at line 94">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-new</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-new" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L197" title="View source at line 197">Source</a></span></div>
 <div class="doc-body">
 
 A generator from a 32-byte seed (four little-endian 64-bit words).
@@ -78,7 +79,7 @@ A generator from a 32-byte seed (four little-endian 64-bit words).
 </article>
 
 <article class="doc-entry" id="v-chacha8-read">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a>)</code><span class="doc-sig-links"><a href="#v-chacha8-read" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a>)</code><span class="doc-sig-links"><a href="#v-chacha8-read" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L224" title="View source at line 224">Source</a></span></div>
 <div class="doc-body">
 
 Read n pseudorandom bytes: unread bytes first, then whole values little-endian; a final partial value keeps
@@ -88,7 +89,7 @@ its remaining bytes for the next read.
 </article>
 
 <article class="doc-entry" id="v-chacha8-reseed">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-reseed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-reseed" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-reseed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-reseed" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L201" title="View source at line 201">Source</a></span></div>
 <div class="doc-body">
 
 Start over from a new 32-byte seed, dropping unread bytes.
@@ -97,7 +98,7 @@ Start over from a new 32-byte seed, dropping unread bytes.
 </article>
 
 <article class="doc-entry" id="v-chacha8-uint64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-uint64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a>)</code><span class="doc-sig-links"><a href="#v-chacha8-uint64" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-uint64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a>)</code><span class="doc-sig-links"><a href="#v-chacha8-uint64" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L205" title="View source at line 205">Source</a></span></div>
 <div class="doc-body">
 
 The next 64-bit value and the following state.
@@ -106,7 +107,7 @@ The next 64-bit value and the following state.
 </article>
 
 <article class="doc-entry" id="v-chacha8-unmarshal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-unmarshal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-unmarshal" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chacha8-unmarshal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-chacha8-unmarshal" title="Permalink">#</a><a href="/packages/stdlib/Data.ChaCha8/source/#L308" title="View source at line 308">Source</a></span></div>
 <div class="doc-body">
 
 Restore a state from its encoding.

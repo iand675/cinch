@@ -249,14 +249,11 @@ fn base32_all_declarations_have_canonical_documentation() {
     }
 }
 
-/// Actual numeric SIMD and private byte-gather kernels compile on 32-bit and non-x86 targets.
+/// Actual 128-bit SIMD and custom-alphabet Base32 paths compile on 32-bit and non-x86 targets.
 /// This explicitly tests the Rust emitter without claiming execution of foreign objects.
 #[test]
 fn base32_custom_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Base32.cinch");
-    let kernels = &source[source.find("  prim encode-value5 ::").unwrap()..];
-    let program = format!("-- | Foreign object fixture for the actual custom-alphabet kernels.\nmodule Main where\n  import Data.Machine\n  import Data.Bytes\n  -- | Exact five-bit splitting, validation and byte lookup kernels under test.\n{kernels}\n  -- | Keep the allocated complete table alive through its last private load.\n  hold :: Bytes -> U64 -> U64\n  hold bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every kernel reachable while producing an observable result.\n  main :: Int\n  main = let table = bytes-new 256 in let indices = encode-value5 0 in let values = hold table (lookup-config8 (bytes-data table) indices) in if eq-u64 (decode-value8 values) 0 then 0 else 1\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -274,21 +271,42 @@ fn base32_custom_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             p.endian = endian.into();
             p
         });
-        let input = program.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Base32.cinch"),
+            include_str!("../prelude/Text/Base32.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public Base32 fixed and custom codec paths for foreign targets.\nmodule Main where\n  import Text.Base32\n  import Data.Bytes\n  import Data.Nat\n  import Data.Option\n  import Data.Result\n\n  -- | Exercise public 128-bit SIMD fixed encoding/decoding and custom table paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 40 in\n    let encoded = base32-encode-bytes base32-standard-encoding input in\n    let custom = (\n      case base32-encoding (base32-encoding-alphabet base32-hex-encoding) of\n        Ok enc ->\n          case base32-decode-prefix enc (base32-encode-bytes enc input) of\n            (out, None) -> bytes-len out\n            (out, Some err) -> 0\n        Err err -> 0) in\n    case base32-decode-prefix base32-standard-encoding encoded of\n      (decoded, None) -> if bytes-len decoded == 40 && custom > 0 then 0 else 1\n      (decoded, Some err) -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let checked =
-                    cinch::driver::check_sources_profile(&input, "base32-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &checked)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

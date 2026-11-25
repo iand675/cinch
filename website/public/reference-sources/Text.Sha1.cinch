@@ -1,19 +1,19 @@
 -- | SHA-1 digests, persistent streaming states and binary checkpoints.
 -- SHA-1 is broken for collision resistance: use it only to interoperate with
 -- existing formats and protocols, never for new signatures or integrity checks.
--- Compression expands four schedule words per step in SIMD lanes and evaluates
--- each of the eighty ordered rounds once with native rotates. Updates read exact
--- 64-byte blocks while retaining their input owner and copy pending tails into
--- private storage. Retaining a state branches the computation. Digest and
--- checkpoint words use network order; byte counts wrap at 64 bits.
+-- Compression expands four schedule words per step in portable 128-bit SIMD lanes
+-- and evaluates all eighty ordered rounds in registers with native rotates.
+-- Updates read checked 64-byte blocks directly from the input buffer and copy
+-- pending tails into private storage. Retaining a state branches the computation.
+-- Digest and checkpoint words use network order; byte counts wrap at 64 bits.
 module Text.Sha1 where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (bit-or-u128, bit-xor-u128, simd-u32x4-rotl, simd-u64x2-pack, u32-to-u128, u64-to-u128, wrapping-shl-u128, wrapping-shr-u128, wrapping-u128-to-u32, wrapping-u128-to-u64)
   import Text.Binary
 
   export sha1-size, sha1-block-size, sha1-sum
@@ -52,7 +52,7 @@ module Text.Sha1 where
   sha1-sum input =
     let n = bytes-len input in
     let count = wrapping-i64-to-u64 (nat-to-i64 n) in
-    let words = hold-input input (blocks initial-words (bytes-data input) count) in
+    let words = blocks-from initial-words input 0 in
     let tail = nat-rem n 64 in
     if tail <= n then render (finish-interval count input (n - tail) tail words) else render words
 
@@ -72,7 +72,7 @@ module Text.Sha1 where
             let block = bytes-new 64 in
             let first = bytes-copy-range block pending 0 0 have in
             let last = bytes-copy-range block input have 0 needed in
-            let next = hold-input block (compress-at words (bytes-data block)) in
+            let next = blocks-from words block 0 in
             process-from total next input needed
       else state
 
@@ -81,51 +81,15 @@ module Text.Sha1 where
   process-from total words input start =
     if start <= bytes-len input then
       let remaining = bytes-len input - start in
-      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
-      let next = hold-input input (blocks words address (wrapping-i64-to-u64 (nat-to-i64 remaining))) in
+      let next = blocks-from words input (nat-to-i64 start) in
       let tail = nat-rem remaining 64 in
       if tail <= bytes-len input then State160 total (part input (bytes-len input - tail) tail) next
       else State160 total (bytes-new 0) next
     else State160 total (bytes-new 0) words
 
-  -- | Read only full remaining blocks with machine counters over a retained caller-owned interval.
-  blocks :: Sha1Words -> I64 -> U64 -> Sha1Words
-  blocks words address remaining =
-    if ge-u64 remaining 64 then blocks (compress-at words address) (wrapping-add-i64 address 64) (wrapping-sub-u64 remaining 64)
-    else words
-
-  -- | Load exactly one caller-proved complete block as eight network-order word pairs and compress it.
-  compress-at :: Sha1Words -> I64 -> Sha1Words
-  compress-at words address =
-    sha1-compress words (block-word address 0) (block-word address 8) (block-word address 16) (block-word address 24)
-      (block-word address 32) (block-word address 40) (block-word address 48) (block-word address 56)
-
-  -- | Load eight bytes as a big-endian value: the first message word high, the second low.
-  prim block-word :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %host = load i64, ptr %at, align 1
-      %value = call i64 @llvm.bswap.i64(i64 %host)
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i64, ptr %at, align 1
-      ret i64 %value
-    } when endian big
-
   -- | Reverse the bytes of a word so an explicit little-endian store writes network order.
-  prim wire-word :: U32 -> U32 where
-    llvm {
-      %value = call i32 @llvm.bswap.i32(i32 %0)
-      ret i32 %value
-    }
-
-  -- | Keep an owner alive until a strict raw-address computation has completed.
-  hold-input :: forall a. Bytes -> a -> a
-  hold-input owner value = case bytes-len owner of _ -> value
+  wire-word :: U32 -> U32
+  wire-word word = swap-bytes-u32 word
 
   -- | Copy an exact interval into fresh storage without retaining a mutable source alias.
   part :: Bytes -> Nat -> Nat -> Bytes
@@ -164,12 +128,12 @@ module Text.Sha1 where
       let copied = bytes-copy-range padding input 0 start n in
       let mark = bytes-set padding n 128 in
       let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+      blocks-from words padding 0
     else words
 
   -- | Store one network-order word only within a checked complete destination interval.
   put-word :: Bytes -> Nat -> U32 -> Unit
-  put-word out pos word = if pos + 4 <= bytes-len out then bytes-write-le32 out pos (wire-word word) else ()
+  put-word out pos word = if pos + 4 <= bytes-len out then bytes-store-le32 out pos (wire-word word) else ()
 
   -- | Render all five words into an existing complete network-order interval.
   put-words :: Bytes -> Nat -> Sha1Words -> Unit
@@ -222,7 +186,7 @@ module Text.Sha1 where
 
   -- | Read one network-order chaining word after checking its complete interval.
   read-word :: Bytes -> Nat -> U32
-  read-word input pos = if pos + 4 <= bytes-len input then wire-word (bytes-read-le32 input pos) else 0
+  read-word input pos = if pos + 4 <= bytes-len input then wire-word (bytes-load-le32 input pos) else 0
 
   -- | Restore every chaining and count bit, copying only the live partial block into private storage.
   -- Identifier checks precede exact-size checks; unused tail bytes are ignored and saved as zeros.
@@ -240,513 +204,134 @@ module Text.Sha1 where
       else Err InvalidSha1StateIdentifier
     else Err InvalidSha1StateIdentifier
 
-  -- | Generated SHA-1 compression: consume sixteen network-order words without retaining inputs.
-  -- Regenerate with python3 tooling/generate_sha1_md5_kernels.py; do not edit this suffix.
-  sha1-compress :: Sha1Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha1Words
-  sha1-compress prior w0 w1 w2 w3 w4 w5 w6 w7 = case prior of
-    Words160 a b c d e ->
-      let g0 = sha1-input-group w0 w1 in
-      let g1 = sha1-input-group w2 w3 in
-      let g2 = sha1-input-group w4 w5 in
-      let g3 = sha1-input-group w6 w7 in
-      let g4 = sha1-schedule g0 g1 g2 g3 in
-      let g5 = sha1-schedule g1 g2 g3 g4 in
-      let g6 = sha1-schedule g2 g3 g4 g5 in
-      let g7 = sha1-schedule g3 g4 g5 g6 in
-      let g8 = sha1-schedule g4 g5 g6 g7 in
-      let g9 = sha1-schedule g5 g6 g7 g8 in
-      let g10 = sha1-schedule g6 g7 g8 g9 in
-      let g11 = sha1-schedule g7 g8 g9 g10 in
-      let g12 = sha1-schedule g8 g9 g10 g11 in
-      let g13 = sha1-schedule g9 g10 g11 g12 in
-      let g14 = sha1-schedule g10 g11 g12 g13 in
-      let g15 = sha1-schedule g11 g12 g13 g14 in
-      let g16 = sha1-schedule g12 g13 g14 g15 in
-      let g17 = sha1-schedule g13 g14 g15 g16 in
-      let g18 = sha1-schedule g14 g15 g16 g17 in
-      let g19 = sha1-schedule g15 g16 g17 g18 in
-      let s0 = sha1-rounds-a prior (sha1-lane0 g0) (sha1-lane1 g0) (sha1-lane2 g0) (sha1-lane3 g0) (sha1-lane0 g1) (sha1-lane1 g1) (sha1-lane2 g1) (sha1-lane3 g1) (sha1-lane0 g2) (sha1-lane1 g2) (sha1-lane2 g2) (sha1-lane3 g2) (sha1-lane0 g3) (sha1-lane1 g3) (sha1-lane2 g3) (sha1-lane3 g3) (sha1-lane0 g4) (sha1-lane1 g4) (sha1-lane2 g4) (sha1-lane3 g4) in
-      let s1 = sha1-rounds-b s0 (sha1-lane0 g5) (sha1-lane1 g5) (sha1-lane2 g5) (sha1-lane3 g5) (sha1-lane0 g6) (sha1-lane1 g6) (sha1-lane2 g6) (sha1-lane3 g6) (sha1-lane0 g7) (sha1-lane1 g7) (sha1-lane2 g7) (sha1-lane3 g7) (sha1-lane0 g8) (sha1-lane1 g8) (sha1-lane2 g8) (sha1-lane3 g8) (sha1-lane0 g9) (sha1-lane1 g9) (sha1-lane2 g9) (sha1-lane3 g9) in
-      let s2 = sha1-rounds-c s1 (sha1-lane0 g10) (sha1-lane1 g10) (sha1-lane2 g10) (sha1-lane3 g10) (sha1-lane0 g11) (sha1-lane1 g11) (sha1-lane2 g11) (sha1-lane3 g11) (sha1-lane0 g12) (sha1-lane1 g12) (sha1-lane2 g12) (sha1-lane3 g12) (sha1-lane0 g13) (sha1-lane1 g13) (sha1-lane2 g13) (sha1-lane3 g13) (sha1-lane0 g14) (sha1-lane1 g14) (sha1-lane2 g14) (sha1-lane3 g14) in
-      let s3 = sha1-rounds-d s2 (sha1-lane0 g15) (sha1-lane1 g15) (sha1-lane2 g15) (sha1-lane3 g15) (sha1-lane0 g16) (sha1-lane1 g16) (sha1-lane2 g16) (sha1-lane3 g16) (sha1-lane0 g17) (sha1-lane1 g17) (sha1-lane2 g17) (sha1-lane3 g17) (sha1-lane0 g18) (sha1-lane1 g18) (sha1-lane2 g18) (sha1-lane3 g18) (sha1-lane0 g19) (sha1-lane1 g19) (sha1-lane2 g19) (sha1-lane3 g19) in
-      case s3 of
-        Words160 na nb nc nd ne ->
-          Words160 (wrapping-add-u32 a na) (wrapping-add-u32 b nb) (wrapping-add-u32 c nc) (wrapping-add-u32 d nd) (wrapping-add-u32 e ne)
+  -- | Swap bytes inside each packed 32-bit lane of a little-endian U64 pair.
+  swap-u32-pair :: U64 -> U64
+  swap-u32-pair pair = rotate-left-u64 (swap-bytes-u64 pair) 32
 
-  -- | Advance twenty ordered rounds using the choose function, preserving the prior working value.
-  sha1-rounds-a :: Sha1Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words
-  sha1-rounds-a prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 m18 m19 = case prior of
-    Words160 i0 i1 i2 i3 i4 ->
-      let r0 = sha1-choose i0 i1 i2 i3 i4 m0 1518500249 in
-      let a0 = sha1-low r0 in
-      let b0 = sha1-high r0 in
-      let r1 = sha1-choose a0 i0 b0 i2 i3 m1 1518500249 in
-      let a1 = sha1-low r1 in
-      let b1 = sha1-high r1 in
-      let r2 = sha1-choose a1 a0 b1 b0 i2 m2 1518500249 in
-      let a2 = sha1-low r2 in
-      let b2 = sha1-high r2 in
-      let r3 = sha1-choose a2 a1 b2 b1 b0 m3 1518500249 in
-      let a3 = sha1-low r3 in
-      let b3 = sha1-high r3 in
-      let r4 = sha1-choose a3 a2 b3 b2 b1 m4 1518500249 in
-      let a4 = sha1-low r4 in
-      let b4 = sha1-high r4 in
-      let r5 = sha1-choose a4 a3 b4 b3 b2 m5 1518500249 in
-      let a5 = sha1-low r5 in
-      let b5 = sha1-high r5 in
-      let r6 = sha1-choose a5 a4 b5 b4 b3 m6 1518500249 in
-      let a6 = sha1-low r6 in
-      let b6 = sha1-high r6 in
-      let r7 = sha1-choose a6 a5 b6 b5 b4 m7 1518500249 in
-      let a7 = sha1-low r7 in
-      let b7 = sha1-high r7 in
-      let r8 = sha1-choose a7 a6 b7 b6 b5 m8 1518500249 in
-      let a8 = sha1-low r8 in
-      let b8 = sha1-high r8 in
-      let r9 = sha1-choose a8 a7 b8 b7 b6 m9 1518500249 in
-      let a9 = sha1-low r9 in
-      let b9 = sha1-high r9 in
-      let r10 = sha1-choose a9 a8 b9 b8 b7 m10 1518500249 in
-      let a10 = sha1-low r10 in
-      let b10 = sha1-high r10 in
-      let r11 = sha1-choose a10 a9 b10 b9 b8 m11 1518500249 in
-      let a11 = sha1-low r11 in
-      let b11 = sha1-high r11 in
-      let r12 = sha1-choose a11 a10 b11 b10 b9 m12 1518500249 in
-      let a12 = sha1-low r12 in
-      let b12 = sha1-high r12 in
-      let r13 = sha1-choose a12 a11 b12 b11 b10 m13 1518500249 in
-      let a13 = sha1-low r13 in
-      let b13 = sha1-high r13 in
-      let r14 = sha1-choose a13 a12 b13 b12 b11 m14 1518500249 in
-      let a14 = sha1-low r14 in
-      let b14 = sha1-high r14 in
-      let r15 = sha1-choose a14 a13 b14 b13 b12 m15 1518500249 in
-      let a15 = sha1-low r15 in
-      let b15 = sha1-high r15 in
-      let r16 = sha1-choose a15 a14 b15 b14 b13 m16 1518500249 in
-      let a16 = sha1-low r16 in
-      let b16 = sha1-high r16 in
-      let r17 = sha1-choose a16 a15 b16 b15 b14 m17 1518500249 in
-      let a17 = sha1-low r17 in
-      let b17 = sha1-high r17 in
-      let r18 = sha1-choose a17 a16 b17 b16 b15 m18 1518500249 in
-      let a18 = sha1-low r18 in
-      let b18 = sha1-high r18 in
-      let r19 = sha1-choose a18 a17 b18 b17 b16 m19 1518500249 in
-      let a19 = sha1-low r19 in
-      let b19 = sha1-high r19 in
-      Words160 a19 a18 b19 b18 b17
+  -- | Load sixteen input bytes as four network-order U32 lanes packed into one U128.
+  load-group :: Bytes -> I64 -> U128
+  load-group input offset =
+    let n = bytes-len-i64 input in
+    if 0 <= offset && 16 <= n then
+      if nat-from-i64 offset <= nat-from-i64 n - 16 then
+        let raw = bytes-load-u128-at input offset in
+        let lo = swap-u32-pair (wrapping-u128-to-u64 raw) in
+        let hi = swap-u32-pair (wrapping-u128-to-u64 (wrapping-shr-u128 raw 64)) in
+        simd-u64x2-pack lo hi
+      else u64-to-u128 0
+    else u64-to-u128 0
 
-  -- | Advance twenty ordered rounds using the parity function, preserving the prior working value.
-  sha1-rounds-b :: Sha1Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words
-  sha1-rounds-b prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 m18 m19 = case prior of
-    Words160 i0 i1 i2 i3 i4 ->
-      let r0 = sha1-parity i0 i1 i2 i3 i4 m0 1859775393 in
-      let a0 = sha1-low r0 in
-      let b0 = sha1-high r0 in
-      let r1 = sha1-parity a0 i0 b0 i2 i3 m1 1859775393 in
-      let a1 = sha1-low r1 in
-      let b1 = sha1-high r1 in
-      let r2 = sha1-parity a1 a0 b1 b0 i2 m2 1859775393 in
-      let a2 = sha1-low r2 in
-      let b2 = sha1-high r2 in
-      let r3 = sha1-parity a2 a1 b2 b1 b0 m3 1859775393 in
-      let a3 = sha1-low r3 in
-      let b3 = sha1-high r3 in
-      let r4 = sha1-parity a3 a2 b3 b2 b1 m4 1859775393 in
-      let a4 = sha1-low r4 in
-      let b4 = sha1-high r4 in
-      let r5 = sha1-parity a4 a3 b4 b3 b2 m5 1859775393 in
-      let a5 = sha1-low r5 in
-      let b5 = sha1-high r5 in
-      let r6 = sha1-parity a5 a4 b5 b4 b3 m6 1859775393 in
-      let a6 = sha1-low r6 in
-      let b6 = sha1-high r6 in
-      let r7 = sha1-parity a6 a5 b6 b5 b4 m7 1859775393 in
-      let a7 = sha1-low r7 in
-      let b7 = sha1-high r7 in
-      let r8 = sha1-parity a7 a6 b7 b6 b5 m8 1859775393 in
-      let a8 = sha1-low r8 in
-      let b8 = sha1-high r8 in
-      let r9 = sha1-parity a8 a7 b8 b7 b6 m9 1859775393 in
-      let a9 = sha1-low r9 in
-      let b9 = sha1-high r9 in
-      let r10 = sha1-parity a9 a8 b9 b8 b7 m10 1859775393 in
-      let a10 = sha1-low r10 in
-      let b10 = sha1-high r10 in
-      let r11 = sha1-parity a10 a9 b10 b9 b8 m11 1859775393 in
-      let a11 = sha1-low r11 in
-      let b11 = sha1-high r11 in
-      let r12 = sha1-parity a11 a10 b11 b10 b9 m12 1859775393 in
-      let a12 = sha1-low r12 in
-      let b12 = sha1-high r12 in
-      let r13 = sha1-parity a12 a11 b12 b11 b10 m13 1859775393 in
-      let a13 = sha1-low r13 in
-      let b13 = sha1-high r13 in
-      let r14 = sha1-parity a13 a12 b13 b12 b11 m14 1859775393 in
-      let a14 = sha1-low r14 in
-      let b14 = sha1-high r14 in
-      let r15 = sha1-parity a14 a13 b14 b13 b12 m15 1859775393 in
-      let a15 = sha1-low r15 in
-      let b15 = sha1-high r15 in
-      let r16 = sha1-parity a15 a14 b15 b14 b13 m16 1859775393 in
-      let a16 = sha1-low r16 in
-      let b16 = sha1-high r16 in
-      let r17 = sha1-parity a16 a15 b16 b15 b14 m17 1859775393 in
-      let a17 = sha1-low r17 in
-      let b17 = sha1-high r17 in
-      let r18 = sha1-parity a17 a16 b17 b16 b15 m18 1859775393 in
-      let a18 = sha1-low r18 in
-      let b18 = sha1-high r18 in
-      let r19 = sha1-parity a18 a17 b18 b17 b16 m19 1859775393 in
-      let a19 = sha1-low r19 in
-      let b19 = sha1-high r19 in
-      Words160 a19 a18 b19 b18 b17
+  -- | Select schedule lane 0 from a packed four-word SIMD group.
+  lane0 :: U128 -> U32
+  lane0 group = wrapping-u128-to-u32 group
 
-  -- | Advance twenty ordered rounds using the majority function, preserving the prior working value.
-  sha1-rounds-c :: Sha1Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words
-  sha1-rounds-c prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 m18 m19 = case prior of
-    Words160 i0 i1 i2 i3 i4 ->
-      let r0 = sha1-majority i0 i1 i2 i3 i4 m0 2400959708 in
-      let a0 = sha1-low r0 in
-      let b0 = sha1-high r0 in
-      let r1 = sha1-majority a0 i0 b0 i2 i3 m1 2400959708 in
-      let a1 = sha1-low r1 in
-      let b1 = sha1-high r1 in
-      let r2 = sha1-majority a1 a0 b1 b0 i2 m2 2400959708 in
-      let a2 = sha1-low r2 in
-      let b2 = sha1-high r2 in
-      let r3 = sha1-majority a2 a1 b2 b1 b0 m3 2400959708 in
-      let a3 = sha1-low r3 in
-      let b3 = sha1-high r3 in
-      let r4 = sha1-majority a3 a2 b3 b2 b1 m4 2400959708 in
-      let a4 = sha1-low r4 in
-      let b4 = sha1-high r4 in
-      let r5 = sha1-majority a4 a3 b4 b3 b2 m5 2400959708 in
-      let a5 = sha1-low r5 in
-      let b5 = sha1-high r5 in
-      let r6 = sha1-majority a5 a4 b5 b4 b3 m6 2400959708 in
-      let a6 = sha1-low r6 in
-      let b6 = sha1-high r6 in
-      let r7 = sha1-majority a6 a5 b6 b5 b4 m7 2400959708 in
-      let a7 = sha1-low r7 in
-      let b7 = sha1-high r7 in
-      let r8 = sha1-majority a7 a6 b7 b6 b5 m8 2400959708 in
-      let a8 = sha1-low r8 in
-      let b8 = sha1-high r8 in
-      let r9 = sha1-majority a8 a7 b8 b7 b6 m9 2400959708 in
-      let a9 = sha1-low r9 in
-      let b9 = sha1-high r9 in
-      let r10 = sha1-majority a9 a8 b9 b8 b7 m10 2400959708 in
-      let a10 = sha1-low r10 in
-      let b10 = sha1-high r10 in
-      let r11 = sha1-majority a10 a9 b10 b9 b8 m11 2400959708 in
-      let a11 = sha1-low r11 in
-      let b11 = sha1-high r11 in
-      let r12 = sha1-majority a11 a10 b11 b10 b9 m12 2400959708 in
-      let a12 = sha1-low r12 in
-      let b12 = sha1-high r12 in
-      let r13 = sha1-majority a12 a11 b12 b11 b10 m13 2400959708 in
-      let a13 = sha1-low r13 in
-      let b13 = sha1-high r13 in
-      let r14 = sha1-majority a13 a12 b13 b12 b11 m14 2400959708 in
-      let a14 = sha1-low r14 in
-      let b14 = sha1-high r14 in
-      let r15 = sha1-majority a14 a13 b14 b13 b12 m15 2400959708 in
-      let a15 = sha1-low r15 in
-      let b15 = sha1-high r15 in
-      let r16 = sha1-majority a15 a14 b15 b14 b13 m16 2400959708 in
-      let a16 = sha1-low r16 in
-      let b16 = sha1-high r16 in
-      let r17 = sha1-majority a16 a15 b16 b15 b14 m17 2400959708 in
-      let a17 = sha1-low r17 in
-      let b17 = sha1-high r17 in
-      let r18 = sha1-majority a17 a16 b17 b16 b15 m18 2400959708 in
-      let a18 = sha1-low r18 in
-      let b18 = sha1-high r18 in
-      let r19 = sha1-majority a18 a17 b18 b17 b16 m19 2400959708 in
-      let a19 = sha1-low r19 in
-      let b19 = sha1-high r19 in
-      Words160 a19 a18 b19 b18 b17
+  -- | Select schedule lane 1 from a packed four-word SIMD group.
+  lane1 :: U128 -> U32
+  lane1 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 32)
 
-  -- | Advance twenty ordered rounds using the parity function, preserving the prior working value.
-  sha1-rounds-d :: Sha1Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words
-  sha1-rounds-d prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 m18 m19 = case prior of
-    Words160 i0 i1 i2 i3 i4 ->
-      let r0 = sha1-parity i0 i1 i2 i3 i4 m0 3395469782 in
-      let a0 = sha1-low r0 in
-      let b0 = sha1-high r0 in
-      let r1 = sha1-parity a0 i0 b0 i2 i3 m1 3395469782 in
-      let a1 = sha1-low r1 in
-      let b1 = sha1-high r1 in
-      let r2 = sha1-parity a1 a0 b1 b0 i2 m2 3395469782 in
-      let a2 = sha1-low r2 in
-      let b2 = sha1-high r2 in
-      let r3 = sha1-parity a2 a1 b2 b1 b0 m3 3395469782 in
-      let a3 = sha1-low r3 in
-      let b3 = sha1-high r3 in
-      let r4 = sha1-parity a3 a2 b3 b2 b1 m4 3395469782 in
-      let a4 = sha1-low r4 in
-      let b4 = sha1-high r4 in
-      let r5 = sha1-parity a4 a3 b4 b3 b2 m5 3395469782 in
-      let a5 = sha1-low r5 in
-      let b5 = sha1-high r5 in
-      let r6 = sha1-parity a5 a4 b5 b4 b3 m6 3395469782 in
-      let a6 = sha1-low r6 in
-      let b6 = sha1-high r6 in
-      let r7 = sha1-parity a6 a5 b6 b5 b4 m7 3395469782 in
-      let a7 = sha1-low r7 in
-      let b7 = sha1-high r7 in
-      let r8 = sha1-parity a7 a6 b7 b6 b5 m8 3395469782 in
-      let a8 = sha1-low r8 in
-      let b8 = sha1-high r8 in
-      let r9 = sha1-parity a8 a7 b8 b7 b6 m9 3395469782 in
-      let a9 = sha1-low r9 in
-      let b9 = sha1-high r9 in
-      let r10 = sha1-parity a9 a8 b9 b8 b7 m10 3395469782 in
-      let a10 = sha1-low r10 in
-      let b10 = sha1-high r10 in
-      let r11 = sha1-parity a10 a9 b10 b9 b8 m11 3395469782 in
-      let a11 = sha1-low r11 in
-      let b11 = sha1-high r11 in
-      let r12 = sha1-parity a11 a10 b11 b10 b9 m12 3395469782 in
-      let a12 = sha1-low r12 in
-      let b12 = sha1-high r12 in
-      let r13 = sha1-parity a12 a11 b12 b11 b10 m13 3395469782 in
-      let a13 = sha1-low r13 in
-      let b13 = sha1-high r13 in
-      let r14 = sha1-parity a13 a12 b13 b12 b11 m14 3395469782 in
-      let a14 = sha1-low r14 in
-      let b14 = sha1-high r14 in
-      let r15 = sha1-parity a14 a13 b14 b13 b12 m15 3395469782 in
-      let a15 = sha1-low r15 in
-      let b15 = sha1-high r15 in
-      let r16 = sha1-parity a15 a14 b15 b14 b13 m16 3395469782 in
-      let a16 = sha1-low r16 in
-      let b16 = sha1-high r16 in
-      let r17 = sha1-parity a16 a15 b16 b15 b14 m17 3395469782 in
-      let a17 = sha1-low r17 in
-      let b17 = sha1-high r17 in
-      let r18 = sha1-parity a17 a16 b17 b16 b15 m18 3395469782 in
-      let a18 = sha1-low r18 in
-      let b18 = sha1-high r18 in
-      let r19 = sha1-parity a18 a17 b18 b17 b16 m19 3395469782 in
-      let a19 = sha1-low r19 in
-      let b19 = sha1-high r19 in
-      Words160 a19 a18 b19 b18 b17
+  -- | Select schedule lane 2 from a packed four-word SIMD group.
+  lane2 :: U128 -> U32
+  lane2 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 64)
 
-  -- | One ordered round with the choose function over a..e, a message word and the round constant; return new a low and rotated b high.
-  prim sha1-choose :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U64 where
-    llvm {
-      %bc = and i32 %1, %2
-      %nb = xor i32 %1, -1
-      %nd = and i32 %nb, %3
-      %f = xor i32 %bc, %nd
-      %ra = call i32 @llvm.fshl.i32(i32 %0, i32 %0, i32 5)
-      %s0 = add i32 %ra, %f
-      %s1 = add i32 %s0, %4
-      %s2 = add i32 %s1, %5
-      %na = add i32 %s2, %6
-      %rb = call i32 @llvm.fshl.i32(i32 %1, i32 %1, i32 30)
-      %lo = zext i32 %na to i64
-      %hi0 = zext i32 %rb to i64
-      %hi = shl i64 %hi0, 32
-      %value = or i64 %lo, %hi
-      ret i64 %value
-    }
+  -- | Select schedule lane 3 from a packed four-word SIMD group.
+  lane3 :: U128 -> U32
+  lane3 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 96)
 
-  -- | One ordered round with the parity function over a..e, a message word and the round constant; return new a low and rotated b high.
-  prim sha1-parity :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U64 where
-    llvm {
-      %bc = xor i32 %1, %2
-      %f = xor i32 %bc, %3
-      %ra = call i32 @llvm.fshl.i32(i32 %0, i32 %0, i32 5)
-      %s0 = add i32 %ra, %f
-      %s1 = add i32 %s0, %4
-      %s2 = add i32 %s1, %5
-      %na = add i32 %s2, %6
-      %rb = call i32 @llvm.fshl.i32(i32 %1, i32 %1, i32 30)
-      %lo = zext i32 %na to i64
-      %hi0 = zext i32 %rb to i64
-      %hi = shl i64 %hi0, 32
-      %value = or i64 %lo, %hi
-      ret i64 %value
-    }
+  -- | Expand four SHA-1 schedule words in portable 128-bit SIMD lanes.
+  -- Lane 3 depends on lane 0; rotating left by one distributes over XOR, so one scalar rotate completes lane 3.
+  sha1-schedule :: U128 -> U128 -> U128 -> U128 -> U128
+  sha1-schedule g0 g1 g2 g3 =
+    let w3 = wrapping-shr-u128 g3 32 in
+    let w14 = bit-or-u128 (wrapping-shr-u128 g0 64) (wrapping-shl-u128 g1 64) in
+    let x = bit-xor-u128 (bit-xor-u128 (bit-xor-u128 w3 g2) w14) g0 in
+    let r = simd-u32x4-rotl x 1 in
+    let fix = wrapping-shl-u128 (u32-to-u128 (rotate-left-u32 (wrapping-u128-to-u32 r) 1)) 96 in
+    bit-xor-u128 r fix
 
-  -- | One ordered round with the majority function over a..e, a message word and the round constant; return new a low and rotated b high.
-  prim sha1-majority :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U64 where
-    llvm {
-      %bc = and i32 %1, %2
-      %bd = and i32 %1, %3
-      %cd = and i32 %2, %3
-      %x = or i32 %bc, %bd
-      %f = or i32 %x, %cd
-      %ra = call i32 @llvm.fshl.i32(i32 %0, i32 %0, i32 5)
-      %s0 = add i32 %ra, %f
-      %s1 = add i32 %s0, %4
-      %s2 = add i32 %s1, %5
-      %na = add i32 %s2, %6
-      %rb = call i32 @llvm.fshl.i32(i32 %1, i32 %1, i32 30)
-      %lo = zext i32 %na to i64
-      %hi0 = zext i32 %rb to i64
-      %hi = shl i64 %hi0, 32
-      %value = or i64 %lo, %hi
-      ret i64 %value
-    }
+  -- | Combine rotl(a, 5) with the round nonlinear value, e, message word and constant.
+  sha1-step-a :: U32 -> U32 -> U32 -> U32 -> U32 -> U32
+  sha1-step-a a f e w k =
+    wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 (rotate-left-u32 a 5) f) e) w) k
 
-  -- | Select the new working word a from a packed round result.
-  prim sha1-low :: U64 -> U32 where
-    llvm {
-      %value = trunc i64 %0 to i32
-      ret i32 %value
-    }
+  -- | SHA-1 rounds 0..19 choice function: (b and c) xor (not b and d).
+  fn-choose :: U32 -> U32 -> U32 -> U32
+  fn-choose b c d = bit-xor-u32 (bit-and-u32 b c) (bit-and-u32 (bit-not-u32 b) d)
 
-  -- | Select the rotated former working word b from a packed round result.
-  prim sha1-high :: U64 -> U32 where
-    llvm {
-      %shift = lshr i64 %0, 32
-      %value = trunc i64 %shift to i32
-      ret i32 %value
-    }
+  -- | SHA-1 rounds 20..39 and 60..79 parity function: b xor c xor d.
+  fn-parity :: U32 -> U32 -> U32 -> U32
+  fn-parity b c d = bit-xor-u32 (bit-xor-u32 b c) d
 
-  -- | Select schedule word 0 of a packed group of four.
-  prim sha1-lane0 :: U128 -> U32 where
-    llvm {
-      %value = trunc i128 %0 to i32
-      ret i32 %value
-    }
+  -- | SHA-1 rounds 40..59 majority function: (b and c) or (b and d) or (c and d).
+  fn-majority :: U32 -> U32 -> U32 -> U32
+  fn-majority b c d = bit-or-u32 (bit-or-u32 (bit-and-u32 b c) (bit-and-u32 b d)) (bit-and-u32 c d)
 
-  -- | Select schedule word 1 of a packed group of four.
-  prim sha1-lane1 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 32
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
+  -- | Compress every complete 64-byte block starting at offset without allocating per block.
+  blocks-from :: Sha1Words -> Bytes -> I64 -> Sha1Words
+  blocks-from words input offset = case words of
+    Words160 h0 h1 h2 h3 h4 ->
+      blocks-loop input offset (bytes-len-i64 input) h0 h1 h2 h3 h4
 
-  -- | Select schedule word 2 of a packed group of four.
-  prim sha1-lane2 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 64
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
+  -- | Outer multi-block compression loop holding all five chaining words unboxed in registers.
+  blocks-loop :: Bytes -> I64 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words
+  blocks-loop input offset len h0 h1 h2 h3 h4 =
+    if 0 <= offset && 64 <= len && offset <= wrapping-sub-i64 len 64 then
+      let g0 = load-group input offset in
+      let g1 = load-group input (wrapping-add-i64 offset 16) in
+      let g2 = load-group input (wrapping-add-i64 offset 32) in
+      let g3 = load-group input (wrapping-add-i64 offset 48) in
+      sha1-rounds input (wrapping-add-i64 offset 64) len 0
+        h0 h1 h2 h3 h4
+        h0 h1 h2 h3 h4
+        g0 g1 g2 g3
+    else Words160 h0 h1 h2 h3 h4
 
-  -- | Select schedule word 3 of a packed group of four.
-  prim sha1-lane3 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 96
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
-
-  -- | Pack four network-order words from two words of two each, first word in the lowest lane.
-  prim sha1-input-group :: U64 -> U64 -> U128 where
-    llvm {
-      %l0 = trunc i64 %0 to i32
-      %s0 = lshr i64 %0, 32
-      %h0 = trunc i64 %s0 to i32
-      %l1 = trunc i64 %1 to i32
-      %s1 = lshr i64 %1, 32
-      %h1 = trunc i64 %s1 to i32
-      %v0 = insertelement <4 x i32> poison, i32 %h0, i64 0
-      %v1 = insertelement <4 x i32> %v0, i32 %l0, i64 1
-      %v2 = insertelement <4 x i32> %v1, i32 %h1, i64 2
-      %v3 = insertelement <4 x i32> %v2, i32 %l1, i64 3
-      %e0 = extractelement <4 x i32> %v3, i64 0
-      %z0 = zext i32 %e0 to i128
-      %e1 = extractelement <4 x i32> %v3, i64 1
-      %z1 = zext i32 %e1 to i128
-      %p1 = shl i128 %z1, 32
-      %e2 = extractelement <4 x i32> %v3, i64 2
-      %z2 = zext i32 %e2 to i128
-      %p2 = shl i128 %z2, 64
-      %e3 = extractelement <4 x i32> %v3, i64 3
-      %z3 = zext i32 %e3 to i128
-      %p3 = shl i128 %z3, 96
-      %o1 = or i128 %z0, %p1
-      %o2 = or i128 %o1, %p2
-      %value = or i128 %o2, %p3
-      ret i128 %value
-    }
-
-  -- | Expand four schedule words from groups t-16, t-12, t-8 and t-4 in SIMD lanes; the last lane, which depends on the first, is completed by one rotated exclusive-or.
-  prim sha1-schedule :: U128 -> U128 -> U128 -> U128 -> U128 where
-    llvm {
-      %g0s0 = or i128 %0, 0
-      %g0w0 = trunc i128 %g0s0 to i32
-      %g0s1 = lshr i128 %0, 32
-      %g0w1 = trunc i128 %g0s1 to i32
-      %g0s2 = lshr i128 %0, 64
-      %g0w2 = trunc i128 %g0s2 to i32
-      %g0s3 = lshr i128 %0, 96
-      %g0w3 = trunc i128 %g0s3 to i32
-      %g0v0 = insertelement <4 x i32> poison, i32 %g0w0, i64 0
-      %g0v1 = insertelement <4 x i32> %g0v0, i32 %g0w1, i64 1
-      %g0v2 = insertelement <4 x i32> %g0v1, i32 %g0w2, i64 2
-      %g0 = insertelement <4 x i32> %g0v2, i32 %g0w3, i64 3
-      %g1s0 = or i128 %1, 0
-      %g1w0 = trunc i128 %g1s0 to i32
-      %g1s1 = lshr i128 %1, 32
-      %g1w1 = trunc i128 %g1s1 to i32
-      %g1s2 = lshr i128 %1, 64
-      %g1w2 = trunc i128 %g1s2 to i32
-      %g1s3 = lshr i128 %1, 96
-      %g1w3 = trunc i128 %g1s3 to i32
-      %g1v0 = insertelement <4 x i32> poison, i32 %g1w0, i64 0
-      %g1v1 = insertelement <4 x i32> %g1v0, i32 %g1w1, i64 1
-      %g1v2 = insertelement <4 x i32> %g1v1, i32 %g1w2, i64 2
-      %g1 = insertelement <4 x i32> %g1v2, i32 %g1w3, i64 3
-      %g2s0 = or i128 %2, 0
-      %g2w0 = trunc i128 %g2s0 to i32
-      %g2s1 = lshr i128 %2, 32
-      %g2w1 = trunc i128 %g2s1 to i32
-      %g2s2 = lshr i128 %2, 64
-      %g2w2 = trunc i128 %g2s2 to i32
-      %g2s3 = lshr i128 %2, 96
-      %g2w3 = trunc i128 %g2s3 to i32
-      %g2v0 = insertelement <4 x i32> poison, i32 %g2w0, i64 0
-      %g2v1 = insertelement <4 x i32> %g2v0, i32 %g2w1, i64 1
-      %g2v2 = insertelement <4 x i32> %g2v1, i32 %g2w2, i64 2
-      %g2 = insertelement <4 x i32> %g2v2, i32 %g2w3, i64 3
-      %g3s0 = or i128 %3, 0
-      %g3w0 = trunc i128 %g3s0 to i32
-      %g3s1 = lshr i128 %3, 32
-      %g3w1 = trunc i128 %g3s1 to i32
-      %g3s2 = lshr i128 %3, 64
-      %g3w2 = trunc i128 %g3s2 to i32
-      %g3s3 = lshr i128 %3, 96
-      %g3w3 = trunc i128 %g3s3 to i32
-      %g3v0 = insertelement <4 x i32> poison, i32 %g3w0, i64 0
-      %g3v1 = insertelement <4 x i32> %g3v0, i32 %g3w1, i64 1
-      %g3v2 = insertelement <4 x i32> %g3v1, i32 %g3w2, i64 2
-      %g3 = insertelement <4 x i32> %g3v2, i32 %g3w3, i64 3
-      %w3 = shufflevector <4 x i32> %g3, <4 x i32> zeroinitializer, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
-      %w14 = shufflevector <4 x i32> %g0, <4 x i32> %g1, <4 x i32> <i32 2, i32 3, i32 4, i32 5>
-      %x0 = xor <4 x i32> %w3, %g2
-      %x1 = xor <4 x i32> %x0, %w14
-      %x2 = xor <4 x i32> %x1, %g0
-      %r = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %x2, <4 x i32> %x2, <4 x i32> <i32 1, i32 1, i32 1, i32 1>)
-      %first = extractelement <4 x i32> %r, i64 0
-      %rot = call i32 @llvm.fshl.i32(i32 %first, i32 %first, i32 1)
-      %last = extractelement <4 x i32> %r, i64 3
-      %done = xor i32 %last, %rot
-      %complete = insertelement <4 x i32> %r, i32 %done, i64 3
-      %e0 = extractelement <4 x i32> %complete, i64 0
-      %z0 = zext i32 %e0 to i128
-      %e1 = extractelement <4 x i32> %complete, i64 1
-      %z1 = zext i32 %e1 to i128
-      %p1 = shl i128 %z1, 32
-      %e2 = extractelement <4 x i32> %complete, i64 2
-      %z2 = zext i32 %e2 to i128
-      %p2 = shl i128 %z2, 64
-      %e3 = extractelement <4 x i32> %complete, i64 3
-      %z3 = zext i32 %e3 to i128
-      %p3 = shl i128 %z3, 96
-      %o1 = or i128 %z0, %p1
-      %o2 = or i128 %o1, %p2
-      %value = or i128 %o2, %p3
-      ret i128 %value
-    }
+  -- | Inner four-round compression loop over the sliding SIMD schedule window, returning to blocks-loop.
+  sha1-rounds :: Bytes -> I64 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U128 -> U128 -> U128 -> U128 -> Sha1Words
+  sha1-rounds input next-off len r h0 h1 h2 h3 h4 a b c d e g0 g1 g2 g3 =
+    if ge-u32 r 80 then
+      blocks-loop input next-off len
+        (wrapping-add-u32 h0 a) (wrapping-add-u32 h1 b) (wrapping-add-u32 h2 c)
+        (wrapping-add-u32 h3 d) (wrapping-add-u32 h4 e)
+    else
+      let g4 = if lt-u32 r 64 then sha1-schedule g0 g1 g2 g3 else g0 in
+      let next-r = wrapping-add-u32 r 4 in
+      if lt-u32 r 20 then
+        let a0 = sha1-step-a a (fn-choose b c d) e (lane0 g0) 1518500249 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = sha1-step-a a0 (fn-choose a b0 c) d (lane1 g0) 1518500249 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = sha1-step-a a1 (fn-choose a0 b1 b0) c (lane2 g0) 1518500249 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = sha1-step-a a2 (fn-choose a1 b2 b1) b0 (lane3 g0) 1518500249 in
+        let b3 = rotate-left-u32 a1 30 in
+        sha1-rounds input next-off len next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else if lt-u32 r 40 then
+        let a0 = sha1-step-a a (fn-parity b c d) e (lane0 g0) 1859775393 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = sha1-step-a a0 (fn-parity a b0 c) d (lane1 g0) 1859775393 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = sha1-step-a a1 (fn-parity a0 b1 b0) c (lane2 g0) 1859775393 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = sha1-step-a a2 (fn-parity a1 b2 b1) b0 (lane3 g0) 1859775393 in
+        let b3 = rotate-left-u32 a1 30 in
+        sha1-rounds input next-off len next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else if lt-u32 r 60 then
+        let a0 = sha1-step-a a (fn-majority b c d) e (lane0 g0) 2400959708 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = sha1-step-a a0 (fn-majority a b0 c) d (lane1 g0) 2400959708 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = sha1-step-a a1 (fn-majority a0 b1 b0) c (lane2 g0) 2400959708 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = sha1-step-a a2 (fn-majority a1 b2 b1) b0 (lane3 g0) 2400959708 in
+        let b3 = rotate-left-u32 a1 30 in
+        sha1-rounds input next-off len next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else
+        let a0 = sha1-step-a a (fn-parity b c d) e (lane0 g0) 3395469782 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = sha1-step-a a0 (fn-parity a b0 c) d (lane1 g0) 3395469782 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = sha1-step-a a1 (fn-parity a0 b1 b0) c (lane2 g0) 3395469782 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = sha1-step-a a2 (fn-parity a1 b2 b1) b0 (lane3 g0) 3395469782 in
+        let b3 = rotate-left-u32 a1 30 in
+        sha1-rounds input next-off len next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4

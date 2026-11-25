@@ -1,0 +1,229 @@
+-- | Streaming gob binary encoders and decoders over Effect.Stream byte handles.
+-- Encoders and decoders preserve transmitted user type IDs across multiple
+-- messages so repeated struct, slice, array and map descriptors are sent once.
+-- Every operation returns the advanced handle on both success and failure.
+-- Clean EOF between messages yields GobStreamEndOfInput; EOF after a type
+-- definition or mid-frame yields a truncation format error. Borrowed streams
+-- are never closed or flushed.
+module Effect.Gob where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Effect.Stream
+  import Text.Gob
+  import Text.Show (nat-to-string)
+
+  export GobStreamError, GobStreamEndOfInput, GobStreamInputFailure, GobStreamOutputFailure, GobStreamFormatFailure
+  export gob-stream-error-message
+  export GobEncoder, gob-stream-encoder, gob-stream-encoder-sink, gob-stream-encoder-state
+  export gob-stream-encode, gob-stream-encode-all
+  export GobDecoder, gob-stream-decoder, gob-stream-decoder-source, gob-stream-decoder-state
+  export gob-stream-decode, gob-stream-decode-all
+
+  -- | Named errors produced by streaming gob encoders and decoders.
+  data GobStreamError where
+    -- | Clean end of input before starting the next gob value message.
+    GobStreamEndOfInput :: GobStreamError
+    -- | Underlying byte reader failure with the count of bytes read in the current frame.
+    GobStreamInputFailure :: Nat -> StreamError -> GobStreamError
+    -- | Underlying byte writer failure with the count of bytes written in the current frame.
+    GobStreamOutputFailure :: Nat -> StreamError -> GobStreamError
+    -- | Wire-format, truncation, overflow, depth or type-mismatch failure from Text.Gob.
+    GobStreamFormatFailure :: GobError -> GobStreamError
+
+  -- | Render a human-readable diagnostic message for a GobStreamError.
+  gob-stream-error-message :: GobStreamError -> String
+  gob-stream-error-message err = case err of
+    GobStreamEndOfInput -> "gob stream: end of input"
+    GobStreamInputFailure count _ ->
+      string-concat "gob stream: input failed after " (string-concat (nat-to-string count) " bytes")
+    GobStreamOutputFailure count _ ->
+      string-concat "gob stream: output failed after " (string-concat (nat-to-string count) " bytes")
+    GobStreamFormatFailure cause -> gob-error-message cause
+
+  -- | Immutable streaming gob encoder pairing a ByteWriter with persistent type-ID state.
+  data GobEncoder r where
+    -- | Private representation storing the advanced writer and encoder type-ID table.
+    GobEncoderHandle :: ByteWriter r -> GobEncoderState -> GobEncoder r
+
+  -- | Immutable streaming gob decoder pairing a ByteReader with persistent wire-type state.
+  data GobDecoder r where
+    -- | Private representation storing the advanced reader and received wire-type table.
+    GobDecoderHandle :: ByteReader r -> GobDecoderState -> GobDecoder r
+
+  -- | Create a new streaming gob encoder over the given ByteWriter.
+  gob-stream-encoder :: forall (r :: Region). ByteWriter r -> GobEncoder r
+  gob-stream-encoder sink = GobEncoderHandle sink gob-encoder-new
+
+  -- | Extract the underlying advanced ByteWriter from a streaming gob encoder.
+  gob-stream-encoder-sink :: forall (r :: Region). GobEncoder r -> ByteWriter r
+  gob-stream-encoder-sink enc = case enc of
+    GobEncoderHandle sink _ -> sink
+
+  -- | Extract the persistent GobEncoderState from a streaming gob encoder.
+  gob-stream-encoder-state :: forall (r :: Region). GobEncoder r -> GobEncoderState
+  gob-stream-encoder-state enc = case enc of
+    GobEncoderHandle _ state -> state
+
+  -- | Create a new streaming gob decoder over the given ByteReader.
+  gob-stream-decoder :: forall (r :: Region). ByteReader r -> GobDecoder r
+  gob-stream-decoder source = GobDecoderHandle source gob-decoder-new
+
+  -- | Extract the underlying advanced ByteReader from a streaming gob decoder.
+  gob-stream-decoder-source :: forall (r :: Region). GobDecoder r -> ByteReader r
+  gob-stream-decoder-source dec = case dec of
+    GobDecoderHandle source _ -> source
+
+  -- | Extract the persistent GobDecoderState from a streaming gob decoder.
+  gob-stream-decoder-state :: forall (r :: Region). GobDecoder r -> GobDecoderState
+  gob-stream-decoder-state dec = case dec of
+    GobDecoderHandle _ state -> state
+
+  -- | Maximum single gob message payload size permitted on a stream (64 MiB).
+  stream-max-message-bytes :: Nat
+  stream-max-message-bytes = 67108864
+
+  -- | Copy a checked subrange into a fresh private byte buffer for safe writer retries.
+  slice-chunk :: Bytes -> Nat -> Nat -> Bytes
+  slice-chunk buf start count =
+    if start + count <= bytes-len buf then
+      let out = bytes-new count in
+      let copied = bytes-copy-range out buf 0 start count in
+      out
+    else bytes-new 0
+
+  -- | Write the entire byte buffer to sink, handling partial writes and preserving progress.
+  write-all-bytes :: forall r. using (io :: Io r) => ByteWriter r -> Bytes -> Nat ->{IO r} (Result GobStreamError Nat, ByteWriter r)
+  write-all-bytes sink payload offset =
+    if offset >= bytes-len payload then (Ok offset, sink)
+    else
+      let remaining = bytes-len payload - offset in
+      let chunk = slice-chunk payload offset remaining in
+      case stream-write sink chunk of
+        (Err se, advanced) -> (Err (GobStreamOutputFailure offset se), advanced)
+        (Ok count, advanced) ->
+          if count == 0 then
+            (Err (GobStreamOutputFailure offset (StreamShortWrite (bytes-len payload) offset)), advanced)
+          else
+            write-all-bytes advanced payload (offset + count)
+
+  -- | Encode one typed value onto the stream, reusing previously transmitted type IDs.
+  -- Type-mismatch errors fail before touching the sink or advancing encoder state.
+  gob-stream-encode :: forall r. using (io :: Io r) => GobEncoder r -> GobType -> GobValue ->{IO r} (Result GobStreamError Nat, GobEncoder r)
+  gob-stream-encode enc ty val = case enc of
+    GobEncoderHandle sink state -> case gob-encoder-encode state ty val of
+      Err ge -> (Err (GobStreamFormatFailure ge), enc)
+      Ok encoded -> case encoded of
+        (wire, next-state) -> case write-all-bytes sink wire 0 of
+          (Err err, advanced) -> (Err err, GobEncoderHandle advanced state)
+          (Ok written, advanced) -> (Ok written, GobEncoderHandle advanced next-state)
+
+  -- | Encode a list of (GobType, GobValue) pairs in order, accumulating total bytes written.
+  encode-all-loop :: forall r. using (io :: Io r) => GobEncoder r -> List (GobType, GobValue) -> Nat ->{IO r} (Result GobStreamError Nat, GobEncoder r)
+  encode-all-loop enc items total = case items of
+    Nil -> (Ok total, enc)
+    Cons pair rest -> case pair of
+      (ty, val) -> case gob-stream-encode enc ty val of
+        (Err err, next-enc) -> (Err err, next-enc)
+        (Ok written, next-enc) -> encode-all-loop next-enc rest (total + written)
+
+  -- | Encode every (GobType, GobValue) pair onto the stream, reusing transmitted type IDs.
+  gob-stream-encode-all :: forall r. using (io :: Io r) => GobEncoder r -> List (GobType, GobValue) ->{IO r} (Result GobStreamError Nat, GobEncoder r)
+  gob-stream-encode-all enc items = encode-all-loop enc items 0
+
+  -- | Read exactly required bytes into frame starting at offset got.
+  read-exact-frame :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> Nat ->{IO r} (Result GobStreamError Bytes, ByteReader r)
+  read-exact-frame source frame required got =
+    if got >= required then (Ok frame, source)
+    else
+      let left = required - got in
+      case stream-read source left of
+        (Err se, advanced) -> (Err (GobStreamInputFailure got se), advanced)
+        (Ok chunk, advanced) ->
+          if bytes-len chunk == 0 then
+            (Err (GobStreamFormatFailure GobTruncated), advanced)
+          else if got + bytes-len chunk <= bytes-len frame then
+            let copied = bytes-copy-range frame chunk got 0 (bytes-len chunk) in
+            read-exact-frame advanced frame required (got + bytes-len chunk)
+          else
+            (Err (GobStreamInputFailure got (StreamInvalidCount left (bytes-len chunk))), advanced)
+
+  -- | Assemble big-endian bytes of a gob unsigned length header into a U64 word.
+  assemble-be-u64 :: Bytes -> Nat -> Nat -> U64 -> U64
+  assemble-be-u64 buf idx count acc =
+    if idx >= count then acc
+    else if idx < bytes-len buf then
+      let b = wrapping-i64-to-u64 (nat-to-i64 (bytes-get buf idx)) in
+      assemble-be-u64 buf (idx + 1) count (bit-or-u64 (wrapping-shl-u64 acc 8) b)
+    else acc
+
+  -- | Read one gob unsigned message length prefix without overreading past the header.
+  read-message-length :: forall r. using (io :: Io r) => ByteReader r -> Bool ->{IO r} (Result GobStreamError Nat, ByteReader r)
+  read-message-length source saw-type =
+    case stream-read source 1 of
+      (Err se, advanced) -> (Err (GobStreamInputFailure 0 se), advanced)
+      (Ok head, advanced) ->
+        if bytes-len head == 0 then
+          if saw-type then (Err (GobStreamFormatFailure GobTruncated), advanced)
+          else (Err GobStreamEndOfInput, advanced)
+        else if 0 < bytes-len head then
+          let first = bytes-get head 0 in
+          if first <= 127 then
+            if first == 0 then
+              (Err (GobStreamFormatFailure (GobMalformedWire "empty gob message")), advanced)
+            else (Ok first, advanced)
+          else if first < 248 then
+            (Err (GobStreamFormatFailure GobOverflow), advanced)
+          else
+            let width = 256 - first in
+            case read-exact-frame advanced (bytes-new width) width 0 of
+              (Err err, advanced2) -> (Err err, advanced2)
+              (Ok raw, advanced2) ->
+                let word = assemble-be-u64 raw 0 width 0 in
+                case checked-nat-from-i64 (wrapping-u64-to-i64 word) of
+                  None -> (Err (GobStreamFormatFailure GobOverflow), advanced2)
+                  Some msg-len ->
+                    if msg-len == 0 then
+                      (Err (GobStreamFormatFailure (GobMalformedWire "empty gob message")), advanced2)
+                    else if msg-len > stream-max-message-bytes then
+                      (Err (GobStreamFormatFailure GobOverflow), advanced2)
+                    else (Ok msg-len, advanced2)
+        else (Err GobStreamEndOfInput, advanced)
+
+  -- | Consume zero or more type-definition frames followed by one value frame from the stream.
+  decode-next-value :: forall r. using (io :: Io r) => ByteReader r -> GobDecoderState -> Bool ->{IO r} (Result GobStreamError (GobType, GobValue), GobDecoder r)
+  decode-next-value source state saw-type =
+    case read-message-length source saw-type of
+      (Err err, advanced) -> (Err err, GobDecoderHandle advanced state)
+      (Ok msg-len, advanced) ->
+        case read-exact-frame advanced (bytes-new msg-len) msg-len 0 of
+          (Err err, advanced2) -> (Err err, GobDecoderHandle advanced2 state)
+          (Ok payload, advanced2) ->
+            case gob-decoder-decode-message state payload of
+              Err ge -> (Err (GobStreamFormatFailure ge), GobDecoderHandle advanced2 state)
+              Ok decoded -> case decoded of
+                (None, next-state) -> decode-next-value advanced2 next-state True
+                (Some tv, next-state) -> (Ok tv, GobDecoderHandle advanced2 next-state)
+
+  -- | Decode the next value from the gob stream, updating persistent wire-type state.
+  -- Returns GobStreamEndOfInput at clean EOF before the next message.
+  gob-stream-decode :: forall r. using (io :: Io r) => GobDecoder r ->{IO r} (Result GobStreamError (GobType, GobValue), GobDecoder r)
+  gob-stream-decode dec = case dec of
+    GobDecoderHandle source state -> decode-next-value source state False
+
+  -- | Decode values repeatedly until GobStreamEndOfInput, collecting results in stream order.
+  decode-all-loop :: forall r. using (io :: Io r) => GobDecoder r -> List (GobType, GobValue) ->{IO r} (Result GobStreamError (List (GobType, GobValue)), GobDecoder r)
+  decode-all-loop dec acc = case gob-stream-decode dec of
+    (Err err, next-dec) -> case err of
+      GobStreamEndOfInput -> (Ok (reverse acc), next-dec)
+      _ -> (Err err, next-dec)
+    (Ok tv, next-dec) -> decode-all-loop next-dec (Cons tv acc)
+
+  -- | Decode all remaining values from the gob stream until clean EOF.
+  gob-stream-decode-all :: forall r. using (io :: Io r) => GobDecoder r ->{IO r} (Result GobStreamError (List (GobType, GobValue)), GobDecoder r)
+  gob-stream-decode-all dec = decode-all-loop dec Nil

@@ -1,0 +1,235 @@
+-- | HTTP testing utilities: in-memory ResponseRecorder, synthetic request construction,
+-- pure and effectful handler recording, in-memory wire roundtrips, and loopback Effect.Net helpers.
+--
+-- ResponseRecorder captures status code, canonical header snapshots (taken at the first header write
+-- so later header mutations do not alter the finalized result), body chunks, and flush state without
+-- opening sockets. Loopback helpers pair directly with Effect.Http.Server and Effect.Net for live
+-- TCP integration tests.
+module Effect.HttpTest where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Http.Server
+  import Effect.Net
+  import Text.Http
+
+  export ResponseRecorder, httptest-new-recorder, recorder-header, recorder-set-header, recorder-add-header
+  export recorder-del-header, recorder-write-header, recorder-write, recorder-write-string, recorder-flush
+  export recorder-code, recorder-body, recorder-body-string, recorder-flushed, recorder-result
+  export httptest-new-request, httptest-record, httptest-record-mux, httptest-record-writer, httptest-serve-wire
+  export httptest-serve-loopback, httptest-serve-loopback-with, httptest-exchange-loopback
+
+  -- ---------------------------------------------------------------------
+  -- ResponseRecorder.
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable in-memory HTTP response recorder capturing status code, live header map,
+  -- header snapshot taken when WriteHeader fires, reversed body chunks, wrote-header flag, and flushed flag.
+  data ResponseRecorder where
+    -- | Recorder fields in the order listed above.
+    ResponseRecorder :: Nat -> HttpHeader -> Option HttpHeader -> List Bytes -> Bool -> Bool -> ResponseRecorder
+
+  -- | Create a fresh ResponseRecorder initialized with status 200 and empty headers and body.
+  httptest-new-recorder :: ResponseRecorder
+  httptest-new-recorder = ResponseRecorder status-ok http-header-empty None Nil False False
+
+  -- | Read the recorder's current staging header map.
+  recorder-header :: ResponseRecorder -> HttpHeader
+  recorder-header rec = case rec of ResponseRecorder _ hd _ _ _ _ -> hd
+
+  -- | Set a header on the recorder's staging header map.
+  recorder-set-header :: ResponseRecorder -> String -> String -> ResponseRecorder
+  recorder-set-header rec key val = case rec of
+    ResponseRecorder code hd snap chunks wrote fl ->
+      ResponseRecorder code (http-header-set hd key val) snap chunks wrote fl
+
+  -- | Append a header value on the recorder's staging header map.
+  recorder-add-header :: ResponseRecorder -> String -> String -> ResponseRecorder
+  recorder-add-header rec key val = case rec of
+    ResponseRecorder code hd snap chunks wrote fl ->
+      ResponseRecorder code (http-header-add hd key val) snap chunks wrote fl
+
+  -- | Delete a header from the recorder's staging header map.
+  recorder-del-header :: ResponseRecorder -> String -> ResponseRecorder
+  recorder-del-header rec key = case rec of
+    ResponseRecorder code hd snap chunks wrote fl ->
+      ResponseRecorder code (http-header-del hd key) snap chunks wrote fl
+
+  -- | Record the HTTP status code and snapshot the current headers on the first call; subsequent calls are ignored.
+  recorder-write-header :: ResponseRecorder -> Nat -> ResponseRecorder
+  recorder-write-header rec code = case rec of
+    ResponseRecorder old-code hd snap chunks wrote fl ->
+      if wrote then rec
+      else ResponseRecorder code hd (Some (http-header-clone hd)) chunks True fl
+
+  -- | Append body bytes to the recorder, implicitly writing status 200 and detecting Content-Type on the first write.
+  recorder-write :: ResponseRecorder -> Bytes -> ResponseRecorder
+  recorder-write rec data-bytes = case rec of
+    ResponseRecorder code hd snap chunks wrote fl ->
+      if wrote then
+        ResponseRecorder code hd snap (Cons (bytes-clone data-bytes) chunks) True fl
+      else
+        let hd1 = maybe-sniff-content-type hd data-bytes in
+        let rec1 = ResponseRecorder status-ok hd1 (Some (http-header-clone hd1)) (Cons (bytes-clone data-bytes) chunks) True fl in
+        rec1
+
+  -- | Append UTF-8 string bytes to the recorder.
+  recorder-write-string :: ResponseRecorder -> String -> ResponseRecorder
+  recorder-write-string rec text = recorder-write rec (string-to-bytes text)
+
+  -- | Mark the recorder as flushed, implicitly writing status 200 if headers have not been written yet.
+  recorder-flush :: ResponseRecorder -> ResponseRecorder
+  recorder-flush rec =
+    let rec1 = recorder-write-header rec status-ok in
+    case rec1 of
+      ResponseRecorder code hd snap chunks wrote _ -> ResponseRecorder code hd snap chunks wrote True
+
+  -- | The recorded HTTP status code (200 by default).
+  recorder-code :: ResponseRecorder -> Nat
+  recorder-code rec = case rec of ResponseRecorder code _ _ _ _ _ -> code
+
+  -- | The concatenated body bytes written to the recorder.
+  recorder-body :: ResponseRecorder -> Bytes
+  recorder-body rec = case rec of ResponseRecorder _ _ _ chunks _ _ -> bytes-concat (reverse chunks)
+
+  -- | The recorded body decoded as UTF-8 text (empty string on invalid UTF-8).
+  recorder-body-string :: ResponseRecorder -> String
+  recorder-body-string rec = case string-from-bytes (recorder-body rec) of
+    Some s -> s
+    None -> ""
+
+  -- | Whether recorder-flush was called.
+  recorder-flushed :: ResponseRecorder -> Bool
+  recorder-flushed rec = case rec of ResponseRecorder _ _ _ _ _ fl -> fl
+
+  -- | Finalize the recorder into an immutable HttpWireResponse using the snapshotted headers.
+  recorder-result :: ResponseRecorder -> HttpWireResponse
+  recorder-result rec = case rec of
+    ResponseRecorder code hd snap chunks wrote fl ->
+      let final-hd = (case snap of
+        Some s -> http-header-clone s
+        None -> http-header-clone hd) in
+      http-response-new code final-hd (bytes-concat (reverse chunks))
+
+  -- | Set Content-Type based on the first body write when Content-Type is absent.
+  maybe-sniff-content-type :: HttpHeader -> Bytes -> HttpHeader
+  maybe-sniff-content-type hd data-bytes =
+    if bytes-len data-bytes == 0 then hd
+    else case http-header-get hd "Content-Type" of
+      Some _ -> hd
+      None -> http-header-set hd "Content-Type" (detect-content-type data-bytes)
+
+  -- | Detect a basic Content-Type for an initial write (plain UTF-8 text vs binary octet stream).
+  detect-content-type :: Bytes -> String
+  detect-content-type b =
+    if has-binary-byte b 0 then "application/octet-stream"
+    else case string-from-bytes b of
+      Some _ -> "text/plain; charset=utf-8"
+      None -> "application/octet-stream"
+
+  -- | Check whether any byte in the first 512 bytes is a non-text control byte.
+  has-binary-byte :: Bytes -> Nat -> Bool
+  has-binary-byte b i =
+    if i >= bytes-len b || i >= 512 then False
+    else
+      let c = bytes-get b i in
+      let bad = c <= 8 || c == 11 || (c >= 14 && c <= 26) || (c >= 28 && c <= 31) in
+      if bad then True else has-binary-byte b (i + 1)
+
+  -- ---------------------------------------------------------------------
+  -- Synthetic request construction and in-memory recording.
+  -- ---------------------------------------------------------------------
+
+  -- | Construct a synthetic incoming HTTP/1.1 request suitable for passing directly to handlers.
+  -- Defaults empty method to "GET", missing host to "example.com", and remote address to "192.0.2.1:1234".
+  httptest-new-request :: String -> String -> Bytes -> HttpWireRequest
+  httptest-new-request method raw-uri body =
+    let req0 = http-new-request method raw-uri body in
+    let req1 = if req-host req0 == "" then req-with-host req0 "example.com" else req0 in
+    req-with-remote-addr req1 "192.0.2.1:1234"
+
+  -- | Execute an effectful HttpHandler in memory against a request and capture its response in a ResponseRecorder.
+  httptest-record :: forall r. using (io :: Io r) => HttpHandler r -> HttpWireRequest ->{IO r} ResponseRecorder
+  httptest-record hdl req =
+    let resp = http-run-handler hdl req in
+    record-wire-response resp
+
+  -- | Execute a ServeMux of HttpHandlers in memory against a request and capture the result in a ResponseRecorder.
+  httptest-record-mux :: forall r. using (io :: Io r) => ServeMux (HttpHandler r) -> HttpWireRequest ->{IO r} ResponseRecorder
+  httptest-record-mux mux req = httptest-record (http-mux-handler mux) req
+
+  -- | Populate a ResponseRecorder from an HttpWireResponse.
+  record-wire-response :: HttpWireResponse -> ResponseRecorder
+  record-wire-response resp =
+    let rec0 = httptest-new-recorder in
+    let rec1 = copy-headers-to-recorder rec0 (http-header-to-pairs (resp-headers resp)) in
+    let rec2 = recorder-write-header rec1 (resp-status resp) in
+    let body = resp-body resp in
+    if bytes-len body == 0 then rec2 else recorder-write rec2 body
+
+  -- | Copy ordered header pairs into a ResponseRecorder.
+  copy-headers-to-recorder :: ResponseRecorder -> List (String, String) -> ResponseRecorder
+  copy-headers-to-recorder rec pairs = case pairs of
+    Nil -> rec
+    Cons pair rest -> case pair of
+      (k, v) -> copy-headers-to-recorder (recorder-add-header rec k v) rest
+
+  -- | Execute a pure ResponseRecorder-transforming handler against a request without IO effects.
+  httptest-record-writer :: (HttpWireRequest -> ResponseRecorder -> ResponseRecorder) -> HttpWireRequest -> ResponseRecorder
+  httptest-record-writer hdl req = hdl req httptest-new-recorder
+
+  -- | Perform a full HTTP/1.1 wire serialization, server parsing/dispatch, and response parsing roundtrip in memory.
+  httptest-serve-wire :: forall r. using (io :: Io r) => HttpHandler r -> HttpWireRequest ->{IO r} Result HttpServerError HttpWireResponse
+  httptest-serve-wire hdl req =
+    let raw-req = http-render-request req in
+    let cfg = http-server-config-with-keep-alive False http-server-config-default in
+    case http-serve-bytes cfg raw-req hdl of
+      Err e -> Err e
+      Ok (raw-resp, _) -> case http-parse-response-for (req-method req) raw-resp of
+        Err pe -> Err (ServerProtoError pe)
+        Ok (resp, _) -> Ok resp
+
+  -- ---------------------------------------------------------------------
+  -- Loopback Effect.Net helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Connect to a loopback TCP test peer at host:port, serve HTTP/1.1 with default config, and close the socket.
+  httptest-serve-loopback :: forall r. using (io :: Io r) => String -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  httptest-serve-loopback host port hdl =
+    httptest-serve-loopback-with http-server-config-default host port hdl
+
+  -- | Connect to a loopback TCP test peer at host:port, serve HTTP/1.1 with explicit config, and close the socket.
+  httptest-serve-loopback-with :: forall r. using (io :: Io r) => HttpServerConfig -> String -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  httptest-serve-loopback-with cfg host port hdl = case net-connect host port of
+    Err ne -> Err (ServerNetError ne)
+    Ok sock ->
+      let res = http-serve-socket-with cfg sock hdl in
+      let closed = net-close sock in
+      res
+
+  -- | Send raw HTTP/1.1 wire bytes to host:port over Effect.Net and read all response bytes until EOF.
+  httptest-exchange-loopback :: forall r. using (io :: Io r) => String -> Nat -> Bytes ->{IO r} Result HttpServerError Bytes
+  httptest-exchange-loopback host port payload = case net-connect host port of
+    Err ne -> Err (ServerNetError ne)
+    Ok sock -> case net-write sock payload of
+      Err ne ->
+        let closed = net-close sock in
+        Err (ServerNetError ne)
+      Ok _ ->
+        let read-res = read-all-socket sock Nil in
+        let closed = net-close sock in
+        read-res
+
+  -- | Read bytes from a socket until EOF, returning the concatenated buffer.
+  read-all-socket :: forall r. using (io :: Io r) => Socket -> List Bytes ->{IO r} Result HttpServerError Bytes
+  read-all-socket sock acc = case net-read sock 4096 of
+    Err ne -> Err (ServerNetError ne)
+    Ok chunk ->
+      if bytes-len chunk == 0 then Ok (bytes-concat (reverse acc))
+      else read-all-socket sock (Cons chunk acc)

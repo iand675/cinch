@@ -1,0 +1,331 @@
+-- | Effectful TLS 1.3 client and server connections over `Effect.Net` TCP sockets,
+-- using operating-system entropy (`Effect.Random`) and the wall clock (`Effect.Clock`)
+-- for X.509 certificate validity checks.
+--
+-- Wraps the pure RFC 8446 state machines from `Crypto.Tls` with buffered record framing,
+-- full-buffer socket writes, automatic `KeyUpdate` replies, `NewSessionTicket` handling,
+-- and graceful `close_notify` shutdown.
+module Effect.Tls where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Net
+  import Effect.Random
+
+  export TlsIoError, TlsIoNet, TlsIoProtocol, TlsIoUnexpectedEof, tls-io-error-message
+  export TlsConn
+  export tls-dial, tls-client, tls-server, tls-accept
+  export tls-read, tls-write, tls-key-update, tls-close, tls-connection-state
+
+  -- ---------------------------------------------------------------------
+  -- Errors and connection handle.
+  -- ---------------------------------------------------------------------
+
+  -- | Structured errors returned by effectful TLS 1.3 socket operations.
+  data TlsIoError where
+    -- | Underlying TCP socket operation failed.
+    TlsIoNet :: NetError -> TlsIoError
+    -- | TLS 1.3 protocol, cryptography, or certificate verification failed.
+    TlsIoProtocol :: TlsError -> TlsIoError
+    -- | Peer closed the TCP stream before completing the TLS 1.3 handshake.
+    TlsIoUnexpectedEof :: TlsIoError
+
+  -- | Render a readable diagnostic message for a `TlsIoError`.
+  tls-io-error-message :: TlsIoError -> String
+  tls-io-error-message err = case err of
+    TlsIoNet ne -> render-net-error ne
+    TlsIoProtocol te -> tls-error-message te
+    TlsIoUnexpectedEof -> "tls io: unexpected EOF during handshake"
+
+  -- | Render an underlying `NetError` diagnostic.
+  render-net-error :: NetError -> String
+  render-net-error ne = case ne of
+    NetNotFound -> "tls io: network endpoint not found"
+    NetPermissionDenied -> "tls io: network permission denied"
+    NetInvalidArgument -> "tls io: invalid network argument"
+    NetIoError -> "tls io: network I/O error"
+
+  -- | Active role-specific sans-I/O TLS 1.3 state machine.
+  data TlsRole where
+    -- | Client-side TLS 1.3 state machine.
+    TlsRoleClient :: TlsClient -> TlsRole
+    -- | Server-side TLS 1.3 state machine.
+    TlsRoleServer :: TlsServer -> TlsRole
+
+  -- | An established TLS 1.3 connection over a TCP `Socket` scoped to region `r`.
+  data TlsConn (r :: Region) where
+    -- | Underlying socket, TLS state machine, buffered decrypted application bytes, and peer EOF flag.
+    MkTlsConn :: Socket -> TlsRole -> Bytes -> Bool -> TlsConn r
+
+  -- ---------------------------------------------------------------------
+  -- Internal helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Copy slice `[start, stop)` into a fresh byte buffer.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let len = stop - start in
+      let out = bytes-new len in
+      let u = bytes-copy-range out buf 0 start len in
+      out
+    else bytes-new 0
+
+  -- | Concatenate two byte buffers, avoiding copies when either is empty.
+  join2 :: Bytes -> Bytes -> Bytes
+  join2 a b =
+    if bytes-len a == 0 then b
+    else if bytes-len b == 0 then a
+    else bytes-concat [a, b]
+
+  -- | Fill `now-unix` from `Effect.Clock` when the caller left it at `0`.
+  populate-now :: forall (r :: Region). using (io :: Io r) => TlsConfig ->{IO r} TlsConfig
+  populate-now cfg =
+    if eq-i64 (tls-config-now cfg) 0 then
+      let wall-ns = clock-wall-ns () in
+      let wall-sec = nat-div wall-ns 1000000000 in
+      case checked-nat-to-i64 wall-sec of
+        Some s -> tls-config-with-now s cfg
+        None -> cfg
+    else cfg
+
+  -- | Write the entire buffer to `sock`, retrying on short writes.
+  write-all-socket :: forall (r :: Region). using (io :: Io r) => Socket -> Bytes ->{IO r} Result TlsIoError Unit
+  write-all-socket sock buf = write-all-from sock buf 0
+
+  -- | Tail-recursive write loop starting at byte offset `pos`.
+  write-all-from :: forall (r :: Region). using (io :: Io r) => Socket -> Bytes -> Nat ->{IO r} Result TlsIoError Unit
+  write-all-from sock buf pos =
+    let total = bytes-len buf in
+    if pos >= total then Ok ()
+    else
+      let chunk = if pos == 0 then buf else slice buf pos total in
+      case net-write sock chunk of
+        Err ne -> Err (TlsIoNet ne)
+        Ok n ->
+          if n == 0 then Err (TlsIoNet NetIoError)
+          else write-all-from sock buf (pos + n)
+
+  -- | Drive a `TlsClient` handshake to completion over `sock`.
+  drive-client-handshake :: forall (r :: Region). using (io :: Io r) => Socket -> TlsClient -> Bytes -> Bool ->{IO r} Result TlsIoError (TlsConn r)
+  drive-client-handshake sock cli pending eof =
+    if tls-client-handshake-complete cli then
+      Ok (MkTlsConn sock (TlsRoleClient cli) pending eof)
+    else if eof then Err TlsIoUnexpectedEof
+    else case net-read sock 16384 of
+      Err ne -> Err (TlsIoNet ne)
+      Ok chunk ->
+        if bytes-len chunk == 0 then Err TlsIoUnexpectedEof
+        else case tls-client-feed cli chunk of
+          Err te -> Err (TlsIoProtocol te)
+          Ok out ->
+            let cli2 = tls-out-state out in
+            let wire = tls-out-wire out in
+            let app = join2 pending (tls-out-data out) in
+            let eof2 = eof || tls-out-eof out in
+            case write-all-socket sock wire of
+              Err we -> Err we
+              Ok _ -> drive-client-handshake sock cli2 app eof2
+
+  -- | Drive a `TlsServer` handshake to completion over `sock`.
+  drive-server-handshake :: forall (r :: Region). using (io :: Io r) => Socket -> TlsServer -> Bytes -> Bool ->{IO r} Result TlsIoError (TlsConn r)
+  drive-server-handshake sock srv pending eof =
+    if tls-server-handshake-complete srv then
+      Ok (MkTlsConn sock (TlsRoleServer srv) pending eof)
+    else if eof then Err TlsIoUnexpectedEof
+    else case net-read sock 16384 of
+      Err ne -> Err (TlsIoNet ne)
+      Ok chunk ->
+        if bytes-len chunk == 0 then Err TlsIoUnexpectedEof
+        else case tls-server-feed srv chunk of
+          Err te -> Err (TlsIoProtocol te)
+          Ok out ->
+            let srv2 = tls-out-state out in
+            let wire = tls-out-wire out in
+            let app = join2 pending (tls-out-data out) in
+            let eof2 = eof || tls-out-eof out in
+            case write-all-socket sock wire of
+              Err we -> Err we
+              Ok _ -> drive-server-handshake sock srv2 app eof2
+
+  -- | Feed incoming wire bytes into either a client or server role state machine.
+  feed-role :: TlsRole -> Bytes -> Result TlsError (TlsRole, Bytes, Bytes, Bool)
+  feed-role role chunk = case role of
+    TlsRoleClient cli -> case tls-client-feed cli chunk of
+      Err e -> Err e
+      Ok out -> Ok (TlsRoleClient (tls-out-state out), tls-out-wire out, tls-out-data out, tls-out-eof out)
+    TlsRoleServer srv -> case tls-server-feed srv chunk of
+      Err e -> Err e
+      Ok out -> Ok (TlsRoleServer (tls-out-state out), tls-out-wire out, tls-out-data out, tls-out-eof out)
+
+  -- | Encrypt outbound application bytes for either a client or server role.
+  send-role :: TlsRole -> Bytes -> Result TlsError (TlsRole, Bytes)
+  send-role role payload = case role of
+    TlsRoleClient cli -> case tls-client-send cli payload of
+      Err e -> Err e
+      Ok (cli2, wire) -> Ok (TlsRoleClient cli2, wire)
+    TlsRoleServer srv -> case tls-server-send srv payload of
+      Err e -> Err e
+      Ok (srv2, wire) -> Ok (TlsRoleServer srv2, wire)
+
+  -- | Initiate a TLS 1.3 `KeyUpdate` for either a client or server role.
+  key-update-role :: TlsRole -> Bool -> Result TlsError (TlsRole, Bytes)
+  key-update-role role req = case role of
+    TlsRoleClient cli -> case tls-client-key-update cli req of
+      Err e -> Err e
+      Ok (cli2, wire) -> Ok (TlsRoleClient cli2, wire)
+    TlsRoleServer srv -> case tls-server-key-update srv req of
+      Err e -> Err e
+      Ok (srv2, wire) -> Ok (TlsRoleServer srv2, wire)
+
+  -- | Emit `close_notify` for either a client or server role.
+  close-role :: TlsRole -> Result TlsError (TlsRole, Bytes)
+  close-role role = case role of
+    TlsRoleClient cli -> case tls-client-close cli of
+      Err e -> Err e
+      Ok (cli2, wire) -> Ok (TlsRoleClient cli2, wire)
+    TlsRoleServer srv -> case tls-server-close srv of
+      Err e -> Err e
+      Ok (srv2, wire) -> Ok (TlsRoleServer srv2, wire)
+
+  -- | Empty byte buffer with unrefined `Bytes` type.
+  empty-bytes :: Bytes
+  empty-bytes = bytes-new 0
+
+  -- | Slice at most `limit` bytes from the front of `buf`, returning `(taken, remainder)`.
+  take-prefix :: Bytes -> Nat -> (Bytes, Bytes)
+  take-prefix buf limit =
+    let n = bytes-len buf in
+    if n <= limit then (buf, empty-bytes)
+    else (slice buf 0 limit, slice buf limit n)
+
+  -- ---------------------------------------------------------------------
+  -- Public effectful TLS 1.3 client and server operations.
+  -- ---------------------------------------------------------------------
+
+  -- | Connect over TCP to `host:port` and perform a TLS 1.3 client handshake.
+  -- Defaults `server-name` to `host` when left empty in `cfg`, and populates `now-unix`
+  -- from the system wall clock when left `0`.
+  tls-dial :: forall (r :: Region). using (io :: Io r) => String -> Nat -> TlsConfig ->{IO r} Result TlsIoError (TlsConn r)
+  tls-dial host port cfg =
+    let cfg-sni = if bytes-len (string-to-bytes (tls-config-server-name cfg)) == 0 then tls-config-with-server-name host cfg else cfg in
+    case net-connect host port of
+      Err ne -> Err (TlsIoNet ne)
+      Ok sock -> case tls-client sock cfg-sni of
+        Ok conn -> Ok conn
+        Err e ->
+          let u = net-close sock in
+          Err e
+
+  -- | Upgrade an already-connected TCP `Socket` by running the TLS 1.3 client handshake.
+  tls-client :: forall (r :: Region). using (io :: Io r) => Socket -> TlsConfig ->{IO r} Result TlsIoError (TlsConn r)
+  tls-client sock cfg =
+    let cfg2 = populate-now cfg in
+    let entropy = random-bytes 64 in
+    case tls-client-start cfg2 entropy of
+      Err te -> Err (TlsIoProtocol te)
+      Ok (cli, ch-wire) -> case write-all-socket sock ch-wire of
+        Err we -> Err we
+        Ok _ -> drive-client-handshake sock cli (bytes-new 0) False
+
+  -- | Upgrade an already-connected TCP `Socket` by running the TLS 1.3 server handshake.
+  tls-server :: forall (r :: Region). using (io :: Io r) => Socket -> TlsConfig ->{IO r} Result TlsIoError (TlsConn r)
+  tls-server sock cfg =
+    let cfg2 = populate-now cfg in
+    let entropy = random-bytes 64 in
+    case tls-server-new cfg2 entropy of
+      Err te -> Err (TlsIoProtocol te)
+      Ok srv -> drive-server-handshake sock srv (bytes-new 0) False
+
+  -- | Accept one socket from an acceptor callback and upgrade it to a TLS 1.3 server connection.
+  -- Returns `Ok None` when the acceptor signals graceful shutdown.
+  tls-accept :: forall (r :: Region). using (io :: Io r) => TlsConfig -> (Unit ->{IO r} Result NetError (Option Socket)) ->{IO r} Result TlsIoError (Option (TlsConn r))
+  tls-accept cfg accept-fn = case accept-fn () of
+    Err ne -> Err (TlsIoNet ne)
+    Ok None -> Ok None
+    Ok (Some sock) -> case tls-server sock cfg of
+      Ok conn -> Ok (Some conn)
+      Err e ->
+        let u = net-close sock in
+        Err e
+
+  -- | Read up to `max-bytes` of decrypted application data from `conn`.
+  -- Returns an empty buffer at clean end-of-stream (`close_notify` or peer socket close).
+  tls-read :: forall (r :: Region). using (io :: Io r) => TlsConn r -> Nat ->{IO r} Result TlsIoError (Bytes, TlsConn r)
+  tls-read conn max-bytes = case conn of
+    MkTlsConn sock role pending eof ->
+      if max-bytes == 0 then Ok (bytes-new 0, conn)
+      else if bytes-len pending > 0 then
+        case take-prefix pending max-bytes of
+          (chunk, rest) -> Ok (chunk, MkTlsConn sock role rest eof)
+      else if eof then Ok (bytes-new 0, conn)
+      else tls-read-loop sock role max-bytes
+
+  -- | Tail-recursive socket read loop decrypting TLS records until application bytes or EOF arrive.
+  tls-read-loop :: forall (r :: Region). using (io :: Io r) => Socket -> TlsRole -> Nat ->{IO r} Result TlsIoError (Bytes, TlsConn r)
+  tls-read-loop sock role max-bytes = case net-read sock 16384 of
+    Err ne -> Err (TlsIoNet ne)
+    Ok raw ->
+      if bytes-len raw == 0 then
+        Ok (bytes-new 0, MkTlsConn sock role (bytes-new 0) True)
+      else case feed-role role raw of
+        Err te -> Err (TlsIoProtocol te)
+        Ok (role2, wire-out, app-data, eof2) ->
+          case write-all-socket sock wire-out of
+            Err we -> Err we
+            Ok _ ->
+              if bytes-len app-data > 0 then
+                case take-prefix app-data max-bytes of
+                  (chunk, rest) -> Ok (chunk, MkTlsConn sock role2 rest eof2)
+              else if eof2 then
+                Ok (bytes-new 0, MkTlsConn sock role2 (bytes-new 0) True)
+              else tls-read-loop sock role2 max-bytes
+
+  -- | Encrypt and transmit all bytes of `payload` over `conn`, returning the plaintext byte count written.
+  tls-write :: forall (r :: Region). using (io :: Io r) => TlsConn r -> Bytes ->{IO r} Result TlsIoError (Nat, TlsConn r)
+  tls-write conn payload = case conn of
+    MkTlsConn sock role pending eof ->
+      case send-role role payload of
+        Err te -> Err (TlsIoProtocol te)
+        Ok (role2, wire) -> case write-all-socket sock wire of
+          Err we -> Err we
+          Ok _ -> Ok (bytes-len payload, MkTlsConn sock role2 pending eof)
+
+  -- | Initiate a TLS 1.3 `KeyUpdate` on `conn`, advancing outbound traffic keys and optionally requesting the peer to update.
+  tls-key-update :: forall (r :: Region). using (io :: Io r) => TlsConn r -> Bool ->{IO r} Result TlsIoError (TlsConn r)
+  tls-key-update conn request-update = case conn of
+    MkTlsConn sock role pending eof ->
+      case key-update-role role request-update of
+        Err te -> Err (TlsIoProtocol te)
+        Ok (role2, wire) -> case write-all-socket sock wire of
+          Err we -> Err we
+          Ok _ -> Ok (MkTlsConn sock role2 pending eof)
+
+  -- | Send an encrypted `close_notify` alert and close the underlying TCP `Socket`.
+  tls-close :: forall (r :: Region). using (io :: Io r) => TlsConn r ->{IO r} Result TlsIoError Unit
+  tls-close conn = case conn of
+    MkTlsConn sock role _ _ ->
+      let sent = (case close-role role of
+        Ok (_, wire) -> write-all-socket sock wire
+        Err _ -> Ok ()) in
+      let closed = net-close sock in
+      case (sent, closed) of
+        (Err e, _) -> Err e
+        (_, Err ne) -> Err (TlsIoNet ne)
+        (Ok _, Ok _) -> Ok ()
+
+  -- | Inspect the negotiated `TlsConnectionState` of an established `TlsConn`.
+  tls-connection-state :: forall (r :: Region). TlsConn r -> TlsConnectionState
+  tls-connection-state conn = case conn of
+    MkTlsConn _ role _ _ -> case role of
+      TlsRoleClient cli -> tls-client-state cli
+      TlsRoleServer srv -> tls-server-state srv

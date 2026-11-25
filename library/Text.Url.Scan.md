@@ -4,11 +4,11 @@ Private portable SIMD byte scanning shared by URL parsing, queries and path trav
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Scan/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Scan">Search module</a><a href="/reference-sources/Text.Url.Scan.cinch" download="Text.Url.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
-Checked byte intervals and retained, exact-load SIMD scans used by URL grammars.
+Checked byte intervals and exact-load portable 16-byte SIMD scans used by URL grammars.
 Every returned interval is a fresh buffer. Searches return the interval end
 when absent; malformed bounds are rejected by returning the complete input end.
 
@@ -21,7 +21,7 @@ when absent; malformed bounds are rejected by returning the complete input end.
 # Values
 
 <article class="doc-entry" id="v-url-concat">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-concat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-concat" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-concat</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-concat" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L39" title="View source at line 39">Source</a></span></div>
 <div class="doc-body">
 
 Concatenate chunks with one exact allocation and one checked copy per chunk.
@@ -30,7 +30,7 @@ Concatenate chunks with one exact allocation and one checked copy per chunk.
 </article>
 
 <article class="doc-entry" id="v-url-copy">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-copy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-copy" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L14" title="View source at line 14">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-copy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-copy" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L15" title="View source at line 15">Source</a></span></div>
 <div class="doc-body">
 
 Copy a complete input without retaining a mutable caller alias.
@@ -39,7 +39,7 @@ Copy a complete input without retaining a mutable caller alias.
 </article>
 
 <article class="doc-entry" id="v-url-count-byte">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-count-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-count-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L264" title="View source at line 264">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-count-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-count-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L271" title="View source at line 271">Source</a></span></div>
 <div class="doc-body">
 
 Count exact wanted-byte occurrences in a half-open interval; invalid bounds yield zero.
@@ -48,7 +48,7 @@ Count exact wanted-byte occurrences in a half-open interval; invalid bounds yiel
 </article>
 
 <article class="doc-entry" id="v-url-find-byte">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L247" title="View source at line 247">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L253" title="View source at line 253">Source</a></span></div>
 <div class="doc-body">
 
 Find the first wanted byte in a half-open interval, or its end when absent.
@@ -57,7 +57,7 @@ Find the first wanted byte in a half-open interval, or its end when absent.
 </article>
 
 <article class="doc-entry" id="v-url-find-control">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-control</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-control" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L251" title="View source at line 251">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-control</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-control" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L257" title="View source at line 257">Source</a></span></div>
 <div class="doc-body">
 
 Find the first ASCII control or DEL in a half-open interval, or its end.
@@ -66,7 +66,7 @@ Find the first ASCII control or DEL in a half-open interval, or its end.
 </article>
 
 <article class="doc-entry" id="v-url-find-invalid-user">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-invalid-user</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-invalid-user" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L282" title="View source at line 282">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-find-invalid-user</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-find-invalid-user" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L290" title="View source at line 290">Source</a></span></div>
 <div class="doc-body">
 
 Find the first unsupported raw ASCII user-information byte, or the interval end.
@@ -75,7 +75,7 @@ Find the first unsupported raw ASCII user-information byte, or the interval end.
 </article>
 
 <article class="doc-entry" id="v-url-last-byte">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-last-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-last-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L255" title="View source at line 255">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-last-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-last-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L261" title="View source at line 261">Source</a></span></div>
 <div class="doc-body">
 
 Find the last wanted byte in a half-open interval, or its end when absent.
@@ -84,7 +84,7 @@ Find the last wanted byte in a half-open interval, or its end when absent.
 </article>
 
 <article class="doc-entry" id="v-url-scheme-colon">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-scheme-colon</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-scheme-colon" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L271" title="View source at line 271">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-scheme-colon</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-scheme-colon" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L279" title="View source at line 279">Source</a></span></div>
 <div class="doc-body">
 
 Find an ASCII scheme colon with SIMD grammar scanning; return input length when absent or invalid.
@@ -93,7 +93,7 @@ Find an ASCII scheme colon with SIMD grammar scanning; return input length when 
 </article>
 
 <article class="doc-entry" id="v-url-slice">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-slice" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-slice</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-slice" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Scan/source/#L20" title="View source at line 20">Source</a></span></div>
 <div class="doc-body">
 
 Copy a half-open interval, returning empty bytes for invalid bounds.

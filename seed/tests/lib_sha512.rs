@@ -110,22 +110,10 @@ fn sha512_streams_preserve_digests_counts_and_source_continuations() {
     run("stream-case 7 && stream-case 6 && zero-copy ()");
 }
 
-/// The SIMD schedule, rotate and raw-load fragments remain legal on 32-bit and non-x86 object targets.
+/// The SHA-512 SIMD schedule, rotate and byte-order kernels remain legal on 32-bit and non-x86 object targets.
 #[test]
 fn sha512_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Sha512.cinch");
-    let marker = "  -- | Generated SHA-512 compression:";
-    let mut kernels = String::from("-- | Isolated complete SHA-512 kernel compilation.\nmodule Main where\n  import Data.Machine\n  import Data.Wide\n  -- | Raw chaining words supplied to the generated pure compression.\n  data Sha512Words where\n    -- | Eight U64 working words.\n    Words512 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words\n");
-    kernels.push_str(&source[source.find(marker).unwrap()..]);
-    for name in ["block-word", "wire-word"] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str("\n  -- | Checked private raw load or wire conversion under target compilation.\n");
-        kernels.push_str(&rest[..end]);
-    }
-    kernels.push_str("\n  -- | Retain the complete fixture buffer while its private load finishes.\n  keep :: Bytes -> U64 -> U64\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep compression and raw-load units reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 128 in let word = keep bytes (block-word (bytes-data bytes) 0) in case sha512-compress (sha512-initial-words 7) word 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 of Words512 a b c d e f g h -> if eq-u64 (wire-word a) 0 then 0 else 1\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -140,25 +128,40 @@ fn sha512_kernels_compile_for_wasm_arm_and_big_endian_targets() {
                 profile.endian = endian.into();
                 profile
             });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, text) in [
+            ("Text.Sha512", include_str!("../prelude/Text/Sha512.cinch")),
+            ("Text.Binary", include_str!("../prelude/Text/Binary.cinch")),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), text).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "module Main where\n  import Text.Sha512\n  -- | Reach the kernels.\n  main :: Int\n  main = if bytes-len (sha512-sum (bytes-new 128)) == 64 then 0 else 1\n",
+        )
+        .unwrap();
+        let ir_path = project.join("program.ll");
+        let entry = project.join("Main.cinch");
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program = cinch::driver::check_sources_profile(&input, "sha512-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(Mode::EmitIr, cinch::check::StageMode::Refresh, &entry, Some(&ir_path), &profile, &cinch::driver::DriverOptions::default())
+                    .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
-        assert!(ir.contains("<2 x i64>") && ir.contains("@llvm.fshr.v2i64"));
+        assert!(ir.contains("<2 x i64>") && ir.contains("call <2 x i64> @llvm.fshr.v2i64"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .args(["-target", triple, "-O2", "-c", "-x", "ir"])
-            .arg(&path)
+            .arg(project.join("program.ll"))
             .arg("-o")
-            .arg(path.with_extension("o"))
+            .arg(project.join("program.o"))
             .output()
             .unwrap();
         assert!(output.status.success(), "{triple}: {}", String::from_utf8_lossy(&output.stderr));

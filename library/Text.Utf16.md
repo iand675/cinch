@@ -11,8 +11,8 @@ UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order b
 UTF-16 code units, surrogate pairs and explicit-byte-order text conversion.
 Invalid scalar inputs and unpaired surrogates become U+FFFD. Byte decoders
 reject an odd final byte; a byte-order mark is ordinary text, never inferred
-or removed. Buffer codecs process four ASCII units at once using inline
-LLVM SWAR widening and narrowing, with bounded loads and exact scalar tails.
+or removed. Buffer codecs process four ASCII units at once using portable
+SWAR widening and narrowing, with bounded loads and exact scalar tails.
 
 </details>
 
@@ -54,7 +54,7 @@ Decode code units in order, replacing each unpaired surrogate independently.
 </article>
 
 <article class="doc-entry" id="v-utf16-decode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf16-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Binary/#t-ByteOrder" title="Text.Binary.ByteOrder">ByteOrder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Utf16/#t-Utf16Error" title="Text.Utf16.Utf16Error">Utf16Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-utf16-decode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Utf16/source/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf16-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Binary/#t-ByteOrder" title="Text.Binary.ByteOrder">ByteOrder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Utf16/#t-Utf16Error" title="Text.Utf16.Utf16Error">Utf16Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-utf16-decode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Utf16/source/#L174" title="View source at line 174">Source</a></span></div>
 <div class="doc-body">
 
 Decode explicit-order UTF-16 bytes. An odd byte count is an error before conversion.
@@ -82,7 +82,7 @@ Encode numeric scalar values in order; invalid scalar values each produce one re
 </article>
 
 <article class="doc-entry" id="v-utf16-encode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf16-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Binary/#t-ByteOrder" title="Text.Binary.ByteOrder">ByteOrder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-utf16-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Utf16/source/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">utf16-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Binary/#t-ByteOrder" title="Text.Binary.ByteOrder">ByteOrder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-utf16-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Utf16/source/#L141" title="View source at line 141">Source</a></span></div>
 <div class="doc-body">
 
 Encode valid UTF-8 text to explicit-order UTF-16 bytes, with no added byte-order mark.

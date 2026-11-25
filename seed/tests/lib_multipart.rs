@@ -200,7 +200,6 @@ fn multipart_public_paths_compile_for_wasm_arm_and_big_endian() {
             "Text.Multipart.find-byte",
             "Text.Multipart.prefix-at",
             "Text.Multipart.escape-end",
-            "Text.Multipart.equal-sixteen.llvm",
         ] {
             assert!(
                 multipart_call_path(&ir, worker).is_some(),
@@ -208,16 +207,10 @@ fn multipart_public_paths_compile_for_wasm_arm_and_big_endian() {
                 file.display()
             );
         }
-        let matcher = multipart_definition(&ir, "Text.Multipart.equal-sixteen.llvm");
-        assert!(matcher.contains("icmp eq <16 x i8>") && matcher.contains("bitcast <16 x i1>"));
-        assert_eq!(
-            matcher.contains("%swapped0 = call i64 @llvm.bswap.i64"),
-            endian == "big"
-        );
-        assert_eq!(
-            matcher.contains("%reversed = shufflevector <16 x i1>"),
-            endian == "big"
-        );
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

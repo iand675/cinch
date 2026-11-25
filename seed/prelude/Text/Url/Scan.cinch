@@ -1,4 +1,4 @@
--- | Checked byte intervals and retained, exact-load SIMD scans used by URL grammars.
+-- | Checked byte intervals and exact-load portable 16-byte SIMD scans used by URL grammars.
 -- Every returned interval is a fresh buffer. Searches return the interval end
 -- when absent; malformed bounds are rejected by returning the complete input end.
 module Text.Url.Scan where
@@ -7,6 +7,7 @@ module Text.Url.Scan where
   import Data.List
   import Data.Machine
   import Data.Nat
+  import Data.Wide
 
   export url-copy, url-slice, url-concat, url-find-byte, url-last-byte, url-find-control, url-count-byte, url-scheme-colon, url-find-invalid-user
 
@@ -38,209 +39,214 @@ module Text.Url.Scan where
   url-concat :: List Bytes -> Bytes
   url-concat chunks = chunks-write chunks (bytes-new (chunks-size chunks 0)) 0
 
-  -- | Retain the backing owner until the borrowed machine traversal has returned.
-  hold :: forall a. Bytes -> a -> a
-  hold owner result = case bytes-len owner of _ -> result
+  -- | Classify sixteen bytes for ASCII controls (0..31) and DEL (127), returning a 16-bit lane mask.
+  mask-control16 :: U128 -> U32
+  mask-control16 v =
+    let low = simd-u8x16-cmplt v (simd-u8x16-splat 32) in
+    let del = simd-u8x16-cmpeq v (simd-u8x16-splat 127) in
+    simd-u8x16-movemask (bit-or-u128 low del)
 
-  -- | Read exactly one complete block from a retained proved interval.
-  prim load-eight :: I64 -> U64 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %word = load i64, ptr %p, align 1
-      ret i64 %word
-    }
+  -- | Return true when all sixteen bytes are valid RFC 3986 scheme continuation bytes.
+  all-scheme16 :: U128 -> Bool
+  all-scheme16 v =
+    let folded = bit-or-u128 v (simd-u8x16-splat 32) in
+    let alpha = simd-u8x16-cmplt (simd-u8x16-sub folded (simd-u8x16-splat 97)) (simd-u8x16-splat 26) in
+    let digit = simd-u8x16-cmplt (simd-u8x16-sub v (simd-u8x16-splat 48)) (simd-u8x16-splat 10) in
+    let punct = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 43))
+                  (bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 45)) (simd-u8x16-cmpeq v (simd-u8x16-splat 46))) in
+    let allowed = bit-or-u128 (bit-or-u128 alpha digit) punct in
+    eq-u32 (simd-u8x16-movemask allowed) 65535
 
-  -- | Read one fringe byte from a retained proved interval.
-  prim load-one :: I64 -> U8 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %byte = load i8, ptr %p, align 1
-      ret i8 %byte
-    }
+  -- | Return true when all sixteen bytes belong to the raw ASCII user-information alphabet.
+  all-user16 :: U128 -> Bool
+  all-user16 v =
+    let folded = bit-or-u128 v (simd-u8x16-splat 32) in
+    let alpha = simd-u8x16-cmplt (simd-u8x16-sub folded (simd-u8x16-splat 97)) (simd-u8x16-splat 26) in
+    let range1 = simd-u8x16-cmplt (simd-u8x16-sub v (simd-u8x16-splat 36)) (simd-u8x16-splat 11) in
+    let range2 = simd-u8x16-cmplt (simd-u8x16-sub v (simd-u8x16-splat 48)) (simd-u8x16-splat 12) in
+    let p1 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 33)) (simd-u8x16-cmpeq v (simd-u8x16-splat 61)) in
+    let p2 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 64)) (simd-u8x16-cmpeq v (simd-u8x16-splat 95)) in
+    let punct = bit-or-u128 (bit-or-u128 p1 p2) (simd-u8x16-cmpeq v (simd-u8x16-splat 126)) in
+    let allowed = bit-or-u128 (bit-or-u128 alpha range1) (bit-or-u128 range2 punct) in
+    eq-u32 (simd-u8x16-movemask allowed) 65535
 
-  -- | Classify eight equal bytes, or controls in mode one, using independent SIMD lanes.
-  prim mask-eight :: U64 -> U8 -> U8 -> U8 where
-    llvm {
-      %bytes = bitcast i64 %0 to <8 x i8>
-      %one = insertelement <8 x i8> poison, i8 %1, i32 0
-      %targets = shufflevector <8 x i8> %one, <8 x i8> poison, <8 x i32> zeroinitializer
-      %equal = icmp eq <8 x i8> %bytes, %targets
-      %low = icmp ult <8 x i8> %bytes, <i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32>
-      %del = icmp eq <8 x i8> %bytes, <i8 127,i8 127,i8 127,i8 127,i8 127,i8 127,i8 127,i8 127>
-      %control = or <8 x i1> %low, %del
-      %folded = or <8 x i8> %bytes, <i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32>
-      %alpha-low = icmp uge <8 x i8> %folded, <i8 97,i8 97,i8 97,i8 97,i8 97,i8 97,i8 97,i8 97>
-      %alpha-high = icmp ule <8 x i8> %folded, <i8 122,i8 122,i8 122,i8 122,i8 122,i8 122,i8 122,i8 122>
-      %alpha = and <8 x i1> %alpha-low, %alpha-high
-      %digit-low = icmp uge <8 x i8> %bytes, <i8 48,i8 48,i8 48,i8 48,i8 48,i8 48,i8 48,i8 48>
-      %digit-high = icmp ule <8 x i8> %bytes, <i8 57,i8 57,i8 57,i8 57,i8 57,i8 57,i8 57,i8 57>
-      %digit = and <8 x i1> %digit-low, %digit-high
-      %plus = icmp eq <8 x i8> %bytes, <i8 43,i8 43,i8 43,i8 43,i8 43,i8 43,i8 43,i8 43>
-      %minus = icmp eq <8 x i8> %bytes, <i8 45,i8 45,i8 45,i8 45,i8 45,i8 45,i8 45,i8 45>
-      %dot = icmp eq <8 x i8> %bytes, <i8 46,i8 46,i8 46,i8 46,i8 46,i8 46,i8 46,i8 46>
-      %punct-a = or <8 x i1> %plus, %minus
-      %punct = or <8 x i1> %punct-a, %dot
-      %alnum = or <8 x i1> %alpha, %digit
-      %allowed = or <8 x i1> %alnum, %punct
-      %scheme = xor <8 x i1> %allowed, <i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true>
-      %user-eq-0 = icmp eq <8 x i8> %bytes, <i8 45,i8 45,i8 45,i8 45,i8 45,i8 45,i8 45,i8 45>
-      %user-allow-0 = or <8 x i1> %alnum, %user-eq-0
-      %user-eq-1 = icmp eq <8 x i8> %bytes, <i8 46,i8 46,i8 46,i8 46,i8 46,i8 46,i8 46,i8 46>
-      %user-allow-1 = or <8 x i1> %user-allow-0, %user-eq-1
-      %user-eq-2 = icmp eq <8 x i8> %bytes, <i8 95,i8 95,i8 95,i8 95,i8 95,i8 95,i8 95,i8 95>
-      %user-allow-2 = or <8 x i1> %user-allow-1, %user-eq-2
-      %user-eq-3 = icmp eq <8 x i8> %bytes, <i8 58,i8 58,i8 58,i8 58,i8 58,i8 58,i8 58,i8 58>
-      %user-allow-3 = or <8 x i1> %user-allow-2, %user-eq-3
-      %user-eq-4 = icmp eq <8 x i8> %bytes, <i8 126,i8 126,i8 126,i8 126,i8 126,i8 126,i8 126,i8 126>
-      %user-allow-4 = or <8 x i1> %user-allow-3, %user-eq-4
-      %user-eq-5 = icmp eq <8 x i8> %bytes, <i8 33,i8 33,i8 33,i8 33,i8 33,i8 33,i8 33,i8 33>
-      %user-allow-5 = or <8 x i1> %user-allow-4, %user-eq-5
-      %user-eq-6 = icmp eq <8 x i8> %bytes, <i8 36,i8 36,i8 36,i8 36,i8 36,i8 36,i8 36,i8 36>
-      %user-allow-6 = or <8 x i1> %user-allow-5, %user-eq-6
-      %user-eq-7 = icmp eq <8 x i8> %bytes, <i8 38,i8 38,i8 38,i8 38,i8 38,i8 38,i8 38,i8 38>
-      %user-allow-7 = or <8 x i1> %user-allow-6, %user-eq-7
-      %user-eq-8 = icmp eq <8 x i8> %bytes, <i8 39,i8 39,i8 39,i8 39,i8 39,i8 39,i8 39,i8 39>
-      %user-allow-8 = or <8 x i1> %user-allow-7, %user-eq-8
-      %user-eq-9 = icmp eq <8 x i8> %bytes, <i8 40,i8 40,i8 40,i8 40,i8 40,i8 40,i8 40,i8 40>
-      %user-allow-9 = or <8 x i1> %user-allow-8, %user-eq-9
-      %user-eq-10 = icmp eq <8 x i8> %bytes, <i8 41,i8 41,i8 41,i8 41,i8 41,i8 41,i8 41,i8 41>
-      %user-allow-10 = or <8 x i1> %user-allow-9, %user-eq-10
-      %user-eq-11 = icmp eq <8 x i8> %bytes, <i8 42,i8 42,i8 42,i8 42,i8 42,i8 42,i8 42,i8 42>
-      %user-allow-11 = or <8 x i1> %user-allow-10, %user-eq-11
-      %user-eq-12 = icmp eq <8 x i8> %bytes, <i8 43,i8 43,i8 43,i8 43,i8 43,i8 43,i8 43,i8 43>
-      %user-allow-12 = or <8 x i1> %user-allow-11, %user-eq-12
-      %user-eq-13 = icmp eq <8 x i8> %bytes, <i8 44,i8 44,i8 44,i8 44,i8 44,i8 44,i8 44,i8 44>
-      %user-allow-13 = or <8 x i1> %user-allow-12, %user-eq-13
-      %user-eq-14 = icmp eq <8 x i8> %bytes, <i8 59,i8 59,i8 59,i8 59,i8 59,i8 59,i8 59,i8 59>
-      %user-allow-14 = or <8 x i1> %user-allow-13, %user-eq-14
-      %user-eq-15 = icmp eq <8 x i8> %bytes, <i8 61,i8 61,i8 61,i8 61,i8 61,i8 61,i8 61,i8 61>
-      %user-allow-15 = or <8 x i1> %user-allow-14, %user-eq-15
-      %user-eq-16 = icmp eq <8 x i8> %bytes, <i8 37,i8 37,i8 37,i8 37,i8 37,i8 37,i8 37,i8 37>
-      %user-allow-16 = or <8 x i1> %user-allow-15, %user-eq-16
-      %user-eq-17 = icmp eq <8 x i8> %bytes, <i8 64,i8 64,i8 64,i8 64,i8 64,i8 64,i8 64,i8 64>
-      %user-allow-17 = or <8 x i1> %user-allow-16, %user-eq-17
-      %user-invalid = xor <8 x i1> %user-allow-17, <i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true>
-      %is-control = icmp eq i8 %2, 1
-      %is-scheme = icmp eq i8 %2, 2
-      %ordinary = select i1 %is-control, <8 x i1> %control, <8 x i1> %equal
-      %selected = select i1 %is-scheme, <8 x i1> %scheme, <8 x i1> %ordinary
-      %is-user = icmp eq i8 %2, 3
-      %final = select i1 %is-user, <8 x i1> %user-invalid, <8 x i1> %selected
-      %mask = bitcast <8 x i1> %final to i8
-      ret i8 %mask
-    }
+  -- | Recognize the raw ASCII user-information alphabet using bounded range comparisons.
+  user-byte :: U8 -> Bool
+  user-byte byte =
+    let folded = bit-or-u8 byte 32 in
+    lt-u8 (wrapping-sub-u8 folded 97) 26
+    || lt-u8 (wrapping-sub-u8 byte 36) 11
+    || lt-u8 (wrapping-sub-u8 byte 48) 12
+    || eq-u8 byte 33 || eq-u8 byte 61 || eq-u8 byte 64 || eq-u8 byte 95 || eq-u8 byte 126
 
-  -- | Count set classification bits with three fixed SWAR stages.
-  prim population :: U8 -> U64 where
-    llvm {
-      %a = lshr i8 %0, 1
-      %b = and i8 %a, 85
-      %c = sub i8 %0, %b
-      %d = and i8 %c, 51
-      %e = lshr i8 %c, 2
-      %f = and i8 %e, 51
-      %g = add i8 %d, %f
-      %h = lshr i8 %g, 4
-      %i = add i8 %g, %h
-      %j = and i8 %i, 15
-      %result = zext i8 %j to i64
-      ret i64 %result
-    }
-
-  -- | Test one exact fringe byte without pointer conversion or owner work.
+  -- | Test one exact fringe byte for the selected scan policy.
   matches :: U8 -> U8 -> U8 -> Bool
-  matches byte wanted mode = if eq-u8 mode 1 then lt-u8 byte 32 || eq-u8 byte 127
+  matches byte wanted mode =
+    if eq-u8 mode 1 then lt-u8 byte 32 || eq-u8 byte 127
     else if eq-u8 mode 2 then
       let folded = bit-or-u8 byte 32 in
-      not ((ge-u8 folded 97 && le-u8 folded 122) || (ge-u8 byte 48 && le-u8 byte 57) || eq-u8 byte 43 || eq-u8 byte 45 || eq-u8 byte 46)
+      not (lt-u8 (wrapping-sub-u8 folded 97) 26 || lt-u8 (wrapping-sub-u8 byte 48) 10 || eq-u8 byte 43 || eq-u8 byte 45 || eq-u8 byte 46)
     else if eq-u8 mode 3 then not (user-byte byte)
     else eq-u8 byte wanted
 
-  -- | Recognize the raw ASCII user-information alphabet using fixed machine-byte comparisons.
-  user-byte :: U8 -> Bool
-  user-byte byte = let lower = bit-or-u8 byte 32 in
-    (ge-u8 lower 97 && le-u8 lower 122) || (ge-u8 byte 48 && le-u8 byte 57)
-    || eq-u8 byte 45 || eq-u8 byte 46 || eq-u8 byte 95 || eq-u8 byte 58 || eq-u8 byte 126
-    || eq-u8 byte 33 || eq-u8 byte 36 || eq-u8 byte 38 || eq-u8 byte 39 || eq-u8 byte 40
-    || eq-u8 byte 41 || eq-u8 byte 42 || eq-u8 byte 43 || eq-u8 byte 44 || eq-u8 byte 59
-    || eq-u8 byte 61 || eq-u8 byte 37 || eq-u8 byte 64
+  -- | Seek the first matching scalar fringe byte inside a bounded interval.
+  fringe :: Bytes -> I64 -> I64 -> U8 -> U8 -> I64
+  fringe input i stop wanted mode =
+    if 0 <= i && i < stop && i < bytes-len-i64 input then
+      if matches (bytes-get-u8-at input i) wanted mode then i
+      else fringe input (wrapping-add-i64 i 1) stop wanted mode
+    else stop
 
-  -- | Seek the first matching fringe byte, returning the complete skipped count.
-  fringe :: I64 -> I64 -> U8 -> U8 -> I64 -> I64
-  fringe address remaining wanted mode skipped = if le-i64 remaining 0 then skipped else
-    let byte = load-one address in if matches byte wanted mode then skipped else
-    fringe (wrapping-add-i64 address 1) (wrapping-sub-i64 remaining 1) wanted mode (wrapping-add-i64 skipped 1)
+  -- | Skip complete sixteen-byte blocks using SIMD target-byte equality classification.
+  forward-byte :: Bytes -> I64 -> I64 -> U128 -> U8 -> I64
+  forward-byte input i end pat wanted =
+    let len = bytes-len-i64 input in
+    let stop = if le-i64 end len then end else len in
+    if 16 <= stop && 0 <= i then
+      let ns = nat-from-i64 stop in
+      let nl = nat-from-i64 len in
+      if 16 <= ns && ns <= nl then
+        let ni = nat-from-i64 i in
+        if ni <= ns - 16 then
+          let chunk = bytes-load-u128-at input i in
+          let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk pat) in
+          if eq-u32 mask 0 then forward-byte input (wrapping-add-i64 i 16) stop pat wanted
+          else fringe input i stop wanted 0
+        else fringe input i stop wanted 0
+      else fringe input i stop wanted 0
+    else fringe input i stop wanted 0
 
-  -- | Dispatch the scan policy once before its machine-only complete-block loop.
-  forward :: I64 -> I64 -> U8 -> U8 -> I64 -> I64
-  forward address remaining wanted mode skipped = if eq-u8 mode 1 then forward-control address remaining wanted skipped
-    else if eq-u8 mode 2 then forward-scheme address remaining wanted skipped
-    else if eq-u8 mode 3 then forward-user address remaining wanted skipped
-    else forward-byte address remaining wanted skipped
+  -- | Skip complete sixteen-byte blocks using SIMD ASCII controls and DEL classification.
+  forward-control :: Bytes -> I64 -> I64 -> I64
+  forward-control input i end =
+    let len = bytes-len-i64 input in
+    let stop = if le-i64 end len then end else len in
+    if 16 <= stop && 0 <= i then
+      let ns = nat-from-i64 stop in
+      let nl = nat-from-i64 len in
+      if 16 <= ns && ns <= nl then
+        let ni = nat-from-i64 i in
+        if ni <= ns - 16 then
+          let chunk = bytes-load-u128-at input i in
+          if eq-u32 (mask-control16 chunk) 0 then forward-control input (wrapping-add-i64 i 16) stop
+          else fringe input i stop 0 1
+        else fringe input i stop 0 1
+      else fringe input i stop 0 1
+    else fringe input i stop 0 1
 
-  -- | Skip complete blocks using specialized SIMD target-byte equality classification.
-  forward-byte :: I64 -> I64 -> U8 -> I64 -> I64
-  forward-byte address remaining wanted skipped = if ge-i64 remaining 8 then
-    let word = load-eight address in let mask = mask-eight word wanted 0 in
-    if eq-u8 mask 0 then forward-byte (wrapping-add-i64 address 8) (wrapping-sub-i64 remaining 8) wanted (wrapping-add-i64 skipped 8)
-    else fringe address 8 wanted 0 skipped
-    else fringe address remaining wanted 0 skipped
+  -- | Skip complete sixteen-byte blocks using SIMD valid scheme-byte classification.
+  forward-scheme :: Bytes -> I64 -> I64 -> I64
+  forward-scheme input i end =
+    let len = bytes-len-i64 input in
+    let stop = if le-i64 end len then end else len in
+    if 16 <= stop && 0 <= i then
+      let ns = nat-from-i64 stop in
+      let nl = nat-from-i64 len in
+      if 16 <= ns && ns <= nl then
+        let ni = nat-from-i64 i in
+        if ni <= ns - 16 then
+          let chunk = bytes-load-u128-at input i in
+          if all-scheme16 chunk then forward-scheme input (wrapping-add-i64 i 16) stop
+          else fringe input i stop 0 2
+        else fringe input i stop 0 2
+      else fringe input i stop 0 2
+    else fringe input i stop 0 2
 
-  -- | Skip complete blocks using specialized SIMD ASCII controls and DEL classification.
-  forward-control :: I64 -> I64 -> U8 -> I64 -> I64
-  forward-control address remaining wanted skipped = if ge-i64 remaining 8 then
-    let word = load-eight address in let mask = mask-eight word wanted 1 in
-    if eq-u8 mask 0 then forward-control (wrapping-add-i64 address 8) (wrapping-sub-i64 remaining 8) wanted (wrapping-add-i64 skipped 8)
-    else fringe address 8 wanted 1 skipped
-    else fringe address remaining wanted 1 skipped
+  -- | Skip raw user-information sixteen-byte blocks using a range-compressed SIMD grammar.
+  forward-user :: Bytes -> I64 -> I64 -> I64
+  forward-user input i end =
+    let len = bytes-len-i64 input in
+    let stop = if le-i64 end len then end else len in
+    if 16 <= stop && 0 <= i then
+      let ns = nat-from-i64 stop in
+      let nl = nat-from-i64 len in
+      if 16 <= ns && ns <= nl then
+        let ni = nat-from-i64 i in
+        if ni <= ns - 16 then
+          let chunk = bytes-load-u128-at input i in
+          if all-user16 chunk then forward-user input (wrapping-add-i64 i 16) stop
+          else fringe input i stop 0 3
+        else fringe input i stop 0 3
+      else fringe input i stop 0 3
+    else fringe input i stop 0 3
 
-  -- | Skip complete blocks using specialized SIMD invalid scheme bytes classification.
-  forward-scheme :: I64 -> I64 -> U8 -> I64 -> I64
-  forward-scheme address remaining wanted skipped = if ge-i64 remaining 8 then
-    let word = load-eight address in let mask = mask-eight word wanted 2 in
-    if eq-u8 mask 0 then forward-scheme (wrapping-add-i64 address 8) (wrapping-sub-i64 remaining 8) wanted (wrapping-add-i64 skipped 8)
-    else fringe address 8 wanted 2 skipped
-    else fringe address remaining wanted 2 skipped
+  -- | Search backwards through a scalar fringe inside a checked half-open interval.
+  backward-fringe :: Bytes -> I64 -> I64 -> U8 -> I64
+  backward-fringe input start cur wanted =
+    if lt-i64 start cur && cur <= bytes-len-i64 input then
+      let prev = wrapping-sub-i64 cur 1 in
+      if 0 <= prev && prev < bytes-len-i64 input then
+        if eq-u8 (bytes-get-u8-at input prev) wanted then prev
+        else backward-fringe input start prev wanted
+      else -1
+    else -1
 
-  -- | Skip raw user-information blocks using a constant SIMD grammar and exact fringes.
-  forward-user :: I64 -> I64 -> U8 -> I64 -> I64
-  forward-user address remaining wanted skipped = if ge-i64 remaining 8 then
-    let word = load-eight address in let mask = mask-eight word wanted 3 in
-    if eq-u8 mask 0 then forward-user (wrapping-add-i64 address 8) (wrapping-sub-i64 remaining 8) wanted (wrapping-add-i64 skipped 8)
-    else fringe address 8 wanted 3 skipped
-    else fringe address remaining wanted 3 skipped
+  -- | Search backwards by complete sixteen-byte SIMD blocks, then an exact reverse fringe.
+  backward-blocks :: Bytes -> I64 -> I64 -> U128 -> U8 -> I64
+  backward-blocks input start cur pat wanted =
+    let len = bytes-len-i64 input in
+    if 16 <= len then
+      if 0 <= start && 16 <= cur && cur <= len then
+        let at = wrapping-sub-i64 cur 16 in
+        if start <= at && 0 <= at then
+          let nl = nat-from-i64 len in
+          if 16 <= nl then
+            let na = nat-from-i64 at in
+            if na <= nl - 16 then
+              let chunk = bytes-load-u128-at input at in
+              let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk pat) in
+              if eq-u32 mask 0 then backward-blocks input start at pat wanted
+              else backward-fringe input at cur wanted
+            else backward-fringe input start cur wanted
+          else backward-fringe input start cur wanted
+        else backward-fringe input start cur wanted
+      else backward-fringe input start cur wanted
+    else backward-fringe input start cur wanted
 
-  -- | Search backwards by complete blocks, then use an exact reverse fringe.
-  backward :: I64 -> I64 -> U8 -> Bool -> I64
-  backward base remaining wanted scalar = if le-i64 remaining 0 then -1 else
-    if ge-i64 remaining 8 && not scalar then
-      let at = wrapping-sub-i64 remaining 8 in let address = wrapping-add-i64 base at in
-      let word = load-eight address in let mask = mask-eight word wanted 0 in
-      if eq-u8 mask 0 then backward base at wanted False else backward base remaining wanted True
-    else let at = wrapping-sub-i64 remaining 1 in let address = wrapping-add-i64 base at in
-      let byte = load-one address in if eq-u8 byte wanted then at else backward base at wanted scalar
-
-  -- | Count matching bytes using SIMD masks and bounded SWAR population counts.
-  count :: I64 -> I64 -> U8 -> U64 -> U64
-  count address remaining wanted total = if ge-i64 remaining 8 then
-    let word = load-eight address in let mask = mask-eight word wanted 0 in let n = population mask in
-    count (wrapping-add-i64 address 8) (wrapping-sub-i64 remaining 8) wanted (wrapping-add-u64 total n)
-    else if gt-i64 remaining 0 then let byte = load-one address in
-      let n = if eq-u8 byte wanted then (1 :: U64) else 0 in
-      count (wrapping-add-i64 address 1) (wrapping-sub-i64 remaining 1) wanted (wrapping-add-u64 total n)
+  -- | Count matching bytes across a scalar tail inside a checked interval.
+  count-tail :: Bytes -> I64 -> I64 -> U8 -> U64 -> U64
+  count-tail input i stop wanted total =
+    if 0 <= i && i < stop && i < bytes-len-i64 input then
+      let n = if eq-u8 (bytes-get-u8-at input i) wanted then (1 :: U64) else 0 in
+      count-tail input (wrapping-add-i64 i 1) stop wanted (wrapping-add-u64 total n)
     else total
+
+  -- | Count matching bytes using sixteen-byte SIMD masks and hardware population counts.
+  count-blocks :: Bytes -> I64 -> I64 -> U128 -> U8 -> U64 -> U64
+  count-blocks input i end pat wanted total =
+    let len = bytes-len-i64 input in
+    let stop = if le-i64 end len then end else len in
+    if 16 <= stop && 0 <= i then
+      let ns = nat-from-i64 stop in
+      let nl = nat-from-i64 len in
+      if 16 <= ns && ns <= nl then
+        let ni = nat-from-i64 i in
+        if ni <= ns - 16 then
+          let chunk = bytes-load-u128-at input i in
+          let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk pat) in
+          let hits = u32-to-u64 (count-ones-u32 mask) in
+          count-blocks input (wrapping-add-i64 i 16) stop pat wanted (wrapping-add-u64 total hits)
+        else count-tail input i stop wanted total
+      else count-tail input i stop wanted total
+    else count-tail input i stop wanted total
 
   -- | Reconstruct a nonnegative physical-buffer count outside the machine loop.
   natural-word :: U64 -> Nat
   natural-word word = u32-to-nat (wrapping-u64-to-u32 word) + 4294967296 * u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 word 32))
 
-  -- | Dispatch a checked forward interval while retaining its source owner.
+  -- | Dispatch a checked forward interval without raw pointers.
   find :: Bytes -> Nat -> Nat -> Nat -> U8 -> Nat
   find input start end wanted mode = if start <= end && end <= bytes-len input && wanted <= 255 then
-    let base = bytes-data input in let offset = nat-to-i64 start in let address = wrapping-add-i64 base offset in
-    let remaining = nat-to-i64 (end - start) in let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
-    let result = hold input (forward address remaining byte mode 0) in
-    if 0 <= result then let at = start + nat-from-i64 result in if at <= end then at else end else end
+    let si = nat-to-i64 start in
+    let ei = nat-to-i64 end in
+    let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
+    let result = (
+      if eq-u8 mode 1 then forward-control input si ei
+      else if eq-u8 mode 2 then forward-scheme input si ei
+      else if eq-u8 mode 3 then forward-user input si ei
+      else forward-byte input si ei (simd-u8x16-splat byte) byte
+    ) in
+    if 0 <= result then let at = nat-from-i64 result in if at <= end then at else end else end
     else bytes-len input
 
   -- | Find the first wanted byte in a half-open interval, or its end when absent.
@@ -254,18 +260,20 @@ module Text.Url.Scan where
   -- | Find the last wanted byte in a half-open interval, or its end when absent.
   url-last-byte :: Bytes -> Nat -> Nat -> Nat -> Nat
   url-last-byte input start end wanted = if start <= end && end <= bytes-len input && wanted <= 255 then
-    let base = bytes-data input in let offset = nat-to-i64 start in let address = wrapping-add-i64 base offset in
-    let remaining = nat-to-i64 (end - start) in let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
-    let result = hold input (backward address remaining byte False) in
-    if 0 <= result then let at = start + nat-from-i64 result in if at < end then at else end else end
+    let si = nat-to-i64 start in
+    let ei = nat-to-i64 end in
+    let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
+    let result = backward-blocks input si ei (simd-u8x16-splat byte) byte in
+    if 0 <= result then let at = nat-from-i64 result in if at < end then at else end else end
     else bytes-len input
 
   -- | Count exact wanted-byte occurrences in a half-open interval; invalid bounds yield zero.
   url-count-byte :: Bytes -> Nat -> Nat -> Nat -> Nat
   url-count-byte input start end wanted = if start <= end && end <= bytes-len input && wanted <= 255 then
-    let base = bytes-data input in let offset = nat-to-i64 start in let address = wrapping-add-i64 base offset in
-    let remaining = nat-to-i64 (end - start) in let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
-    natural-word (hold input (count address remaining byte 0)) else 0
+    let si = nat-to-i64 start in
+    let ei = nat-to-i64 end in
+    let byte = wrapping-i64-to-u8 (nat-to-i64 wanted) in
+    natural-word (count-blocks input si ei (simd-u8x16-splat byte) byte 0) else 0
 
   -- | Find an ASCII scheme colon with SIMD grammar scanning; return input length when absent or invalid.
   url-scheme-colon :: Bytes -> Nat

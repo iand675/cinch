@@ -7,7 +7,7 @@
 module Data.Mutable.Ring where
   import Data.Bytes (bytes-new, bytes-len, bytes-data)
   import Data.Machine
-  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128)
+  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128, simd-u64x2-pack, simd-u64x2-splat, simd-u64x2-add)
   import Data.Nat
   import Data.Int (int-mod-nat)
   import Data.Option
@@ -261,25 +261,12 @@ module Data.Mutable.Ring where
         let installed = slots-write storage 0 replacement in replacement
       else old
 
-  -- | Offset independent previous/next links in two LLVM vector lanes, packing the first result low.
-  -- Packing uses explicit integer shifts rather than a host-endian vector
-  -- bitcast. Each lane wraps independently; checked arena bounds make the
-  -- actual link additions exact. No pointer or ownership word enters SIMD.
-  prim offset-pair :: U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %left = insertelement <2 x i64> zeroinitializer, i64 %0, i32 0
-      %links = insertelement <2 x i64> %left, i64 %1, i32 1
-      %once = insertelement <2 x i64> zeroinitializer, i64 %2, i32 0
-      %offset = shufflevector <2 x i64> %once, <2 x i64> zeroinitializer, <2 x i32> zeroinitializer
-      %shifted = add <2 x i64> %links, %offset
-      %previous = extractelement <2 x i64> %shifted, i32 0
-      %following = extractelement <2 x i64> %shifted, i32 1
-      %low = zext i64 %previous to i128
-      %upper = zext i64 %following to i128
-      %high = shl i128 %upper, 64
-      %packed = or i128 %low, %high
-      ret i128 %packed
-    }
+  -- | Offset independent previous/next links in two 64-bit SIMD lanes, packing the first result low.
+  -- Each lane wraps independently; checked arena bounds make the actual link
+  -- additions exact. No pointer or ownership word enters SIMD.
+  offset-pair :: U64 -> U64 -> U64 -> U128
+  offset-pair previous following offset =
+    simd-u64x2-add (simd-u64x2-pack previous following) (simd-u64x2-splat offset)
 
   -- | Adjust both links of every transferred node to its new absolute arena offset.
   offset-links :: forall a. RingArena a -> U64 -> U64 -> U64 -> Unit

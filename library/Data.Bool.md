@@ -10,8 +10,8 @@ Boolean operations and their comparison instances.
 
 Data.Bool: the booleans and their strict operations.
 
-`Bool` is a core runtime type; the `cinch.prim.*Bool` foreign
-imports are the machine operations. `&&` and `||` are strict
+`Bool` is a core runtime type; its primitive operations are pure
+Cinch case expressions. `&&` and `||` are strict
 functions in the bootstrap slice; the surface short-circuiting form
 lands with the effects correction (primitive types specification
 section 6).
@@ -29,7 +29,7 @@ codec generator's BOOLEAN column is exactly one byte, 0 or 1).
 # Values
 
 <article class="doc-entry" id="v-op-2626">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">&amp;&amp;</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-op-2626" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">&amp;&amp;</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-op-2626" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L55" title="View source at line 55">Source</a></span></div>
 <div class="doc-body">
 
 These are strict functions in the bootstrap slice; the surface `&&`
@@ -40,7 +40,7 @@ types specification, section 6).
 </article>
 
 <article class="doc-entry" id="v-and">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">and</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-and" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L42" title="View source at line 42">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">and</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-and" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L65" title="View source at line 65">Source</a></span></div>
 <div class="doc-body">
 
 The strict boolean algebra (primitive types specification, section 6).
@@ -49,7 +49,7 @@ The strict boolean algebra (primitive types specification, section 6).
 </article>
 
 <article class="doc-entry" id="v-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bool</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bool</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L77" title="View source at line 77">Source</a></span></div>
 <div class="doc-body">
 
 The boolean fold: `bool f t b` is `t` when `b` is `True` and `f`
@@ -60,15 +60,15 @@ constructors' order.
 </article>
 
 <article class="doc-entry" id="v-not">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">not</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-not" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">not</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-not" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L61" title="View source at line 61">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-or">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">or</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-or" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">or</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-or" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L68" title="View source at line 68">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-prim-and-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-and-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-and-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-and-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-and-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L42" title="View source at line 42">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-prim-eq-bool">
@@ -76,23 +76,23 @@ constructors' order.
 </article>
 
 <article class="doc-entry" id="v-prim-ne-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-ne-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-ne-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L24" title="View source at line 24">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-ne-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-ne-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L30" title="View source at line 30">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-prim-not-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-not-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-not-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-not-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-not-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L37" title="View source at line 37">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-prim-or-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-or-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-or-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prim-or-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-prim-or-bool" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L47" title="View source at line 47">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-xor">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-xor" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-xor" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L71" title="View source at line 71">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-op-7c7c">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">||</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-op-7c7c" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">||</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-op-7c7c" title="Permalink">#</a><a href="/packages/stdlib/Data.Bool/source/#L58" title="View source at line 58">Source</a></span></div>
 </article>
 
 # Operator fixities

@@ -128,30 +128,10 @@ fn html_declarations_have_canonical_documentation() {
     }
 }
 
-/// The actual SIMD, SWAR, exact-load and packed-name arithmetic remains legal on foreign objects.
+/// The actual 16-byte SIMD escaping, unescaping and entity-lookup paths remain legal on foreign objects.
 /// This checks the Rust emitter explicitly; selected host frontend tests never fall back.
 #[test]
 fn html_kernels_compile_for_wasm_arm_and_big_endian_targets() {
-    let source = include_str!("../prelude/Text/Html.cinch");
-    let mut kernels = String::from("-- | Isolated actual HTML kernel compilation.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n");
-    for name in [
-        "load-eight",
-        "load-one",
-        "special-eight",
-        "extra-eight",
-        "escape-span",
-        "entity-name-hash",
-        "pack-scalar",
-    ] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str(
-            "\n  -- | Checked private HTML arithmetic or caller-proved exact source load.\n",
-        );
-        kernels.push_str(&rest[..end]);
-    }
-    kernels.push_str("\n  -- | Retain complete source storage until its exact private load finishes.\n  keep :: forall a. Bytes -> a -> a\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every isolated arithmetic and load kernel reachable without foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 8 in let word = keep bytes (load-eight (bytes-data bytes)) in let byte = keep bytes (load-one (bytes-data bytes)) in let mask = special-eight word byte in let count = extra-eight word in let scalar = pack-scalar (wrapping-u64-to-u32 count) in let span = escape-span byte in let hash = entity-name-hash word scalar count (u8-to-u64 mask) (bit-or-u64 span 8) in if eq-u64 hash 0 then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -170,21 +150,42 @@ fn html_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Html.cinch"),
+            include_str!("../prelude/Text/Html.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public HTML escaping and unescaping paths for foreign targets.\nmodule Main where\n  import Text.Html\n  import Data.Bytes\n  import Data.Nat\n\n  -- | Exercise public 16-byte SIMD escaping and unescaping paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 32 in\n    let escaped = html-escape-bytes input in\n    let unescaped = html-unescape-bytes escaped in\n    if bytes-len unescaped == bytes-len input && html-escaped-length input >= bytes-len input then 0 else 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "html-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

@@ -1,0 +1,308 @@
+-- | Deterministic property-based testing over Data.Rand's PCG generator.
+-- Provides the Arbitrary typeclass with instances for primitive scalars,
+-- text, byte buffers, optional values, lists, pairs, and triples, plus
+-- configurable property and function-equivalence checkers returning explicit
+-- counterexamples on failure.
+module Effect.Test.Quick where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Float
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Rand
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+
+  export Arbitrary, arbitrary
+  export QuickConfig, default-quick-config, quick-config-max-count, quick-config-max-size, quick-config-seed
+  export QuickFailure, quick-failure-count, quick-failure-input, quick-failure-reason
+  export QuickEqualFailure, quick-equal-count, quick-equal-input, quick-equal-left, quick-equal-right
+  export quick-check, quick-check-with, quick-check2, quick-check2-with, quick-check3, quick-check3-with
+  export quick-check-equal, quick-check-equal-with
+
+  -- | Generator of arbitrary test values driven by an explicit PCG state and a size hint.
+  signature Arbitrary a where
+    -- | Produce a pseudorandom value and the next PCG generator state using the given size hint.
+    arbitrary :: Pcg -> Nat -> (a, Pcg)
+
+  -- | Configuration controlling trial count, compound-value size bound, and initial PRNG seed.
+  data QuickConfig where
+    -- | Maximum number of trials, compound size hint, and initial PCG state.
+    QuickConfig :: Nat -> Nat -> Pcg -> QuickConfig
+
+  -- | Default configuration: 100 trials, size bound 50, deterministic PCG seed (1, 2).
+  default-quick-config :: QuickConfig
+  default-quick-config = QuickConfig 100 50 (pcg-new 1 2)
+
+  -- | Read the configured maximum number of trials.
+  quick-config-max-count :: QuickConfig -> Nat
+  quick-config-max-count cfg = case cfg of QuickConfig n _ _ -> n
+
+  -- | Read the configured compound-value size hint.
+  quick-config-max-size :: QuickConfig -> Nat
+  quick-config-max-size cfg = case cfg of QuickConfig _ s _ -> s
+
+  -- | Read the initial PCG seed stored in the configuration.
+  quick-config-seed :: QuickConfig -> Pcg
+  quick-config-seed cfg = case cfg of QuickConfig _ _ g -> g
+
+  -- | Counterexample reported when a property returns False.
+  data QuickFailure a where
+    -- | One-based failing trial count, counterexample input, and diagnostic reason.
+    QuickFailure :: Nat -> a -> String -> QuickFailure a
+
+  -- | Return the one-based trial index on which the property failed.
+  quick-failure-count :: forall a. QuickFailure a -> Nat
+  quick-failure-count f = case f of QuickFailure c _ _ -> c
+
+  -- | Return the input value that falsified the property.
+  quick-failure-input :: forall a. QuickFailure a -> a
+  quick-failure-input f = case f of QuickFailure _ x _ -> x
+
+  -- | Return the failure reason description.
+  quick-failure-reason :: forall a. QuickFailure a -> String
+  quick-failure-reason f = case f of QuickFailure _ _ msg -> msg
+
+  -- | Counterexample reported when two functions disagree on a generated input.
+  data QuickEqualFailure a b where
+    -- | One-based failing trial count, shared input, left output, and right output.
+    QuickEqualFailure :: Nat -> a -> b -> b -> QuickEqualFailure a b
+
+  -- | Return the one-based trial index on which the two functions disagreed.
+  quick-equal-count :: forall a b. QuickEqualFailure a b -> Nat
+  quick-equal-count f = case f of QuickEqualFailure c _ _ _ -> c
+
+  -- | Return the input value on which the two functions disagreed.
+  quick-equal-input :: forall a b. QuickEqualFailure a b -> a
+  quick-equal-input f = case f of QuickEqualFailure _ x _ _ -> x
+
+  -- | Return the output produced by the first function on the counterexample input.
+  quick-equal-left :: forall a b. QuickEqualFailure a b -> b
+  quick-equal-left f = case f of QuickEqualFailure _ _ l _ -> l
+
+  -- | Return the output produced by the second function on the counterexample input.
+  quick-equal-right :: forall a b. QuickEqualFailure a b -> b
+  quick-equal-right f = case f of QuickEqualFailure _ _ _ r -> r
+
+  -- | Draw a uniform Nat in the inclusive range [0, bound].
+  rand-nat-inclusive :: Pcg -> Nat -> (Nat, Pcg)
+  rand-nat-inclusive g bound =
+    let limit = if bound < 4611686018427387903 then wrapping-i64-to-u64 (nat-to-i64 (bound + 1)) else 4611686018427387904 in
+    case rand-uint64-n g limit of
+      Some (w, g1) -> (nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807), g1)
+      None -> (0, g)
+
+  -- | Generate a list of n arbitrary characters with constant stack depth.
+  arbitrary-chars :: Pcg -> Nat -> List Char -> (List Char, Pcg)
+  arbitrary-chars g remaining acc =
+    if remaining == 0 then (reverse acc, g)
+    else case arbitrary g 0 of
+      (c, g1) -> arbitrary-chars g1 (remaining - 1) (Cons c acc)
+
+  -- | Fill a preallocated byte buffer with uniform random bytes from index i to len.
+  fill-arbitrary-bytes :: Bytes -> Nat -> Nat -> Pcg -> Pcg
+  fill-arbitrary-bytes out i len g =
+    if i >= len then g
+    else if i < bytes-len out then
+      case pcg-uint64 g of
+        (w, g1) ->
+          let byte = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 255) in
+          let written = bytes-set out i byte in
+          fill-arbitrary-bytes out (i + 1) len g1
+    else g
+
+  -- | Generate a list of n arbitrary elements with constant stack depth.
+  arbitrary-list-elems :: forall a. using (arba :: Arbitrary a) => Pcg -> Nat -> Nat -> List a -> (List a, Pcg)
+  arbitrary-list-elems g remaining elem-size acc =
+    if remaining == 0 then (reverse acc, g)
+    else case arbitrary g elem-size of
+      (x, g1) -> arbitrary-list-elems g1 (remaining - 1) elem-size (Cons x acc)
+
+  -- | Arbitrary booleans with equal probability of True and False.
+  implicit instance Arbitrary_Bool :: Arbitrary Bool where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (eq-u64 (bit-and-u64 w 1) 1, g1)
+
+  -- | Arbitrary unsigned 8-bit integers across [0, 255].
+  implicit instance Arbitrary_U8 :: Arbitrary U8 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-u8 w, g1)
+
+  -- | Arbitrary unsigned 16-bit integers across [0, 65535].
+  implicit instance Arbitrary_U16 :: Arbitrary U16 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-u16 w, g1)
+
+  -- | Arbitrary unsigned 32-bit integers across the full 32-bit range.
+  implicit instance Arbitrary_U32 :: Arbitrary U32 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-u32 w, g1)
+
+  -- | Arbitrary unsigned 64-bit integers across the full 64-bit range.
+  implicit instance Arbitrary_U64 :: Arbitrary U64 where
+    arbitrary g _ = pcg-uint64 g
+
+  -- | Arbitrary signed 8-bit integers across [-128, 127].
+  implicit instance Arbitrary_I8 :: Arbitrary I8 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-i8 w, g1)
+
+  -- | Arbitrary signed 16-bit integers across [-32768, 32767].
+  implicit instance Arbitrary_I16 :: Arbitrary I16 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-i16 w, g1)
+
+  -- | Arbitrary signed 32-bit integers across the full 32-bit range.
+  implicit instance Arbitrary_I32 :: Arbitrary I32 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-i32 w, g1)
+
+  -- | Arbitrary signed 64-bit integers across the full 64-bit range.
+  implicit instance Arbitrary_I64 :: Arbitrary I64 where
+    arbitrary g _ = case pcg-uint64 g of
+      (w, g1) -> (wrapping-u64-to-i64 w, g1)
+
+  -- | Arbitrary natural numbers mixing small size-bounded values and full 63-bit draws.
+  implicit instance Arbitrary_Nat :: Arbitrary Nat where
+    arbitrary g size = case pcg-uint64 g of
+      (w, g1) ->
+        if eq-u64 (bit-and-u64 w 7) 0 then rand-nat-inclusive g1 size
+        else (nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807), g1)
+
+  -- | Arbitrary mathematical integers mixing small signed values and full 64-bit draws.
+  implicit instance Arbitrary_Int :: Arbitrary Int where
+    arbitrary g size = case pcg-uint64 g of
+      (w, g1) ->
+        if eq-u64 (bit-and-u64 w 7) 0 then
+          case rand-nat-inclusive g1 size of
+            (mag, g2) ->
+              let v = nat-to-int mag in
+              if eq-u64 (bit-and-u64 w 8) 8 then (0 - v, g2) else (v, g2)
+        else (int-from-i64 (wrapping-u64-to-i64 w), g1)
+
+  -- | Arbitrary finite binary64 floats spanning [-max-f64, +max-f64].
+  implicit instance Arbitrary_F64 :: Arbitrary F64 where
+    arbitrary g _ = case rand-float64 g of
+      (u, g1) -> case pcg-uint64 g1 of
+        (s, g2) ->
+          let mag = mul-f64 u max-f64 in
+          let val = if eq-u64 (bit-and-u64 s 1) 1 then neg-f64 mag else mag in
+          (val, g2)
+
+  -- | Arbitrary Unicode scalar values distributed uniformly across all non-surrogate code points.
+  implicit instance Arbitrary_Char :: Arbitrary Char where
+    arbitrary g _ = case rand-uint64-n g 1112064 of
+      Some (k, g1) ->
+        let cp = if lt-u64 k 55296 then k else wrapping-add-u64 k 2048 in
+        case u32-to-char (wrapping-u64-to-u32 cp) of
+          Some c -> (c, g1)
+          None -> ('a', g1)
+      None -> ('a', g)
+
+  -- | Arbitrary valid UTF-8 strings with scalar length drawn uniformly in [0, size].
+  implicit instance Arbitrary_String :: Arbitrary String where
+    arbitrary g size = case rand-nat-inclusive g size of
+      (len, g1) -> case arbitrary-chars g1 len Nil of
+        (cs, g2) -> (pack cs, g2)
+
+  -- | Arbitrary byte buffers with byte length drawn uniformly in [0, size].
+  implicit instance Arbitrary_Bytes :: Arbitrary Bytes where
+    arbitrary g size = case rand-nat-inclusive g size of
+      (len, g1) ->
+        let out = bytes-new len in
+        let g2 = fill-arbitrary-bytes out 0 len g1 in
+        (out, g2)
+
+  -- | Arbitrary optional values yielding None one quarter of the time and Some otherwise.
+  implicit instance Arbitrary_Option a :: using (arba :: Arbitrary a) => Arbitrary (Option a) where
+    arbitrary g size = case pcg-uint64 g of
+      (w, g1) ->
+        if eq-u64 (bit-and-u64 w 3) 0 then (None, g1)
+        else case arbitrary g1 size of
+          (x, g2) -> (Some x, g2)
+
+  -- | Arbitrary lists with length drawn uniformly in [0, size] and halved element size hints.
+  implicit instance Arbitrary_List a :: using (arba :: Arbitrary a) => Arbitrary (List a) where
+    arbitrary g size = case rand-nat-inclusive g size of
+      (len, g1) ->
+        let elem-size = if size > 2 then nat-div size 2 else size in
+        arbitrary-list-elems g1 len elem-size Nil
+
+  -- | Arbitrary pairs generated independently in left-to-right order.
+  implicit instance Arbitrary_Pair a b :: using (arba :: Arbitrary a, arbb :: Arbitrary b) => Arbitrary (a, b) where
+    arbitrary g size = case arbitrary g size of
+      (x, g1) -> case arbitrary g1 size of
+        (y, g2) -> ((x, y), g2)
+
+  -- | Arbitrary triples generated independently in left-to-right order.
+  implicit instance Arbitrary_Triple a b c :: using (arba :: Arbitrary a, arbb :: Arbitrary b, arbc :: Arbitrary c) => Arbitrary (a, b, c) where
+    arbitrary g size = case arbitrary g size of
+      (x, g1) -> case arbitrary g1 size of
+        (y, g2) -> case arbitrary g2 size of
+          (z, g3) -> ((x, y, z), g3)
+
+  -- | Run a one-argument property under explicit configuration and return either the failing trial or total passing trials.
+  quick-check-with :: forall a. using (arb :: Arbitrary a) => QuickConfig -> (a -> Bool) -> Result (QuickFailure a) Nat
+  quick-check-with cfg prop =
+    check-loop prop (quick-config-max-count cfg) (quick-config-max-size cfg) 0 (quick-config-seed cfg)
+
+  -- | Tail-recursive trial loop for quick-check-with.
+  check-loop :: forall a. using (arb :: Arbitrary a) => (a -> Bool) -> Nat -> Nat -> Nat -> Pcg -> Result (QuickFailure a) Nat
+  check-loop prop max-count max-size done g =
+    if done >= max-count then Ok done
+    else
+      let trial = done + 1 in
+      case arbitrary g max-size of
+        (input, next-g) ->
+          if prop input then check-loop prop max-count max-size trial next-g
+          else Err (QuickFailure trial input "property returned false")
+
+  -- | Run a one-argument property using default-quick-config.
+  quick-check :: forall a. using (arb :: Arbitrary a) => (a -> Bool) -> Result (QuickFailure a) Nat
+  quick-check prop = quick-check-with default-quick-config prop
+
+  -- | Run a two-argument property under explicit configuration.
+  quick-check2-with :: forall a b. using (arba :: Arbitrary a, arbb :: Arbitrary b) => QuickConfig -> (a -> b -> Bool) -> Result (QuickFailure (a, b)) Nat
+  quick-check2-with cfg prop =
+    quick-check-with cfg (\pair -> case pair of (x, y) -> prop x y)
+
+  -- | Run a two-argument property using default-quick-config.
+  quick-check2 :: forall a b. using (arba :: Arbitrary a, arbb :: Arbitrary b) => (a -> b -> Bool) -> Result (QuickFailure (a, b)) Nat
+  quick-check2 prop = quick-check2-with default-quick-config prop
+
+  -- | Run a three-argument property under explicit configuration.
+  quick-check3-with :: forall a b c. using (arba :: Arbitrary a, arbb :: Arbitrary b, arbc :: Arbitrary c) => QuickConfig -> (a -> b -> c -> Bool) -> Result (QuickFailure (a, b, c)) Nat
+  quick-check3-with cfg prop =
+    quick-check-with cfg (\triple -> case triple of (x, y, z) -> prop x y z)
+
+  -- | Run a three-argument property using default-quick-config.
+  quick-check3 :: forall a b c. using (arba :: Arbitrary a, arbb :: Arbitrary b, arbc :: Arbitrary c) => (a -> b -> c -> Bool) -> Result (QuickFailure (a, b, c)) Nat
+  quick-check3 prop = quick-check3-with default-quick-config prop
+
+  -- | Check whether two functions produce equal outputs over generated inputs under explicit configuration.
+  quick-check-equal-with :: forall a b. using (arb :: Arbitrary a, eqb :: Eq b) => QuickConfig -> (a -> b) -> (a -> b) -> Result (QuickEqualFailure a b) Nat
+  quick-check-equal-with cfg f h =
+    check-equal-loop f h (quick-config-max-count cfg) (quick-config-max-size cfg) 0 (quick-config-seed cfg)
+
+  -- | Tail-recursive trial loop for quick-check-equal-with.
+  check-equal-loop :: forall a b. using (arb :: Arbitrary a, eqb :: Eq b) => (a -> b) -> (a -> b) -> Nat -> Nat -> Nat -> Pcg -> Result (QuickEqualFailure a b) Nat
+  check-equal-loop f h max-count max-size done g =
+    if done >= max-count then Ok done
+    else
+      let trial = done + 1 in
+      case arbitrary g max-size of
+        (input, next-g) ->
+          let left = f input in
+          let right = h input in
+          if left == right then check-equal-loop f h max-count max-size trial next-g
+          else Err (QuickEqualFailure trial input left right)
+
+  -- | Check whether two functions agree on generated inputs using default-quick-config.
+  quick-check-equal :: forall a b. using (arb :: Arbitrary a, eqb :: Eq b) => (a -> b) -> (a -> b) -> Result (QuickEqualFailure a b) Nat
+  quick-check-equal f h = quick-check-equal-with default-quick-config f h

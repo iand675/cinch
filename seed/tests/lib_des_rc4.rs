@@ -79,7 +79,7 @@ fn des_kernels_compile_for_arm_wasm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>") && ir.contains("@llvm.fshl.i32"));
+        assert!(ir.contains("call i32 @llvm.fshr.i32") && ir.contains("call i32 @llvm.fshl.i32"));
         let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .args(["-target", triple, "-O2", "-c", "-x", "ir"])
             .arg(project.join("program.ll"))

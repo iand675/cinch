@@ -1,0 +1,1942 @@
+-- | Pure bounds-checked parser for ELF32 and ELF64 object and executable files.
+-- Supports little-endian and big-endian byte orders, file headers, program headers,
+-- section headers, string tables, static and dynamic symbol tables, REL and RELA
+-- relocations, dynamic section tags and imported libraries/symbols, and zlib
+-- decompression of SHF_COMPRESSED sections.
+module Data.Elf where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Binary (ByteOrder, LittleEndian, BigEndian, binary-read-u16, binary-read-u32, binary-read-u64)
+  import Text.Show (nat-to-string)
+  import Text.Zlib (ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream, inflate)
+
+  export ElfError, ElfTruncated, ElfBadMagic, ElfUnsupportedClass, ElfUnsupportedData, ElfUnsupportedVersion, ElfInvalidHeader, ElfInvalidSection, ElfInvalidProgram, ElfNoSymbols, ElfNobitsSection, ElfInvalidDynTag, ElfUnsupportedCompression, ElfDecompressFailed, elf-error-message
+  export ElfClass, ElfClassNone, ElfClass32, ElfClass64, elf-class-code
+  export ElfData, ElfDataNone, ElfData2Lsb, ElfData2Msb, elf-data-code
+  export ElfType, ElfTypeNone, ElfTypeRel, ElfTypeExec, ElfTypeDyn, ElfTypeCore, ElfTypeOther, elf-type-code
+  export ElfMachine, ElfMachineNone, ElfMachine386, ElfMachineSparc, ElfMachineMips, ElfMachinePpc, ElfMachinePpc64, ElfMachineArm, ElfMachineX8664, ElfMachineAarch64, ElfMachineRiscv, ElfMachineS390, ElfMachineLoongArch, ElfMachineOther, elf-machine-code
+  export ElfOsAbi, ElfOsAbiNone, ElfOsAbiLinux, ElfOsAbiFreeBsd, ElfOsAbiNetBsd, ElfOsAbiOpenBsd, ElfOsAbiSolaris, ElfOsAbiArm, ElfOsAbiStandalone, ElfOsAbiOther, elf-osabi-code
+  export ElfProgType, PtNull, PtLoad, PtDynamic, PtInterp, PtNote, PtShlib, PtPhdr, PtTls, PtGnuEhFrame, PtGnuStack, PtGnuRelro, PtGnuProperty, PtOther, elf-prog-type-code
+  export ElfSectionType, ShtNull, ShtProgbits, ShtSymtab, ShtStrtab, ShtRela, ShtHash, ShtDynamic, ShtNote, ShtNobits, ShtRel, ShtShlib, ShtDynsym, ShtInitArray, ShtFiniArray, ShtPreinitArray, ShtGroup, ShtSymtabShndx, ShtGnuHash, ShtGnuVerdef, ShtGnuVerneed, ShtGnuVersym, ShtOther, elf-section-type-code
+  export ElfSymBind, StbLocal, StbGlobal, StbWeak, StbOther, elf-sym-bind-code
+  export ElfSymType, SttNotype, SttObject, SttFunc, SttSection, SttFile, SttCommon, SttTls, SttOther, elf-sym-type-code
+  export ElfSymVis, StvDefault, StvInternal, StvHidden, StvProtected, elf-sym-vis-code
+  export ElfDynTag, DtNull, DtNeeded, DtPltrelsz, DtPltgot, DtHash, DtStrtab, DtSymtab, DtRela, DtRelasz, DtRelaent, DtStrsz, DtSyment, DtInit, DtFini, DtSoname, DtRpath, DtSymbolic, DtRel, DtRelsz, DtRelent, DtPltrel, DtDebug, DtTextrel, DtJmprel, DtBindNow, DtInitArray, DtFiniArray, DtInitArraysz, DtFiniArraysz, DtRunpath, DtFlags, DtFlags1, DtGnuHash, DtOther, elf-dyn-tag-code
+  export pf-x, pf-w, pf-r
+  export shf-write, shf-alloc, shf-execinstr, shf-merge, shf-strings, shf-info-link, shf-link-order, shf-group, shf-tls, shf-compressed
+  export shn-undef, shn-abs, shn-common, shn-xindex, elf-compress-zlib
+  export ElfHeader, elf-class, elf-data, elf-version, elf-osabi, elf-abi-version, elf-byte-order, elf-type, elf-machine, elf-entry, elf-flags
+  export ElfProgHeader, elf-prog-type, elf-prog-flags, elf-prog-offset, elf-prog-vaddr, elf-prog-paddr, elf-prog-filesz, elf-prog-memsz, elf-prog-align
+  export ElfSectionHeader, elf-section-name, elf-section-type, elf-section-flags, elf-section-addr, elf-section-offset, elf-section-size, elf-section-link, elf-section-info, elf-section-addralign, elf-section-entsize, elf-section-file-size, elf-section-compressed, elf-section-compression-type
+  export ElfSymbol, elf-sym-name, elf-sym-info, elf-sym-other, elf-sym-section, elf-sym-value, elf-sym-size, elf-sym-bind, elf-sym-type, elf-sym-visibility
+  export ElfImportedSymbol, elf-imported-name, elf-imported-version, elf-imported-library
+  export ElfRel, elf-rel-offset, elf-rel-info, elf-rel-sym, elf-rel-type
+  export ElfRela, elf-rela-offset, elf-rela-info, elf-rela-addend, elf-rela-sym, elf-rela-type
+  export ElfDynEntry, elf-dyn-tag, elf-dyn-raw-tag, elf-dyn-val
+  export ElfFile, elf-parse, elf-file-header, elf-progs, elf-sections, elf-section, elf-section-by-type, elf-section-data, elf-prog-data
+  export elf-symbols, elf-dynamic-symbols, elf-relocations-rel, elf-relocations-rela
+  export elf-dynamic-entries, elf-dyn-value, elf-dyn-string, elf-imported-libraries, elf-imported-symbols
+  export elf-st-bind, elf-st-type, elf-st-visibility, elf-st-info, elf-r-sym32, elf-r-type32, elf-r-sym64, elf-r-type64
+
+  -- ---------------------------------------------------------------------
+  -- Error vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported when parsing or inspecting an ELF binary.
+  data ElfError where
+    -- | Input ended before a required field or table at the given byte offset.
+    ElfTruncated :: Nat -> String -> ElfError
+    -- | First four bytes do not match the 0x7f E L F magic sequence.
+    ElfBadMagic :: ElfError
+    -- | Identification byte EI_CLASS is neither ELFCLASS32 nor ELFCLASS64.
+    ElfUnsupportedClass :: U8 -> ElfError
+    -- | Identification byte EI_DATA is neither ELFDATA2LSB nor ELFDATA2MSB.
+    ElfUnsupportedData :: U8 -> ElfError
+    -- | Identification byte EI_VERSION is not EV_CURRENT.
+    ElfUnsupportedVersion :: U8 -> ElfError
+    -- | Structural error in the ELF file header.
+    ElfInvalidHeader :: String -> ElfError
+    -- | Invalid section header or out-of-range section reference at index.
+    ElfInvalidSection :: Nat -> String -> ElfError
+    -- | Invalid program header or out-of-range segment reference at index.
+    ElfInvalidProgram :: Nat -> String -> ElfError
+    -- | Requested symbol table section is absent.
+    ElfNoSymbols :: ElfError
+    -- | Attempted to read file bytes from a SHT_NOBITS section.
+    ElfNobitsSection :: String -> ElfError
+    -- | Requested a dynamic string lookup for a non-string dynamic tag.
+    ElfInvalidDynTag :: U64 -> ElfError
+    -- | Section carries SHF_COMPRESSED with an unsupported compression type.
+    ElfUnsupportedCompression :: U32 -> ElfError
+    -- | Zlib decompression of a compressed section failed.
+    ElfDecompressFailed :: String -> ElfError
+
+  -- | Render a human-readable diagnostic for an ELF error.
+  elf-error-message :: ElfError -> String
+  elf-error-message err = case err of
+    ElfTruncated off detail -> string-concat "truncated ELF data at offset " (string-concat (nat-to-string off) (string-concat ": " detail))
+    ElfBadMagic -> "invalid ELF magic bytes"
+    ElfUnsupportedClass c -> string-concat "unsupported ELF class " (nat-to-string (u8-to-nat c))
+    ElfUnsupportedData d -> string-concat "unsupported ELF data encoding " (nat-to-string (u8-to-nat d))
+    ElfUnsupportedVersion v -> string-concat "unsupported ELF version " (nat-to-string (u8-to-nat v))
+    ElfInvalidHeader detail -> string-concat "invalid ELF header: " detail
+    ElfInvalidSection idx detail -> string-concat "invalid ELF section " (string-concat (nat-to-string idx) (string-concat ": " detail))
+    ElfInvalidProgram idx detail -> string-concat "invalid ELF program header " (string-concat (nat-to-string idx) (string-concat ": " detail))
+    ElfNoSymbols -> "no ELF symbol table section"
+    ElfNobitsSection name -> string-concat "ELF SHT_NOBITS section has no file data: " name
+    ElfInvalidDynTag tag -> string-concat "non-string ELF dynamic tag " (nat-to-string (u64-to-nat-sat tag))
+    ElfUnsupportedCompression typ -> string-concat "unsupported ELF compression type " (nat-to-string (u32-to-nat typ))
+    ElfDecompressFailed detail -> string-concat "ELF section decompression failed: " detail
+
+  -- ---------------------------------------------------------------------
+  -- Constants and enumerations.
+  -- ---------------------------------------------------------------------
+
+  -- | Executable permission flag on a program header (PF_X).
+  pf-x :: U32
+  pf-x = 1
+
+  -- | Writable permission flag on a program header (PF_W).
+  pf-w :: U32
+  pf-w = 2
+
+  -- | Readable permission flag on a program header (PF_R).
+  pf-r :: U32
+  pf-r = 4
+
+  -- | Section contains writable data (SHF_WRITE).
+  shf-write :: U64
+  shf-write = 1
+
+  -- | Section occupies memory during execution (SHF_ALLOC).
+  shf-alloc :: U64
+  shf-alloc = 2
+
+  -- | Section contains executable instructions (SHF_EXECINSTR).
+  shf-execinstr :: U64
+  shf-execinstr = 4
+
+  -- | Section elements may be merged (SHF_MERGE).
+  shf-merge :: U64
+  shf-merge = 16
+
+  -- | Section contains NUL-terminated strings (SHF_STRINGS).
+  shf-strings :: U64
+  shf-strings = 32
+
+  -- | Section sh_info holds a section header index (SHF_INFO_LINK).
+  shf-info-link :: U64
+  shf-info-link = 64
+
+  -- | Section preserves special ordering requirements (SHF_LINK_ORDER).
+  shf-link-order :: U64
+  shf-link-order = 128
+
+  -- | Section is a member of a section group (SHF_GROUP).
+  shf-group :: U64
+  shf-group = 512
+
+  -- | Section holds thread-local storage (SHF_TLS).
+  shf-tls :: U64
+  shf-tls = 1024
+
+  -- | Section data is compressed with a Chdr prefix (SHF_COMPRESSED).
+  shf-compressed :: U64
+  shf-compressed = 2048
+
+  -- | Undefined section index (SHN_UNDEF).
+  shn-undef :: U32
+  shn-undef = 0
+
+  -- | Absolute symbol section index (SHN_ABS).
+  shn-abs :: U32
+  shn-abs = 65521
+
+  -- | Common symbol section index (SHN_COMMON).
+  shn-common :: U32
+  shn-common = 65522
+
+  -- | Extended section index escape value (SHN_XINDEX).
+  shn-xindex :: U32
+  shn-xindex = 65535
+
+  -- | Zlib compression identifier (ELFCOMPRESS_ZLIB).
+  elf-compress-zlib :: U32
+  elf-compress-zlib = 1
+
+  -- | ELF address-width class (EI_CLASS).
+  data ElfClass where
+    -- | Invalid class (0).
+    ElfClassNone :: ElfClass
+    -- | 32-bit ELF format (1).
+    ElfClass32 :: ElfClass
+    -- | 64-bit ELF format (2).
+    ElfClass64 :: ElfClass
+
+  -- | Numeric EI_CLASS value for an ElfClass.
+  elf-class-code :: ElfClass -> U8
+  elf-class-code cls = case cls of
+    ElfClassNone -> 0
+    ElfClass32 -> 1
+    ElfClass64 -> 2
+
+  -- | ELF data encoding (EI_DATA).
+  data ElfData where
+    -- | Invalid data encoding (0).
+    ElfDataNone :: ElfData
+    -- | Two's complement little-endian encoding (1).
+    ElfData2Lsb :: ElfData
+    -- | Two's complement big-endian encoding (2).
+    ElfData2Msb :: ElfData
+
+  -- | Numeric EI_DATA value for an ElfData.
+  elf-data-code :: ElfData -> U8
+  elf-data-code d = case d of
+    ElfDataNone -> 0
+    ElfData2Lsb -> 1
+    ElfData2Msb -> 2
+
+  -- | ELF object file type (e_type).
+  data ElfType where
+    -- | No file type (ET_NONE = 0).
+    ElfTypeNone :: ElfType
+    -- | Relocatable object file (ET_REL = 1).
+    ElfTypeRel :: ElfType
+    -- | Executable file (ET_EXEC = 2).
+    ElfTypeExec :: ElfType
+    -- | Shared object or position-independent executable (ET_DYN = 3).
+    ElfTypeDyn :: ElfType
+    -- | Core dump file (ET_CORE = 4).
+    ElfTypeCore :: ElfType
+    -- | Other or processor/OS-specific file type.
+    ElfTypeOther :: U16 -> ElfType
+
+  -- | Decode an e_type field into an ElfType value.
+  decode-elf-type :: U16 -> ElfType
+  decode-elf-type v =
+    if eq-u16 v 0 then ElfTypeNone
+    else if eq-u16 v 1 then ElfTypeRel
+    else if eq-u16 v 2 then ElfTypeExec
+    else if eq-u16 v 3 then ElfTypeDyn
+    else if eq-u16 v 4 then ElfTypeCore
+    else ElfTypeOther v
+
+  -- | Numeric e_type code for an ElfType.
+  elf-type-code :: ElfType -> U16
+  elf-type-code t = case t of
+    ElfTypeNone -> 0
+    ElfTypeRel -> 1
+    ElfTypeExec -> 2
+    ElfTypeDyn -> 3
+    ElfTypeCore -> 4
+    ElfTypeOther v -> v
+
+  -- | ELF machine architecture (e_machine).
+  data ElfMachine where
+    -- | Unknown machine (EM_NONE = 0).
+    ElfMachineNone :: ElfMachine
+    -- | SPARC (EM_SPARC = 2).
+    ElfMachineSparc :: ElfMachine
+    -- | Intel 80386 (EM_386 = 3).
+    ElfMachine386 :: ElfMachine
+    -- | MIPS (EM_MIPS = 8).
+    ElfMachineMips :: ElfMachine
+    -- | PowerPC 32-bit (EM_PPC = 20).
+    ElfMachinePpc :: ElfMachine
+    -- | PowerPC 64-bit (EM_PPC64 = 21).
+    ElfMachinePpc64 :: ElfMachine
+    -- | IBM S/390 (EM_S390 = 22).
+    ElfMachineS390 :: ElfMachine
+    -- | ARM 32-bit (EM_ARM = 40).
+    ElfMachineArm :: ElfMachine
+    -- | AMD x86-64 (EM_X86_64 = 62).
+    ElfMachineX8664 :: ElfMachine
+    -- | ARM 64-bit AArch64 (EM_AARCH64 = 183).
+    ElfMachineAarch64 :: ElfMachine
+    -- | RISC-V (EM_RISCV = 243).
+    ElfMachineRiscv :: ElfMachine
+    -- | LoongArch (EM_LOONGARCH = 258).
+    ElfMachineLoongArch :: ElfMachine
+    -- | Any other machine architecture code.
+    ElfMachineOther :: U16 -> ElfMachine
+
+  -- | Decode an e_machine field into an ElfMachine value.
+  decode-elf-machine :: U16 -> ElfMachine
+  decode-elf-machine v =
+    if eq-u16 v 0 then ElfMachineNone
+    else if eq-u16 v 2 then ElfMachineSparc
+    else if eq-u16 v 3 then ElfMachine386
+    else if eq-u16 v 8 then ElfMachineMips
+    else if eq-u16 v 20 then ElfMachinePpc
+    else if eq-u16 v 21 then ElfMachinePpc64
+    else if eq-u16 v 22 then ElfMachineS390
+    else if eq-u16 v 40 then ElfMachineArm
+    else if eq-u16 v 62 then ElfMachineX8664
+    else if eq-u16 v 183 then ElfMachineAarch64
+    else if eq-u16 v 243 then ElfMachineRiscv
+    else if eq-u16 v 258 then ElfMachineLoongArch
+    else ElfMachineOther v
+
+  -- | Numeric e_machine code for an ElfMachine.
+  elf-machine-code :: ElfMachine -> U16
+  elf-machine-code m = case m of
+    ElfMachineNone -> 0
+    ElfMachineSparc -> 2
+    ElfMachine386 -> 3
+    ElfMachineMips -> 8
+    ElfMachinePpc -> 20
+    ElfMachinePpc64 -> 21
+    ElfMachineS390 -> 22
+    ElfMachineArm -> 40
+    ElfMachineX8664 -> 62
+    ElfMachineAarch64 -> 183
+    ElfMachineRiscv -> 243
+    ElfMachineLoongArch -> 258
+    ElfMachineOther v -> v
+
+  -- | ELF OS/ABI identification (EI_OSABI).
+  data ElfOsAbi where
+    -- | System V / unspecified (0).
+    ElfOsAbiNone :: ElfOsAbi
+    -- | NetBSD (2).
+    ElfOsAbiNetBsd :: ElfOsAbi
+    -- | Linux / GNU (3).
+    ElfOsAbiLinux :: ElfOsAbi
+    -- | Solaris (6).
+    ElfOsAbiSolaris :: ElfOsAbi
+    -- | FreeBSD (9).
+    ElfOsAbiFreeBsd :: ElfOsAbi
+    -- | OpenBSD (12).
+    ElfOsAbiOpenBsd :: ElfOsAbi
+    -- | ARM ABI (97).
+    ElfOsAbiArm :: ElfOsAbi
+    -- | Standalone embedded application (255).
+    ElfOsAbiStandalone :: ElfOsAbi
+    -- | Any other OS/ABI code.
+    ElfOsAbiOther :: U8 -> ElfOsAbi
+
+  -- | Decode EI_OSABI into an ElfOsAbi value.
+  decode-elf-osabi :: U8 -> ElfOsAbi
+  decode-elf-osabi v =
+    if eq-u8 v 0 then ElfOsAbiNone
+    else if eq-u8 v 2 then ElfOsAbiNetBsd
+    else if eq-u8 v 3 then ElfOsAbiLinux
+    else if eq-u8 v 6 then ElfOsAbiSolaris
+    else if eq-u8 v 9 then ElfOsAbiFreeBsd
+    else if eq-u8 v 12 then ElfOsAbiOpenBsd
+    else if eq-u8 v 97 then ElfOsAbiArm
+    else if eq-u8 v 255 then ElfOsAbiStandalone
+    else ElfOsAbiOther v
+
+  -- | Numeric EI_OSABI code for an ElfOsAbi.
+  elf-osabi-code :: ElfOsAbi -> U8
+  elf-osabi-code o = case o of
+    ElfOsAbiNone -> 0
+    ElfOsAbiNetBsd -> 2
+    ElfOsAbiLinux -> 3
+    ElfOsAbiSolaris -> 6
+    ElfOsAbiFreeBsd -> 9
+    ElfOsAbiOpenBsd -> 12
+    ElfOsAbiArm -> 97
+    ElfOsAbiStandalone -> 255
+    ElfOsAbiOther v -> v
+
+  -- | ELF program header segment type (p_type).
+  data ElfProgType where
+    -- | Unused entry (PT_NULL = 0).
+    PtNull :: ElfProgType
+    -- | Loadable segment (PT_LOAD = 1).
+    PtLoad :: ElfProgType
+    -- | Dynamic linking information (PT_DYNAMIC = 2).
+    PtDynamic :: ElfProgType
+    -- | Program interpreter path (PT_INTERP = 3).
+    PtInterp :: ElfProgType
+    -- | Auxiliary note information (PT_NOTE = 4).
+    PtNote :: ElfProgType
+    -- | Reserved shared library entry (PT_SHLIB = 5).
+    PtShlib :: ElfProgType
+    -- | Program header table itself (PT_PHDR = 6).
+    PtPhdr :: ElfProgType
+    -- | Thread-local storage template (PT_TLS = 7).
+    PtTls :: ElfProgType
+    -- | Exception handling frame header (PT_GNU_EH_FRAME = 0x6474e550).
+    PtGnuEhFrame :: ElfProgType
+    -- | Stack permissions (PT_GNU_STACK = 0x6474e551).
+    PtGnuStack :: ElfProgType
+    -- | Read-only after relocation (PT_GNU_RELRO = 0x6474e552).
+    PtGnuRelro :: ElfProgType
+    -- | GNU property notes (PT_GNU_PROPERTY = 0x6474e553).
+    PtGnuProperty :: ElfProgType
+    -- | Any other program segment type code.
+    PtOther :: U32 -> ElfProgType
+
+  -- | Decode a p_type field into an ElfProgType value.
+  decode-prog-type :: U32 -> ElfProgType
+  decode-prog-type v =
+    if eq-u32 v 0 then PtNull
+    else if eq-u32 v 1 then PtLoad
+    else if eq-u32 v 2 then PtDynamic
+    else if eq-u32 v 3 then PtInterp
+    else if eq-u32 v 4 then PtNote
+    else if eq-u32 v 5 then PtShlib
+    else if eq-u32 v 6 then PtPhdr
+    else if eq-u32 v 7 then PtTls
+    else if eq-u32 v 0x6474e550 then PtGnuEhFrame
+    else if eq-u32 v 0x6474e551 then PtGnuStack
+    else if eq-u32 v 0x6474e552 then PtGnuRelro
+    else if eq-u32 v 0x6474e553 then PtGnuProperty
+    else PtOther v
+
+  -- | Numeric p_type code for an ElfProgType.
+  elf-prog-type-code :: ElfProgType -> U32
+  elf-prog-type-code t = case t of
+    PtNull -> 0
+    PtLoad -> 1
+    PtDynamic -> 2
+    PtInterp -> 3
+    PtNote -> 4
+    PtShlib -> 5
+    PtPhdr -> 6
+    PtTls -> 7
+    PtGnuEhFrame -> 0x6474e550
+    PtGnuStack -> 0x6474e551
+    PtGnuRelro -> 0x6474e552
+    PtGnuProperty -> 0x6474e553
+    PtOther v -> v
+
+  -- | ELF section header type (sh_type).
+  data ElfSectionType where
+    -- | Inactive section header (SHT_NULL = 0).
+    ShtNull :: ElfSectionType
+    -- | Program-defined contents (SHT_PROGBITS = 1).
+    ShtProgbits :: ElfSectionType
+    -- | Symbol table (SHT_SYMTAB = 2).
+    ShtSymtab :: ElfSectionType
+    -- | String table (SHT_STRTAB = 3).
+    ShtStrtab :: ElfSectionType
+    -- | Relocation entries with explicit addends (SHT_RELA = 4).
+    ShtRela :: ElfSectionType
+    -- | Symbol hash table (SHT_HASH = 5).
+    ShtHash :: ElfSectionType
+    -- | Dynamic linking information (SHT_DYNAMIC = 6).
+    ShtDynamic :: ElfSectionType
+    -- | Auxiliary note records (SHT_NOTE = 7).
+    ShtNote :: ElfSectionType
+    -- | Zero-initialized section occupying no file bytes (SHT_NOBITS = 8).
+    ShtNobits :: ElfSectionType
+    -- | Relocation entries without explicit addends (SHT_REL = 9).
+    ShtRel :: ElfSectionType
+    -- | Reserved (SHT_SHLIB = 10).
+    ShtShlib :: ElfSectionType
+    -- | Dynamic linker symbol table (SHT_DYNSYM = 11).
+    ShtDynsym :: ElfSectionType
+    -- | Array of initialization function pointers (SHT_INIT_ARRAY = 14).
+    ShtInitArray :: ElfSectionType
+    -- | Array of finalization function pointers (SHT_FINI_ARRAY = 15).
+    ShtFiniArray :: ElfSectionType
+    -- | Array of pre-initialization pointers (SHT_PREINIT_ARRAY = 16).
+    ShtPreinitArray :: ElfSectionType
+    -- | Section group (SHT_GROUP = 17).
+    ShtGroup :: ElfSectionType
+    -- | Extended symbol section index table (SHT_SYMTAB_SHNDX = 18).
+    ShtSymtabShndx :: ElfSectionType
+    -- | GNU-style hash table (SHT_GNU_HASH = 0x6ffffff6).
+    ShtGnuHash :: ElfSectionType
+    -- | GNU symbol version definitions (SHT_GNU_VERDEF = 0x6ffffffd).
+    ShtGnuVerdef :: ElfSectionType
+    -- | GNU symbol version requirements (SHT_GNU_VERNEED = 0x6ffffffe).
+    ShtGnuVerneed :: ElfSectionType
+    -- | GNU symbol version table (SHT_GNU_VERSYM = 0x6fffffff).
+    ShtGnuVersym :: ElfSectionType
+    -- | Any other section type code.
+    ShtOther :: U32 -> ElfSectionType
+
+  -- | Decode a sh_type field into an ElfSectionType value.
+  decode-section-type :: U32 -> ElfSectionType
+  decode-section-type v =
+    if eq-u32 v 0 then ShtNull
+    else if eq-u32 v 1 then ShtProgbits
+    else if eq-u32 v 2 then ShtSymtab
+    else if eq-u32 v 3 then ShtStrtab
+    else if eq-u32 v 4 then ShtRela
+    else if eq-u32 v 5 then ShtHash
+    else if eq-u32 v 6 then ShtDynamic
+    else if eq-u32 v 7 then ShtNote
+    else if eq-u32 v 8 then ShtNobits
+    else if eq-u32 v 9 then ShtRel
+    else if eq-u32 v 10 then ShtShlib
+    else if eq-u32 v 11 then ShtDynsym
+    else if eq-u32 v 14 then ShtInitArray
+    else if eq-u32 v 15 then ShtFiniArray
+    else if eq-u32 v 16 then ShtPreinitArray
+    else if eq-u32 v 17 then ShtGroup
+    else if eq-u32 v 18 then ShtSymtabShndx
+    else if eq-u32 v 0x6ffffff6 then ShtGnuHash
+    else if eq-u32 v 0x6ffffffd then ShtGnuVerdef
+    else if eq-u32 v 0x6ffffffe then ShtGnuVerneed
+    else if eq-u32 v 0x6fffffff then ShtGnuVersym
+    else ShtOther v
+
+  -- | Numeric sh_type code for an ElfSectionType.
+  elf-section-type-code :: ElfSectionType -> U32
+  elf-section-type-code t = case t of
+    ShtNull -> 0
+    ShtProgbits -> 1
+    ShtSymtab -> 2
+    ShtStrtab -> 3
+    ShtRela -> 4
+    ShtHash -> 5
+    ShtDynamic -> 6
+    ShtNote -> 7
+    ShtNobits -> 8
+    ShtRel -> 9
+    ShtShlib -> 10
+    ShtDynsym -> 11
+    ShtInitArray -> 14
+    ShtFiniArray -> 15
+    ShtPreinitArray -> 16
+    ShtGroup -> 17
+    ShtSymtabShndx -> 18
+    ShtGnuHash -> 0x6ffffff6
+    ShtGnuVerdef -> 0x6ffffffd
+    ShtGnuVerneed -> 0x6ffffffe
+    ShtGnuVersym -> 0x6fffffff
+    ShtOther v -> v
+
+  -- | Symbol binding extracted from the upper nibble of st_info.
+  data ElfSymBind where
+    -- | Local symbol not visible outside its object file (STB_LOCAL = 0).
+    StbLocal :: ElfSymBind
+    -- | Global symbol visible across object files (STB_GLOBAL = 1).
+    StbGlobal :: ElfSymBind
+    -- | Weak global symbol (STB_WEAK = 2).
+    StbWeak :: ElfSymBind
+    -- | Other OS- or processor-specific binding.
+    StbOther :: U8 -> ElfSymBind
+
+  -- | Numeric binding value for an ElfSymBind.
+  elf-sym-bind-code :: ElfSymBind -> U8
+  elf-sym-bind-code b = case b of
+    StbLocal -> 0
+    StbGlobal -> 1
+    StbWeak -> 2
+    StbOther v -> v
+
+  -- | Symbol type extracted from the lower nibble of st_info.
+  data ElfSymType where
+    -- | Unspecified symbol type (STT_NOTYPE = 0).
+    SttNotype :: ElfSymType
+    -- | Data object (STT_OBJECT = 1).
+    SttObject :: ElfSymType
+    -- | Executable function (STT_FUNC = 2).
+    SttFunc :: ElfSymType
+    -- | Section symbol (STT_SECTION = 3).
+    SttSection :: ElfSymType
+    -- | Source file name symbol (STT_FILE = 4).
+    SttFile :: ElfSymType
+    -- | Common data object (STT_COMMON = 5).
+    SttCommon :: ElfSymType
+    -- | Thread-local storage object (STT_TLS = 6).
+    SttTls :: ElfSymType
+    -- | Other OS- or processor-specific symbol type.
+    SttOther :: U8 -> ElfSymType
+
+  -- | Numeric type value for an ElfSymType.
+  elf-sym-type-code :: ElfSymType -> U8
+  elf-sym-type-code t = case t of
+    SttNotype -> 0
+    SttObject -> 1
+    SttFunc -> 2
+    SttSection -> 3
+    SttFile -> 4
+    SttCommon -> 5
+    SttTls -> 6
+    SttOther v -> v
+
+  -- | Symbol visibility extracted from the low two bits of st_other.
+  data ElfSymVis where
+    -- | Default visibility (STV_DEFAULT = 0).
+    StvDefault :: ElfSymVis
+    -- | Processor-specific internal visibility (STV_INTERNAL = 1).
+    StvInternal :: ElfSymVis
+    -- | Hidden from other components (STV_HIDDEN = 2).
+    StvHidden :: ElfSymVis
+    -- | Visible but non-preemptible (STV_PROTECTED = 3).
+    StvProtected :: ElfSymVis
+
+  -- | Numeric visibility code for an ElfSymVis.
+  elf-sym-vis-code :: ElfSymVis -> U8
+  elf-sym-vis-code v = case v of
+    StvDefault -> 0
+    StvInternal -> 1
+    StvHidden -> 2
+    StvProtected -> 3
+
+  -- | Extract the symbol binding from st_info (ST_BIND).
+  elf-st-bind :: U8 -> ElfSymBind
+  elf-st-bind info =
+    let b = wrapping-shr-u8 info 4 in
+    if eq-u8 b 0 then StbLocal
+    else if eq-u8 b 1 then StbGlobal
+    else if eq-u8 b 2 then StbWeak
+    else StbOther b
+
+  -- | Extract the symbol type from st_info (ST_TYPE).
+  elf-st-type :: U8 -> ElfSymType
+  elf-st-type info =
+    let t = bit-and-u8 info 15 in
+    if eq-u8 t 0 then SttNotype
+    else if eq-u8 t 1 then SttObject
+    else if eq-u8 t 2 then SttFunc
+    else if eq-u8 t 3 then SttSection
+    else if eq-u8 t 4 then SttFile
+    else if eq-u8 t 5 then SttCommon
+    else if eq-u8 t 6 then SttTls
+    else SttOther t
+
+  -- | Extract the symbol visibility from st_other (ST_VISIBILITY).
+  elf-st-visibility :: U8 -> ElfSymVis
+  elf-st-visibility other =
+    let v = bit-and-u8 other 3 in
+    if eq-u8 v 0 then StvDefault
+    else if eq-u8 v 1 then StvInternal
+    else if eq-u8 v 2 then StvHidden
+    else StvProtected
+
+  -- | Combine a symbol binding and symbol type into st_info (ST_INFO).
+  elf-st-info :: ElfSymBind -> ElfSymType -> U8
+  elf-st-info bind typ =
+    bit-or-u8 (wrapping-shl-u8 (elf-sym-bind-code bind) 4) (bit-and-u8 (elf-sym-type-code typ) 15)
+
+  -- | Dynamic section tag (d_tag).
+  data ElfDynTag where
+    -- | Marks end of dynamic array (DT_NULL = 0).
+    DtNull :: ElfDynTag
+    -- | Name of a needed shared library (DT_NEEDED = 1).
+    DtNeeded :: ElfDynTag
+    -- | Size in bytes of PLT relocation entries (DT_PLTRELSZ = 2).
+    DtPltrelsz :: ElfDynTag
+    -- | Processor-defined address associated with PLT/GOT (DT_PLTGOT = 3).
+    DtPltgot :: ElfDynTag
+    -- | Address of symbol hash table (DT_HASH = 4).
+    DtHash :: ElfDynTag
+    -- | Address of dynamic string table (DT_STRTAB = 5).
+    DtStrtab :: ElfDynTag
+    -- | Address of dynamic symbol table (DT_SYMTAB = 6).
+    DtSymtab :: ElfDynTag
+    -- | Address of Rela relocation table (DT_RELA = 7).
+    DtRela :: ElfDynTag
+    -- | Total size of Rela relocation table (DT_RELASZ = 8).
+    DtRelasz :: ElfDynTag
+    -- | Size of one Rela relocation entry (DT_RELAENT = 9).
+    DtRelaent :: ElfDynTag
+    -- | Size of dynamic string table (DT_STRSZ = 10).
+    DtStrsz :: ElfDynTag
+    -- | Size of one dynamic symbol entry (DT_SYMENT = 11).
+    DtSyment :: ElfDynTag
+    -- | Address of initialization function (DT_INIT = 12).
+    DtInit :: ElfDynTag
+    -- | Address of termination function (DT_FINI = 13).
+    DtFini :: ElfDynTag
+    -- | Shared object name (DT_SONAME = 14).
+    DtSoname :: ElfDynTag
+    -- | Library search path (DT_RPATH = 15).
+    DtRpath :: ElfDynTag
+    -- | Symbolic resolution flag (DT_SYMBOLIC = 16).
+    DtSymbolic :: ElfDynTag
+    -- | Address of Rel relocation table (DT_REL = 17).
+    DtRel :: ElfDynTag
+    -- | Total size of Rel relocation table (DT_RELSZ = 18).
+    DtRelsz :: ElfDynTag
+    -- | Size of one Rel relocation entry (DT_RELENT = 19).
+    DtRelent :: ElfDynTag
+    -- | Type of relocation used by PLT (DT_PLTREL = 20).
+    DtPltrel :: ElfDynTag
+    -- | Debugging pointer (DT_DEBUG = 21).
+    DtDebug :: ElfDynTag
+    -- | Relocations may modify read-only segments (DT_TEXTREL = 22).
+    DtTextrel :: ElfDynTag
+    -- | Address of PLT relocations (DT_JMPREL = 23).
+    DtJmprel :: ElfDynTag
+    -- | Resolve all relocations before execution (DT_BIND_NOW = 24).
+    DtBindNow :: ElfDynTag
+    -- | Address of initialization function array (DT_INIT_ARRAY = 25).
+    DtInitArray :: ElfDynTag
+    -- | Address of termination function array (DT_FINI_ARRAY = 26).
+    DtFiniArray :: ElfDynTag
+    -- | Size of initialization function array (DT_INIT_ARRAYSZ = 27).
+    DtInitArraysz :: ElfDynTag
+    -- | Size of termination function array (DT_FINI_ARRAYSZ = 28).
+    DtFiniArraysz :: ElfDynTag
+    -- | Library run-time search path (DT_RUNPATH = 29).
+    DtRunpath :: ElfDynTag
+    -- | Dynamic flags (DT_FLAGS = 30).
+    DtFlags :: ElfDynTag
+    -- | Extended dynamic flags (DT_FLAGS_1 = 0x6ffffffb).
+    DtFlags1 :: ElfDynTag
+    -- | GNU hash table address (DT_GNU_HASH = 0x6ffffef5).
+    DtGnuHash :: ElfDynTag
+    -- | Any other dynamic tag value.
+    DtOther :: U64 -> ElfDynTag
+
+  -- | Decode a dynamic tag word into an ElfDynTag.
+  decode-dyn-tag :: U64 -> ElfDynTag
+  decode-dyn-tag v =
+    if eq-u64 v 0 then DtNull
+    else if eq-u64 v 1 then DtNeeded
+    else if eq-u64 v 2 then DtPltrelsz
+    else if eq-u64 v 3 then DtPltgot
+    else if eq-u64 v 4 then DtHash
+    else if eq-u64 v 5 then DtStrtab
+    else if eq-u64 v 6 then DtSymtab
+    else if eq-u64 v 7 then DtRela
+    else if eq-u64 v 8 then DtRelasz
+    else if eq-u64 v 9 then DtRelaent
+    else if eq-u64 v 10 then DtStrsz
+    else if eq-u64 v 11 then DtSyment
+    else if eq-u64 v 12 then DtInit
+    else if eq-u64 v 13 then DtFini
+    else if eq-u64 v 14 then DtSoname
+    else if eq-u64 v 15 then DtRpath
+    else if eq-u64 v 16 then DtSymbolic
+    else if eq-u64 v 17 then DtRel
+    else if eq-u64 v 18 then DtRelsz
+    else if eq-u64 v 19 then DtRelent
+    else if eq-u64 v 20 then DtPltrel
+    else if eq-u64 v 21 then DtDebug
+    else if eq-u64 v 22 then DtTextrel
+    else if eq-u64 v 23 then DtJmprel
+    else if eq-u64 v 24 then DtBindNow
+    else if eq-u64 v 25 then DtInitArray
+    else if eq-u64 v 26 then DtFiniArray
+    else if eq-u64 v 27 then DtInitArraysz
+    else if eq-u64 v 28 then DtFiniArraysz
+    else if eq-u64 v 29 then DtRunpath
+    else if eq-u64 v 30 then DtFlags
+    else if eq-u64 v 0x6ffffffb then DtFlags1
+    else if eq-u64 v 0x6ffffef5 then DtGnuHash
+    else DtOther v
+
+  -- | Numeric d_tag code for an ElfDynTag.
+  elf-dyn-tag-code :: ElfDynTag -> U64
+  elf-dyn-tag-code tag = case tag of
+    DtNull -> 0
+    DtNeeded -> 1
+    DtPltrelsz -> 2
+    DtPltgot -> 3
+    DtHash -> 4
+    DtStrtab -> 5
+    DtSymtab -> 6
+    DtRela -> 7
+    DtRelasz -> 8
+    DtRelaent -> 9
+    DtStrsz -> 10
+    DtSyment -> 11
+    DtInit -> 12
+    DtFini -> 13
+    DtSoname -> 14
+    DtRpath -> 15
+    DtSymbolic -> 16
+    DtRel -> 17
+    DtRelsz -> 18
+    DtRelent -> 19
+    DtPltrel -> 20
+    DtDebug -> 21
+    DtTextrel -> 22
+    DtJmprel -> 23
+    DtBindNow -> 24
+    DtInitArray -> 25
+    DtFiniArray -> 26
+    DtInitArraysz -> 27
+    DtFiniArraysz -> 28
+    DtRunpath -> 29
+    DtFlags -> 30
+    DtFlags1 -> 0x6ffffffb
+    DtGnuHash -> 0x6ffffef5
+    DtOther v -> v
+
+  -- | Extract the symbol index from a 32-bit relocation r_info word.
+  elf-r-sym32 :: U32 -> U32
+  elf-r-sym32 info = wrapping-shr-u32 info 8
+
+  -- | Extract the relocation type from a 32-bit relocation r_info word.
+  elf-r-type32 :: U32 -> U32
+  elf-r-type32 info = bit-and-u32 info 255
+
+  -- | Extract the symbol index from a 64-bit relocation r_info word.
+  elf-r-sym64 :: U64 -> U32
+  elf-r-sym64 info = wrapping-u64-to-u32 (wrapping-shr-u64 info 32)
+
+  -- | Extract the relocation type from a 64-bit relocation r_info word.
+  elf-r-type64 :: U64 -> U32
+  elf-r-type64 info = wrapping-u64-to-u32 info
+
+  -- ---------------------------------------------------------------------
+  -- Structured ELF types.
+  -- ---------------------------------------------------------------------
+
+  -- | Parsed ELF file header normalized across 32-bit and 64-bit formats.
+  data ElfHeader where
+    -- | Construct an ElfHeader from class, data, version, OSABI, ABI version, byte order, type, machine, entry, flags.
+    ElfHeader :: ElfClass -> ElfData -> U8 -> ElfOsAbi -> U8 -> ByteOrder -> ElfType -> ElfMachine -> U64 -> U32 -> ElfHeader
+
+  -- | ELF class (32-bit or 64-bit).
+  elf-class :: ElfHeader -> ElfClass
+  elf-class h = case h of ElfHeader c _ _ _ _ _ _ _ _ _ -> c
+
+  -- | ELF data encoding (LSB or MSB).
+  elf-data :: ElfHeader -> ElfData
+  elf-data h = case h of ElfHeader _ d _ _ _ _ _ _ _ _ -> d
+
+  -- | ELF identification version byte.
+  elf-version :: ElfHeader -> U8
+  elf-version h = case h of ElfHeader _ _ v _ _ _ _ _ _ _ -> v
+
+  -- | ELF OS/ABI identification.
+  elf-osabi :: ElfHeader -> ElfOsAbi
+  elf-osabi h = case h of ElfHeader _ _ _ o _ _ _ _ _ _ -> o
+
+  -- | ELF ABI version byte.
+  elf-abi-version :: ElfHeader -> U8
+  elf-abi-version h = case h of ElfHeader _ _ _ _ a _ _ _ _ _ -> a
+
+  -- | Byte order used to decode multi-byte integers in this ELF file.
+  elf-byte-order :: ElfHeader -> ByteOrder
+  elf-byte-order h = case h of ElfHeader _ _ _ _ _ bo _ _ _ _ -> bo
+
+  -- | Object file type (relocatable, executable, shared object, core).
+  elf-type :: ElfHeader -> ElfType
+  elf-type h = case h of ElfHeader _ _ _ _ _ _ t _ _ _ -> t
+
+  -- | Machine architecture.
+  elf-machine :: ElfHeader -> ElfMachine
+  elf-machine h = case h of ElfHeader _ _ _ _ _ _ _ m _ _ -> m
+
+  -- | Virtual address of the program entry point.
+  elf-entry :: ElfHeader -> U64
+  elf-entry h = case h of ElfHeader _ _ _ _ _ _ _ _ e _ -> e
+
+  -- | Processor-specific header flags.
+  elf-flags :: ElfHeader -> U32
+  elf-flags h = case h of ElfHeader _ _ _ _ _ _ _ _ _ fl -> fl
+
+  -- | Parsed ELF program header entry (segment).
+  data ElfProgHeader where
+    -- | Construct an ElfProgHeader from type, flags, offset, vaddr, paddr, filesz, memsz, align.
+    ElfProgHeader :: ElfProgType -> U32 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> ElfProgHeader
+
+  -- | Segment type.
+  elf-prog-type :: ElfProgHeader -> ElfProgType
+  elf-prog-type p = case p of ElfProgHeader t _ _ _ _ _ _ _ -> t
+
+  -- | Segment permission flags bitmask (pf-r, pf-w, pf-x).
+  elf-prog-flags :: ElfProgHeader -> U32
+  elf-prog-flags p = case p of ElfProgHeader _ fl _ _ _ _ _ _ -> fl
+
+  -- | File byte offset of the segment data.
+  elf-prog-offset :: ElfProgHeader -> U64
+  elf-prog-offset p = case p of ElfProgHeader _ _ off _ _ _ _ _ -> off
+
+  -- | Virtual memory address of the segment.
+  elf-prog-vaddr :: ElfProgHeader -> U64
+  elf-prog-vaddr p = case p of ElfProgHeader _ _ _ va _ _ _ _ -> va
+
+  -- | Physical memory address of the segment.
+  elf-prog-paddr :: ElfProgHeader -> U64
+  elf-prog-paddr p = case p of ElfProgHeader _ _ _ _ pa _ _ _ -> pa
+
+  -- | Segment size in the file in bytes.
+  elf-prog-filesz :: ElfProgHeader -> U64
+  elf-prog-filesz p = case p of ElfProgHeader _ _ _ _ _ fs _ _ -> fs
+
+  -- | Segment size in memory in bytes.
+  elf-prog-memsz :: ElfProgHeader -> U64
+  elf-prog-memsz p = case p of ElfProgHeader _ _ _ _ _ _ ms _ -> ms
+
+  -- | Segment alignment in bytes.
+  elf-prog-align :: ElfProgHeader -> U64
+  elf-prog-align p = case p of ElfProgHeader _ _ _ _ _ _ _ al -> al
+
+  -- | Compression metadata for a section carrying SHF_COMPRESSED.
+  data ElfCompressionInfo where
+    -- | Section is stored uncompressed.
+    ElfUncompressed :: ElfCompressionInfo
+    -- | Section is compressed with type code, payload byte offset, and payload byte size.
+    ElfCompressed :: U32 -> U64 -> U64 -> ElfCompressionInfo
+
+  -- | Parsed ELF section header with resolved section name and compression metadata.
+  data ElfSectionHeader where
+    -- | Construct an ElfSectionHeader from name, type, flags, addr, offset, size, link, info, addralign, entsize, file-size, compression.
+    ElfSectionHeader :: String -> ElfSectionType -> U64 -> U64 -> U64 -> U64 -> U32 -> U32 -> U64 -> U64 -> U64 -> ElfCompressionInfo -> ElfSectionHeader
+
+  -- | Resolved section name from the section header string table.
+  elf-section-name :: ElfSectionHeader -> String
+  elf-section-name s = case s of ElfSectionHeader n _ _ _ _ _ _ _ _ _ _ _ -> n
+
+  -- | Section type.
+  elf-section-type :: ElfSectionHeader -> ElfSectionType
+  elf-section-type s = case s of ElfSectionHeader _ t _ _ _ _ _ _ _ _ _ _ -> t
+
+  -- | Section flags bitmask.
+  elf-section-flags :: ElfSectionHeader -> U64
+  elf-section-flags s = case s of ElfSectionHeader _ _ fl _ _ _ _ _ _ _ _ _ -> fl
+
+  -- | Virtual address of the section in memory.
+  elf-section-addr :: ElfSectionHeader -> U64
+  elf-section-addr s = case s of ElfSectionHeader _ _ _ a _ _ _ _ _ _ _ _ -> a
+
+  -- | File byte offset of the section.
+  elf-section-offset :: ElfSectionHeader -> U64
+  elf-section-offset s = case s of ElfSectionHeader _ _ _ _ o _ _ _ _ _ _ _ -> o
+
+  -- | Logical section size in bytes (uncompressed size when SHF_COMPRESSED is set).
+  elf-section-size :: ElfSectionHeader -> U64
+  elf-section-size s = case s of ElfSectionHeader _ _ _ _ _ sz _ _ _ _ _ _ -> sz
+
+  -- | Linked section header index (sh_link).
+  elf-section-link :: ElfSectionHeader -> U32
+  elf-section-link s = case s of ElfSectionHeader _ _ _ _ _ _ ln _ _ _ _ _ -> ln
+
+  -- | Extra section-specific information (sh_info).
+  elf-section-info :: ElfSectionHeader -> U32
+  elf-section-info s = case s of ElfSectionHeader _ _ _ _ _ _ _ inf _ _ _ _ -> inf
+
+  -- | Required alignment in bytes (uncompressed alignment when compressed).
+  elf-section-addralign :: ElfSectionHeader -> U64
+  elf-section-addralign s = case s of ElfSectionHeader _ _ _ _ _ _ _ _ al _ _ _ -> al
+
+  -- | Entry size in bytes for fixed-size tables.
+  elf-section-entsize :: ElfSectionHeader -> U64
+  elf-section-entsize s = case s of ElfSectionHeader _ _ _ _ _ _ _ _ _ es _ _ -> es
+
+  -- | Number of bytes occupied by the section in the file.
+  elf-section-file-size :: ElfSectionHeader -> U64
+  elf-section-file-size s = case s of ElfSectionHeader _ _ _ _ _ _ _ _ _ _ fs _ -> fs
+
+  -- | Whether the section carries SHF_COMPRESSED.
+  elf-section-compressed :: ElfSectionHeader -> Bool
+  elf-section-compressed s = case s of
+    ElfSectionHeader _ _ _ _ _ _ _ _ _ _ _ comp -> case comp of
+      ElfUncompressed -> False
+      ElfCompressed _ _ _ -> True
+
+  -- | Compression type code (0 when uncompressed, 1 for zlib).
+  elf-section-compression-type :: ElfSectionHeader -> U32
+  elf-section-compression-type s = case s of
+    ElfSectionHeader _ _ _ _ _ _ _ _ _ _ _ comp -> case comp of
+      ElfUncompressed -> 0
+      ElfCompressed ct _ _ -> ct
+
+  -- | Parsed entry from a SHT_SYMTAB or SHT_DYNSYM section.
+  data ElfSymbol where
+    -- | Construct an ElfSymbol from name, info, other, section index, value, size.
+    ElfSymbol :: String -> U8 -> U8 -> U32 -> U64 -> U64 -> ElfSymbol
+
+  -- | Symbol name from the linked string table.
+  elf-sym-name :: ElfSymbol -> String
+  elf-sym-name s = case s of ElfSymbol n _ _ _ _ _ -> n
+
+  -- | Raw st_info byte encoding binding and type.
+  elf-sym-info :: ElfSymbol -> U8
+  elf-sym-info s = case s of ElfSymbol _ i _ _ _ _ -> i
+
+  -- | Raw st_other byte encoding symbol visibility.
+  elf-sym-other :: ElfSymbol -> U8
+  elf-sym-other s = case s of ElfSymbol _ _ o _ _ _ -> o
+
+  -- | Section header index (or special index such as shn-undef or shn-abs).
+  elf-sym-section :: ElfSymbol -> U32
+  elf-sym-section s = case s of ElfSymbol _ _ _ sh _ _ -> sh
+
+  -- | Symbol value (address or offset).
+  elf-sym-value :: ElfSymbol -> U64
+  elf-sym-value s = case s of ElfSymbol _ _ _ _ v _ -> v
+
+  -- | Symbol size in bytes.
+  elf-sym-size :: ElfSymbol -> U64
+  elf-sym-size s = case s of ElfSymbol _ _ _ _ _ sz -> sz
+
+  -- | Decoded symbol binding.
+  elf-sym-bind :: ElfSymbol -> ElfSymBind
+  elf-sym-bind s = elf-st-bind (elf-sym-info s)
+
+  -- | Decoded symbol type.
+  elf-sym-type :: ElfSymbol -> ElfSymType
+  elf-sym-type s = elf-st-type (elf-sym-info s)
+
+  -- | Decoded symbol visibility.
+  elf-sym-visibility :: ElfSymbol -> ElfSymVis
+  elf-sym-visibility s = elf-st-visibility (elf-sym-other s)
+
+  -- | Dynamically imported symbol (STB_GLOBAL with SHN_UNDEF in SHT_DYNSYM).
+  data ElfImportedSymbol where
+    -- | Construct an ElfImportedSymbol from symbol name, version, and library name.
+    ElfImportedSymbol :: String -> String -> String -> ElfImportedSymbol
+
+  -- | Imported symbol name.
+  elf-imported-name :: ElfImportedSymbol -> String
+  elf-imported-name s = case s of ElfImportedSymbol n _ _ -> n
+
+  -- | Associated symbol version string, or empty when unversioned.
+  elf-imported-version :: ElfImportedSymbol -> String
+  elf-imported-version s = case s of ElfImportedSymbol _ v _ -> v
+
+  -- | Associated defining library name, or empty when unversioned.
+  elf-imported-library :: ElfImportedSymbol -> String
+  elf-imported-library s = case s of ElfImportedSymbol _ _ l -> l
+
+  -- | Relocation entry without explicit addend (SHT_REL).
+  data ElfRel where
+    -- | Construct an ElfRel from offset, raw info, symbol index, and relocation type.
+    ElfRel :: U64 -> U64 -> U32 -> U32 -> ElfRel
+
+  -- | Offset to apply the relocation.
+  elf-rel-offset :: ElfRel -> U64
+  elf-rel-offset r = case r of ElfRel o _ _ _ -> o
+
+  -- | Raw r_info word.
+  elf-rel-info :: ElfRel -> U64
+  elf-rel-info r = case r of ElfRel _ i _ _ -> i
+
+  -- | Symbol table index referenced by the relocation.
+  elf-rel-sym :: ElfRel -> U32
+  elf-rel-sym r = case r of ElfRel _ _ s _ -> s
+
+  -- | Architecture-specific relocation type code.
+  elf-rel-type :: ElfRel -> U32
+  elf-rel-type r = case r of ElfRel _ _ _ t -> t
+
+  -- | Relocation entry with explicit signed addend (SHT_RELA).
+  data ElfRela where
+    -- | Construct an ElfRela from offset, raw info, signed addend, symbol index, and relocation type.
+    ElfRela :: U64 -> U64 -> I64 -> U32 -> U32 -> ElfRela
+
+  -- | Offset to apply the relocation.
+  elf-rela-offset :: ElfRela -> U64
+  elf-rela-offset r = case r of ElfRela o _ _ _ _ -> o
+
+  -- | Raw r_info word.
+  elf-rela-info :: ElfRela -> U64
+  elf-rela-info r = case r of ElfRela _ i _ _ _ -> i
+
+  -- | Signed constant addend.
+  elf-rela-addend :: ElfRela -> I64
+  elf-rela-addend r = case r of ElfRela _ _ a _ _ -> a
+
+  -- | Symbol table index referenced by the relocation.
+  elf-rela-sym :: ElfRela -> U32
+  elf-rela-sym r = case r of ElfRela _ _ _ s _ -> s
+
+  -- | Architecture-specific relocation type code.
+  elf-rela-type :: ElfRela -> U32
+  elf-rela-type r = case r of ElfRela _ _ _ _ t -> t
+
+  -- | One entry from the SHT_DYNAMIC section.
+  data ElfDynEntry where
+    -- | Construct an ElfDynEntry from decoded tag, raw tag value, and entry value/pointer.
+    ElfDynEntry :: ElfDynTag -> U64 -> U64 -> ElfDynEntry
+
+  -- | Decoded dynamic tag.
+  elf-dyn-tag :: ElfDynEntry -> ElfDynTag
+  elf-dyn-tag e = case e of ElfDynEntry t _ _ -> t
+
+  -- | Raw numeric d_tag value.
+  elf-dyn-raw-tag :: ElfDynEntry -> U64
+  elf-dyn-raw-tag e = case e of ElfDynEntry _ raw _ -> raw
+
+  -- | Entry value or virtual address (d_val / d_ptr).
+  elf-dyn-val :: ElfDynEntry -> U64
+  elf-dyn-val e = case e of ElfDynEntry _ _ v -> v
+
+  -- | Parsed ELF object or executable holding headers and backing bytes.
+  data ElfFile where
+    -- | Construct an ElfFile from its file header, program headers, section headers, and backing bytes.
+    ElfFile :: ElfHeader -> List ElfProgHeader -> List ElfSectionHeader -> Bytes -> ElfFile
+
+  -- | File header of a parsed ELF binary.
+  elf-file-header :: ElfFile -> ElfHeader
+  elf-file-header f = case f of ElfFile h _ _ _ -> h
+
+  -- | Program headers (segments) of a parsed ELF binary.
+  elf-progs :: ElfFile -> List ElfProgHeader
+  elf-progs f = case f of ElfFile _ ps _ _ -> ps
+
+  -- | Section headers of a parsed ELF binary.
+  elf-sections :: ElfFile -> List ElfSectionHeader
+  elf-sections f = case f of ElfFile _ _ ss _ -> ss
+
+  -- ---------------------------------------------------------------------
+  -- Low-level bounds-checked binary helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert a U64 to Nat when it fits in signed 64-bit buffer index bounds.
+  u64-to-nat-checked :: U64 -> Option Nat
+  u64-to-nat-checked x = case checked-u64-to-i64 x of
+    None -> None
+    Some v -> checked-nat-from-i64 v
+
+  -- | Convert any U64 to its exact Nat value without truncation.
+  u64-to-nat-sat :: U64 -> Nat
+  u64-to-nat-sat x =
+    let hi = u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 x 32)) in
+    let lo = u32-to-nat (wrapping-u64-to-u32 x) in
+    hi * 4294967296 + lo
+
+  -- | Read one byte as a U8 at a checked offset.
+  read-u8 :: Bytes -> Nat -> String -> Result ElfError U8
+  read-u8 buf pos label =
+    if pos < bytes-len buf then Ok (wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf pos)))
+    else Err (ElfTruncated pos label)
+
+  -- | Read a 16-bit unsigned integer with the given byte order.
+  read-u16 :: ByteOrder -> Bytes -> Nat -> String -> Result ElfError U16
+  read-u16 order buf pos label = case binary-read-u16 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (ElfTruncated pos label)
+
+  -- | Read a 32-bit unsigned integer with the given byte order.
+  read-u32 :: ByteOrder -> Bytes -> Nat -> String -> Result ElfError U32
+  read-u32 order buf pos label = case binary-read-u32 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (ElfTruncated pos label)
+
+  -- | Read a 64-bit unsigned integer with the given byte order.
+  read-u64 :: ByteOrder -> Bytes -> Nat -> String -> Result ElfError U64
+  read-u64 order buf pos label = case binary-read-u64 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (ElfTruncated pos label)
+
+  -- | Copy a bounds-checked slice out of a byte buffer.
+  slice-checked :: Bytes -> Nat -> Nat -> String -> Result ElfError Bytes
+  slice-checked buf off len label =
+    if off + len <= bytes-len buf then
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 off len in
+      Ok out
+    else Err (ElfTruncated off label)
+
+  -- | Replace any non-ASCII bytes with '?' so invalid UTF-8 in binary tables still decodes safely.
+  sanitize-ascii :: Bytes -> Bytes -> Nat -> Unit
+  sanitize-ascii src dst i =
+    if i < bytes-len src && i < bytes-len dst then
+      let b = bytes-get src i in
+      let v = if b < 128 then b else 63 in
+      let w = bytes-set dst i v in
+      sanitize-ascii src dst (i + 1)
+    else ()
+
+  -- | Convert a byte slice to a String, sanitizing non-UTF-8 bytes if needed.
+  bytes-to-text :: Bytes -> String
+  bytes-to-text buf = case string-from-bytes buf of
+    Some s -> s
+    None ->
+      let clean = bytes-new (bytes-len buf) in
+      let filled = sanitize-ascii buf clean 0 in
+      case string-from-bytes clean of
+        Some s -> s
+        None -> empty-string
+
+  -- | Measure the length of a NUL-terminated string starting at pos.
+  cstr-len :: Bytes -> Nat -> Nat -> Nat
+  cstr-len buf pos acc =
+    if pos < bytes-len buf then
+      if bytes-get buf pos == 0 then acc
+      else cstr-len buf (pos + 1) (acc + 1)
+    else acc
+
+  -- | Read a NUL-terminated string from a string table at offset; returns None if offset is out of bounds.
+  read-strtab-string :: Bytes -> Nat -> Option String
+  read-strtab-string strtab off =
+    if off >= bytes-len strtab then None
+    else
+      let len = cstr-len strtab off 0 in
+      if off + len <= bytes-len strtab then
+        let out = bytes-new len in
+        let copied = bytes-copy-range out strtab 0 off len in
+        Some (bytes-to-text out)
+      else None
+
+  -- | Convert a ZlibError into a descriptive string.
+  zlib-error-text :: ZlibError -> String
+  zlib-error-text err = case err of
+    BadHeader -> "invalid zlib header"
+    BadChecksum -> "zlib checksum mismatch"
+    InvalidCode -> "invalid deflate code"
+    TruncatedStream -> "truncated zlib stream"
+
+  -- ---------------------------------------------------------------------
+  -- Raw section header intermediate (before string table name resolution).
+  -- ---------------------------------------------------------------------
+
+  -- | Raw section header fields before sh_name is resolved through shstrtab.
+  data RawShdr where
+    -- | Raw sh_name offset, type, flags, addr, offset, size, link, info, addralign, entsize.
+    RawShdr :: U32 -> ElfSectionType -> U64 -> U64 -> U64 -> U64 -> U32 -> U32 -> U64 -> U64 -> RawShdr
+
+  -- | Parse one 32-bit section header at byte offset pos.
+  parse-shdr32 :: ByteOrder -> Bytes -> Nat -> Result ElfError RawShdr
+  parse-shdr32 order buf pos =
+    if pos + 40 > bytes-len buf then Err (ElfTruncated pos "ELF32 section header")
+    else case read-u32 order buf pos "sh_name" of
+      Err e -> Err e
+      Ok name -> case read-u32 order buf (pos + 4) "sh_type" of
+        Err e -> Err e
+        Ok typ -> case read-u32 order buf (pos + 8) "sh_flags" of
+          Err e -> Err e
+          Ok flags -> case read-u32 order buf (pos + 12) "sh_addr" of
+            Err e -> Err e
+            Ok addr -> case read-u32 order buf (pos + 16) "sh_offset" of
+              Err e -> Err e
+              Ok off -> case read-u32 order buf (pos + 20) "sh_size" of
+                Err e -> Err e
+                Ok sz -> case read-u32 order buf (pos + 24) "sh_link" of
+                  Err e -> Err e
+                  Ok lnk -> case read-u32 order buf (pos + 28) "sh_info" of
+                    Err e -> Err e
+                    Ok inf -> case read-u32 order buf (pos + 32) "sh_addralign" of
+                      Err e -> Err e
+                      Ok align -> case read-u32 order buf (pos + 36) "sh_entsize" of
+                        Err e -> Err e
+                        Ok esz -> Ok (RawShdr name (decode-section-type typ) (u32-to-u64 flags) (u32-to-u64 addr) (u32-to-u64 off) (u32-to-u64 sz) lnk inf (u32-to-u64 align) (u32-to-u64 esz))
+
+  -- | Parse one 64-bit section header at byte offset pos.
+  parse-shdr64 :: ByteOrder -> Bytes -> Nat -> Result ElfError RawShdr
+  parse-shdr64 order buf pos =
+    if pos + 64 > bytes-len buf then Err (ElfTruncated pos "ELF64 section header")
+    else case read-u32 order buf pos "sh_name" of
+      Err e -> Err e
+      Ok name -> case read-u32 order buf (pos + 4) "sh_type" of
+        Err e -> Err e
+        Ok typ -> case read-u64 order buf (pos + 8) "sh_flags" of
+          Err e -> Err e
+          Ok flags -> case read-u64 order buf (pos + 16) "sh_addr" of
+            Err e -> Err e
+            Ok addr -> case read-u64 order buf (pos + 24) "sh_offset" of
+              Err e -> Err e
+              Ok off -> case read-u64 order buf (pos + 32) "sh_size" of
+                Err e -> Err e
+                Ok sz -> case read-u32 order buf (pos + 40) "sh_link" of
+                  Err e -> Err e
+                  Ok lnk -> case read-u32 order buf (pos + 44) "sh_info" of
+                    Err e -> Err e
+                    Ok inf -> case read-u64 order buf (pos + 48) "sh_addralign" of
+                      Err e -> Err e
+                      Ok align -> case read-u64 order buf (pos + 56) "sh_entsize" of
+                        Err e -> Err e
+                        Ok esz -> Ok (RawShdr name (decode-section-type typ) flags addr off sz lnk inf align esz)
+
+  -- | Parse one section header according to ELF class.
+  parse-raw-shdr :: ElfClass -> ByteOrder -> Bytes -> Nat -> Result ElfError RawShdr
+  parse-raw-shdr cls order buf pos = case cls of
+    ElfClass32 -> parse-shdr32 order buf pos
+    ElfClass64 -> parse-shdr64 order buf pos
+    ElfClassNone -> Err (ElfUnsupportedClass 0)
+
+  -- | Parse all section headers tail-recursively.
+  parse-raw-shdrs :: ElfClass -> ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Nat -> List RawShdr -> Result ElfError (List RawShdr)
+  parse-raw-shdrs cls order buf shoff shentsize idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else case parse-raw-shdr cls order buf (shoff + idx * shentsize) of
+      Err e -> Err e
+      Ok sh -> parse-raw-shdrs cls order buf shoff shentsize (idx + 1) count (Cons sh acc)
+
+  -- | Report whether a section type is SHT_NOBITS.
+  is-nobits-type :: ElfSectionType -> Bool
+  is-nobits-type typ = case typ of
+    ShtNobits -> True
+    _ -> False
+
+  -- | Read a NUL-terminated string from a string table, returning empty text when out of bounds.
+  strtab-name-or-empty :: Bytes -> Nat -> String
+  strtab-name-or-empty strtab off = case read-strtab-string strtab off of
+    Some s -> s
+    None -> empty-string
+
+  -- | Report whether a byte length is a clean multiple of a positive entry size.
+  is-multiple-of :: Nat -> Nat -> Bool
+  is-multiple-of total entsz = case checked-rem total entsz of
+    None -> False
+    Some rem -> rem == 0
+
+  -- | Minimum program header size for an ELF class.
+  class-phdr-size :: ElfClass -> Nat
+  class-phdr-size cls = case cls of
+    ElfClass32 -> 32
+    ElfClass64 -> 56
+    ElfClassNone -> 0
+
+  -- | Minimum section header size for an ELF class.
+  class-shdr-size :: ElfClass -> Nat
+  class-shdr-size cls = case cls of
+    ElfClass32 -> 40
+    ElfClass64 -> 64
+    ElfClassNone -> 0
+
+  -- | Symbol entry size for an ELF class.
+  class-sym-size :: ElfClass -> Nat
+  class-sym-size cls = case cls of
+    ElfClass32 -> 16
+    ElfClass64 -> 24
+    ElfClassNone -> 0
+
+  -- | REL relocation entry size for an ELF class.
+  class-rel-size :: ElfClass -> Nat
+  class-rel-size cls = case cls of
+    ElfClass32 -> 8
+    ElfClass64 -> 16
+    ElfClassNone -> 0
+
+  -- | RELA relocation entry size for an ELF class.
+  class-rela-size :: ElfClass -> Nat
+  class-rela-size cls = case cls of
+    ElfClass32 -> 12
+    ElfClass64 -> 24
+    ElfClassNone -> 0
+
+  -- | Dynamic table entry size for an ELF class.
+  class-dyn-size :: ElfClass -> Nat
+  class-dyn-size cls = case cls of
+    ElfClass32 -> 8
+    ElfClass64 -> 16
+    ElfClassNone -> 0
+
+  -- | Report whether a symbol binding is STB_GLOBAL.
+  is-global-bind :: ElfSymBind -> Bool
+  is-global-bind b = case b of
+    StbGlobal -> True
+    _ -> False
+
+  -- | Resolve SHF_COMPRESSED header if present on a non-NOBITS section.
+  resolve-compression :: ElfClass -> ByteOrder -> Bytes -> Nat -> RawShdr -> String -> Result ElfError ElfSectionHeader
+  resolve-compression cls order buf idx sh name = case sh of
+    RawShdr _ typ flags addr off sz lnk inf align esz ->
+      let is-nobits = is-nobits-type typ in
+      let is-comp = ne-u64 (bit-and-u64 flags shf-compressed) 0 in
+      if is-comp && not is-nobits then
+        case u64-to-nat-checked off of
+          None -> Err (ElfInvalidSection idx "compressed section offset out of range")
+          Some off-nat -> case u64-to-nat-checked sz of
+            None -> Err (ElfInvalidSection idx "compressed section size out of range")
+            Some sz-nat ->
+              case cls of
+                ElfClass32 ->
+                  if sz-nat < 12 || off-nat + 12 > bytes-len buf then Err (ElfInvalidSection idx "truncated ELF32 compression header")
+                  else case read-u32 order buf off-nat "ch_type" of
+                    Err e -> Err e
+                    Ok ctype -> case read-u32 order buf (off-nat + 4) "ch_size" of
+                      Err e -> Err e
+                      Ok csize -> case read-u32 order buf (off-nat + 8) "ch_addralign" of
+                        Err e -> Err e
+                        Ok calign ->
+                          let payload-off = wrapping-add-u64 off 12 in
+                          let payload-sz = wrapping-sub-u64 sz 12 in
+                          Ok (ElfSectionHeader name typ flags addr off (u32-to-u64 csize) lnk inf (u32-to-u64 calign) esz sz (ElfCompressed ctype payload-off payload-sz))
+                ElfClass64 ->
+                  if sz-nat < 24 || off-nat + 24 > bytes-len buf then Err (ElfInvalidSection idx "truncated ELF64 compression header")
+                  else case read-u32 order buf off-nat "ch_type" of
+                    Err e -> Err e
+                    Ok ctype -> case read-u64 order buf (off-nat + 8) "ch_size" of
+                      Err e -> Err e
+                      Ok csize -> case read-u64 order buf (off-nat + 16) "ch_addralign" of
+                        Err e -> Err e
+                        Ok calign ->
+                          let payload-off = wrapping-add-u64 off 24 in
+                          let payload-sz = wrapping-sub-u64 sz 24 in
+                          Ok (ElfSectionHeader name typ flags addr off csize lnk inf calign esz sz (ElfCompressed ctype payload-off payload-sz))
+                ElfClassNone -> Err (ElfUnsupportedClass 0)
+      else Ok (ElfSectionHeader name typ flags addr off sz lnk inf align esz sz ElfUncompressed)
+
+  -- | Finalize all raw section headers with names from shstrtab and compression headers.
+  finalize-sections :: ElfClass -> ByteOrder -> Bytes -> Bytes -> Nat -> List RawShdr -> List ElfSectionHeader -> Result ElfError (List ElfSectionHeader)
+  finalize-sections cls order buf shstrtab idx raw-secs acc = case raw-secs of
+    Nil -> Ok (reverse acc)
+    Cons sh rest ->
+      let name-off = (case sh of RawShdr n _ _ _ _ _ _ _ _ _ -> u32-to-nat n) in
+      let name = strtab-name-or-empty shstrtab name-off in
+      case resolve-compression cls order buf idx sh name of
+        Err e -> Err e
+        Ok sec -> finalize-sections cls order buf shstrtab (idx + 1) rest (Cons sec acc)
+
+  -- | Extract the section header string table bytes when shstrndx is valid.
+  load-shstrtab :: Bytes -> Nat -> List RawShdr -> Result ElfError Bytes
+  load-shstrtab buf shstrndx raw-secs =
+    if shstrndx == 0 then Ok (bytes-new 0)
+    else case nth shstrndx raw-secs of
+      None -> Err (ElfInvalidHeader "shstrndx out of range")
+      Some sh -> case sh of
+        RawShdr _ typ _ _ off sz _ _ _ _ ->
+          if is-nobits-type typ then Ok (bytes-new 0)
+          else case u64-to-nat-checked off of
+            None -> Err (ElfInvalidSection shstrndx "shstrtab offset out of range")
+            Some off-nat -> case u64-to-nat-checked sz of
+              None -> Err (ElfInvalidSection shstrndx "shstrtab size out of range")
+              Some sz-nat -> slice-checked buf off-nat sz-nat "shstrtab"
+
+  -- ---------------------------------------------------------------------
+  -- Program header parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse one 32-bit program header at byte offset pos.
+  parse-phdr32 :: ByteOrder -> Bytes -> Nat -> Result ElfError ElfProgHeader
+  parse-phdr32 order buf pos =
+    if pos + 32 > bytes-len buf then Err (ElfTruncated pos "ELF32 program header")
+    else case read-u32 order buf pos "p_type" of
+      Err e -> Err e
+      Ok typ -> case read-u32 order buf (pos + 4) "p_offset" of
+        Err e -> Err e
+        Ok off -> case read-u32 order buf (pos + 8) "p_vaddr" of
+          Err e -> Err e
+          Ok va -> case read-u32 order buf (pos + 12) "p_paddr" of
+            Err e -> Err e
+            Ok pa -> case read-u32 order buf (pos + 16) "p_filesz" of
+              Err e -> Err e
+              Ok fs -> case read-u32 order buf (pos + 20) "p_memsz" of
+                Err e -> Err e
+                Ok ms -> case read-u32 order buf (pos + 24) "p_flags" of
+                  Err e -> Err e
+                  Ok fl -> case read-u32 order buf (pos + 28) "p_align" of
+                    Err e -> Err e
+                    Ok al -> Ok (ElfProgHeader (decode-prog-type typ) fl (u32-to-u64 off) (u32-to-u64 va) (u32-to-u64 pa) (u32-to-u64 fs) (u32-to-u64 ms) (u32-to-u64 al))
+
+  -- | Parse one 64-bit program header at byte offset pos.
+  parse-phdr64 :: ByteOrder -> Bytes -> Nat -> Result ElfError ElfProgHeader
+  parse-phdr64 order buf pos =
+    if pos + 56 > bytes-len buf then Err (ElfTruncated pos "ELF64 program header")
+    else case read-u32 order buf pos "p_type" of
+      Err e -> Err e
+      Ok typ -> case read-u32 order buf (pos + 4) "p_flags" of
+        Err e -> Err e
+        Ok fl -> case read-u64 order buf (pos + 8) "p_offset" of
+          Err e -> Err e
+          Ok off -> case read-u64 order buf (pos + 16) "p_vaddr" of
+            Err e -> Err e
+            Ok va -> case read-u64 order buf (pos + 24) "p_paddr" of
+              Err e -> Err e
+              Ok pa -> case read-u64 order buf (pos + 32) "p_filesz" of
+                Err e -> Err e
+                Ok fs -> case read-u64 order buf (pos + 40) "p_memsz" of
+                  Err e -> Err e
+                  Ok ms -> case read-u64 order buf (pos + 48) "p_align" of
+                    Err e -> Err e
+                    Ok al -> Ok (ElfProgHeader (decode-prog-type typ) fl off va pa fs ms al)
+
+  -- | Parse all program headers tail-recursively.
+  parse-phdrs :: ElfClass -> ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Nat -> List ElfProgHeader -> Result ElfError (List ElfProgHeader)
+  parse-phdrs cls order buf phoff phentsize idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else
+      let pos = phoff + idx * phentsize in
+      let res = (case cls of
+        ElfClass32 -> parse-phdr32 order buf pos
+        ElfClass64 -> parse-phdr64 order buf pos
+        ElfClassNone -> Err (ElfUnsupportedClass 0)) in
+      case res of
+        Err e -> Err e
+        Ok p -> parse-phdrs cls order buf phoff phentsize (idx + 1) count (Cons p acc)
+
+  -- ---------------------------------------------------------------------
+  -- Main ELF file parser.
+  -- ---------------------------------------------------------------------
+
+  -- | Internal table descriptors extracted from the ELF header.
+  data ElfTables where
+    -- | Construct table metadata: phoff, phentsize, phnum, shoff, shentsize, shnum, shstrndx.
+    ElfTables :: U64 -> Nat -> Nat -> U64 -> Nat -> Nat -> Nat -> ElfTables
+
+  -- | Parse the 32-bit header fields starting after e_ident.
+  parse-hdr32 :: ElfClass -> ElfData -> U8 -> ElfOsAbi -> U8 -> ByteOrder -> Bytes -> Result ElfError (ElfHeader, ElfTables)
+  parse-hdr32 cls dat ver osabi abiver order buf =
+    if bytes-len buf < 52 then Err (ElfTruncated 0 "ELF32 header requires 52 bytes")
+    else case read-u16 order buf 16 "e_type" of
+      Err e -> Err e
+      Ok typ -> case read-u16 order buf 18 "e_machine" of
+        Err e -> Err e
+        Ok mach -> case read-u32 order buf 24 "e_entry" of
+          Err e -> Err e
+          Ok entry -> case read-u32 order buf 28 "e_phoff" of
+            Err e -> Err e
+            Ok phoff -> case read-u32 order buf 32 "e_shoff" of
+              Err e -> Err e
+              Ok shoff -> case read-u32 order buf 36 "e_flags" of
+                Err e -> Err e
+                Ok flags -> case read-u16 order buf 42 "e_phentsize" of
+                  Err e -> Err e
+                  Ok phentsize -> case read-u16 order buf 44 "e_phnum" of
+                    Err e -> Err e
+                    Ok phnum -> case read-u16 order buf 46 "e_shentsize" of
+                      Err e -> Err e
+                      Ok shentsize -> case read-u16 order buf 48 "e_shnum" of
+                        Err e -> Err e
+                        Ok shnum -> case read-u16 order buf 50 "e_shstrndx" of
+                          Err e -> Err e
+                          Ok shstrndx ->
+                            let hdr = ElfHeader cls dat ver osabi abiver order (decode-elf-type typ) (decode-elf-machine mach) (u32-to-u64 entry) flags in
+                            let tbl = ElfTables (u32-to-u64 phoff) (u16-to-nat phentsize) (u16-to-nat phnum) (u32-to-u64 shoff) (u16-to-nat shentsize) (u16-to-nat shnum) (u16-to-nat shstrndx) in
+                            Ok (hdr, tbl)
+
+  -- | Parse the 64-bit header fields starting after e_ident.
+  parse-hdr64 :: ElfClass -> ElfData -> U8 -> ElfOsAbi -> U8 -> ByteOrder -> Bytes -> Result ElfError (ElfHeader, ElfTables)
+  parse-hdr64 cls dat ver osabi abiver order buf =
+    if bytes-len buf < 64 then Err (ElfTruncated 0 "ELF64 header requires 64 bytes")
+    else case read-u16 order buf 16 "e_type" of
+      Err e -> Err e
+      Ok typ -> case read-u16 order buf 18 "e_machine" of
+        Err e -> Err e
+        Ok mach -> case read-u64 order buf 24 "e_entry" of
+          Err e -> Err e
+          Ok entry -> case read-u64 order buf 32 "e_phoff" of
+            Err e -> Err e
+            Ok phoff -> case read-u64 order buf 40 "e_shoff" of
+              Err e -> Err e
+              Ok shoff -> case read-u32 order buf 48 "e_flags" of
+                Err e -> Err e
+                Ok flags -> case read-u16 order buf 54 "e_phentsize" of
+                  Err e -> Err e
+                  Ok phentsize -> case read-u16 order buf 56 "e_phnum" of
+                    Err e -> Err e
+                    Ok phnum -> case read-u16 order buf 58 "e_shentsize" of
+                      Err e -> Err e
+                      Ok shentsize -> case read-u16 order buf 60 "e_shnum" of
+                        Err e -> Err e
+                        Ok shnum -> case read-u16 order buf 62 "e_shstrndx" of
+                          Err e -> Err e
+                          Ok shstrndx ->
+                            let hdr = ElfHeader cls dat ver osabi abiver order (decode-elf-type typ) (decode-elf-machine mach) entry flags in
+                            let tbl = ElfTables phoff (u16-to-nat phentsize) (u16-to-nat phnum) shoff (u16-to-nat shentsize) (u16-to-nat shnum) (u16-to-nat shstrndx) in
+                            Ok (hdr, tbl)
+
+  -- | Validate and parse program headers given header table fields.
+  load-progs :: ElfClass -> ByteOrder -> Bytes -> U64 -> Nat -> Nat -> Result ElfError (List ElfProgHeader)
+  load-progs cls order buf phoff phentsize phnum =
+    if phnum == 0 then Ok Nil
+    else
+      let min-ent = class-phdr-size cls in
+      if phentsize < min-ent then Err (ElfInvalidHeader "phentsize smaller than program header")
+      else case u64-to-nat-checked phoff of
+        None -> Err (ElfInvalidHeader "phoff out of range")
+        Some phoff-nat ->
+          if phoff-nat + phnum * phentsize > bytes-len buf then Err (ElfTruncated phoff-nat "program header table")
+          else parse-phdrs cls order buf phoff-nat phentsize 0 phnum Nil
+
+  -- | Validate and parse section headers (including extended shnum/shstrndx in section 0).
+  load-sections :: ElfClass -> ByteOrder -> Bytes -> U64 -> Nat -> Nat -> Nat -> Result ElfError (List ElfSectionHeader)
+  load-sections cls order buf shoff shentsize shnum0 shstrndx0 =
+    if eq-u64 shoff 0 && shnum0 == 0 then Ok Nil
+    else
+      let min-ent = class-shdr-size cls in
+      if shentsize < min-ent then Err (ElfInvalidHeader "shentsize smaller than section header")
+      else case u64-to-nat-checked shoff of
+        None -> Err (ElfInvalidHeader "shoff out of range")
+        Some shoff-nat ->
+          if shoff-nat + shentsize > bytes-len buf then Err (ElfTruncated shoff-nat "section header 0")
+          else case parse-raw-shdr cls order buf shoff-nat of
+            Err e -> Err e
+            Ok sh0 ->
+              let shnum-res = (if shnum0 == 0 then
+                (case sh0 of RawShdr _ _ _ _ _ sz0 _ _ _ _ -> u64-to-nat-checked sz0)
+                else Some shnum0) in
+              case shnum-res of
+                None -> Err (ElfInvalidHeader "extended shnum out of range")
+                Some shnum ->
+                  let shstrndx = (if shstrndx0 == 65535 then
+                    (case sh0 of RawShdr _ _ _ _ _ _ lnk0 _ _ _ -> u32-to-nat lnk0)
+                    else shstrndx0) in
+                  if shnum == 0 then Ok Nil
+                  else if shoff-nat + shnum * shentsize > bytes-len buf then Err (ElfTruncated shoff-nat "section header table")
+                  else case parse-raw-shdrs cls order buf shoff-nat shentsize 0 shnum Nil of
+                    Err e -> Err e
+                    Ok raw-secs -> case load-shstrtab buf shstrndx raw-secs of
+                      Err e -> Err e
+                      Ok shstrtab -> finalize-sections cls order buf shstrtab 0 raw-secs Nil
+
+  -- | Parse an ELF32 or ELF64 binary from raw bytes.
+  elf-parse :: Bytes -> Result ElfError ElfFile
+  elf-parse buf =
+    if bytes-len buf < 16 then Err (ElfTruncated 0 "ELF identification requires 16 bytes")
+    else
+      let m0 = bytes-get buf 0 in
+      let m1 = bytes-get buf 1 in
+      let m2 = bytes-get buf 2 in
+      let m3 = bytes-get buf 3 in
+      if m0 /= 127 || m1 /= 69 || m2 /= 76 || m3 /= 70 then Err ElfBadMagic
+      else
+        let cls-byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf 4)) in
+        let dat-byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf 5)) in
+        let ver-byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf 6)) in
+        let osabi-byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf 7)) in
+        let abiver-byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf 8)) in
+        if ne-u8 ver-byte 1 then Err (ElfUnsupportedVersion ver-byte)
+        else
+          let cls-opt = (if eq-u8 cls-byte 1 then Some ElfClass32 else if eq-u8 cls-byte 2 then Some ElfClass64 else None) in
+          case cls-opt of
+            None -> Err (ElfUnsupportedClass cls-byte)
+            Some cls ->
+              let dat-opt = (if eq-u8 dat-byte 1 then Some (ElfData2Lsb, LittleEndian) else if eq-u8 dat-byte 2 then Some (ElfData2Msb, BigEndian) else None) in
+              case dat-opt of
+                None -> Err (ElfUnsupportedData dat-byte)
+                Some pair -> case pair of
+                  (dat, order) ->
+                    let osabi = decode-elf-osabi osabi-byte in
+                    let hdr-res = (case cls of
+                      ElfClass32 -> parse-hdr32 cls dat ver-byte osabi abiver-byte order buf
+                      ElfClass64 -> parse-hdr64 cls dat ver-byte osabi abiver-byte order buf
+                      ElfClassNone -> Err (ElfUnsupportedClass cls-byte)) in
+                    case hdr-res of
+                      Err e -> Err e
+                      Ok parsed -> case parsed of
+                        (hdr, tbl) -> case tbl of
+                          ElfTables phoff phentsize phnum shoff shentsize shnum shstrndx ->
+                            case load-progs cls order buf phoff phentsize phnum of
+                              Err e -> Err e
+                              Ok progs -> case load-sections cls order buf shoff shentsize shnum shstrndx of
+                                Err e -> Err e
+                                Ok secs -> Ok (ElfFile hdr progs secs buf)
+
+  -- ---------------------------------------------------------------------
+  -- Section and segment lookup and data extraction.
+  -- ---------------------------------------------------------------------
+
+  -- | Find the first section with the given name.
+  elf-section :: ElfFile -> String -> Option ElfSectionHeader
+  elf-section f name = find-section-by-name (elf-sections f) name
+
+  -- | Tail-recursive lookup of a section by name.
+  find-section-by-name :: List ElfSectionHeader -> String -> Option ElfSectionHeader
+  find-section-by-name secs name = case secs of
+    Nil -> None
+    Cons s rest ->
+      if elf-section-name s == name then Some s
+      else find-section-by-name rest name
+
+  -- | Find the first section matching the given section type.
+  elf-section-by-type :: ElfFile -> ElfSectionType -> Option ElfSectionHeader
+  elf-section-by-type f typ = find-section-by-type (elf-sections f) (elf-section-type-code typ)
+
+  -- | Tail-recursive lookup of a section by numeric sh_type code.
+  find-section-by-type :: List ElfSectionHeader -> U32 -> Option ElfSectionHeader
+  find-section-by-type secs code = case secs of
+    Nil -> None
+    Cons s rest ->
+      if eq-u32 (elf-section-type-code (elf-section-type s)) code then Some s
+      else find-section-by-type rest code
+
+  -- | Read the contents of an ELF section, automatically decompressing zlib SHF_COMPRESSED sections.
+  elf-section-data :: ElfFile -> ElfSectionHeader -> Result ElfError Bytes
+  elf-section-data f sec = case f of
+    ElfFile _ _ _ buf -> case sec of
+      ElfSectionHeader name typ flags _ off sz _ _ _ _ _ comp ->
+        if is-nobits-type typ then Err (ElfNobitsSection name)
+        else case comp of
+          ElfUncompressed ->
+            case u64-to-nat-checked off of
+              None -> Err (ElfInvalidSection 0 "section offset out of range")
+              Some off-nat -> case u64-to-nat-checked sz of
+                None -> Err (ElfInvalidSection 0 "section size out of range")
+                Some sz-nat -> slice-checked buf off-nat sz-nat name
+          ElfCompressed ctype payload-off payload-sz ->
+            if ne-u64 (bit-and-u64 flags shf-alloc) 0 then Err (ElfInvalidSection 0 "SHF_COMPRESSED applies only to non-allocable sections")
+            else if ne-u32 ctype elf-compress-zlib then Err (ElfUnsupportedCompression ctype)
+            else case u64-to-nat-checked payload-off of
+              None -> Err (ElfInvalidSection 0 "compressed payload offset out of range")
+              Some poff-nat -> case u64-to-nat-checked payload-sz of
+                None -> Err (ElfInvalidSection 0 "compressed payload size out of range")
+                Some psz-nat -> case slice-checked buf poff-nat psz-nat name of
+                  Err e -> Err e
+                  Ok compressed -> case inflate compressed of
+                    Err ze -> Err (ElfDecompressFailed (zlib-error-text ze))
+                    Ok decompressed ->
+                      case u64-to-nat-checked sz of
+                        None -> Err (ElfDecompressFailed "uncompressed size out of range")
+                        Some want-sz ->
+                          if bytes-len decompressed == want-sz then Ok decompressed
+                          else Err (ElfDecompressFailed "decompressed length mismatch")
+
+  -- | Read the file-backed bytes of a program header segment.
+  elf-prog-data :: ElfFile -> ElfProgHeader -> Result ElfError Bytes
+  elf-prog-data f prog = case f of
+    ElfFile _ _ _ buf ->
+      case u64-to-nat-checked (elf-prog-offset prog) of
+        None -> Err (ElfInvalidProgram 0 "segment offset out of range")
+        Some off-nat -> case u64-to-nat-checked (elf-prog-filesz prog) of
+          None -> Err (ElfInvalidProgram 0 "segment filesz out of range")
+          Some sz-nat -> slice-checked buf off-nat sz-nat "segment data"
+
+  -- ---------------------------------------------------------------------
+  -- Symbol tables (SHT_SYMTAB and SHT_DYNSYM).
+  -- ---------------------------------------------------------------------
+
+  -- | Retrieve a linked string table section by section index.
+  elf-string-table :: ElfFile -> U32 -> Result ElfError Bytes
+  elf-string-table f link =
+    let idx = u32-to-nat link in
+    case nth idx (elf-sections f) of
+      None -> Err (ElfInvalidSection idx "linked string table index out of range")
+      Some sec -> elf-section-data f sec
+
+  -- | Parse one 32-bit ELF symbol entry (16 bytes).
+  parse-sym32 :: ByteOrder -> Bytes -> Bytes -> Nat -> Result ElfError ElfSymbol
+  parse-sym32 order symtab strtab pos =
+    if pos + 16 > bytes-len symtab then Err (ElfTruncated pos "ELF32 symbol entry")
+    else case read-u32 order symtab pos "st_name" of
+      Err e -> Err e
+      Ok name-off -> case read-u32 order symtab (pos + 4) "st_value" of
+        Err e -> Err e
+        Ok val -> case read-u32 order symtab (pos + 8) "st_size" of
+          Err e -> Err e
+          Ok sz -> case read-u8 symtab (pos + 12) "st_info" of
+            Err e -> Err e
+            Ok info -> case read-u8 symtab (pos + 13) "st_other" of
+              Err e -> Err e
+              Ok other -> case read-u16 order symtab (pos + 14) "st_shndx" of
+                Err e -> Err e
+                Ok shndx ->
+                  let name = strtab-name-or-empty strtab (u32-to-nat name-off) in
+                  Ok (ElfSymbol name info other (u16-to-u32 shndx) (u32-to-u64 val) (u32-to-u64 sz))
+
+  -- | Parse one 64-bit ELF symbol entry (24 bytes).
+  parse-sym64 :: ByteOrder -> Bytes -> Bytes -> Nat -> Result ElfError ElfSymbol
+  parse-sym64 order symtab strtab pos =
+    if pos + 24 > bytes-len symtab then Err (ElfTruncated pos "ELF64 symbol entry")
+    else case read-u32 order symtab pos "st_name" of
+      Err e -> Err e
+      Ok name-off -> case read-u8 symtab (pos + 4) "st_info" of
+        Err e -> Err e
+        Ok info -> case read-u8 symtab (pos + 5) "st_other" of
+          Err e -> Err e
+          Ok other -> case read-u16 order symtab (pos + 6) "st_shndx" of
+            Err e -> Err e
+            Ok shndx -> case read-u64 order symtab (pos + 8) "st_value" of
+              Err e -> Err e
+              Ok val -> case read-u64 order symtab (pos + 16) "st_size" of
+                Err e -> Err e
+                Ok sz ->
+                  let name = strtab-name-or-empty strtab (u32-to-nat name-off) in
+                  Ok (ElfSymbol name info other (u16-to-u32 shndx) val sz)
+
+  -- | Parse symbol entries starting at byte offset pos, omitting the initial null entry.
+  parse-sym-loop :: ElfClass -> ByteOrder -> Bytes -> Bytes -> Nat -> Nat -> List ElfSymbol -> Result ElfError (List ElfSymbol)
+  parse-sym-loop cls order symtab strtab pos entsz acc =
+    if pos + entsz > bytes-len symtab then Ok (reverse acc)
+    else
+      let res = (case cls of
+        ElfClass32 -> parse-sym32 order symtab strtab pos
+        ElfClass64 -> parse-sym64 order symtab strtab pos
+        ElfClassNone -> Err (ElfUnsupportedClass 0)) in
+      case res of
+        Err e -> Err e
+        Ok sym -> parse-sym-loop cls order symtab strtab (pos + entsz) entsz (Cons sym acc)
+
+  -- | Shared implementation for reading SHT_SYMTAB or SHT_DYNSYM symbols (omitting index 0).
+  get-symbols-by-type :: ElfFile -> ElfSectionType -> Result ElfError (List ElfSymbol)
+  get-symbols-by-type f typ = case elf-section-by-type f typ of
+    None -> Err ElfNoSymbols
+    Some sec -> case elf-section-data f sec of
+      Err e -> Err e
+      Ok symdat ->
+        let hdr = elf-file-header f in
+        let cls = elf-class hdr in
+        let order = elf-byte-order hdr in
+        let entsz = class-sym-size cls in
+        if not (is-multiple-of (bytes-len symdat) entsz) then Err (ElfInvalidSection 0 "symbol table size is not a multiple of symbol entry size")
+        else case elf-string-table f (elf-section-link sec) of
+          Err e -> Err e
+          Ok strtab ->
+            if bytes-len symdat < entsz then Ok Nil
+            else parse-sym-loop cls order symdat strtab entsz entsz Nil
+
+  -- | Return all symbols from the SHT_SYMTAB section, omitting the dummy symbol at index 0.
+  elf-symbols :: ElfFile -> Result ElfError (List ElfSymbol)
+  elf-symbols f = get-symbols-by-type f ShtSymtab
+
+  -- | Return all symbols from the SHT_DYNSYM section, omitting the dummy symbol at index 0.
+  elf-dynamic-symbols :: ElfFile -> Result ElfError (List ElfSymbol)
+  elf-dynamic-symbols f = get-symbols-by-type f ShtDynsym
+
+  -- ---------------------------------------------------------------------
+  -- Relocations (SHT_REL and SHT_RELA).
+  -- ---------------------------------------------------------------------
+
+  -- | Parse SHT_REL entries tail-recursively.
+  parse-rel-loop :: ElfClass -> ByteOrder -> Bytes -> Nat -> Nat -> List ElfRel -> Result ElfError (List ElfRel)
+  parse-rel-loop cls order dat pos entsz acc =
+    if pos + entsz > bytes-len dat then Ok (reverse acc)
+    else case cls of
+      ElfClass32 -> case read-u32 order dat pos "r_offset" of
+        Err e -> Err e
+        Ok off -> case read-u32 order dat (pos + 4) "r_info" of
+          Err e -> Err e
+          Ok info ->
+            let rel = ElfRel (u32-to-u64 off) (u32-to-u64 info) (elf-r-sym32 info) (elf-r-type32 info) in
+            parse-rel-loop cls order dat (pos + entsz) entsz (Cons rel acc)
+      ElfClass64 -> case read-u64 order dat pos "r_offset" of
+        Err e -> Err e
+        Ok off -> case read-u64 order dat (pos + 8) "r_info" of
+          Err e -> Err e
+          Ok info ->
+            let rel = ElfRel off info (elf-r-sym64 info) (elf-r-type64 info) in
+            parse-rel-loop cls order dat (pos + entsz) entsz (Cons rel acc)
+      ElfClassNone -> Err (ElfUnsupportedClass 0)
+
+  -- | Parse all SHT_REL entries from a relocation section.
+  elf-relocations-rel :: ElfFile -> ElfSectionHeader -> Result ElfError (List ElfRel)
+  elf-relocations-rel f sec = case elf-section-data f sec of
+    Err e -> Err e
+    Ok dat ->
+      let hdr = elf-file-header f in
+      let cls = elf-class hdr in
+      let order = elf-byte-order hdr in
+      let entsz = class-rel-size cls in
+      if not (is-multiple-of (bytes-len dat) entsz) then Err (ElfInvalidSection 0 "REL section size is not a multiple of entry size")
+      else parse-rel-loop cls order dat 0 entsz Nil
+
+  -- | Parse SHT_RELA entries tail-recursively.
+  parse-rela-loop :: ElfClass -> ByteOrder -> Bytes -> Nat -> Nat -> List ElfRela -> Result ElfError (List ElfRela)
+  parse-rela-loop cls order dat pos entsz acc =
+    if pos + entsz > bytes-len dat then Ok (reverse acc)
+    else case cls of
+      ElfClass32 -> case read-u32 order dat pos "r_offset" of
+        Err e -> Err e
+        Ok off -> case read-u32 order dat (pos + 4) "r_info" of
+          Err e -> Err e
+          Ok info -> case read-u32 order dat (pos + 8) "r_addend" of
+            Err e -> Err e
+            Ok add-u ->
+              let add-i = i32-to-i64 (wrapping-u32-to-i32 add-u) in
+              let rela = ElfRela (u32-to-u64 off) (u32-to-u64 info) add-i (elf-r-sym32 info) (elf-r-type32 info) in
+              parse-rela-loop cls order dat (pos + entsz) entsz (Cons rela acc)
+      ElfClass64 -> case read-u64 order dat pos "r_offset" of
+        Err e -> Err e
+        Ok off -> case read-u64 order dat (pos + 8) "r_info" of
+          Err e -> Err e
+          Ok info -> case read-u64 order dat (pos + 16) "r_addend" of
+            Err e -> Err e
+            Ok add-u ->
+              let add-i = wrapping-u64-to-i64 add-u in
+              let rela = ElfRela off info add-i (elf-r-sym64 info) (elf-r-type64 info) in
+              parse-rela-loop cls order dat (pos + entsz) entsz (Cons rela acc)
+      ElfClassNone -> Err (ElfUnsupportedClass 0)
+
+  -- | Parse all SHT_RELA entries from a relocation section.
+  elf-relocations-rela :: ElfFile -> ElfSectionHeader -> Result ElfError (List ElfRela)
+  elf-relocations-rela f sec = case elf-section-data f sec of
+    Err e -> Err e
+    Ok dat ->
+      let hdr = elf-file-header f in
+      let cls = elf-class hdr in
+      let order = elf-byte-order hdr in
+      let entsz = class-rela-size cls in
+      if not (is-multiple-of (bytes-len dat) entsz) then Err (ElfInvalidSection 0 "RELA section size is not a multiple of entry size")
+      else parse-rela-loop cls order dat 0 entsz Nil
+
+  -- ---------------------------------------------------------------------
+  -- Dynamic section tags, libraries, and imported symbols.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse SHT_DYNAMIC entries tail-recursively.
+  parse-dyn-loop :: ElfClass -> ByteOrder -> Bytes -> Nat -> Nat -> List ElfDynEntry -> Result ElfError (List ElfDynEntry)
+  parse-dyn-loop cls order dat pos entsz acc =
+    if pos + entsz > bytes-len dat then Ok (reverse acc)
+    else case cls of
+      ElfClass32 -> case read-u32 order dat pos "d_tag" of
+        Err e -> Err e
+        Ok tag-u -> case read-u32 order dat (pos + 4) "d_val" of
+          Err e -> Err e
+          Ok val-u ->
+            let raw-tag = u32-to-u64 tag-u in
+            let entry = ElfDynEntry (decode-dyn-tag raw-tag) raw-tag (u32-to-u64 val-u) in
+            parse-dyn-loop cls order dat (pos + entsz) entsz (Cons entry acc)
+      ElfClass64 -> case read-u64 order dat pos "d_tag" of
+        Err e -> Err e
+        Ok raw-tag -> case read-u64 order dat (pos + 8) "d_val" of
+          Err e -> Err e
+          Ok val-u ->
+            let entry = ElfDynEntry (decode-dyn-tag raw-tag) raw-tag val-u in
+            parse-dyn-loop cls order dat (pos + entsz) entsz (Cons entry acc)
+      ElfClassNone -> Err (ElfUnsupportedClass 0)
+
+  -- | Return all dynamic entries from the SHT_DYNAMIC section, or empty list if none exists.
+  elf-dynamic-entries :: ElfFile -> Result ElfError (List ElfDynEntry)
+  elf-dynamic-entries f = case elf-section-by-type f ShtDynamic of
+    None -> Ok Nil
+    Some sec -> case elf-section-data f sec of
+      Err e -> Err e
+      Ok dat ->
+        let hdr = elf-file-header f in
+        let cls = elf-class hdr in
+        let order = elf-byte-order hdr in
+        let entsz = class-dyn-size cls in
+        if not (is-multiple-of (bytes-len dat) entsz) then Err (ElfInvalidSection 0 "dynamic section size is not a multiple of entry size")
+        else parse-dyn-loop cls order dat 0 entsz Nil
+
+  -- | Collect all d_val values matching a numeric d_tag code.
+  filter-dyn-values :: List ElfDynEntry -> U64 -> List U64 -> List U64
+  filter-dyn-values entries want acc = case entries of
+    Nil -> reverse acc
+    Cons e rest ->
+      if eq-u64 (elf-dyn-raw-tag e) want then filter-dyn-values rest want (Cons (elf-dyn-val e) acc)
+      else filter-dyn-values rest want acc
+
+  -- | Return all values listed for the given tag in the SHT_DYNAMIC section.
+  elf-dyn-value :: ElfFile -> ElfDynTag -> Result ElfError (List U64)
+  elf-dyn-value f tag = case elf-dynamic-entries f of
+    Err e -> Err e
+    Ok entries -> Ok (filter-dyn-values entries (elf-dyn-tag-code tag) Nil)
+
+  -- | Report whether a dynamic tag carries string-table offsets.
+  is-string-dyn-tag :: ElfDynTag -> Bool
+  is-string-dyn-tag tag = case tag of
+    DtNeeded -> True
+    DtSoname -> True
+    DtRpath -> True
+    DtRunpath -> True
+    _ -> False
+
+  -- | Resolve a list of string table offsets to strings.
+  resolve-dyn-strings :: Bytes -> List U64 -> List String -> List String
+  resolve-dyn-strings strtab vals acc = case vals of
+    Nil -> reverse acc
+    Cons v rest -> case u64-to-nat-checked v of
+      None -> resolve-dyn-strings strtab rest acc
+      Some off -> case read-strtab-string strtab off of
+        None -> resolve-dyn-strings strtab rest acc
+        Some s -> resolve-dyn-strings strtab rest (Cons s acc)
+
+  -- | Return the strings listed for a string-valued dynamic tag (DtNeeded, DtSoname, DtRpath, DtRunpath).
+  elf-dyn-string :: ElfFile -> ElfDynTag -> Result ElfError (List String)
+  elf-dyn-string f tag =
+    if not (is-string-dyn-tag tag) then Err (ElfInvalidDynTag (elf-dyn-tag-code tag))
+    else case elf-section-by-type f ShtDynamic of
+      None -> Ok Nil
+      Some sec -> case elf-dynamic-entries f of
+        Err e -> Err e
+        Ok entries -> case elf-string-table f (elf-section-link sec) of
+          Err e -> Err e
+          Ok strtab ->
+            let vals = filter-dyn-values entries (elf-dyn-tag-code tag) Nil in
+            Ok (resolve-dyn-strings strtab vals Nil)
+
+  -- | Return the shared library names listed by DT_NEEDED entries.
+  elf-imported-libraries :: ElfFile -> Result ElfError (List String)
+  elf-imported-libraries f = elf-dyn-string f DtNeeded
+
+  -- | Filter dynamic symbols for global undefined imports.
+  collect-imported-symbols :: List ElfSymbol -> List ElfImportedSymbol -> List ElfImportedSymbol
+  collect-imported-symbols syms acc = case syms of
+    Nil -> reverse acc
+    Cons s rest ->
+      if is-global-bind (elf-sym-bind s) && eq-u32 (elf-sym-section s) shn-undef then
+        collect-imported-symbols rest (Cons (ElfImportedSymbol (elf-sym-name s) empty-string empty-string) acc)
+      else collect-imported-symbols rest acc
+
+  -- | Return all global undefined symbols from SHT_DYNSYM expected to be resolved at dynamic load time.
+  elf-imported-symbols :: ElfFile -> Result ElfError (List ElfImportedSymbol)
+  elf-imported-symbols f = case elf-dynamic-symbols f of
+    Err e -> Err e
+    Ok syms -> Ok (collect-imported-symbols syms Nil)

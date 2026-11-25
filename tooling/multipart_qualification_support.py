@@ -103,14 +103,54 @@ def archive_completed(work: Path, label: str, name: str, report: dict) -> None:
             os.close(directory)
 
 
-def build_fixture(work: Path, clang: str) -> dict:
-    """Link the unmodified inline LLVM body and deliberately scalar independent C."""
-    source = (work / "Text.Multipart.cinch").read_text()
-    body = re.search(r"prim equal-sixteen ::.*?llvm \{(.*?)\n    \}", source, re.S)
-    if body is None:
-        raise RuntimeError("missing actual selected SIMD kernel")
+def build_fixture(work: Path, clang: str, compiler: Path | None = None) -> dict:
+    """Compile the actual pure-Cinch Text.Multipart SIMD match kernel and deliberately scalar independent C."""
+    cinch = compiler or (ROOT / "seed/target/release/cinch")
+    probe = work / "_fixture_probe"
+    probe.mkdir(parents=True, exist_ok=True)
+    for src_path in work.glob("*.cinch"):
+        shutil.copyfile(src_path, probe / src_path.name)
+    mp_path = probe / "Text.Multipart.cinch"
+    mp_src = mp_path.read_text()
+    if "equal-sixteen-mask ::" not in mp_src:
+        raise RuntimeError("missing actual selected pure-Cinch SIMD kernel")
+    mp_src = re.sub(r"^(\s*export\s+)", r"\1equal-sixteen-mask, ", mp_src, count=1, flags=re.M)
+    mp_path.write_text(mp_src)
+    (probe / "Main.cinch").write_text(
+        "-- | Root pure-Cinch Text.Multipart SIMD kernel for foreign-object oracle verification.\n"
+        "module Main where\n"
+        "  import Data.Bytes\n"
+        "  import Data.Machine\n"
+        "  import Data.Wide\n"
+        "  import Text.Multipart\n"
+        "  -- | Non-inlinable wrapper around Text.Multipart.equal-sixteen-mask.\n"
+        "  probe-equal :: U128 -> U8 -> I64 -> U32\n"
+        "  probe-equal v m k = if lt-i64 k 0 then probe-equal v m (wrapping-add-i64 k 1) else equal-sixteen-mask v m\n"
+        "  -- | Keep pure-Cinch equal-sixteen-mask reachable in emitted LLVM IR.\n"
+        "  main :: Int\n"
+        "  main =\n"
+        "    let b = bytes-new 16 in\n"
+        "    int-from-i64 (u32-to-i64 (probe-equal (bytes-load-u128-at b 0) (bytes-get-u8-at b 0) 0))\n"
+    )
+    raw_ir = probe / "probe.ll"
+    run([str(cinch), "emit-ir", str(probe / "Main.cinch"), "-o", str(raw_ir)], probe, env={**os.environ, "RUST_MIN_STACK": "67108864", "CINCH_STACK_SIZE": "64M"})
+    ir = raw_ir.read_text()
+    ir = re.sub(r"^define (?!internal )", "define internal ", ir, flags=re.M)
+    ir = re.sub(r"^@llvm\.global_ctors = .*\n?", "", ir, flags=re.M)
+    ir = re.sub(r'^(@(?:"[^"]+"|[A-Za-z0-9_.$#-]+) = )(?!private |internal |external |appending |unnamed_addr )', r"\1internal ", ir, flags=re.M)
+    ir = ir.replace("define internal i32 @main(", "define internal i32 @__mp_probe_main(")
+    trampoline = (
+        '\ndefine i32 @multipart_equal16(i64 %0, i64 %1, i8 %2) {\n'
+        '  %lo = zext i64 %0 to i128\n'
+        '  %hi = zext i64 %1 to i128\n'
+        '  %sh = shl i128 %hi, 64\n'
+        '  %v = or i128 %lo, %sh\n'
+        '  %r = call i32 @"Main.probe-equal"(i128 %v, i8 %2, i64 0)\n'
+        '  ret i32 %r\n'
+        '}\n'
+    )
     kernel = work / "kernels.ll"
-    kernel.write_text("define i32 @multipart_equal16(i64 %0, i64 %1, i8 %2) {\n" + body.group(1) + "\n}\n")
+    kernel.write_text(ir + trampoline)
     fixture = work / "fixture.c"
     shutil.copyfile(ROOT / "seed/tests/fixtures/multipart-fixture.c", fixture)
     run([clang, "-O2", "-c", str(kernel), "-o", str(work / "kernels.o")], work)

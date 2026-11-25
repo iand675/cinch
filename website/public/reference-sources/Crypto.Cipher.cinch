@@ -11,7 +11,6 @@
 module Crypto.Cipher where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Wide
   import Data.Nat
@@ -57,16 +56,13 @@ module Crypto.Cipher where
   -- | Read a complete block at a checked position; incomplete positions read as zero.
   block-at :: Bytes -> Nat -> U128
   block-at input pos =
-    if pos + 16 <= bytes-len input then
-      bit-or-u128 (u64-to-u128 (bytes-read-le64 input pos)) (wrapping-shl-u128 (u64-to-u128 (bytes-read-le64 input (pos + 8))) 64)
+    if pos + 16 <= bytes-len input then bytes-load-u128 input pos
     else 0
 
   -- | Store a block at a checked complete position.
   put-block :: Bytes -> Nat -> U128 -> Unit
   put-block out pos block =
-    if pos + 16 <= bytes-len out then
-      let low = bytes-write-le64 out pos (wrapping-u128-to-u64 block) in
-      bytes-write-le64 out (pos + 8) (wrapping-u128-to-u64 (wrapping-shr-u128 block 64))
+    if pos + 16 <= bytes-len out then bytes-store-u128 out pos block
     else ()
 
   -- | Read up to sixteen bytes as a block padded with zero bytes.
@@ -417,416 +413,85 @@ module Crypto.Cipher where
           let out = bytes-new n in let decrypted = gctr cipher (increment32 j0) text out 0 in Ok out
         else Err AuthenticationFailed
 
-  -- Generated GHASH multiplication: constant-time portable and carry-less-instruction bodies.
-  -- Regenerate with python3 tooling/generate_aes_kernels.py; do not edit this suffix.
+  -- | Constant-time low 64 bits of the carry-less product of two 64-bit polynomials via 4-way bit interleaving.
+  bmul64 :: U64 -> U64 -> U64
+  bmul64 x y =
+    let x0 = bit-and-u64 x 1229782938247303441 in
+    let x1 = bit-and-u64 x 2459565876494606882 in
+    let x2 = bit-and-u64 x 4919131752989213764 in
+    let x3 = bit-and-u64 x 9838263505978427528 in
+    let y0 = bit-and-u64 y 1229782938247303441 in
+    let y1 = bit-and-u64 y 2459565876494606882 in
+    let y2 = bit-and-u64 y 4919131752989213764 in
+    let y3 = bit-and-u64 y 9838263505978427528 in
+    let z0 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y0) (wrapping-mul-u64 x1 y3)) (bit-xor-u64 (wrapping-mul-u64 x2 y2) (wrapping-mul-u64 x3 y1))) 1229782938247303441 in
+    let z1 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y1) (wrapping-mul-u64 x1 y0)) (bit-xor-u64 (wrapping-mul-u64 x2 y3) (wrapping-mul-u64 x3 y2))) 2459565876494606882 in
+    let z2 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y2) (wrapping-mul-u64 x1 y1)) (bit-xor-u64 (wrapping-mul-u64 x2 y0) (wrapping-mul-u64 x3 y3))) 4919131752989213764 in
+    let z3 = bit-and-u64 (bit-xor-u64 (bit-xor-u64 (wrapping-mul-u64 x0 y3) (wrapping-mul-u64 x1 y2)) (bit-xor-u64 (wrapping-mul-u64 x2 y1) (wrapping-mul-u64 x3 y0))) 9838263505978427528 in
+    bit-or-u64 (bit-or-u64 z0 z1) (bit-or-u64 z2 z3)
+
+  -- | Reduce a 256-bit reflected carry-less product (w0 lowest .. w3 highest) modulo the GHASH polynomial into canonical byte order.
+  ghash-reduce :: U64 -> U64 -> U64 -> U64 -> U128
+  ghash-reduce w0 w1 w2 w3 =
+    let p3 = bit-or-u64 (wrapping-shl-u64 w3 1) (wrapping-shr-u64 w2 63) in
+    let p2 = bit-or-u64 (wrapping-shl-u64 w2 1) (wrapping-shr-u64 w1 63) in
+    let p1 = bit-or-u64 (wrapping-shl-u64 w1 1) (wrapping-shr-u64 w0 63) in
+    let p0 = wrapping-shl-u64 w0 1 in
+    let q2 = bit-xor-u64 p2 (bit-xor-u64 (bit-xor-u64 p0 (wrapping-shr-u64 p0 1)) (bit-xor-u64 (wrapping-shr-u64 p0 2) (wrapping-shr-u64 p0 7))) in
+    let q1 = bit-xor-u64 p1 (bit-xor-u64 (bit-xor-u64 (wrapping-shl-u64 p0 63) (wrapping-shl-u64 p0 62)) (wrapping-shl-u64 p0 57)) in
+    let r3 = bit-xor-u64 p3 (bit-xor-u64 (bit-xor-u64 q1 (wrapping-shr-u64 q1 1)) (bit-xor-u64 (wrapping-shr-u64 q1 2) (wrapping-shr-u64 q1 7))) in
+    let r2 = bit-xor-u64 q2 (bit-xor-u64 (bit-xor-u64 (wrapping-shl-u64 q1 63) (wrapping-shl-u64 q1 62)) (wrapping-shl-u64 q1 57)) in
+    swap-bytes-u128 (simd-u64x2-pack r2 r3)
+
   -- | Multiply two GHASH field elements in canonical byte order without data-dependent branches or memory access.
-  prim ghash-multiply :: U128 -> U128 -> U128 where
-    llvm {
-      %g1 = call i128 @llvm.bswap.i128(i128 %0)
-      %g2 = call i128 @llvm.bswap.i128(i128 %1)
-      %g3 = trunc i128 %g1 to i64
-      %g4 = lshr i128 %g1, 64
-      %g5 = trunc i128 %g4 to i64
-      %g6 = trunc i128 %g2 to i64
-      %g7 = lshr i128 %g2, 64
-      %g8 = trunc i128 %g7 to i64
-      %r9 = call i64 @llvm.bitreverse.i64(i64 %g6)
-      %r10 = call i64 @llvm.bitreverse.i64(i64 %g8)
-      %g11 = xor i64 %g6, %g8
-      %g12 = xor i64 %r9, %r10
-      %r13 = call i64 @llvm.bitreverse.i64(i64 %g3)
-      %r14 = call i64 @llvm.bitreverse.i64(i64 %g5)
-      %g15 = xor i64 %g3, %g5
-      %g16 = xor i64 %r13, %r14
-      %a17 = and i64 %g3, 1229782938247303441
-      %a18 = and i64 %g3, 2459565876494606882
-      %a19 = and i64 %g3, 4919131752989213764
-      %a20 = and i64 %g3, 9838263505978427528
-      %b21 = and i64 %g6, 1229782938247303441
-      %b22 = and i64 %g6, 2459565876494606882
-      %b23 = and i64 %g6, 4919131752989213764
-      %b24 = and i64 %g6, 9838263505978427528
-      %c25 = mul i64 %a17, %b21
-      %c26 = mul i64 %a18, %b24
-      %c27 = xor i64 %c25, %c26
-      %c28 = mul i64 %a19, %b23
-      %c29 = xor i64 %c27, %c28
-      %c30 = mul i64 %a20, %b22
-      %c31 = xor i64 %c29, %c30
-      %d32 = and i64 %c31, 1229782938247303441
-      %c33 = mul i64 %a17, %b22
-      %c34 = mul i64 %a18, %b21
-      %c35 = xor i64 %c33, %c34
-      %c36 = mul i64 %a19, %b24
-      %c37 = xor i64 %c35, %c36
-      %c38 = mul i64 %a20, %b23
-      %c39 = xor i64 %c37, %c38
-      %d40 = and i64 %c39, 2459565876494606882
-      %c41 = mul i64 %a17, %b23
-      %c42 = mul i64 %a18, %b22
-      %c43 = xor i64 %c41, %c42
-      %c44 = mul i64 %a19, %b21
-      %c45 = xor i64 %c43, %c44
-      %c46 = mul i64 %a20, %b24
-      %c47 = xor i64 %c45, %c46
-      %d48 = and i64 %c47, 4919131752989213764
-      %c49 = mul i64 %a17, %b24
-      %c50 = mul i64 %a18, %b23
-      %c51 = xor i64 %c49, %c50
-      %c52 = mul i64 %a19, %b22
-      %c53 = xor i64 %c51, %c52
-      %c54 = mul i64 %a20, %b21
-      %c55 = xor i64 %c53, %c54
-      %d56 = and i64 %c55, 9838263505978427528
-      %e57 = or i64 %d32, %d40
-      %e58 = or i64 %d48, %d56
-      %e59 = or i64 %e57, %e58
-      %a60 = and i64 %g5, 1229782938247303441
-      %a61 = and i64 %g5, 2459565876494606882
-      %a62 = and i64 %g5, 4919131752989213764
-      %a63 = and i64 %g5, 9838263505978427528
-      %b64 = and i64 %g8, 1229782938247303441
-      %b65 = and i64 %g8, 2459565876494606882
-      %b66 = and i64 %g8, 4919131752989213764
-      %b67 = and i64 %g8, 9838263505978427528
-      %c68 = mul i64 %a60, %b64
-      %c69 = mul i64 %a61, %b67
-      %c70 = xor i64 %c68, %c69
-      %c71 = mul i64 %a62, %b66
-      %c72 = xor i64 %c70, %c71
-      %c73 = mul i64 %a63, %b65
-      %c74 = xor i64 %c72, %c73
-      %d75 = and i64 %c74, 1229782938247303441
-      %c76 = mul i64 %a60, %b65
-      %c77 = mul i64 %a61, %b64
-      %c78 = xor i64 %c76, %c77
-      %c79 = mul i64 %a62, %b67
-      %c80 = xor i64 %c78, %c79
-      %c81 = mul i64 %a63, %b66
-      %c82 = xor i64 %c80, %c81
-      %d83 = and i64 %c82, 2459565876494606882
-      %c84 = mul i64 %a60, %b66
-      %c85 = mul i64 %a61, %b65
-      %c86 = xor i64 %c84, %c85
-      %c87 = mul i64 %a62, %b64
-      %c88 = xor i64 %c86, %c87
-      %c89 = mul i64 %a63, %b67
-      %c90 = xor i64 %c88, %c89
-      %d91 = and i64 %c90, 4919131752989213764
-      %c92 = mul i64 %a60, %b67
-      %c93 = mul i64 %a61, %b66
-      %c94 = xor i64 %c92, %c93
-      %c95 = mul i64 %a62, %b65
-      %c96 = xor i64 %c94, %c95
-      %c97 = mul i64 %a63, %b64
-      %c98 = xor i64 %c96, %c97
-      %d99 = and i64 %c98, 9838263505978427528
-      %e100 = or i64 %d75, %d83
-      %e101 = or i64 %d91, %d99
-      %e102 = or i64 %e100, %e101
-      %a103 = and i64 %g15, 1229782938247303441
-      %a104 = and i64 %g15, 2459565876494606882
-      %a105 = and i64 %g15, 4919131752989213764
-      %a106 = and i64 %g15, 9838263505978427528
-      %b107 = and i64 %g11, 1229782938247303441
-      %b108 = and i64 %g11, 2459565876494606882
-      %b109 = and i64 %g11, 4919131752989213764
-      %b110 = and i64 %g11, 9838263505978427528
-      %c111 = mul i64 %a103, %b107
-      %c112 = mul i64 %a104, %b110
-      %c113 = xor i64 %c111, %c112
-      %c114 = mul i64 %a105, %b109
-      %c115 = xor i64 %c113, %c114
-      %c116 = mul i64 %a106, %b108
-      %c117 = xor i64 %c115, %c116
-      %d118 = and i64 %c117, 1229782938247303441
-      %c119 = mul i64 %a103, %b108
-      %c120 = mul i64 %a104, %b107
-      %c121 = xor i64 %c119, %c120
-      %c122 = mul i64 %a105, %b110
-      %c123 = xor i64 %c121, %c122
-      %c124 = mul i64 %a106, %b109
-      %c125 = xor i64 %c123, %c124
-      %d126 = and i64 %c125, 2459565876494606882
-      %c127 = mul i64 %a103, %b109
-      %c128 = mul i64 %a104, %b108
-      %c129 = xor i64 %c127, %c128
-      %c130 = mul i64 %a105, %b107
-      %c131 = xor i64 %c129, %c130
-      %c132 = mul i64 %a106, %b110
-      %c133 = xor i64 %c131, %c132
-      %d134 = and i64 %c133, 4919131752989213764
-      %c135 = mul i64 %a103, %b110
-      %c136 = mul i64 %a104, %b109
-      %c137 = xor i64 %c135, %c136
-      %c138 = mul i64 %a105, %b108
-      %c139 = xor i64 %c137, %c138
-      %c140 = mul i64 %a106, %b107
-      %c141 = xor i64 %c139, %c140
-      %d142 = and i64 %c141, 9838263505978427528
-      %e143 = or i64 %d118, %d126
-      %e144 = or i64 %d134, %d142
-      %e145 = or i64 %e143, %e144
-      %a146 = and i64 %r13, 1229782938247303441
-      %a147 = and i64 %r13, 2459565876494606882
-      %a148 = and i64 %r13, 4919131752989213764
-      %a149 = and i64 %r13, 9838263505978427528
-      %b150 = and i64 %r9, 1229782938247303441
-      %b151 = and i64 %r9, 2459565876494606882
-      %b152 = and i64 %r9, 4919131752989213764
-      %b153 = and i64 %r9, 9838263505978427528
-      %c154 = mul i64 %a146, %b150
-      %c155 = mul i64 %a147, %b153
-      %c156 = xor i64 %c154, %c155
-      %c157 = mul i64 %a148, %b152
-      %c158 = xor i64 %c156, %c157
-      %c159 = mul i64 %a149, %b151
-      %c160 = xor i64 %c158, %c159
-      %d161 = and i64 %c160, 1229782938247303441
-      %c162 = mul i64 %a146, %b151
-      %c163 = mul i64 %a147, %b150
-      %c164 = xor i64 %c162, %c163
-      %c165 = mul i64 %a148, %b153
-      %c166 = xor i64 %c164, %c165
-      %c167 = mul i64 %a149, %b152
-      %c168 = xor i64 %c166, %c167
-      %d169 = and i64 %c168, 2459565876494606882
-      %c170 = mul i64 %a146, %b152
-      %c171 = mul i64 %a147, %b151
-      %c172 = xor i64 %c170, %c171
-      %c173 = mul i64 %a148, %b150
-      %c174 = xor i64 %c172, %c173
-      %c175 = mul i64 %a149, %b153
-      %c176 = xor i64 %c174, %c175
-      %d177 = and i64 %c176, 4919131752989213764
-      %c178 = mul i64 %a146, %b153
-      %c179 = mul i64 %a147, %b152
-      %c180 = xor i64 %c178, %c179
-      %c181 = mul i64 %a148, %b151
-      %c182 = xor i64 %c180, %c181
-      %c183 = mul i64 %a149, %b150
-      %c184 = xor i64 %c182, %c183
-      %d185 = and i64 %c184, 9838263505978427528
-      %e186 = or i64 %d161, %d169
-      %e187 = or i64 %d177, %d185
-      %e188 = or i64 %e186, %e187
-      %a189 = and i64 %r14, 1229782938247303441
-      %a190 = and i64 %r14, 2459565876494606882
-      %a191 = and i64 %r14, 4919131752989213764
-      %a192 = and i64 %r14, 9838263505978427528
-      %b193 = and i64 %r10, 1229782938247303441
-      %b194 = and i64 %r10, 2459565876494606882
-      %b195 = and i64 %r10, 4919131752989213764
-      %b196 = and i64 %r10, 9838263505978427528
-      %c197 = mul i64 %a189, %b193
-      %c198 = mul i64 %a190, %b196
-      %c199 = xor i64 %c197, %c198
-      %c200 = mul i64 %a191, %b195
-      %c201 = xor i64 %c199, %c200
-      %c202 = mul i64 %a192, %b194
-      %c203 = xor i64 %c201, %c202
-      %d204 = and i64 %c203, 1229782938247303441
-      %c205 = mul i64 %a189, %b194
-      %c206 = mul i64 %a190, %b193
-      %c207 = xor i64 %c205, %c206
-      %c208 = mul i64 %a191, %b196
-      %c209 = xor i64 %c207, %c208
-      %c210 = mul i64 %a192, %b195
-      %c211 = xor i64 %c209, %c210
-      %d212 = and i64 %c211, 2459565876494606882
-      %c213 = mul i64 %a189, %b195
-      %c214 = mul i64 %a190, %b194
-      %c215 = xor i64 %c213, %c214
-      %c216 = mul i64 %a191, %b193
-      %c217 = xor i64 %c215, %c216
-      %c218 = mul i64 %a192, %b196
-      %c219 = xor i64 %c217, %c218
-      %d220 = and i64 %c219, 4919131752989213764
-      %c221 = mul i64 %a189, %b196
-      %c222 = mul i64 %a190, %b195
-      %c223 = xor i64 %c221, %c222
-      %c224 = mul i64 %a191, %b194
-      %c225 = xor i64 %c223, %c224
-      %c226 = mul i64 %a192, %b193
-      %c227 = xor i64 %c225, %c226
-      %d228 = and i64 %c227, 9838263505978427528
-      %e229 = or i64 %d204, %d212
-      %e230 = or i64 %d220, %d228
-      %e231 = or i64 %e229, %e230
-      %a232 = and i64 %g16, 1229782938247303441
-      %a233 = and i64 %g16, 2459565876494606882
-      %a234 = and i64 %g16, 4919131752989213764
-      %a235 = and i64 %g16, 9838263505978427528
-      %b236 = and i64 %g12, 1229782938247303441
-      %b237 = and i64 %g12, 2459565876494606882
-      %b238 = and i64 %g12, 4919131752989213764
-      %b239 = and i64 %g12, 9838263505978427528
-      %c240 = mul i64 %a232, %b236
-      %c241 = mul i64 %a233, %b239
-      %c242 = xor i64 %c240, %c241
-      %c243 = mul i64 %a234, %b238
-      %c244 = xor i64 %c242, %c243
-      %c245 = mul i64 %a235, %b237
-      %c246 = xor i64 %c244, %c245
-      %d247 = and i64 %c246, 1229782938247303441
-      %c248 = mul i64 %a232, %b237
-      %c249 = mul i64 %a233, %b236
-      %c250 = xor i64 %c248, %c249
-      %c251 = mul i64 %a234, %b239
-      %c252 = xor i64 %c250, %c251
-      %c253 = mul i64 %a235, %b238
-      %c254 = xor i64 %c252, %c253
-      %d255 = and i64 %c254, 2459565876494606882
-      %c256 = mul i64 %a232, %b238
-      %c257 = mul i64 %a233, %b237
-      %c258 = xor i64 %c256, %c257
-      %c259 = mul i64 %a234, %b236
-      %c260 = xor i64 %c258, %c259
-      %c261 = mul i64 %a235, %b239
-      %c262 = xor i64 %c260, %c261
-      %d263 = and i64 %c262, 4919131752989213764
-      %c264 = mul i64 %a232, %b239
-      %c265 = mul i64 %a233, %b238
-      %c266 = xor i64 %c264, %c265
-      %c267 = mul i64 %a234, %b237
-      %c268 = xor i64 %c266, %c267
-      %c269 = mul i64 %a235, %b236
-      %c270 = xor i64 %c268, %c269
-      %d271 = and i64 %c270, 9838263505978427528
-      %e272 = or i64 %d247, %d255
-      %e273 = or i64 %d263, %d271
-      %e274 = or i64 %e272, %e273
-      %g275 = xor i64 %e59, %e102
-      %g276 = xor i64 %e145, %g275
-      %g277 = xor i64 %e188, %e231
-      %g278 = xor i64 %e274, %g277
-      %r279 = call i64 @llvm.bitreverse.i64(i64 %e188)
-      %g280 = lshr i64 %r279, 1
-      %r281 = call i64 @llvm.bitreverse.i64(i64 %e231)
-      %g282 = lshr i64 %r281, 1
-      %r283 = call i64 @llvm.bitreverse.i64(i64 %g278)
-      %g284 = lshr i64 %r283, 1
-      %g285 = xor i64 %g280, %g276
-      %g286 = xor i64 %e102, %g284
-      %n287 = shl i64 %g282, 1
-      %n288 = lshr i64 %g286, 63
-      %n289 = or i64 %n287, %n288
-      %n290 = shl i64 %g286, 1
-      %n291 = lshr i64 %g285, 63
-      %n292 = or i64 %n290, %n291
-      %n293 = shl i64 %g285, 1
-      %n294 = lshr i64 %e59, 63
-      %n295 = or i64 %n293, %n294
-      %n296 = shl i64 %e59, 1
-      %n297 = lshr i64 %n296, 1
-      %n298 = xor i64 %n296, %n297
-      %n299 = lshr i64 %n296, 2
-      %n300 = lshr i64 %n296, 7
-      %n301 = xor i64 %n299, %n300
-      %n302 = xor i64 %n298, %n301
-      %n303 = xor i64 %n292, %n302
-      %n304 = shl i64 %n296, 63
-      %n305 = shl i64 %n296, 62
-      %n306 = xor i64 %n304, %n305
-      %n307 = shl i64 %n296, 57
-      %n308 = xor i64 %n306, %n307
-      %n309 = xor i64 %n295, %n308
-      %n310 = lshr i64 %n309, 1
-      %n311 = xor i64 %n309, %n310
-      %n312 = lshr i64 %n309, 2
-      %n313 = lshr i64 %n309, 7
-      %n314 = xor i64 %n312, %n313
-      %n315 = xor i64 %n311, %n314
-      %n316 = xor i64 %n289, %n315
-      %n317 = shl i64 %n309, 63
-      %n318 = shl i64 %n309, 62
-      %n319 = xor i64 %n317, %n318
-      %n320 = shl i64 %n309, 57
-      %n321 = xor i64 %n319, %n320
-      %n322 = xor i64 %n303, %n321
-      %n323 = zext i64 %n322 to i128
-      %n324 = zext i64 %n316 to i128
-      %n325 = shl i128 %n324, 64
-      %n326 = or i128 %n323, %n325
-      %n327 = call i128 @llvm.bswap.i128(i128 %n326)
-      ret i128 %n327
-    }
+  ghash-multiply :: U128 -> U128 -> U128
+  ghash-multiply a b =
+    let g1 = swap-bytes-u128 a in
+    let g2 = swap-bytes-u128 b in
+    let a0 = wrapping-u128-to-u64 g1 in
+    let a1 = wrapping-u128-to-u64 (wrapping-shr-u128 g1 64) in
+    let b0 = wrapping-u128-to-u64 g2 in
+    let b1 = wrapping-u128-to-u64 (wrapping-shr-u128 g2 64) in
+    let rb0 = reverse-bits-u64 b0 in
+    let rb1 = reverse-bits-u64 b1 in
+    let b2 = bit-xor-u64 b0 b1 in
+    let rb2 = bit-xor-u64 rb0 rb1 in
+    let ra0 = reverse-bits-u64 a0 in
+    let ra1 = reverse-bits-u64 a1 in
+    let a2 = bit-xor-u64 a0 a1 in
+    let ra2 = bit-xor-u64 ra0 ra1 in
+    let z0l = bmul64 a0 b0 in
+    let z2l = bmul64 a1 b1 in
+    let z1l = bmul64 a2 b2 in
+    let z0h = bmul64 ra0 rb0 in
+    let z2h = bmul64 ra1 rb1 in
+    let z1h = bmul64 ra2 rb2 in
+    let m1l = bit-xor-u64 z1l (bit-xor-u64 z0l z2l) in
+    let m1h = bit-xor-u64 z1h (bit-xor-u64 z0h z2h) in
+    let h0 = wrapping-shr-u64 (reverse-bits-u64 z0h) 1 in
+    let h2 = wrapping-shr-u64 (reverse-bits-u64 z2h) 1 in
+    let h1 = wrapping-shr-u64 (reverse-bits-u64 m1h) 1 in
+    ghash-reduce z0l (bit-xor-u64 h0 m1l) (bit-xor-u64 z2l h1) h2
 
-  -- | Multiply two GHASH field elements with PCLMULQDQ. Callers select it only after detection succeeds; other targets keep the identity body, which is never selected.
-  prim ghash-multiply-clmul :: U128 -> U128 -> U128 where
-    unsafe llvm {
-      %g1 = call i128 @llvm.bswap.i128(i128 %0)
-      %g2 = call i128 @llvm.bswap.i128(i128 %1)
-      %g3 = bitcast i128 %g1 to <2 x i64>
-      %g4 = bitcast i128 %g2 to <2 x i64>
-      %q5 = call <2 x i64> asm "pclmulqdq $$0, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
-      %q6 = call <2 x i64> asm "pclmulqdq $$17, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
-      %q7 = call <2 x i64> asm "pclmulqdq $$1, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
-      %q8 = call <2 x i64> asm "pclmulqdq $$16, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
-      %g9 = xor <2 x i64> %q7, %q8
-      %l10 = extractelement <2 x i64> %q5, i64 0
-      %l11 = extractelement <2 x i64> %q5, i64 1
-      %l12 = extractelement <2 x i64> %g9, i64 0
-      %g13 = xor i64 %l11, %l12
-      %l14 = extractelement <2 x i64> %q6, i64 0
-      %l15 = extractelement <2 x i64> %g9, i64 1
-      %g16 = xor i64 %l14, %l15
-      %l17 = extractelement <2 x i64> %q6, i64 1
-      %n18 = shl i64 %l17, 1
-      %n19 = lshr i64 %g16, 63
-      %n20 = or i64 %n18, %n19
-      %n21 = shl i64 %g16, 1
-      %n22 = lshr i64 %g13, 63
-      %n23 = or i64 %n21, %n22
-      %n24 = shl i64 %g13, 1
-      %n25 = lshr i64 %l10, 63
-      %n26 = or i64 %n24, %n25
-      %n27 = shl i64 %l10, 1
-      %n28 = lshr i64 %n27, 1
-      %n29 = xor i64 %n27, %n28
-      %n30 = lshr i64 %n27, 2
-      %n31 = lshr i64 %n27, 7
-      %n32 = xor i64 %n30, %n31
-      %n33 = xor i64 %n29, %n32
-      %n34 = xor i64 %n23, %n33
-      %n35 = shl i64 %n27, 63
-      %n36 = shl i64 %n27, 62
-      %n37 = xor i64 %n35, %n36
-      %n38 = shl i64 %n27, 57
-      %n39 = xor i64 %n37, %n38
-      %n40 = xor i64 %n26, %n39
-      %n41 = lshr i64 %n40, 1
-      %n42 = xor i64 %n40, %n41
-      %n43 = lshr i64 %n40, 2
-      %n44 = lshr i64 %n40, 7
-      %n45 = xor i64 %n43, %n44
-      %n46 = xor i64 %n42, %n45
-      %n47 = xor i64 %n20, %n46
-      %n48 = shl i64 %n40, 63
-      %n49 = shl i64 %n40, 62
-      %n50 = xor i64 %n48, %n49
-      %n51 = shl i64 %n40, 57
-      %n52 = xor i64 %n50, %n51
-      %n53 = xor i64 %n34, %n52
-      %n54 = zext i64 %n53 to i128
-      %n55 = zext i64 %n47 to i128
-      %n56 = shl i128 %n55, 64
-      %n57 = or i128 %n54, %n56
-      %n58 = call i128 @llvm.bswap.i128(i128 %n57)
-      ret i128 %n58
-    } when arch x86_64
-    llvm {
-      ret i128 %0
-    }
+  -- | Multiply two GHASH field elements with hardware carry-less multiplication (PCLMULQDQ / PMULL) via Karatsuba. Callers select it only after detection succeeds.
+  ghash-multiply-clmul :: U128 -> U128 -> U128
+  ghash-multiply-clmul a b =
+    let g1 = swap-bytes-u128 a in
+    let g2 = swap-bytes-u128 b in
+    let a0 = wrapping-u128-to-u64 g1 in
+    let a1 = wrapping-u128-to-u64 (wrapping-shr-u128 g1 64) in
+    let b0 = wrapping-u128-to-u64 g2 in
+    let b1 = wrapping-u128-to-u64 (wrapping-shr-u128 g2 64) in
+    let q0 = clmul-u64 a0 b0 in
+    let q2 = clmul-u64 a1 b1 in
+    let qm = clmul-u64 (bit-xor-u64 a0 a1) (bit-xor-u64 b0 b1) in
+    let mid = bit-xor-u128 qm (bit-xor-u128 q0 q2) in
+    let w0 = wrapping-u128-to-u64 q0 in
+    let w1 = bit-xor-u64 (wrapping-u128-to-u64 (wrapping-shr-u128 q0 64)) (wrapping-u128-to-u64 mid) in
+    let w2 = bit-xor-u64 (wrapping-u128-to-u64 q2) (wrapping-u128-to-u64 (wrapping-shr-u128 mid 64)) in
+    let w3 = wrapping-u128-to-u64 (wrapping-shr-u128 q2 64) in
+    ghash-reduce w0 w1 w2 w3
 
-  -- | Report CPUID's PCLMULQDQ bit on x86-64 and zero elsewhere; detection never depends on key or message bytes.
-  prim clmul-available :: U32 -> U32 where
-    unsafe llvm {
-      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
-      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
-      %bit = and i32 %ecx, 2
-      ret i32 %bit
-    } when arch x86_64
-    llvm {
-      ret i32 0
-    }
+  -- | Report whether hardware carry-less multiplication is available; detection never depends on key or message bytes.
+  clmul-available :: U32 -> U32
+  clmul-available probe = cpu-has-clmul probe

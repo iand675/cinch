@@ -60,6 +60,10 @@
       "path": "Data/Enum.cinch"
     },
     {
+      "name": "Prim.Machine",
+      "path": "Prim/Machine.cinch"
+    },
+    {
       "name": "Data.Char",
       "path": "Data/Char.cinch"
     },
@@ -78,6 +82,10 @@
     {
       "name": "Data.Map",
       "path": "Data/Map.cinch"
+    },
+    {
+      "name": "Prim.Wide",
+      "path": "Prim/Wide.cinch"
     },
     {
       "name": "Data.String",
@@ -421,10 +429,6 @@
       "path": "Data/Columnar.cinch"
     },
     {
-      "name": "Data.Complex",
-      "path": "Data/Complex.cinch"
-    },
-    {
       "name": "Text.Cookie",
       "path": "Text/Cookie.cinch"
     },
@@ -483,6 +487,10 @@
     {
       "name": "Data.Float",
       "path": "Data/Float.cinch"
+    },
+    {
+      "name": "Data.Complex",
+      "path": "Data/Complex.cinch"
     },
     {
       "name": "Data.IpAddr",
@@ -821,10 +829,6 @@
       "path": "Text/Uri.cinch"
     },
     {
-      "name": "Effect.Http",
-      "path": "Effect/Http.cinch"
-    },
-    {
       "name": "Effect.Log",
       "path": "Effect/Log.cinch"
     },
@@ -929,10 +933,6 @@
       "path": "Text/Smtp.cinch"
     },
     {
-      "name": "Effect.Smtp",
-      "path": "Effect/Smtp.cinch"
-    },
-    {
       "name": "Effect.Stream.Offset",
       "path": "Effect/Stream/Offset.cinch"
     },
@@ -993,14 +993,6 @@
       "path": "Text/Checksum.cinch"
     },
     {
-      "name": "Text.Zlib",
-      "path": "Text/Zlib.cinch"
-    },
-    {
-      "name": "Image.Png",
-      "path": "Image/Png.cinch"
-    },
-    {
       "name": "Text.Args",
       "path": "Text/Args.cinch"
     },
@@ -1035,10 +1027,6 @@
     {
       "name": "Text.FilePath",
       "path": "Text/FilePath.cinch"
-    },
-    {
-      "name": "Text.Gzip",
-      "path": "Text/Gzip.cinch"
     },
     {
       "name": "Text.Html",
@@ -1153,8 +1141,164 @@
       "path": "Text/Yaml.cinch"
     },
     {
+      "name": "Crypto.MlDsa",
+      "path": "Crypto/MlDsa.cinch"
+    },
+    {
+      "name": "Crypto.Pkix",
+      "path": "Crypto/Pkix.cinch"
+    },
+    {
+      "name": "Crypto.Rsa",
+      "path": "Crypto/Rsa.cinch"
+    },
+    {
+      "name": "Data.MachO",
+      "path": "Data/MachO.cinch"
+    },
+    {
+      "name": "Data.MapHash",
+      "path": "Data/MapHash.cinch"
+    },
+    {
+      "name": "Data.NetIp",
+      "path": "Data/NetIp.cinch"
+    },
+    {
+      "name": "Crypto.X509",
+      "path": "Crypto/X509.cinch"
+    },
+    {
+      "name": "Crypto.Tls",
+      "path": "Crypto/Tls.cinch"
+    },
+    {
+      "name": "Data.Pe",
+      "path": "Data/Pe.cinch"
+    },
+    {
+      "name": "Data.Sql",
+      "path": "Data/Sql.cinch"
+    },
+    {
+      "name": "Data.SuffixArray",
+      "path": "Data/SuffixArray.cinch"
+    },
+    {
+      "name": "Effect.MapHash",
+      "path": "Effect/MapHash.cinch"
+    },
+    {
+      "name": "Effect.Sql",
+      "path": "Effect/Sql.cinch"
+    },
+    {
+      "name": "Effect.Syslog",
+      "path": "Effect/Syslog.cinch"
+    },
+    {
+      "name": "Effect.Test.Fs",
+      "path": "Effect/Test/Fs.cinch"
+    },
+    {
+      "name": "Effect.Test.Io",
+      "path": "Effect/Test/Io.cinch"
+    },
+    {
+      "name": "Effect.Test.Quick",
+      "path": "Effect/Test/Quick.cinch"
+    },
+    {
+      "name": "Effect.Tls",
+      "path": "Effect/Tls.cinch"
+    },
+    {
+      "name": "Effect.Http",
+      "path": "Effect/Http.cinch"
+    },
+    {
+      "name": "Effect.Smtp",
+      "path": "Effect/Smtp.cinch"
+    },
+    {
+      "name": "Text.Flate",
+      "path": "Text/Flate.cinch"
+    },
+    {
+      "name": "Text.Zlib",
+      "path": "Text/Zlib.cinch"
+    },
+    {
+      "name": "Image.Png",
+      "path": "Image/Png.cinch"
+    },
+    {
+      "name": "Text.Gzip",
+      "path": "Text/Gzip.cinch"
+    },
+    {
       "name": "Text.Zip",
       "path": "Text/Zip.cinch"
+    },
+    {
+      "name": "Data.Elf",
+      "path": "Data/Elf.cinch"
+    },
+    {
+      "name": "Effect.Flate",
+      "path": "Effect/Flate.cinch"
+    },
+    {
+      "name": "Text.Gob",
+      "path": "Text/Gob.cinch"
+    },
+    {
+      "name": "Effect.Gob",
+      "path": "Effect/Gob.cinch"
+    },
+    {
+      "name": "Text.HtmlTemplate",
+      "path": "Text/HtmlTemplate.cinch"
+    },
+    {
+      "name": "Text.Http",
+      "path": "Text/Http.cinch"
+    },
+    {
+      "name": "Effect.Expvar",
+      "path": "Effect/Expvar.cinch"
+    },
+    {
+      "name": "Effect.Http.Server",
+      "path": "Effect/Http/Server.cinch"
+    },
+    {
+      "name": "Effect.Http.Util",
+      "path": "Effect/Http/Util.cinch"
+    },
+    {
+      "name": "Effect.HttpTest",
+      "path": "Effect/HttpTest.cinch"
+    },
+    {
+      "name": "Text.Rpc",
+      "path": "Text/Rpc.cinch"
+    },
+    {
+      "name": "Effect.Rpc",
+      "path": "Effect/Rpc.cinch"
+    },
+    {
+      "name": "Text.Strconv",
+      "path": "Text/Strconv.cinch"
+    },
+    {
+      "name": "Text.User",
+      "path": "Text/User.cinch"
+    },
+    {
+      "name": "Effect.User",
+      "path": "Effect/User.cinch"
     }
   ],
   "order": [
@@ -1172,11 +1316,13 @@
     "Data.Result",
     "Data.List",
     "Data.Enum",
+    "Prim.Machine",
     "Data.Char",
     "Data.Bool",
     "Data.Machine",
     "Data.Bytes",
     "Data.Map",
+    "Prim.Wide",
     "Data.String",
     "Data.Json",
     "Data.Producer",
@@ -1262,7 +1408,6 @@
     "Data.Bytes.Split",
     "Data.ChaCha8",
     "Data.Columnar",
-    "Data.Complex",
     "Text.Cookie",
     "Text.Punycode",
     "Text.Url.Error",
@@ -1278,6 +1423,7 @@
     "Data.CookieJar",
     "Data.Date",
     "Data.Float",
+    "Data.Complex",
     "Data.IpAddr",
     "Data.Matrix",
     "Data.Mutable.Array",
@@ -1362,7 +1508,6 @@
     "Effect.Hex",
     "Effect.Net",
     "Text.Uri",
-    "Effect.Http",
     "Effect.Log",
     "Text.Md5",
     "Effect.Md5",
@@ -1389,7 +1534,6 @@
     "Effect.Signal",
     "Text.Base64",
     "Text.Smtp",
-    "Effect.Smtp",
     "Effect.Stream.Offset",
     "Effect.Stream.Section",
     "Effect.Test",
@@ -1405,8 +1549,6 @@
     "Image.Gif",
     "Image.Jpeg",
     "Text.Checksum",
-    "Text.Zlib",
-    "Image.Png",
     "Text.Args",
     "Text.Asn1",
     "Text.Builder",
@@ -1416,7 +1558,6 @@
     "Text.Csv",
     "Text.Path",
     "Text.FilePath",
-    "Text.Gzip",
     "Text.Html",
     "Text.Json",
     "Text.Json.Binary32",
@@ -1445,6 +1586,45 @@
     "Text.Utf8",
     "Text.Xml",
     "Text.Yaml",
-    "Text.Zip"
+    "Crypto.MlDsa",
+    "Crypto.Pkix",
+    "Crypto.Rsa",
+    "Data.MachO",
+    "Data.MapHash",
+    "Data.NetIp",
+    "Crypto.X509",
+    "Crypto.Tls",
+    "Data.Pe",
+    "Data.Sql",
+    "Data.SuffixArray",
+    "Effect.MapHash",
+    "Effect.Sql",
+    "Effect.Syslog",
+    "Effect.Test.Fs",
+    "Effect.Test.Io",
+    "Effect.Test.Quick",
+    "Effect.Tls",
+    "Effect.Http",
+    "Effect.Smtp",
+    "Text.Flate",
+    "Text.Zlib",
+    "Image.Png",
+    "Text.Gzip",
+    "Text.Zip",
+    "Data.Elf",
+    "Effect.Flate",
+    "Text.Gob",
+    "Effect.Gob",
+    "Text.HtmlTemplate",
+    "Text.Http",
+    "Effect.Expvar",
+    "Effect.Http.Server",
+    "Effect.Http.Util",
+    "Effect.HttpTest",
+    "Text.Rpc",
+    "Effect.Rpc",
+    "Text.Strconv",
+    "Text.User",
+    "Effect.User"
   ]
 }

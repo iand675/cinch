@@ -140,15 +140,38 @@ fn rust_exact_byte_queries_optimized_temporary_owners() {
     run(vec!["owners-case ()".into(); 10], true);
 }
 
-/// Actual raw loads and packed lane arithmetic compile for portable and big-endian object profiles.
+/// Actual raw loads and portable 16-byte SIMD scans compile for portable and big-endian object profiles.
 #[test]
 fn byte_search_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let start = SEARCH.find("  -- | Keep one backing owner").unwrap();
-    let end = SEARCH
-        .find("  -- | Convert a private signed search sentinel")
-        .unwrap();
-    let kernels=format!("-- | Isolated exact byte-search implementation kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n{}\n{}",&SEARCH[start..end],include_str!("fixtures/byte-search-kernel-entry.cinchpart"));
+    let kernels = [
+        SEARCH,
+        r#"-- | Root all public byte-search SIMD and scalar-fringe workers in portable object code.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.Search
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  -- | Observe an optional exact byte offset.
+  is-at :: Option Nat -> Nat -> Bool
+  is-at found expected = case found of
+    None -> False
+    Some at -> at == expected
+
+  -- | Exercise forward, backward, membership and count queries across 16-byte SIMD blocks and fringes.
+  main :: Int
+  main =
+    let raw = bytes-from-u8s [0,1,0,1,128,255,0,1,0,2,3,4,5,6,7,8,0,9] in
+    let first = bytes-index-byte raw 0 in
+    let last = bytes-last-index-byte raw 0 in
+    let present = bytes-contains-byte raw 255 in
+    let count = bytes-count-byte raw 0 in
+    if is-at first 0 && is-at last 16 && present && count == 5 then 0 else 1
+"#,
+    ]
+    .join("\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -181,8 +204,33 @@ fn byte_search_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("%lanes = lshr i64 %0, 7"));
-        assert!(ir.contains("%sums = mul i64 %lanes, 72340172838076673"));
+        assert!(ir.contains("load i128"), "{triple}: missing wide block load");
+        assert!(
+            ir.contains("icmp eq <16 x i8>"),
+            "{triple}: missing SIMD byte compare"
+        );
+        assert!(
+            ir.contains("bitcast <16 x i1>"),
+            "{triple}: missing SIMD movemask"
+        );
+        assert!(
+            ir.contains("@llvm.cttz.i32"),
+            "{triple}: missing trailing-zeros scan"
+        );
+        assert!(
+            ir.contains("@llvm.ctlz.i32"),
+            "{triple}: missing leading-zeros scan"
+        );
+        assert!(
+            ir.contains("@llvm.ctpop.i32"),
+            "{triple}: missing lane popcount"
+        );
+        if endian == "big" {
+            assert!(
+                ir.contains("@llvm.bswap.i128"),
+                "{triple}: missing big-endian 128-bit swap"
+            );
+        }
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(

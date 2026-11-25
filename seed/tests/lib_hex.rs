@@ -197,9 +197,10 @@ fn hexadecimal_errors_render_actionable_diagnostics() {
     ]);
 }
 
-/// Portable LLVM kernels compile for the supported 32-bit and ARM profiles and a big-endian target.
+/// Portable 128-bit SIMD and SWAR hex paths compile for 32-bit, ARM and big-endian targets.
 #[test]
 fn hexadecimal_dump_kernels_compile_for_word_widths_and_byte_orders() {
+    let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -219,38 +220,42 @@ fn hexadecimal_dump_kernels_compile_for_word_widths_and_byte_orders() {
             p.endian = endian.into();
             p
         });
-        // Isolate the actual kernels: the driver does not support PowerPC's runtime/tail-call ABI.
-        let library = include_str!("../prelude/Text/Hex.cinch");
-        let mut source = String::from("module Main where\n  import Data.Machine\n");
-        for name in [
-            "dump-ascii8",
-            "encode4",
-            "dump-swap32",
-            "dump-columns-low",
-            "dump-columns-high",
-        ] {
-            let start = library.find(&format!("  prim {name} ::")).unwrap();
-            let tail = &library[start..];
-            let end = tail.find("\n\n  -- |").unwrap_or(tail.len());
-            source.push_str(&tail[..end]);
-            source.push_str("\n\n");
-        }
-        source.push_str("  main :: Int\n  main = if eq-u64 (dump-ascii8 0x207f7e411f003031) 0x202e7e412e2e3031 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u32 (dump-swap32 0x01020304) 0x04030201 && eq-u64 (dump-columns-low 0x3736353433323130) 0x3534203332203130 && eq-u32 (dump-columns-high 0x3736353433323130) 0x20373620 then 0 else 1\n");
-        let (profile, program) = std::thread::Builder::new()
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Hex.cinch"),
+            include_str!("../prelude/Text/Hex.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public hexadecimal encode, decode and dump paths for foreign targets.\nmodule Main where\n  import Text.Hex\n  import Data.Bytes\n  import Data.Machine\n  import Data.Nat\n  import Data.Option\n\n  -- | Exercise public 128-bit SIMD encoding, decoding and dumping paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 32 in\n    let encoded = hex-encode-bytes input in\n    let dumped = hex-dump-bytes 0 input in\n    case hex-decode-prefix encoded of\n      (decoded, None) -> if bytes-len decoded == 32 && bytes-len dumped > 0 then 0 else 1\n      (decoded, Some err) -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let ir_path = project.join("dump.ll");
+        let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                cinch::driver::check_sources_profile(&source, "hex-target.cinch", &profile)
-                    .map(|p| (profile, p))
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        let ir = cinch::codegen::emit_for(&profile, &program).unwrap();
-        assert!(ir.contains("select <8 x i1>"));
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("dump.ll");
-        std::fs::write(&path, ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
+        let path = project.join("dump.ll");
         let result = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

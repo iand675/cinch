@@ -1,0 +1,456 @@
+-- | Publishable live metrics, structured variable containers, and JSON snapshots for diagnostic HTTP endpoints.
+--
+-- Every metric variable and registry is explicitly parameterized by its mutable region without ambient global
+-- state. Registries and nested metric maps maintain entries in sorted UTF-8 key order so snapshots, traversals,
+-- and HTTP responses are deterministic.
+module Effect.Expvar where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Mutable.Var (Var, var-new, var-read, var-write)
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq (Eq, (==), (/=))
+  import Text.Http (HttpWireResponse, status-ok, http-response-bytes)
+  import Text.Json (canonical-json)
+
+  export ExpvarError, ExpvarAlreadyPublished, expvar-error-message
+  export ExpvarInt, expvar-new-int, expvar-int-value, expvar-int-add, expvar-int-set
+  export ExpvarFloat, expvar-new-float, expvar-float-value, expvar-float-add, expvar-float-set
+  export ExpvarString, expvar-new-string, expvar-string-value, expvar-string-set
+  export ExpvarMap, expvar-new-map, expvar-map-get, expvar-map-set, expvar-map-add, expvar-map-add-float
+  export expvar-map-delete, expvar-map-init, expvar-map-len, expvar-map-entries, expvar-map-to-json
+  export ExpvarFunc, expvar-func-value, expvar-new-func
+  export ExpvarVar, VarInt, VarFloat, VarString, VarMap, VarFunc, expvar-var-to-json, expvar-var-string
+  export ExpvarRegistry, expvar-registry-new, expvar-publish, expvar-get
+  export expvar-publish-int, expvar-publish-float, expvar-publish-string, expvar-publish-map, expvar-publish-func
+  export expvar-snapshot-json, expvar-snapshot-string, expvar-http-response, expvar-entries
+
+  -- ---------------------------------------------------------------------
+  -- Private slot primitives backing strictly-positive recursive metric maps.
+  -- ---------------------------------------------------------------------
+
+  -- | Allocate an uninitialized slot array of the given length.
+  foreign import ccall "cinch.runtime.slotsNew" slots-new :: forall a. U64 -> Array a
+
+  -- | Read the value stored at an initialized array slot.
+  foreign import ccall "cinch.runtime.slotsRead" slots-read :: forall a. Array a -> U64 -> a
+
+  -- | Write a value into an array slot, releasing any previous occupant.
+  foreign import ccall "cinch.runtime.slotsWrite" slots-write :: forall a. Array a -> U64 -> a -> Unit
+
+  -- | Move the value out of an initialized array slot without duplicating its ownership.
+  foreign import ccall "cinch.runtime.slotsTake" slots-take :: forall a. Array a -> U64 -> a
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported by metric registration operations.
+  data ExpvarError where
+    -- | A metric with the requested name is already published in the registry.
+    ExpvarAlreadyPublished :: ExpvarError
+
+  -- | Structural equality for metric registry errors.
+  implicit instance Eq_ExpvarError :: Eq ExpvarError where
+    (==) a b = case a of
+      ExpvarAlreadyPublished -> case b of
+        ExpvarAlreadyPublished -> True
+    (/=) a b = not (a == b)
+
+  -- | Render a readable diagnostic message for a metric registry error.
+  expvar-error-message :: ExpvarError -> String
+  expvar-error-message err = case err of
+    ExpvarAlreadyPublished -> "expvar: metric name already published"
+
+  -- ---------------------------------------------------------------------
+  -- Scalar metric variable types.
+  -- ---------------------------------------------------------------------
+
+  -- | A mutable 64-bit signed integer metric variable in region r.
+  data ExpvarInt (r :: Region) where
+    -- | Wrap the backing mutable cell holding the current integer count.
+    MkExpvarInt :: Var r I64 -> ExpvarInt r
+
+  -- | A mutable 64-bit floating-point metric variable in region r.
+  data ExpvarFloat (r :: Region) where
+    -- | Wrap the backing mutable cell holding the current floating-point reading.
+    MkExpvarFloat :: Var r F64 -> ExpvarFloat r
+
+  -- | A mutable UTF-8 string metric variable in region r.
+  data ExpvarString (r :: Region) where
+    -- | Wrap the backing mutable cell holding the current string value.
+    MkExpvarString :: Var r String -> ExpvarString r
+
+  -- | A dynamic metric computed on demand as a JSON value within region r.
+  data ExpvarFunc (r :: Region) where
+    -- | Wrap the callback invoked on each metric observation.
+    MkExpvarFunc :: (Unit ->{Mut r} Json) -> ExpvarFunc r
+
+  -- | Create a new integer metric initialized to the supplied 64-bit value.
+  expvar-new-int :: forall (r :: Region). I64 ->{Mut r} ExpvarInt r
+  expvar-new-int initial =
+    let cell = var-new initial in
+    MkExpvarInt cell
+
+  -- | Read the current 64-bit signed integer value of an integer metric.
+  expvar-int-value :: forall (r :: Region). ExpvarInt r ->{Mut r} I64
+  expvar-int-value v = case v of
+    MkExpvarInt cell -> var-read cell
+
+  -- | Add a signed 64-bit delta (wrapping on overflow) to an integer metric.
+  expvar-int-add :: forall (r :: Region). ExpvarInt r -> I64 ->{Mut r} Unit
+  expvar-int-add v delta = case v of
+    MkExpvarInt cell ->
+      let cur = var-read cell in
+      var-write cell (wrapping-add-i64 cur delta)
+
+  -- | Replace the current value of an integer metric.
+  expvar-int-set :: forall (r :: Region). ExpvarInt r -> I64 ->{Mut r} Unit
+  expvar-int-set v next = case v of
+    MkExpvarInt cell -> var-write cell next
+
+  -- | Create a new floating-point metric initialized to the supplied F64 value.
+  expvar-new-float :: forall (r :: Region). F64 ->{Mut r} ExpvarFloat r
+  expvar-new-float initial =
+    let cell = var-new initial in
+    MkExpvarFloat cell
+
+  -- | Read the current floating-point value of a float metric.
+  expvar-float-value :: forall (r :: Region). ExpvarFloat r ->{Mut r} F64
+  expvar-float-value v = case v of
+    MkExpvarFloat cell -> var-read cell
+
+  -- | Add a floating-point delta to a float metric.
+  expvar-float-add :: forall (r :: Region). ExpvarFloat r -> F64 ->{Mut r} Unit
+  expvar-float-add v delta = case v of
+    MkExpvarFloat cell ->
+      let cur = var-read cell in
+      var-write cell (add-f64 cur delta)
+
+  -- | Replace the current value of a float metric.
+  expvar-float-set :: forall (r :: Region). ExpvarFloat r -> F64 ->{Mut r} Unit
+  expvar-float-set v next = case v of
+    MkExpvarFloat cell -> var-write cell next
+
+  -- | Create a new string metric initialized to the supplied text.
+  expvar-new-string :: forall (r :: Region). String ->{Mut r} ExpvarString r
+  expvar-new-string initial =
+    let cell = var-new initial in
+    MkExpvarString cell
+
+  -- | Read the current text value of a string metric.
+  expvar-string-value :: forall (r :: Region). ExpvarString r ->{Mut r} String
+  expvar-string-value v = case v of
+    MkExpvarString cell -> var-read cell
+
+  -- | Replace the current text value of a string metric.
+  expvar-string-set :: forall (r :: Region). ExpvarString r -> String ->{Mut r} Unit
+  expvar-string-set v next = case v of
+    MkExpvarString cell -> var-write cell next
+
+  -- | Evaluate a dynamic metric callback to produce its current JSON representation.
+  expvar-func-value :: forall (r :: Region). ExpvarFunc r ->{Mut r} Json
+  expvar-func-value fn = case fn of
+    MkExpvarFunc f -> f ()
+
+  -- ---------------------------------------------------------------------
+  -- Unified metric variables and sorted mutable metric maps.
+  -- ---------------------------------------------------------------------
+
+  -- | Private sorted entry spine stored inside an ExpvarMap.
+  data ExpvarEntries (r :: Region) where
+    -- | Empty sorted entry spine.
+    ExpvarEntriesNil :: ExpvarEntries r
+    -- | One key-variable pair followed by entries with strictly greater keys.
+    ExpvarEntriesCons :: String -> ExpvarVar r -> ExpvarEntries r -> ExpvarEntries r
+
+  -- | A mutable string-keyed sub-map of metric variables in region r, kept in sorted key order.
+  data ExpvarMap (r :: Region) where
+    -- | Single-slot owned array holding the sorted entry spine.
+    MkExpvarMap :: Array (ExpvarEntries r) -> ExpvarMap r
+
+  -- | A unified published metric variable of any supported metric kind in region r.
+  data ExpvarVar (r :: Region) where
+    -- | Signed 64-bit integer counter or gauge.
+    VarInt :: ExpvarInt r -> ExpvarVar r
+    -- | Binary64 floating-point gauge or accumulator.
+    VarFloat :: ExpvarFloat r -> ExpvarVar r
+    -- | Mutable UTF-8 string metric.
+    VarString :: ExpvarString r -> ExpvarVar r
+    -- | Nested string-keyed map of metric variables.
+    VarMap :: ExpvarMap r -> ExpvarVar r
+    -- | Dynamic metric evaluated to JSON on every snapshot.
+    VarFunc :: (Unit ->{Mut r} Json) -> ExpvarVar r
+
+  -- | Extract the backing slot array of an ExpvarMap.
+  map-cell :: forall (r :: Region). ExpvarMap r -> Array (ExpvarEntries r)
+  map-cell m = case m of
+    MkExpvarMap c -> c
+
+  -- | Wrap a dynamic JSON-producing callback as an ExpvarVar.
+  expvar-new-func :: forall (r :: Region). (Unit ->{Mut r} Json) -> ExpvarVar r
+  expvar-new-func f = VarFunc f
+
+  -- | Create a new empty metric map in region r.
+  expvar-new-map :: forall (r :: Region). Unit ->{Mut r} ExpvarMap r
+  expvar-new-map u =
+    let c = slots-new 1 in
+    let written = slots-write c 0 ExpvarEntriesNil in
+    MkExpvarMap c
+
+  -- | Look up a key in a sorted entry spine.
+  entries-lookup :: forall (r :: Region). String -> ExpvarEntries r -> Option (ExpvarVar r)
+  entries-lookup key xs = case xs of
+    ExpvarEntriesNil -> None
+    ExpvarEntriesCons k v rest ->
+      let cmp = string-compare key k in
+      if eq-i64 cmp 0 then Some v
+      else if lt-i64 cmp 0 then None
+      else entries-lookup key rest
+
+  -- | Insert or replace a key in a sorted entry spine, preserving ascending key order.
+  entries-insert :: forall (r :: Region). String -> ExpvarVar r -> ExpvarEntries r -> ExpvarEntries r
+  entries-insert key val xs = case xs of
+    ExpvarEntriesNil -> ExpvarEntriesCons key val ExpvarEntriesNil
+    ExpvarEntriesCons k v rest ->
+      let cmp = string-compare key k in
+      if eq-i64 cmp 0 then ExpvarEntriesCons key val rest
+      else if lt-i64 cmp 0 then ExpvarEntriesCons key val xs
+      else ExpvarEntriesCons k v (entries-insert key val rest)
+
+  -- | Delete a key from a sorted entry spine when present.
+  entries-delete :: forall (r :: Region). String -> ExpvarEntries r -> ExpvarEntries r
+  entries-delete key xs = case xs of
+    ExpvarEntriesNil -> ExpvarEntriesNil
+    ExpvarEntriesCons k v rest ->
+      let cmp = string-compare key k in
+      if eq-i64 cmp 0 then rest
+      else if lt-i64 cmp 0 then xs
+      else ExpvarEntriesCons k v (entries-delete key rest)
+
+  -- | Count the number of bindings in a sorted entry spine.
+  entries-count :: forall (r :: Region). ExpvarEntries r -> Nat -> Nat
+  entries-count xs acc = case xs of
+    ExpvarEntriesNil -> acc
+    ExpvarEntriesCons _ _ rest -> entries-count rest (acc + 1)
+
+  -- | Convert a sorted entry spine to a standard list of key-variable pairs in ascending key order.
+  entries-to-list :: forall (r :: Region). ExpvarEntries r -> List (String, ExpvarVar r)
+  entries-to-list xs = case xs of
+    ExpvarEntriesNil -> Nil
+    ExpvarEntriesCons k v rest -> Cons (k, v) (entries-to-list rest)
+
+  -- | Look up the metric variable stored under key in a metric map.
+  expvar-map-get :: forall (r :: Region). ExpvarMap r -> String ->{Mut r} Option (ExpvarVar r)
+  expvar-map-get m key = entries-lookup key (slots-read (map-cell m) 0)
+
+  -- | Store or replace a metric variable under key in a metric map.
+  expvar-map-set :: forall (r :: Region). ExpvarMap r -> String -> ExpvarVar r ->{Mut r} Unit
+  expvar-map-set m key val =
+    let c = map-cell m in
+    let old = slots-take c 0 in
+    let updated = entries-insert key val old in
+    slots-write c 0 updated
+
+  -- | Increment an integer metric under key by delta, creating a new integer metric when absent.
+  -- If key currently holds a non-integer metric, the existing entry is left unchanged.
+  expvar-map-add :: forall (r :: Region). ExpvarMap r -> String -> I64 ->{Mut r} Unit
+  expvar-map-add m key delta = case expvar-map-get m key of
+    Some existing -> (case existing of
+      VarInt iv -> expvar-int-add iv delta
+      _ -> ())
+    None ->
+      let iv = expvar-new-int delta in
+      expvar-map-set m key (VarInt iv)
+
+  -- | Increment a floating-point metric under key by delta, creating a new float metric when absent.
+  -- If key currently holds a non-float metric, the existing entry is left unchanged.
+  expvar-map-add-float :: forall (r :: Region). ExpvarMap r -> String -> F64 ->{Mut r} Unit
+  expvar-map-add-float m key delta = case expvar-map-get m key of
+    Some existing -> (case existing of
+      VarFloat fv -> expvar-float-add fv delta
+      _ -> ())
+    None ->
+      let fv = expvar-new-float delta in
+      expvar-map-set m key (VarFloat fv)
+
+  -- | Remove key and its associated metric variable from a metric map if present.
+  expvar-map-delete :: forall (r :: Region). ExpvarMap r -> String ->{Mut r} Unit
+  expvar-map-delete m key =
+    let c = map-cell m in
+    let old = slots-take c 0 in
+    let updated = entries-delete key old in
+    slots-write c 0 updated
+
+  -- | Clear all keys from a metric map and return the map handle.
+  expvar-map-init :: forall (r :: Region). ExpvarMap r ->{Mut r} ExpvarMap r
+  expvar-map-init m =
+    let written = slots-write (map-cell m) 0 ExpvarEntriesNil in
+    m
+
+  -- | Return the number of keys currently stored in a metric map.
+  expvar-map-len :: forall (r :: Region). ExpvarMap r ->{Mut r} Nat
+  expvar-map-len m = entries-count (slots-read (map-cell m) 0) 0
+
+  -- | Snapshot all key-variable pairs of a metric map in sorted key order.
+  expvar-map-entries :: forall (r :: Region). ExpvarMap r ->{Mut r} List (String, ExpvarVar r)
+  expvar-map-entries m = entries-to-list (slots-read (map-cell m) 0)
+
+  -- | Evaluate a sorted entry spine into a JSON object spine in key order.
+  entries-to-json :: forall (r :: Region). ExpvarEntries r ->{Mut r} Json
+  entries-to-json xs = case xs of
+    ExpvarEntriesNil -> JObjEnd
+    ExpvarEntriesCons k v rest ->
+      let jv = expvar-var-to-json v in
+      let jrest = entries-to-json rest in
+      JObj k jv jrest
+
+  -- | Snapshot a metric map as a sorted JSON object.
+  expvar-map-to-json :: forall (r :: Region). ExpvarMap r ->{Mut r} Json
+  expvar-map-to-json m = entries-to-json (slots-read (map-cell m) 0)
+
+  -- | Snapshot any metric variable as a JSON value.
+  expvar-var-to-json :: forall (r :: Region). ExpvarVar r ->{Mut r} Json
+  expvar-var-to-json v = case v of
+    VarInt iv -> JNum (int-from-i64 (expvar-int-value iv))
+    VarFloat fv -> JFloat (expvar-float-value fv)
+    VarString sv -> JStr (expvar-string-value sv)
+    VarMap mv -> expvar-map-to-json mv
+    VarFunc fn -> fn ()
+
+  -- | Render any metric variable as a canonical JSON string.
+  expvar-var-string :: forall (r :: Region). ExpvarVar r ->{Mut r} String
+  expvar-var-string v = canonical-json (expvar-var-to-json v)
+
+  -- ---------------------------------------------------------------------
+  -- Explicit metric registry and HTTP snapshot endpoint.
+  -- ---------------------------------------------------------------------
+
+  -- | An explicit mutable registry of named published metrics in region r.
+  data ExpvarRegistry (r :: Region) where
+    -- | Mutable reference to published name-variable bindings kept sorted by key.
+    MkExpvarRegistry :: Var r (List (String, ExpvarVar r)) -> ExpvarRegistry r
+
+  -- | Create a fresh empty metric registry in region r.
+  expvar-registry-new :: forall (r :: Region). Unit ->{Mut r} ExpvarRegistry r
+  expvar-registry-new u =
+    let cell = var-new (Nil :: List (String, ExpvarVar r)) in
+    MkExpvarRegistry cell
+
+  -- | Look up a metric name in a sorted association list.
+  assoc-lookup :: forall (r :: Region). String -> List (String, ExpvarVar r) -> Option (ExpvarVar r)
+  assoc-lookup name xs = case xs of
+    Nil -> None
+    Cons pair rest -> case pair of
+      (k, v) ->
+        let cmp = string-compare name k in
+        if eq-i64 cmp 0 then Some v
+        else if lt-i64 cmp 0 then None
+        else assoc-lookup name rest
+
+  -- | Insert a new unique metric name into a sorted association list, rejecting duplicates.
+  assoc-insert-unique :: forall (r :: Region). String -> ExpvarVar r -> List (String, ExpvarVar r) -> Result ExpvarError (List (String, ExpvarVar r))
+  assoc-insert-unique name val xs = case xs of
+    Nil -> Ok (Cons (name, val) Nil)
+    Cons pair rest -> case pair of
+      (k, v) ->
+        let cmp = string-compare name k in
+        if eq-i64 cmp 0 then Err ExpvarAlreadyPublished
+        else if lt-i64 cmp 0 then Ok (Cons (name, val) xs)
+        else (case assoc-insert-unique name val rest of
+          Err e -> Err e
+          Ok next -> Ok (Cons pair next))
+
+  -- | Publish a metric variable under name in the registry, rejecting duplicate names.
+  expvar-publish :: forall (r :: Region). ExpvarRegistry r -> String -> ExpvarVar r ->{Mut r} Result ExpvarError Unit
+  expvar-publish reg name v = case reg of
+    MkExpvarRegistry cell ->
+      let cur = var-read cell in
+      (case assoc-insert-unique name v cur of
+        Err e -> Err e
+        Ok next ->
+          let written = var-write cell next in
+          Ok ())
+
+  -- | Retrieve a published metric variable by name from the registry.
+  expvar-get :: forall (r :: Region). ExpvarRegistry r -> String ->{Mut r} Option (ExpvarVar r)
+  expvar-get reg name = case reg of
+    MkExpvarRegistry cell -> assoc-lookup name (var-read cell)
+
+  -- | Create a zero-initialized integer metric and publish it under name.
+  expvar-publish-int :: forall (r :: Region). ExpvarRegistry r -> String ->{Mut r} Result ExpvarError (ExpvarInt r)
+  expvar-publish-int reg name =
+    let v = expvar-new-int 0 in
+    case expvar-publish reg name (VarInt v) of
+      Err e -> Err e
+      Ok _ -> Ok v
+
+  -- | Create a zero-initialized floating-point metric and publish it under name.
+  expvar-publish-float :: forall (r :: Region). ExpvarRegistry r -> String ->{Mut r} Result ExpvarError (ExpvarFloat r)
+  expvar-publish-float reg name =
+    let v = expvar-new-float 0 in
+    case expvar-publish reg name (VarFloat v) of
+      Err e -> Err e
+      Ok _ -> Ok v
+
+  -- | Create an empty string metric and publish it under name.
+  expvar-publish-string :: forall (r :: Region). ExpvarRegistry r -> String ->{Mut r} Result ExpvarError (ExpvarString r)
+  expvar-publish-string reg name =
+    let v = expvar-new-string "" in
+    case expvar-publish reg name (VarString v) of
+      Err e -> Err e
+      Ok _ -> Ok v
+
+  -- | Create an empty metric map and publish it under name.
+  expvar-publish-map :: forall (r :: Region). ExpvarRegistry r -> String ->{Mut r} Result ExpvarError (ExpvarMap r)
+  expvar-publish-map reg name =
+    let v = expvar-new-map () in
+    case expvar-publish reg name (VarMap v) of
+      Err e -> Err e
+      Ok _ -> Ok v
+
+  -- | Publish a dynamic JSON-producing callback under name.
+  expvar-publish-func :: forall (r :: Region). ExpvarRegistry r -> String -> (Unit ->{Mut r} Json) ->{Mut r} Result ExpvarError Unit
+  expvar-publish-func reg name fn = expvar-publish reg name (VarFunc fn)
+
+  -- | Evaluate sorted registry pairs into a list of (name, Json) snapshots.
+  snapshot-list :: forall (r :: Region). List (String, ExpvarVar r) ->{Mut r} List (String, Json)
+  snapshot-list xs = case xs of
+    Nil -> Nil
+    Cons pair rest -> case pair of
+      (k, v) ->
+        let jv = expvar-var-to-json v in
+        let jrest = snapshot-list rest in
+        Cons (k, jv) jrest
+
+  -- | Build a JSON object spine from a sorted list of (name, Json) entries.
+  pairs-to-json-obj :: List (String, Json) -> Json
+  pairs-to-json-obj xs = case xs of
+    Nil -> JObjEnd
+    Cons pair rest -> case pair of
+      (k, jv) -> JObj k jv (pairs-to-json-obj rest)
+
+  -- | Traverse all published metrics in sorted key order, evaluating each to its current JSON value.
+  expvar-entries :: forall (r :: Region). ExpvarRegistry r ->{Mut r} List (String, Json)
+  expvar-entries reg = case reg of
+    MkExpvarRegistry cell -> snapshot-list (var-read cell)
+
+  -- | Snapshot all published metrics in the registry as a JSON object with sorted keys.
+  expvar-snapshot-json :: forall (r :: Region). ExpvarRegistry r ->{Mut r} Json
+  expvar-snapshot-json reg = pairs-to-json-obj (expvar-entries reg)
+
+  -- | Snapshot all published metrics in the registry as a canonical JSON object string.
+  expvar-snapshot-string :: forall (r :: Region). ExpvarRegistry r ->{Mut r} String
+  expvar-snapshot-string reg = canonical-json (expvar-snapshot-json reg)
+
+  -- | Build an HTTP 200 OK JSON response containing the live metric snapshot, ready for /debug/vars handlers.
+  expvar-http-response :: forall (r :: Region). ExpvarRegistry r ->{Mut r} HttpWireResponse
+  expvar-http-response reg =
+    http-response-bytes status-ok "application/json; charset=utf-8" (string-to-bytes (expvar-snapshot-string reg))

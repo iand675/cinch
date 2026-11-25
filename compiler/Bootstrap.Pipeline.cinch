@@ -23,7 +23,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Driver (link-and-report, link-only-and-report)
   import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.RuntimeIr (check-runtime-entry, emit-runtime-program, emit-runtime-program-counting, runtime-library-unit-roots, emit-runtime-library-object-with-object)
-  import Bootstrap.RuntimeIr (emit-runtime-program-for-target, emit-runtime-library-artifact-for-target)
+  import Bootstrap.RuntimeIr (emit-runtime-program-for-profile, emit-runtime-library-artifact-for-profile)
   import Bootstrap.Object (RuntimeObject, RuntimeObjectConfig, read-object-unit-roots, read-runtime-object-publication, read-runtime-object-config, runtime-object-input-files, runtime-object-metadata-file, read-runtime-object-mode, read-runtime-object-client-mode, admit-runtime-object-client-mode, admit-runtime-object-package-client, admit-runtime-object-mode, object-has-unit-symbol)
   import Bootstrap.PackageWrite (encode-interface-package, encode-object-package)
   import Bootstrap.Parse (parse-program)
@@ -847,7 +847,7 @@ module Bootstrap.Pipeline where
 
   emit-target-program :: TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-target-program profile inlining debug reclaim checked provider =
-    emit-runtime-program-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) inlining debug reclaim checked provider
+    emit-runtime-program-for-profile profile inlining debug reclaim checked provider
 
   after-resolve :: forall r. using (io :: Io r) => TargetProfile -> Bool -> Bool -> PipelineMode -> Bytes -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-resolve profile inlining reclaim mode src prog ir exe report = after-check profile inlining reclaim mode src (check-source-phase profile Nil resolve-program prog) ir exe report
@@ -1209,7 +1209,7 @@ module Bootstrap.Pipeline where
         Err message -> Err message
         Ok provider-rows -> object-interface-closure exported provider-rows) of
         Err message -> write-failure ir ("bootstrap.object: " <> message) pipeline-emit-refused
-        Ok closure -> case emit-runtime-library-artifact-for-target (target-ir-header profile) (string-compare (profile-arch profile) "wasm32" == 0) False inlining checked (Some provider) roots of
+        Ok closure -> case emit-runtime-library-artifact-for-profile profile False inlining checked (Some provider) roots of
           Err errors -> write-failure ir (render-diagnostics errors) pipeline-emit-refused
           Ok (text, units, facts) -> if (case object-field "unpublished_dictionaries" facts of JBool True -> True; other -> False) then write-failure ir "bootstrap.object: reached source dictionaries require physical factory and method metadata" pipeline-emit-refused else
             case index-object-output-units units provider hash-map-empty of

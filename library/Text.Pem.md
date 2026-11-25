@@ -4,7 +4,7 @@ Owned byte-preserving envelope blocks, persistent headers, exact malformed-input
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Pem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Pem/source/">View source</a><a href="/packages/search/?q=%2BText.Pem">Search module</a><a href="/reference-sources/Text.Pem.cinch" download="Text.Pem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -23,7 +23,7 @@ standard padded Base64 alphabet at 64 columns. Writers retain continuations.
 # Types
 
 <article class="doc-entry" id="t-PemBlock">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemBlock</strong></code><span class="doc-sig-links"><a href="#t-PemBlock" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemBlock</strong></code><span class="doc-sig-links"><a href="#t-PemBlock" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L34" title="View source at line 34">Source</a></span></div>
 <div class="doc-body">
 
 An immutable envelope; labels and metadata may contain arbitrary non-UTF8 bytes.
@@ -32,7 +32,7 @@ An immutable envelope; labels and metadata may contain arbitrary non-UTF8 bytes.
 </article>
 
 <article class="doc-entry" id="t-PemError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemError</strong></code><span class="doc-sig-links"><a href="#t-PemError" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemError</strong></code><span class="doc-sig-links"><a href="#t-PemError" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L39" title="View source at line 39">Source</a></span></div>
 <div class="doc-body">
 
 Encoding validation or transport failure, with no implicit sink closure.
@@ -42,7 +42,7 @@ Encoding validation or transport failure, with no implicit sink closure.
 </article>
 
 <article class="doc-entry" id="t-PemHeader">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemHeader</strong></code><span class="doc-sig-links"><a href="#t-PemHeader" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemHeader</strong></code><span class="doc-sig-links"><a href="#t-PemHeader" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L29" title="View source at line 29">Source</a></span></div>
 <div class="doc-body">
 
 Immutable header metadata; construction and byte observations copy caller storage.
@@ -53,7 +53,7 @@ Immutable header metadata; construction and byte observations copy caller storag
 # Values
 
 <article class="doc-entry" id="v-pem-block">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-block" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-block" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L154" title="View source at line 154">Source</a></span></div>
 <div class="doc-body">
 
 Construct an immutable envelope; duplicate byte keys use the final supplied value.
@@ -62,7 +62,7 @@ Construct an immutable envelope; duplicate byte keys use the final supplied valu
 </article>
 
 <article class="doc-entry" id="v-pem-block-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-block-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-block-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L162" title="View source at line 162">Source</a></span></div>
 <div class="doc-body">
 
 Observe an independently mutable copy of the decoded payload.
@@ -71,7 +71,7 @@ Observe an independently mutable copy of the decoded payload.
 </article>
 
 <article class="doc-entry" id="v-pem-block-headers">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a></code><span class="doc-sig-links"><a href="#v-pem-block-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a></code><span class="doc-sig-links"><a href="#v-pem-block-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L166" title="View source at line 166">Source</a></span></div>
 <div class="doc-body">
 
 Observe immutable unique headers in byte-lexicographic key order.
@@ -80,7 +80,7 @@ Observe immutable unique headers in byte-lexicographic key order.
 </article>
 
 <article class="doc-entry" id="v-pem-block-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-block-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-block-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-block-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L158" title="View source at line 158">Source</a></span></div>
 <div class="doc-body">
 
 Observe an independently mutable copy of the exact label bytes.
@@ -89,7 +89,7 @@ Observe an independently mutable copy of the exact label bytes.
 </article>
 
 <article class="doc-entry" id="v-pem-decode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-pem-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L579" title="View source at line 579">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-pem-decode" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L517" title="View source at line 517">Source</a></span></div>
 <div class="doc-body">
 
 Decode the next well-formed envelope and return a fresh independently mutable remainder.
@@ -101,7 +101,7 @@ None and a fresh copy of the complete original input. Labels and headers preserv
 </article>
 
 <article class="doc-entry" id="v-pem-encode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L683" title="View source at line 683">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L606" title="View source at line 606">Source</a></span></div>
 <div class="doc-body">
 
 Encode a complete fresh envelope or refuse a colon-bearing key without returning partial output.
@@ -112,7 +112,7 @@ containing a colon are refused. Empty payloads add no body line. Metadata is det
 </article>
 
 <article class="doc-entry" id="v-pem-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-pem-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-pem-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L46" title="View source at line 46">Source</a></span></div>
 <div class="doc-body">
 
 Explain a header refusal or identify a retained underlying stream failure.
@@ -121,7 +121,7 @@ Explain a header refusal or identify a retained underlying stream failure.
 </article>
 
 <article class="doc-entry" id="v-pem-find-header">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-find-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-find-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-find-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-find-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L170" title="View source at line 170">Source</a></span></div>
 <div class="doc-body">
 
 Find an exact case-sensitive byte key, returning a fresh mutable value when present.
@@ -130,7 +130,7 @@ Find an exact case-sensitive byte key, returning a fresh mutable value when pres
 </article>
 
 <article class="doc-entry" id="v-pem-header">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a></code><span class="doc-sig-links"><a href="#v-pem-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a></code><span class="doc-sig-links"><a href="#v-pem-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L62" title="View source at line 62">Source</a></span></div>
 <div class="doc-body">
 
 Construct immutable byte metadata without validating or discarding unusual keys or values.
@@ -139,7 +139,7 @@ Construct immutable byte metadata without validating or discarding unusual keys 
 </article>
 
 <article class="doc-entry" id="v-pem-header-key">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-header-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-header-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L66" title="View source at line 66">Source</a></span></div>
 <div class="doc-body">
 
 Observe an independently mutable copy of a header key.
@@ -148,7 +148,7 @@ Observe an independently mutable copy of a header key.
 </article>
 
 <article class="doc-entry" id="v-pem-header-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-header-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-header-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pem-header-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L70" title="View source at line 70">Source</a></span></div>
 <div class="doc-body">
 
 Observe an independently mutable copy of a header value.
@@ -157,7 +157,7 @@ Observe an independently mutable copy of a header value.
 </article>
 
 <article class="doc-entry" id="v-pem-with-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L211" title="View source at line 211">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L212" title="View source at line 212">Source</a></span></div>
 <div class="doc-body">
 
 Replace payload bytes with an owned snapshot while preserving metadata and the original block.
@@ -166,7 +166,7 @@ Replace payload bytes with an owned snapshot while preserving metadata and the o
 </article>
 
 <article class="doc-entry" id="v-pem-with-header">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L182" title="View source at line 182">Source</a></span></div>
 <div class="doc-body">
 
 Replace or add a header persistently; both blocks retain immutable independently observable metadata.
@@ -175,7 +175,7 @@ Replace or add a header persistently; both blocks retain immutable independently
 </article>
 
 <article class="doc-entry" id="v-pem-with-headers">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L203" title="View source at line 203">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemHeader" title="Text.Pem.PemHeader">PemHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-headers" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L204" title="View source at line 204">Source</a></span></div>
 <div class="doc-body">
 
 Replace all metadata persistently, with sorted last-key-wins semantics and immutable payload sharing.
@@ -184,7 +184,7 @@ Replace all metadata persistently, with sorted last-key-wins semantics and immut
 </article>
 
 <article class="doc-entry" id="v-pem-with-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L207" title="View source at line 207">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-with-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-with-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L208" title="View source at line 208">Source</a></span></div>
 <div class="doc-body">
 
 Replace a label with an owned snapshot, preserving the original block and shared immutable fields.
@@ -193,7 +193,7 @@ Replace a label with an owned snapshot, preserving the original block and shared
 </article>
 
 <article class="doc-entry" id="v-pem-without-header">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-without-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-without-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L185" title="View source at line 185">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-without-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a></code><span class="doc-sig-links"><a href="#v-pem-without-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L186" title="View source at line 186">Source</a></span></div>
 <div class="doc-body">
 
 Remove a byte key persistently without copying unrelated private payload storage.
@@ -202,7 +202,7 @@ Remove a byte key persistently without copying unrelated private payload storage
 </article>
 
 <article class="doc-entry" id="v-pem-write">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-pem-write" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L753" title="View source at line 753">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-pem-write" title="Permalink">#</a><a href="/packages/stdlib/Text.Pem/source/#L676" title="View source at line 676">Source</a></span></div>
 <div class="doc-body">
 
 Write an envelope with bounded payload storage and explicit continuation ownership.

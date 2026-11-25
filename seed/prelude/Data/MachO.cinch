@@ -1,0 +1,1231 @@
+-- | Pure bounds-checked parser for Mach-O 32-bit, 64-bit, and universal (fat) binaries.
+-- Supports little-endian and big-endian byte orders, file headers, load commands
+-- (Segment, Segment64, Symtab, Dysymtab, Dylib, Dylinker, Uuid, Rpath), sections,
+-- symbol tables, imported libraries and symbols, and multi-architecture fat archives.
+module Data.MachO where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Binary (ByteOrder, LittleEndian, BigEndian, binary-read-u16, binary-read-u32, binary-read-u64)
+  import Text.Show (nat-to-string)
+
+  export MachOError, MachOTruncated, MachOBadMagic, MachONotFat, MachOInvalidCommand, MachOInvalidSection, MachOInvalidFatArch, MachONoSymtab, macho-error-message
+  export macho-magic32, macho-magic64, macho-magic-fat
+  export MachOCpu, Cpu386, CpuAmd64, CpuArm, CpuArm64, CpuPpc, CpuPpc64, CpuOther, macho-cpu-code
+  export MachOType, MachOTypeObj, MachOTypeExec, MachOTypeDylib, MachOTypeBundle, MachOTypeOther, macho-type-code
+  export lc-segment, lc-symtab, lc-thread, lc-unix-thread, lc-dysymtab, lc-load-dylib, lc-id-dylib, lc-load-dylinker, lc-id-dylinker, lc-segment64, lc-uuid, lc-load-weak-dylib, lc-rpath, lc-reexport-dylib
+  export MachOHeader, macho-magic, macho-byte-order, macho-is64, macho-cpu, macho-subcpu, macho-file-type, macho-ncmd, macho-cmdsz, macho-flags
+  export MachOSegment, seg-cmd, seg-len, seg-name, seg-addr, seg-memsz, seg-offset, seg-filesz, seg-maxprot, seg-prot, seg-nsect, seg-flag
+  export MachOSection, sec-name, sec-seg, sec-addr, sec-size, sec-offset, sec-align, sec-reloff, sec-nreloc, sec-flags
+  export MachOSymbol, msym-name, msym-type, msym-sect, msym-desc, msym-value
+  export MachOSymtab, symtab-symoff, symtab-nsyms, symtab-stroff, symtab-strsize, symtab-syms
+  export MachODysymtab, dysym-ilocalsym, dysym-nlocalsym, dysym-iextdefsym, dysym-nextdefsym, dysym-iundefsym, dysym-nundefsym, dysym-indirectoff, dysym-nindirectsyms
+  export MachODylib, dylib-cmd, dylib-name, dylib-time, dylib-current-version, dylib-compat-version
+  export MachODylinker, dylinker-cmd, dylinker-name
+  export MachOLoadCmd, LoadSegment, LoadSymtab, LoadDysymtab, LoadDylib, LoadDylinker, LoadUuid, LoadRpath, LoadRaw
+  export MachOFile, macho-parse, macho-header, macho-loads, macho-segments, macho-sections, macho-segment, macho-section, macho-section-data, macho-segment-data
+  export macho-symtab, macho-dysymtab, macho-symbols, macho-imported-libraries, macho-imported-symbols, macho-dylibs, macho-rpaths, macho-uuid, macho-dylinker
+  export MachOFatArch, fat-arch-cpu, fat-arch-subcpu, fat-arch-offset, fat-arch-size, fat-arch-align, fat-arch-file
+  export MachOFatFile, macho-parse-fat, macho-fat-magic, macho-fat-arches
+
+  -- ---------------------------------------------------------------------
+  -- Error vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported when parsing or inspecting a Mach-O or fat binary.
+  data MachOError where
+    -- | Input ended before a required field or table at the given byte offset.
+    MachOTruncated :: Nat -> String -> MachOError
+    -- | First four bytes do not match any valid 32-bit or 64-bit Mach-O magic.
+    MachOBadMagic :: U32 -> MachOError
+    -- | First four bytes do not match the universal fat binary magic (0xcafebabe).
+    MachONotFat :: U32 -> MachOError
+    -- | Malformed or out-of-bounds load command at the given index.
+    MachOInvalidCommand :: Nat -> String -> MachOError
+    -- | Invalid section offset or size for the named section.
+    MachOInvalidSection :: String -> String -> MachOError
+    -- | Invalid or overlapping fat architecture entry at the given index.
+    MachOInvalidFatArch :: Nat -> String -> MachOError
+    -- | Symbol table or dynamic symbol table is absent.
+    MachONoSymtab :: MachOError
+
+  -- | Render a human-readable diagnostic for a Mach-O error.
+  macho-error-message :: MachOError -> String
+  macho-error-message err = case err of
+    MachOTruncated off detail -> string-concat "truncated Mach-O data at offset " (string-concat (nat-to-string off) (string-concat ": " detail))
+    MachOBadMagic m -> string-concat "invalid Mach-O magic " (nat-to-string (u32-to-nat m))
+    MachONotFat m -> string-concat "not a Mach-O fat binary, magic " (nat-to-string (u32-to-nat m))
+    MachOInvalidCommand idx detail -> string-concat "invalid Mach-O load command " (string-concat (nat-to-string idx) (string-concat ": " detail))
+    MachOInvalidSection name detail -> string-concat "invalid Mach-O section " (string-concat name (string-concat ": " detail))
+    MachOInvalidFatArch idx detail -> string-concat "invalid Mach-O fat arch " (string-concat (nat-to-string idx) (string-concat ": " detail))
+    MachONoSymtab -> "missing Mach-O symbol table"
+
+  -- ---------------------------------------------------------------------
+  -- Constants and enumerations.
+  -- ---------------------------------------------------------------------
+
+  -- | 32-bit Mach-O magic number (0xfeedface).
+  macho-magic32 :: U32
+  macho-magic32 = 0xfeedface
+
+  -- | 64-bit Mach-O magic number (0xfeedfacf).
+  macho-magic64 :: U32
+  macho-magic64 = 0xfeedfacf
+
+  -- | Universal (fat) Mach-O magic number (0xcafebabe).
+  macho-magic-fat :: U32
+  macho-magic-fat = 0xcafebabe
+
+  -- | LC_SEGMENT load command code (0x1).
+  lc-segment :: U32
+  lc-segment = 0x1
+
+  -- | LC_SYMTAB load command code (0x2).
+  lc-symtab :: U32
+  lc-symtab = 0x2
+
+  -- | LC_THREAD load command code (0x4).
+  lc-thread :: U32
+  lc-thread = 0x4
+
+  -- | LC_UNIXTHREAD load command code (0x5).
+  lc-unix-thread :: U32
+  lc-unix-thread = 0x5
+
+  -- | LC_DYSYMTAB load command code (0xb).
+  lc-dysymtab :: U32
+  lc-dysymtab = 0xb
+
+  -- | LC_LOAD_DYLIB load command code (0xc).
+  lc-load-dylib :: U32
+  lc-load-dylib = 0xc
+
+  -- | LC_ID_DYLIB load command code (0xd).
+  lc-id-dylib :: U32
+  lc-id-dylib = 0xd
+
+  -- | LC_LOAD_DYLINKER load command code (0xe).
+  lc-load-dylinker :: U32
+  lc-load-dylinker = 0xe
+
+  -- | LC_ID_DYLINKER load command code (0xf).
+  lc-id-dylinker :: U32
+  lc-id-dylinker = 0xf
+
+  -- | LC_SEGMENT_64 load command code (0x19).
+  lc-segment64 :: U32
+  lc-segment64 = 0x19
+
+  -- | LC_UUID load command code (0x1b).
+  lc-uuid :: U32
+  lc-uuid = 0x1b
+
+  -- | LC_LOAD_WEAK_DYLIB load command code (0x80000018).
+  lc-load-weak-dylib :: U32
+  lc-load-weak-dylib = 0x80000018
+
+  -- | LC_RPATH load command code (0x8000001c).
+  lc-rpath :: U32
+  lc-rpath = 0x8000001c
+
+  -- | LC_REEXPORT_DYLIB load command code (0x8000001f).
+  lc-reexport-dylib :: U32
+  lc-reexport-dylib = 0x8000001f
+
+  -- | Mach-O target CPU architecture.
+  data MachOCpu where
+    -- | Intel x86 32-bit (7).
+    Cpu386 :: MachOCpu
+    -- | AMD64 / x86-64 (0x01000007).
+    CpuAmd64 :: MachOCpu
+    -- | ARM 32-bit (12).
+    CpuArm :: MachOCpu
+    -- | ARM 64-bit / AArch64 (0x0100000c).
+    CpuArm64 :: MachOCpu
+    -- | PowerPC 32-bit (18).
+    CpuPpc :: MachOCpu
+    -- | PowerPC 64-bit (0x01000012).
+    CpuPpc64 :: MachOCpu
+    -- | Any other CPU architecture code.
+    CpuOther :: U32 -> MachOCpu
+
+  -- | Decode a numeric CPU type into MachOCpu.
+  decode-cpu :: U32 -> MachOCpu
+  decode-cpu v =
+    if eq-u32 v 7 then Cpu386
+    else if eq-u32 v 0x01000007 then CpuAmd64
+    else if eq-u32 v 12 then CpuArm
+    else if eq-u32 v 0x0100000c then CpuArm64
+    else if eq-u32 v 18 then CpuPpc
+    else if eq-u32 v 0x01000012 then CpuPpc64
+    else CpuOther v
+
+  -- | Numeric CPU type code for a MachOCpu.
+  macho-cpu-code :: MachOCpu -> U32
+  macho-cpu-code c = case c of
+    Cpu386 -> 7
+    CpuAmd64 -> 0x01000007
+    CpuArm -> 12
+    CpuArm64 -> 0x0100000c
+    CpuPpc -> 18
+    CpuPpc64 -> 0x01000012
+    CpuOther v -> v
+
+  -- | Mach-O object file type.
+  data MachOType where
+    -- | Relocatable object file (MH_OBJECT = 1).
+    MachOTypeObj :: MachOType
+    -- | Demand paged executable file (MH_EXECUTE = 2).
+    MachOTypeExec :: MachOType
+    -- | Dynamically bound shared library (MH_DYLIB = 6).
+    MachOTypeDylib :: MachOType
+    -- | Dynamically bound bundle file (MH_BUNDLE = 8).
+    MachOTypeBundle :: MachOType
+    -- | Any other Mach-O file type code.
+    MachOTypeOther :: U32 -> MachOType
+
+  -- | Decode a numeric file type code into MachOType.
+  decode-macho-type :: U32 -> MachOType
+  decode-macho-type v =
+    if eq-u32 v 1 then MachOTypeObj
+    else if eq-u32 v 2 then MachOTypeExec
+    else if eq-u32 v 6 then MachOTypeDylib
+    else if eq-u32 v 8 then MachOTypeBundle
+    else MachOTypeOther v
+
+  -- | Numeric file type code for a MachOType.
+  macho-type-code :: MachOType -> U32
+  macho-type-code t = case t of
+    MachOTypeObj -> 1
+    MachOTypeExec -> 2
+    MachOTypeDylib -> 6
+    MachOTypeBundle -> 8
+    MachOTypeOther v -> v
+
+  -- ---------------------------------------------------------------------
+  -- Structured Mach-O types.
+  -- ---------------------------------------------------------------------
+
+  -- | Parsed Mach-O file header normalized across 32-bit and 64-bit formats.
+  data MachOHeader where
+    -- | Construct a MachOHeader from magic, byte order, is64, cpu, subcpu, file type, ncmd, cmdsz, flags.
+    MachOHeader :: U32 -> ByteOrder -> Bool -> MachOCpu -> U32 -> MachOType -> U32 -> U32 -> U32 -> MachOHeader
+
+  -- | Normalized magic number (macho-magic32 or macho-magic64).
+  macho-magic :: MachOHeader -> U32
+  macho-magic h = case h of MachOHeader m _ _ _ _ _ _ _ _ -> m
+
+  -- | Byte order used by this Mach-O binary.
+  macho-byte-order :: MachOHeader -> ByteOrder
+  macho-byte-order h = case h of MachOHeader _ bo _ _ _ _ _ _ _ -> bo
+
+  -- | True for 64-bit Mach-O files, False for 32-bit.
+  macho-is64 :: MachOHeader -> Bool
+  macho-is64 h = case h of MachOHeader _ _ b _ _ _ _ _ _ -> b
+
+  -- | Target CPU architecture.
+  macho-cpu :: MachOHeader -> MachOCpu
+  macho-cpu h = case h of MachOHeader _ _ _ c _ _ _ _ _ -> c
+
+  -- | Target CPU subtype.
+  macho-subcpu :: MachOHeader -> U32
+  macho-subcpu h = case h of MachOHeader _ _ _ _ sc _ _ _ _ -> sc
+
+  -- | Mach-O file type.
+  macho-file-type :: MachOHeader -> MachOType
+  macho-file-type h = case h of MachOHeader _ _ _ _ _ t _ _ _ -> t
+
+  -- | Number of load commands.
+  macho-ncmd :: MachOHeader -> U32
+  macho-ncmd h = case h of MachOHeader _ _ _ _ _ _ n _ _ -> n
+
+  -- | Total byte size of all load commands.
+  macho-cmdsz :: MachOHeader -> U32
+  macho-cmdsz h = case h of MachOHeader _ _ _ _ _ _ _ sz _ -> sz
+
+  -- | Header flags bitmask.
+  macho-flags :: MachOHeader -> U32
+  macho-flags h = case h of MachOHeader _ _ _ _ _ _ _ _ fl -> fl
+
+  -- | Parsed LC_SEGMENT or LC_SEGMENT_64 header normalized to 64-bit fields.
+  data MachOSegment where
+    -- | Construct a MachOSegment from cmd, len, name, addr, memsz, offset, filesz, maxprot, prot, nsect, flag.
+    MachOSegment :: U32 -> U32 -> String -> U64 -> U64 -> U64 -> U64 -> U32 -> U32 -> U32 -> U32 -> MachOSegment
+
+  -- | Load command type (lc-segment or lc-segment64).
+  seg-cmd :: MachOSegment -> U32
+  seg-cmd s = case s of MachOSegment c _ _ _ _ _ _ _ _ _ _ -> c
+
+  -- | Byte length of the load command including its section headers.
+  seg-len :: MachOSegment -> U32
+  seg-len s = case s of MachOSegment _ l _ _ _ _ _ _ _ _ _ -> l
+
+  -- | Segment name (up to 16 bytes, NUL-trimmed).
+  seg-name :: MachOSegment -> String
+  seg-name s = case s of MachOSegment _ _ n _ _ _ _ _ _ _ _ -> n
+
+  -- | Virtual memory address of the segment.
+  seg-addr :: MachOSegment -> U64
+  seg-addr s = case s of MachOSegment _ _ _ a _ _ _ _ _ _ _ -> a
+
+  -- | Virtual memory size of the segment.
+  seg-memsz :: MachOSegment -> U64
+  seg-memsz s = case s of MachOSegment _ _ _ _ ms _ _ _ _ _ _ -> ms
+
+  -- | File byte offset of the segment data.
+  seg-offset :: MachOSegment -> U64
+  seg-offset s = case s of MachOSegment _ _ _ _ _ o _ _ _ _ _ -> o
+
+  -- | File byte size of the segment data.
+  seg-filesz :: MachOSegment -> U64
+  seg-filesz s = case s of MachOSegment _ _ _ _ _ _ fs _ _ _ _ -> fs
+
+  -- | Maximum VM protection flags.
+  seg-maxprot :: MachOSegment -> U32
+  seg-maxprot s = case s of MachOSegment _ _ _ _ _ _ _ mp _ _ _ -> mp
+
+  -- | Initial VM protection flags.
+  seg-prot :: MachOSegment -> U32
+  seg-prot s = case s of MachOSegment _ _ _ _ _ _ _ _ p _ _ -> p
+
+  -- | Number of sections contained in this segment.
+  seg-nsect :: MachOSegment -> U32
+  seg-nsect s = case s of MachOSegment _ _ _ _ _ _ _ _ _ ns _ -> ns
+
+  -- | Segment flags bitmask.
+  seg-flag :: MachOSegment -> U32
+  seg-flag s = case s of MachOSegment _ _ _ _ _ _ _ _ _ _ fl -> fl
+
+  -- | Parsed Mach-O section header normalized across 32-bit and 64-bit segments.
+  data MachOSection where
+    -- | Construct a MachOSection from name, seg, addr, size, offset, align, reloff, nreloc, flags.
+    MachOSection :: String -> String -> U64 -> U64 -> U32 -> U32 -> U32 -> U32 -> U32 -> MachOSection
+
+  -- | Section name (up to 16 bytes, NUL-trimmed).
+  sec-name :: MachOSection -> String
+  sec-name s = case s of MachOSection n _ _ _ _ _ _ _ _ -> n
+
+  -- | Containing segment name.
+  sec-seg :: MachOSection -> String
+  sec-seg s = case s of MachOSection _ sg _ _ _ _ _ _ _ -> sg
+
+  -- | Virtual memory address of the section.
+  sec-addr :: MachOSection -> U64
+  sec-addr s = case s of MachOSection _ _ a _ _ _ _ _ _ -> a
+
+  -- | Section size in bytes.
+  sec-size :: MachOSection -> U64
+  sec-size s = case s of MachOSection _ _ _ sz _ _ _ _ _ -> sz
+
+  -- | File byte offset of the section data.
+  sec-offset :: MachOSection -> U32
+  sec-offset s = case s of MachOSection _ _ _ _ o _ _ _ _ -> o
+
+  -- | Section alignment power of two.
+  sec-align :: MachOSection -> U32
+  sec-align s = case s of MachOSection _ _ _ _ _ al _ _ _ -> al
+
+  -- | File offset of relocation entries.
+  sec-reloff :: MachOSection -> U32
+  sec-reloff s = case s of MachOSection _ _ _ _ _ _ ro _ _ -> ro
+
+  -- | Number of relocation entries.
+  sec-nreloc :: MachOSection -> U32
+  sec-nreloc s = case s of MachOSection _ _ _ _ _ _ _ nr _ -> nr
+
+  -- | Section type and attribute flags.
+  sec-flags :: MachOSection -> U32
+  sec-flags s = case s of MachOSection _ _ _ _ _ _ _ _ fl -> fl
+
+  -- | Parsed Mach-O nlist / nlist_64 symbol entry.
+  data MachOSymbol where
+    -- | Construct a MachOSymbol from name, n_type, n_sect, n_desc, n_value.
+    MachOSymbol :: String -> U8 -> U8 -> U16 -> U64 -> MachOSymbol
+
+  -- | Symbol name from the Mach-O string table.
+  msym-name :: MachOSymbol -> String
+  msym-name s = case s of MachOSymbol n _ _ _ _ -> n
+
+  -- | Raw n_type byte.
+  msym-type :: MachOSymbol -> U8
+  msym-type s = case s of MachOSymbol _ t _ _ _ -> t
+
+  -- | 1-based section index (or 0 for NO_SECT).
+  msym-sect :: MachOSymbol -> U8
+  msym-sect s = case s of MachOSymbol _ _ sc _ _ -> sc
+
+  -- | Symbol description flags (n_desc).
+  msym-desc :: MachOSymbol -> U16
+  msym-desc s = case s of MachOSymbol _ _ _ d _ -> d
+
+  -- | Symbol value (address or offset).
+  msym-value :: MachOSymbol -> U64
+  msym-value s = case s of MachOSymbol _ _ _ _ v -> v
+
+  -- | Parsed LC_SYMTAB command with decoded symbols.
+  data MachOSymtab where
+    -- | Construct a MachOSymtab from symoff, nsyms, stroff, strsize, and symbol list.
+    MachOSymtab :: U32 -> U32 -> U32 -> U32 -> List MachOSymbol -> MachOSymtab
+
+  -- | File byte offset of the symbol table.
+  symtab-symoff :: MachOSymtab -> U32
+  symtab-symoff st = case st of MachOSymtab o _ _ _ _ -> o
+
+  -- | Number of symbol table entries.
+  symtab-nsyms :: MachOSymtab -> U32
+  symtab-nsyms st = case st of MachOSymtab _ n _ _ _ -> n
+
+  -- | File byte offset of the string table.
+  symtab-stroff :: MachOSymtab -> U32
+  symtab-stroff st = case st of MachOSymtab _ _ o _ _ -> o
+
+  -- | Byte length of the string table.
+  symtab-strsize :: MachOSymtab -> U32
+  symtab-strsize st = case st of MachOSymtab _ _ _ sz _ -> sz
+
+  -- | Decoded symbol entries in table order.
+  symtab-syms :: MachOSymtab -> List MachOSymbol
+  symtab-syms st = case st of MachOSymtab _ _ _ _ syms -> syms
+
+  -- | Parsed LC_DYSYMTAB dynamic symbol table index ranges.
+  data MachODysymtab where
+    -- | Construct a MachODysymtab from local/extdef/undef/indirect index and count pairs.
+    MachODysymtab :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> MachODysymtab
+
+  -- | Start index of local symbols.
+  dysym-ilocalsym :: MachODysymtab -> U32
+  dysym-ilocalsym d = case d of MachODysymtab v _ _ _ _ _ _ _ -> v
+
+  -- | Number of local symbols.
+  dysym-nlocalsym :: MachODysymtab -> U32
+  dysym-nlocalsym d = case d of MachODysymtab _ v _ _ _ _ _ _ -> v
+
+  -- | Start index of externally defined symbols.
+  dysym-iextdefsym :: MachODysymtab -> U32
+  dysym-iextdefsym d = case d of MachODysymtab _ _ v _ _ _ _ _ -> v
+
+  -- | Number of externally defined symbols.
+  dysym-nextdefsym :: MachODysymtab -> U32
+  dysym-nextdefsym d = case d of MachODysymtab _ _ _ v _ _ _ _ -> v
+
+  -- | Start index of undefined symbols.
+  dysym-iundefsym :: MachODysymtab -> U32
+  dysym-iundefsym d = case d of MachODysymtab _ _ _ _ v _ _ _ -> v
+
+  -- | Number of undefined symbols.
+  dysym-nundefsym :: MachODysymtab -> U32
+  dysym-nundefsym d = case d of MachODysymtab _ _ _ _ _ v _ _ -> v
+
+  -- | File offset of indirect symbol table.
+  dysym-indirectoff :: MachODysymtab -> U32
+  dysym-indirectoff d = case d of MachODysymtab _ _ _ _ _ _ v _ -> v
+
+  -- | Number of indirect symbol table entries.
+  dysym-nindirectsyms :: MachODysymtab -> U32
+  dysym-nindirectsyms d = case d of MachODysymtab _ _ _ _ _ _ _ v -> v
+
+  -- | Parsed dynamic library load command (LC_LOAD_DYLIB, LC_ID_DYLIB, etc.).
+  data MachODylib where
+    -- | Construct a MachODylib from cmd code, library path, timestamp, current version, compat version.
+    MachODylib :: U32 -> String -> U32 -> U32 -> U32 -> MachODylib
+
+  -- | Load command type code.
+  dylib-cmd :: MachODylib -> U32
+  dylib-cmd d = case d of MachODylib c _ _ _ _ -> c
+
+  -- | Library path name.
+  dylib-name :: MachODylib -> String
+  dylib-name d = case d of MachODylib _ n _ _ _ -> n
+
+  -- | Build timestamp.
+  dylib-time :: MachODylib -> U32
+  dylib-time d = case d of MachODylib _ _ t _ _ -> t
+
+  -- | Current library version packed as major.minor.patch.
+  dylib-current-version :: MachODylib -> U32
+  dylib-current-version d = case d of MachODylib _ _ _ cv _ -> cv
+
+  -- | Compatibility version packed as major.minor.patch.
+  dylib-compat-version :: MachODylib -> U32
+  dylib-compat-version d = case d of MachODylib _ _ _ _ cv -> cv
+
+  -- | Parsed LC_LOAD_DYLINKER or LC_ID_DYLINKER command.
+  data MachODylinker where
+    -- | Construct a MachODylinker from cmd code and dynamic linker path.
+    MachODylinker :: U32 -> String -> MachODylinker
+
+  -- | Load command type code.
+  dylinker-cmd :: MachODylinker -> U32
+  dylinker-cmd d = case d of MachODylinker c _ -> c
+
+  -- | Dynamic linker path name.
+  dylinker-name :: MachODylinker -> String
+  dylinker-name d = case d of MachODylinker _ n -> n
+
+  -- | Decoded Mach-O load command.
+  data MachOLoadCmd where
+    -- | LC_SEGMENT or LC_SEGMENT_64 command.
+    LoadSegment :: MachOSegment -> MachOLoadCmd
+    -- | LC_SYMTAB command.
+    LoadSymtab :: MachOSymtab -> MachOLoadCmd
+    -- | LC_DYSYMTAB command.
+    LoadDysymtab :: MachODysymtab -> MachOLoadCmd
+    -- | Dynamic library command (LC_LOAD_DYLIB, LC_ID_DYLIB, weak/reexport).
+    LoadDylib :: MachODylib -> MachOLoadCmd
+    -- | Dynamic linker command (LC_LOAD_DYLINKER, LC_ID_DYLINKER).
+    LoadDylinker :: MachODylinker -> MachOLoadCmd
+    -- | LC_UUID command carrying the 16-byte binary UUID.
+    LoadUuid :: Bytes -> MachOLoadCmd
+    -- | LC_RPATH command carrying one runtime search path.
+    LoadRpath :: String -> MachOLoadCmd
+    -- | Uninterpreted load command carrying its command code and raw bytes.
+    LoadRaw :: U32 -> Bytes -> MachOLoadCmd
+
+  -- | Parsed single-architecture Mach-O binary.
+  data MachOFile where
+    -- | Construct a MachOFile from header, loads, segments, sections, symtab, dysymtab, and backing bytes.
+    MachOFile :: MachOHeader -> List MachOLoadCmd -> List MachOSegment -> List MachOSection -> Option MachOSymtab -> Option MachODysymtab -> Bytes -> MachOFile
+
+  -- | File header of a parsed Mach-O binary.
+  macho-header :: MachOFile -> MachOHeader
+  macho-header f = case f of MachOFile h _ _ _ _ _ _ -> h
+
+  -- | All load commands in file order.
+  macho-loads :: MachOFile -> List MachOLoadCmd
+  macho-loads f = case f of MachOFile _ ls _ _ _ _ _ -> ls
+
+  -- | All parsed segments in file order.
+  macho-segments :: MachOFile -> List MachOSegment
+  macho-segments f = case f of MachOFile _ _ sgs _ _ _ _ -> sgs
+
+  -- | All parsed sections across all segments in file order.
+  macho-sections :: MachOFile -> List MachOSection
+  macho-sections f = case f of MachOFile _ _ _ scs _ _ _ -> scs
+
+  -- | Parsed LC_SYMTAB, if present.
+  macho-symtab :: MachOFile -> Option MachOSymtab
+  macho-symtab f = case f of MachOFile _ _ _ _ st _ _ -> st
+
+  -- | Parsed LC_DYSYMTAB, if present.
+  macho-dysymtab :: MachOFile -> Option MachODysymtab
+  macho-dysymtab f = case f of MachOFile _ _ _ _ _ dt _ -> dt
+
+  -- | One architecture slice inside a universal (fat) Mach-O archive.
+  data MachOFatArch where
+    -- | Construct a MachOFatArch from cpu, subcpu, offset, size, align, and parsed MachOFile.
+    MachOFatArch :: MachOCpu -> U32 -> U32 -> U32 -> U32 -> MachOFile -> MachOFatArch
+
+  -- | Architecture CPU type.
+  fat-arch-cpu :: MachOFatArch -> MachOCpu
+  fat-arch-cpu a = case a of MachOFatArch c _ _ _ _ _ -> c
+
+  -- | Architecture CPU subtype.
+  fat-arch-subcpu :: MachOFatArch -> U32
+  fat-arch-subcpu a = case a of MachOFatArch _ sc _ _ _ _ -> sc
+
+  -- | Byte offset of the slice in the fat archive.
+  fat-arch-offset :: MachOFatArch -> U32
+  fat-arch-offset a = case a of MachOFatArch _ _ o _ _ _ -> o
+
+  -- | Byte size of the slice in the fat archive.
+  fat-arch-size :: MachOFatArch -> U32
+  fat-arch-size a = case a of MachOFatArch _ _ _ sz _ _ -> sz
+
+  -- | Alignment power of two of the slice.
+  fat-arch-align :: MachOFatArch -> U32
+  fat-arch-align a = case a of MachOFatArch _ _ _ _ al _ -> al
+
+  -- | Parsed Mach-O binary for this architecture slice.
+  fat-arch-file :: MachOFatArch -> MachOFile
+  fat-arch-file a = case a of MachOFatArch _ _ _ _ _ f -> f
+
+  -- | Parsed universal (fat) Mach-O archive containing one or more architectures.
+  data MachOFatFile where
+    -- | Construct a MachOFatFile from its magic word and list of architecture slices.
+    MachOFatFile :: U32 -> List MachOFatArch -> MachOFatFile
+
+  -- | Magic word of the fat archive (macho-magic-fat).
+  macho-fat-magic :: MachOFatFile -> U32
+  macho-fat-magic f = case f of MachOFatFile m _ -> m
+
+  -- | Architecture slices contained in the fat archive.
+  macho-fat-arches :: MachOFatFile -> List MachOFatArch
+  macho-fat-arches f = case f of MachOFatFile _ arches -> arches
+
+  -- ---------------------------------------------------------------------
+  -- Low-level bounds-checked binary helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert a U64 to Nat when it fits in signed 64-bit buffer index bounds.
+  u64-to-nat-checked :: U64 -> Option Nat
+  u64-to-nat-checked x = case checked-u64-to-i64 x of
+    None -> None
+    Some v -> checked-nat-from-i64 v
+
+  -- | Read one byte as a U8 at a checked offset.
+  read-u8 :: Bytes -> Nat -> String -> Result MachOError U8
+  read-u8 buf pos label =
+    if pos < bytes-len buf then Ok (wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf pos)))
+    else Err (MachOTruncated pos label)
+
+  -- | Read a 16-bit unsigned integer with the given byte order.
+  read-u16 :: ByteOrder -> Bytes -> Nat -> String -> Result MachOError U16
+  read-u16 order buf pos label = case binary-read-u16 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (MachOTruncated pos label)
+
+  -- | Read a 32-bit unsigned integer with the given byte order.
+  read-u32 :: ByteOrder -> Bytes -> Nat -> String -> Result MachOError U32
+  read-u32 order buf pos label = case binary-read-u32 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (MachOTruncated pos label)
+
+  -- | Read a 64-bit unsigned integer with the given byte order.
+  read-u64 :: ByteOrder -> Bytes -> Nat -> String -> Result MachOError U64
+  read-u64 order buf pos label = case binary-read-u64 order buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (MachOTruncated pos label)
+
+  -- | Copy a bounds-checked slice out of a byte buffer.
+  slice-checked :: Bytes -> Nat -> Nat -> String -> Result MachOError Bytes
+  slice-checked buf off len label =
+    if off + len <= bytes-len buf then
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 off len in
+      Ok out
+    else Err (MachOTruncated off label)
+
+  -- | Replace any non-ASCII bytes with '?' for safe decoding of non-UTF-8 strings.
+  sanitize-ascii :: Bytes -> Bytes -> Nat -> Unit
+  sanitize-ascii src dst i =
+    if i < bytes-len src && i < bytes-len dst then
+      let b = bytes-get src i in
+      let v = if b < 128 then b else 63 in
+      let w = bytes-set dst i v in
+      sanitize-ascii src dst (i + 1)
+    else ()
+
+  -- | Convert a byte slice to a String, sanitizing non-UTF-8 bytes if needed.
+  bytes-to-text :: Bytes -> String
+  bytes-to-text buf = case string-from-bytes buf of
+    Some s -> s
+    None ->
+      let clean = bytes-new (bytes-len buf) in
+      let filled = sanitize-ascii buf clean 0 in
+      case string-from-bytes clean of
+        Some s -> s
+        None -> empty-string
+
+  -- | Measure a NUL-terminated string starting at pos up to at most limit bytes.
+  cstr-len-bounded :: Bytes -> Nat -> Nat -> Nat -> Nat
+  cstr-len-bounded buf pos limit acc =
+    if acc >= limit then acc
+    else if pos < bytes-len buf then
+      if bytes-get buf pos == 0 then acc
+      else cstr-len-bounded buf (pos + 1) limit (acc + 1)
+    else acc
+
+  -- | Read a NUL-terminated string from buf[off .. off + limit].
+  read-cstr-bounded :: Bytes -> Nat -> Nat -> String
+  read-cstr-bounded buf off limit =
+    let len = cstr-len-bounded buf off limit 0 in
+    if off + len <= bytes-len buf then
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 off len in
+      bytes-to-text out
+    else empty-string
+
+  -- | Append list ys onto the reverse of xs, returning reversed combined accumulator.
+  push-all-rev :: forall a. List a -> List a -> List a
+  push-all-rev xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> push-all-rev ys (Cons y acc)
+
+  -- ---------------------------------------------------------------------
+  -- Section and symbol parsing helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse one 32-bit section header (68 bytes).
+  parse-sect32 :: ByteOrder -> Bytes -> Nat -> Result MachOError MachOSection
+  parse-sect32 order buf pos =
+    if pos + 68 > bytes-len buf then Err (MachOTruncated pos "Mach-O Section32")
+    else
+      let name = read-cstr-bounded buf pos 16 in
+      let seg = read-cstr-bounded buf (pos + 16) 16 in
+      case read-u32 order buf (pos + 32) "sect32 addr" of
+        Err e -> Err e
+        Ok addr -> case read-u32 order buf (pos + 36) "sect32 size" of
+          Err e -> Err e
+          Ok sz -> case read-u32 order buf (pos + 40) "sect32 offset" of
+            Err e -> Err e
+            Ok off -> case read-u32 order buf (pos + 44) "sect32 align" of
+              Err e -> Err e
+              Ok align -> case read-u32 order buf (pos + 48) "sect32 reloff" of
+                Err e -> Err e
+                Ok reloff -> case read-u32 order buf (pos + 52) "sect32 nreloc" of
+                  Err e -> Err e
+                  Ok nreloc -> case read-u32 order buf (pos + 56) "sect32 flags" of
+                    Err e -> Err e
+                    Ok flags -> Ok (MachOSection name seg (u32-to-u64 addr) (u32-to-u64 sz) off align reloff nreloc flags)
+
+  -- | Parse one 64-bit section header (80 bytes).
+  parse-sect64 :: ByteOrder -> Bytes -> Nat -> Result MachOError MachOSection
+  parse-sect64 order buf pos =
+    if pos + 80 > bytes-len buf then Err (MachOTruncated pos "Mach-O Section64")
+    else
+      let name = read-cstr-bounded buf pos 16 in
+      let seg = read-cstr-bounded buf (pos + 16) 16 in
+      case read-u64 order buf (pos + 32) "sect64 addr" of
+        Err e -> Err e
+        Ok addr -> case read-u64 order buf (pos + 40) "sect64 size" of
+          Err e -> Err e
+          Ok sz -> case read-u32 order buf (pos + 48) "sect64 offset" of
+            Err e -> Err e
+            Ok off -> case read-u32 order buf (pos + 52) "sect64 align" of
+              Err e -> Err e
+              Ok align -> case read-u32 order buf (pos + 56) "sect64 reloff" of
+                Err e -> Err e
+                Ok reloff -> case read-u32 order buf (pos + 60) "sect64 nreloc" of
+                  Err e -> Err e
+                  Ok nreloc -> case read-u32 order buf (pos + 64) "sect64 flags" of
+                    Err e -> Err e
+                    Ok flags -> Ok (MachOSection name seg addr sz off align reloff nreloc flags)
+
+  -- | Parse n sections of size 68 (32-bit) or 80 (64-bit) tail-recursively.
+  parse-sects-loop :: Bool -> ByteOrder -> Bytes -> Nat -> Nat -> Nat -> List MachOSection -> Result MachOError (List MachOSection)
+  parse-sects-loop is64 order buf pos idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else
+      let res = if is64 then parse-sect64 order buf pos else parse-sect32 order buf pos in
+      let step = if is64 then (80 :: Nat) else 68 in
+      case res of
+        Err e -> Err e
+        Ok s -> parse-sects-loop is64 order buf (pos + step) (idx + 1) count (Cons s acc)
+
+  -- | Parse one LC_SEGMENT (32-bit) command and its embedded sections.
+  parse-segment32 :: ByteOrder -> Bytes -> Nat -> U32 -> U32 -> Nat -> Result MachOError (MachOSegment, List MachOSection)
+  parse-segment32 order buf pos cmdsz-u cmd idx =
+    let cmdsz = u32-to-nat cmdsz-u in
+    if cmdsz < 56 then Err (MachOInvalidCommand idx "LC_SEGMENT smaller than 56 bytes")
+    else
+      let name = read-cstr-bounded buf (pos + 8) 16 in
+      case read-u32 order buf (pos + 24) "seg32 addr" of
+        Err e -> Err e
+        Ok addr -> case read-u32 order buf (pos + 28) "seg32 memsz" of
+          Err e -> Err e
+          Ok memsz -> case read-u32 order buf (pos + 32) "seg32 offset" of
+            Err e -> Err e
+            Ok off -> case read-u32 order buf (pos + 36) "seg32 filesz" of
+              Err e -> Err e
+              Ok filesz -> case read-u32 order buf (pos + 40) "seg32 maxprot" of
+                Err e -> Err e
+                Ok maxprot -> case read-u32 order buf (pos + 44) "seg32 prot" of
+                  Err e -> Err e
+                  Ok prot -> case read-u32 order buf (pos + 48) "seg32 nsect" of
+                    Err e -> Err e
+                    Ok nsect -> case read-u32 order buf (pos + 52) "seg32 flag" of
+                      Err e -> Err e
+                      Ok flag ->
+                        let nsect-nat = u32-to-nat nsect in
+                        if 56 + nsect-nat * 68 > cmdsz then Err (MachOInvalidCommand idx "LC_SEGMENT sections exceed command size")
+                        else case parse-sects-loop False order buf (pos + 56) 0 nsect-nat Nil of
+                          Err e -> Err e
+                          Ok sects ->
+                            let seg = MachOSegment cmd cmdsz-u name (u32-to-u64 addr) (u32-to-u64 memsz) (u32-to-u64 off) (u32-to-u64 filesz) maxprot prot nsect flag in
+                            Ok (seg, sects)
+
+  -- | Parse one LC_SEGMENT_64 command and its embedded sections.
+  parse-segment64 :: ByteOrder -> Bytes -> Nat -> U32 -> U32 -> Nat -> Result MachOError (MachOSegment, List MachOSection)
+  parse-segment64 order buf pos cmdsz-u cmd idx =
+    let cmdsz = u32-to-nat cmdsz-u in
+    if cmdsz < 72 then Err (MachOInvalidCommand idx "LC_SEGMENT_64 smaller than 72 bytes")
+    else
+      let name = read-cstr-bounded buf (pos + 8) 16 in
+      case read-u64 order buf (pos + 24) "seg64 addr" of
+        Err e -> Err e
+        Ok addr -> case read-u64 order buf (pos + 32) "seg64 memsz" of
+          Err e -> Err e
+          Ok memsz -> case read-u64 order buf (pos + 40) "seg64 offset" of
+            Err e -> Err e
+            Ok off -> case read-u64 order buf (pos + 48) "seg64 filesz" of
+              Err e -> Err e
+              Ok filesz -> case read-u32 order buf (pos + 56) "seg64 maxprot" of
+                Err e -> Err e
+                Ok maxprot -> case read-u32 order buf (pos + 60) "seg64 prot" of
+                  Err e -> Err e
+                  Ok prot -> case read-u32 order buf (pos + 64) "seg64 nsect" of
+                    Err e -> Err e
+                    Ok nsect -> case read-u32 order buf (pos + 68) "seg64 flag" of
+                      Err e -> Err e
+                      Ok flag ->
+                        let nsect-nat = u32-to-nat nsect in
+                        if 72 + nsect-nat * 80 > cmdsz then Err (MachOInvalidCommand idx "LC_SEGMENT_64 sections exceed command size")
+                        else case parse-sects-loop True order buf (pos + 72) 0 nsect-nat Nil of
+                          Err e -> Err e
+                          Ok sects ->
+                            let seg = MachOSegment cmd cmdsz-u name addr memsz off filesz maxprot prot nsect flag in
+                            Ok (seg, sects)
+
+  -- | Parse one nlist or nlist_64 entry from the symbol table.
+  parse-nlist :: Bool -> ByteOrder -> Bytes -> Bytes -> Nat -> Nat -> Result MachOError MachOSymbol
+  parse-nlist is64 order symdat strtab pos cmd-idx =
+    case read-u32 order symdat pos "n_strx" of
+      Err e -> Err e
+      Ok strx -> case read-u8 symdat (pos + 4) "n_type" of
+        Err e -> Err e
+        Ok typ -> case read-u8 symdat (pos + 5) "n_sect" of
+          Err e -> Err e
+          Ok sect -> case read-u16 order symdat (pos + 6) "n_desc" of
+            Err e -> Err e
+            Ok desc ->
+              let strx-nat = u32-to-nat strx in
+              if strx-nat >= bytes-len strtab then Err (MachOInvalidCommand cmd-idx "symbol string table index out of range")
+              else
+                let rem-str = saturating-sub (bytes-len strtab) strx-nat in
+                let name = read-cstr-bounded strtab strx-nat rem-str in
+                if is64 then
+                  case read-u64 order symdat (pos + 8) "n_value64" of
+                    Err e -> Err e
+                    Ok val -> Ok (MachOSymbol name typ sect desc val)
+                else
+                  case read-u32 order symdat (pos + 8) "n_value32" of
+                    Err e -> Err e
+                    Ok val -> Ok (MachOSymbol name typ sect desc (u32-to-u64 val))
+
+  -- | Parse all symbol entries tail-recursively.
+  parse-nlist-loop :: Bool -> ByteOrder -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> List MachOSymbol -> Result MachOError (List MachOSymbol)
+  parse-nlist-loop is64 order symdat strtab pos idx count cmd-idx acc =
+    if idx >= count then Ok (reverse acc)
+    else case parse-nlist is64 order symdat strtab pos cmd-idx of
+      Err e -> Err e
+      Ok sym ->
+        let step = if is64 then (16 :: Nat) else 12 in
+        parse-nlist-loop is64 order symdat strtab (pos + step) (idx + 1) count cmd-idx (Cons sym acc)
+
+  -- | Parse one LC_SYMTAB load command and decode its symbols.
+  parse-symtab :: Bool -> ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Result MachOError MachOSymtab
+  parse-symtab is64 order buf pos cmdsz idx =
+    if cmdsz < 24 then Err (MachOInvalidCommand idx "LC_SYMTAB smaller than 24 bytes")
+    else case read-u32 order buf (pos + 8) "symoff" of
+      Err e -> Err e
+      Ok symoff -> case read-u32 order buf (pos + 12) "nsyms" of
+        Err e -> Err e
+        Ok nsyms -> case read-u32 order buf (pos + 16) "stroff" of
+          Err e -> Err e
+          Ok stroff -> case read-u32 order buf (pos + 20) "strsize" of
+            Err e -> Err e
+            Ok strsize ->
+              let nsyms-nat = u32-to-nat nsyms in
+              let symsz = if is64 then (16 :: Nat) else 12 in
+              case slice-checked buf (u32-to-nat stroff) (u32-to-nat strsize) "Mach-O string table" of
+                Err e -> Err e
+                Ok strtab -> case slice-checked buf (u32-to-nat symoff) (nsyms-nat * symsz) "Mach-O symbol table" of
+                  Err e -> Err e
+                  Ok symdat -> case parse-nlist-loop is64 order symdat strtab 0 0 nsyms-nat idx Nil of
+                    Err e -> Err e
+                    Ok syms -> Ok (MachOSymtab symoff nsyms stroff strsize syms)
+
+  -- | Parse one LC_DYSYMTAB load command.
+  parse-dysymtab :: ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Result MachOError MachODysymtab
+  parse-dysymtab order buf pos cmdsz idx =
+    if cmdsz < 80 then Err (MachOInvalidCommand idx "LC_DYSYMTAB smaller than 80 bytes")
+    else case read-u32 order buf (pos + 8) "ilocalsym" of
+      Err e -> Err e
+      Ok il -> case read-u32 order buf (pos + 12) "nlocalsym" of
+        Err e -> Err e
+        Ok nl -> case read-u32 order buf (pos + 16) "iextdefsym" of
+          Err e -> Err e
+          Ok ie -> case read-u32 order buf (pos + 20) "nextdefsym" of
+            Err e -> Err e
+            Ok ne -> case read-u32 order buf (pos + 24) "iundefsym" of
+              Err e -> Err e
+              Ok iu -> case read-u32 order buf (pos + 28) "nundefsym" of
+                Err e -> Err e
+                Ok nu -> case read-u32 order buf (pos + 56) "indirectsymoff" of
+                  Err e -> Err e
+                  Ok ioff -> case read-u32 order buf (pos + 60) "nindirectsyms" of
+                    Err e -> Err e
+                    Ok nind -> Ok (MachODysymtab il nl ie ne iu nu ioff nind)
+
+  -- | Parse one dylib command (LC_LOAD_DYLIB, LC_ID_DYLIB, weak, or reexport).
+  parse-dylib :: ByteOrder -> Bytes -> Nat -> Nat -> U32 -> Nat -> Result MachOError MachODylib
+  parse-dylib order buf pos cmdsz cmd idx =
+    if cmdsz < 24 then Err (MachOInvalidCommand idx "dylib command smaller than 24 bytes")
+    else case read-u32 order buf (pos + 8) "dylib name offset" of
+      Err e -> Err e
+      Ok name-off -> case read-u32 order buf (pos + 12) "dylib time" of
+        Err e -> Err e
+        Ok ts -> case read-u32 order buf (pos + 16) "dylib current version" of
+          Err e -> Err e
+          Ok cur -> case read-u32 order buf (pos + 20) "dylib compat version" of
+            Err e -> Err e
+            Ok compat ->
+              let off-nat = u32-to-nat name-off in
+              if off-nat >= cmdsz then Err (MachOInvalidCommand idx "dylib name offset exceeds command size")
+              else
+                let name = read-cstr-bounded buf (pos + off-nat) (saturating-sub cmdsz off-nat) in
+                Ok (MachODylib cmd name ts cur compat)
+
+  -- | Parse one LC_LOAD_DYLINKER or LC_ID_DYLINKER command.
+  parse-dylinker :: ByteOrder -> Bytes -> Nat -> Nat -> U32 -> Nat -> Result MachOError MachODylinker
+  parse-dylinker order buf pos cmdsz cmd idx =
+    if cmdsz < 12 then Err (MachOInvalidCommand idx "dylinker command smaller than 12 bytes")
+    else case read-u32 order buf (pos + 8) "dylinker name offset" of
+      Err e -> Err e
+      Ok name-off ->
+        let off-nat = u32-to-nat name-off in
+        if off-nat >= cmdsz then Err (MachOInvalidCommand idx "dylinker name offset exceeds command size")
+        else
+          let name = read-cstr-bounded buf (pos + off-nat) (saturating-sub cmdsz off-nat) in
+          Ok (MachODylinker cmd name)
+
+  -- | Parse one LC_RPATH command.
+  parse-rpath :: ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Result MachOError String
+  parse-rpath order buf pos cmdsz idx =
+    if cmdsz < 12 then Err (MachOInvalidCommand idx "LC_RPATH smaller than 12 bytes")
+    else case read-u32 order buf (pos + 8) "rpath offset" of
+      Err e -> Err e
+      Ok path-off ->
+        let off-nat = u32-to-nat path-off in
+        if off-nat >= cmdsz then Err (MachOInvalidCommand idx "LC_RPATH offset exceeds command size")
+        else Ok (read-cstr-bounded buf (pos + off-nat) (saturating-sub cmdsz off-nat))
+
+  -- | Report whether a load command code represents a dynamic library command.
+  is-dylib-cmd :: U32 -> Bool
+  is-dylib-cmd cmd =
+    eq-u32 cmd lc-load-dylib || eq-u32 cmd lc-id-dylib || eq-u32 cmd lc-load-weak-dylib || eq-u32 cmd lc-reexport-dylib
+
+  -- | Report whether a load command code represents a dynamic linker command.
+  is-dylinker-cmd :: U32 -> Bool
+  is-dylinker-cmd cmd = eq-u32 cmd lc-load-dylinker || eq-u32 cmd lc-id-dylinker
+
+  -- | Accumulator threaded through the load command parser loop.
+  data LoadAcc where
+    -- | Accumulated loads, segments, sections (all reversed), plus optional symtab and dysymtab.
+    LoadAcc :: List MachOLoadCmd -> List MachOSegment -> List MachOSection -> Option MachOSymtab -> Option MachODysymtab -> LoadAcc
+
+  -- | Parse all load commands tail-recursively.
+  parse-loads-loop :: Bool -> ByteOrder -> Bytes -> Nat -> Nat -> Nat -> Nat -> LoadAcc -> Result MachOError LoadAcc
+  parse-loads-loop is64 order buf pos end idx count acc =
+    if idx >= count then Ok acc
+    else if pos + 8 > end then Err (MachOInvalidCommand idx "load command header exceeds cmdsz")
+    else case read-u32 order buf pos "load cmd" of
+      Err e -> Err e
+      Ok cmd -> case read-u32 order buf (pos + 4) "load cmdsize" of
+        Err e -> Err e
+        Ok cmdsz-u ->
+          let cmdsz = u32-to-nat cmdsz-u in
+          if cmdsz < 8 || pos + cmdsz > end then Err (MachOInvalidCommand idx "invalid load command size")
+          else
+            let next-pos = pos + cmdsz in
+            case acc of
+              LoadAcc loads segs secs st dt ->
+                if eq-u32 cmd lc-segment then
+                  case parse-segment32 order buf pos cmdsz-u cmd idx of
+                    Err e -> Err e
+                    Ok pair -> case pair of
+                      (seg, ss) ->
+                        let acc2 = LoadAcc (Cons (LoadSegment seg) loads) (Cons seg segs) (push-all-rev ss secs) st dt in
+                        parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if eq-u32 cmd lc-segment64 then
+                  case parse-segment64 order buf pos cmdsz-u cmd idx of
+                    Err e -> Err e
+                    Ok pair -> case pair of
+                      (seg, ss) ->
+                        let acc2 = LoadAcc (Cons (LoadSegment seg) loads) (Cons seg segs) (push-all-rev ss secs) st dt in
+                        parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if eq-u32 cmd lc-symtab then
+                  case parse-symtab is64 order buf pos cmdsz idx of
+                    Err e -> Err e
+                    Ok symtab ->
+                      let acc2 = LoadAcc (Cons (LoadSymtab symtab) loads) segs secs (Some symtab) dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if eq-u32 cmd lc-dysymtab then
+                  case parse-dysymtab order buf pos cmdsz idx of
+                    Err e -> Err e
+                    Ok dysym ->
+                      let acc2 = LoadAcc (Cons (LoadDysymtab dysym) loads) segs secs st (Some dysym) in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if is-dylib-cmd cmd then
+                  case parse-dylib order buf pos cmdsz cmd idx of
+                    Err e -> Err e
+                    Ok dylib ->
+                      let acc2 = LoadAcc (Cons (LoadDylib dylib) loads) segs secs st dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if is-dylinker-cmd cmd then
+                  case parse-dylinker order buf pos cmdsz cmd idx of
+                    Err e -> Err e
+                    Ok dl ->
+                      let acc2 = LoadAcc (Cons (LoadDylinker dl) loads) segs secs st dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if eq-u32 cmd lc-uuid then
+                  if cmdsz < 24 then Err (MachOInvalidCommand idx "LC_UUID smaller than 24 bytes")
+                  else case slice-checked buf (pos + 8) 16 "LC_UUID bytes" of
+                    Err e -> Err e
+                    Ok uuid ->
+                      let acc2 = LoadAcc (Cons (LoadUuid uuid) loads) segs secs st dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else if eq-u32 cmd lc-rpath then
+                  case parse-rpath order buf pos cmdsz idx of
+                    Err e -> Err e
+                    Ok rp ->
+                      let acc2 = LoadAcc (Cons (LoadRpath rp) loads) segs secs st dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+                else
+                  case slice-checked buf pos cmdsz "raw load command" of
+                    Err e -> Err e
+                    Ok raw ->
+                      let acc2 = LoadAcc (Cons (LoadRaw cmd raw) loads) segs secs st dt in
+                      parse-loads-loop is64 order buf next-pos end (idx + 1) count acc2
+
+  -- ---------------------------------------------------------------------
+  -- Main Mach-O file parser.
+  -- ---------------------------------------------------------------------
+
+  -- | Identify Mach-O magic, width, and byte order from the initial 4 big-endian bytes.
+  identify-magic :: U32 -> Option (U32, ByteOrder, Bool)
+  identify-magic be-magic =
+    if eq-u32 be-magic 0xfeedface then Some (macho-magic32, BigEndian, False)
+    else if eq-u32 be-magic 0xcefaedfe then Some (macho-magic32, LittleEndian, False)
+    else if eq-u32 be-magic 0xfeedfacf then Some (macho-magic64, BigEndian, True)
+    else if eq-u32 be-magic 0xcffaedfe then Some (macho-magic64, LittleEndian, True)
+    else None
+
+  -- | Parse a single-architecture 32-bit or 64-bit Mach-O binary from raw bytes.
+  macho-parse :: Bytes -> Result MachOError MachOFile
+  macho-parse buf =
+    if bytes-len buf < 28 then Err (MachOTruncated 0 "Mach-O header requires at least 28 bytes")
+    else case read-u32 BigEndian buf 0 "Mach-O magic" of
+      Err e -> Err e
+      Ok be-magic -> case identify-magic be-magic of
+        None -> Err (MachOBadMagic be-magic)
+        Some info -> case info of
+          (magic, order, is64) ->
+            let hdr-sz = if is64 then (32 :: Nat) else 28 in
+            if bytes-len buf < hdr-sz then Err (MachOTruncated 0 "Mach-O 64-bit header requires 32 bytes")
+            else case read-u32 order buf 4 "cputype" of
+              Err e -> Err e
+              Ok cpu-raw -> case read-u32 order buf 8 "cpusubtype" of
+                Err e -> Err e
+                Ok subcpu -> case read-u32 order buf 12 "filetype" of
+                  Err e -> Err e
+                  Ok ftype-raw -> case read-u32 order buf 16 "ncmds" of
+                    Err e -> Err e
+                    Ok ncmd -> case read-u32 order buf 20 "sizeofcmds" of
+                      Err e -> Err e
+                      Ok cmdsz -> case read-u32 order buf 24 "flags" of
+                        Err e -> Err e
+                        Ok flags ->
+                          let cmd-end = hdr-sz + u32-to-nat cmdsz in
+                          if cmd-end > bytes-len buf then Err (MachOTruncated hdr-sz "load commands exceed file length")
+                          else
+                            let hdr = MachOHeader magic order is64 (decode-cpu cpu-raw) subcpu (decode-macho-type ftype-raw) ncmd cmdsz flags in
+                            case parse-loads-loop is64 order buf hdr-sz cmd-end 0 (u32-to-nat ncmd) (LoadAcc Nil Nil Nil None None) of
+                              Err e -> Err e
+                              Ok acc -> case acc of
+                                LoadAcc loads segs secs st dt ->
+                                  Ok (MachOFile hdr (reverse loads) (reverse segs) (reverse secs) st dt buf)
+
+  -- ---------------------------------------------------------------------
+  -- Queries and data extraction on MachOFile.
+  -- ---------------------------------------------------------------------
+
+  -- | Find the first segment with the given name.
+  macho-segment :: MachOFile -> String -> Option MachOSegment
+  macho-segment f name = find-segment (macho-segments f) name
+
+  -- | Tail-recursive lookup of a segment by name.
+  find-segment :: List MachOSegment -> String -> Option MachOSegment
+  find-segment segs name = case segs of
+    Nil -> None
+    Cons s rest ->
+      if seg-name s == name then Some s
+      else find-segment rest name
+
+  -- | Find the first section with the given name.
+  macho-section :: MachOFile -> String -> Option MachOSection
+  macho-section f name = find-section (macho-sections f) name
+
+  -- | Tail-recursive lookup of a section by name.
+  find-section :: List MachOSection -> String -> Option MachOSection
+  find-section secs name = case secs of
+    Nil -> None
+    Cons s rest ->
+      if sec-name s == name then Some s
+      else find-section rest name
+
+  -- | Read the raw bytes of a Mach-O section.
+  macho-section-data :: MachOFile -> MachOSection -> Result MachOError Bytes
+  macho-section-data f sec = case f of
+    MachOFile _ _ _ _ _ _ buf ->
+      case u64-to-nat-checked (sec-size sec) of
+        None -> Err (MachOInvalidSection (sec-name sec) "section size out of range")
+        Some sz-nat ->
+          let off-nat = u32-to-nat (sec-offset sec) in
+          slice-checked buf off-nat sz-nat (sec-name sec)
+
+  -- | Read the file-backed bytes of a Mach-O segment.
+  macho-segment-data :: MachOFile -> MachOSegment -> Result MachOError Bytes
+  macho-segment-data f seg = case f of
+    MachOFile _ _ _ _ _ _ buf ->
+      case u64-to-nat-checked (seg-offset seg) of
+        None -> Err (MachOInvalidSection (seg-name seg) "segment offset out of range")
+        Some off-nat -> case u64-to-nat-checked (seg-filesz seg) of
+          None -> Err (MachOInvalidSection (seg-name seg) "segment filesz out of range")
+          Some sz-nat -> slice-checked buf off-nat sz-nat (seg-name seg)
+
+  -- | Return all symbols from LC_SYMTAB, or Nil when no symbol table is present.
+  macho-symbols :: MachOFile -> List MachOSymbol
+  macho-symbols f = case macho-symtab f of
+    None -> Nil
+    Some st -> symtab-syms st
+
+  -- | Collect all parsed dylib commands from load commands.
+  collect-dylibs :: List MachOLoadCmd -> List MachODylib -> List MachODylib
+  collect-dylibs loads acc = case loads of
+    Nil -> reverse acc
+    Cons l rest -> case l of
+      LoadDylib d -> collect-dylibs rest (Cons d acc)
+      _ -> collect-dylibs rest acc
+
+  -- | Return all dynamic library load commands (LC_LOAD_DYLIB, LC_ID_DYLIB, weak, reexport).
+  macho-dylibs :: MachOFile -> List MachODylib
+  macho-dylibs f = collect-dylibs (macho-loads f) Nil
+
+  -- | Collect library names from LC_LOAD_DYLIB commands.
+  collect-imported-libs :: List MachOLoadCmd -> List String -> List String
+  collect-imported-libs loads acc = case loads of
+    Nil -> reverse acc
+    Cons l rest -> case l of
+      LoadDylib d ->
+        if eq-u32 (dylib-cmd d) lc-load-dylib then collect-imported-libs rest (Cons (dylib-name d) acc)
+        else collect-imported-libs rest acc
+      _ -> collect-imported-libs rest acc
+
+  -- | Return the paths of all libraries referenced by LC_LOAD_DYLIB commands.
+  macho-imported-libraries :: MachOFile -> List String
+  macho-imported-libraries f = collect-imported-libs (macho-loads f) Nil
+
+  -- | Extract symbol names from a slice of symbols.
+  sym-names :: List MachOSymbol -> List String -> List String
+  sym-names syms acc = case syms of
+    Nil -> reverse acc
+    Cons s rest -> sym-names rest (Cons (msym-name s) acc)
+
+  -- | Return the names of all undefined symbols referenced by LC_DYSYMTAB.
+  macho-imported-symbols :: MachOFile -> Result MachOError (List String)
+  macho-imported-symbols f = case macho-symtab f of
+    None -> Err MachONoSymtab
+    Some st -> case macho-dysymtab f of
+      None -> Err MachONoSymtab
+      Some dt ->
+        let start = u32-to-nat (dysym-iundefsym dt) in
+        let count = u32-to-nat (dysym-nundefsym dt) in
+        let syms = symtab-syms st in
+        if start + count > list-length syms then Err (MachOInvalidCommand 0 "dysymtab undefined symbol range out of bounds")
+        else Ok (sym-names (take count (drop start syms)) Nil)
+
+  -- | Collect all LC_RPATH entries from load commands.
+  collect-rpaths :: List MachOLoadCmd -> List String -> List String
+  collect-rpaths loads acc = case loads of
+    Nil -> reverse acc
+    Cons l rest -> case l of
+      LoadRpath rp -> collect-rpaths rest (Cons rp acc)
+      _ -> collect-rpaths rest acc
+
+  -- | Return all runtime library search paths from LC_RPATH load commands.
+  macho-rpaths :: MachOFile -> List String
+  macho-rpaths f = collect-rpaths (macho-loads f) Nil
+
+  -- | Find the first LC_UUID bytes in the load command list.
+  find-uuid :: List MachOLoadCmd -> Option Bytes
+  find-uuid loads = case loads of
+    Nil -> None
+    Cons l rest -> case l of
+      LoadUuid u -> Some u
+      _ -> find-uuid rest
+
+  -- | Return the 16-byte UUID from LC_UUID, if present.
+  macho-uuid :: MachOFile -> Option Bytes
+  macho-uuid f = find-uuid (macho-loads f)
+
+  -- | Find the first LC_LOAD_DYLINKER or LC_ID_DYLINKER path.
+  find-dylinker :: List MachOLoadCmd -> Option String
+  find-dylinker loads = case loads of
+    Nil -> None
+    Cons l rest -> case l of
+      LoadDylinker dl -> Some (dylinker-name dl)
+      _ -> find-dylinker rest
+
+  -- | Return the dynamic linker path from LC_LOAD_DYLINKER or LC_ID_DYLINKER, if present.
+  macho-dylinker :: MachOFile -> Option String
+  macho-dylinker f = find-dylinker (macho-loads f)
+
+  -- ---------------------------------------------------------------------
+  -- Universal (fat) binary parser.
+  -- ---------------------------------------------------------------------
+
+  -- | Check whether a candidate slice [off, off+sz) overlaps any previously seen slice.
+  overlaps-any :: Nat -> Nat -> List (Nat, Nat) -> Bool
+  overlaps-any off sz seen = case seen of
+    Nil -> False
+    Cons pair rest -> case pair of
+      (s-off, s-end) ->
+        let end = off + sz in
+        if off < s-end && s-off < end then True
+        else overlaps-any off sz rest
+
+  -- | Parse all fat architecture entries tail-recursively.
+  parse-fat-arches :: Bytes -> Nat -> Nat -> Nat -> Nat -> List (Nat, Nat) -> List MachOFatArch -> Result MachOError (List MachOFatArch)
+  parse-fat-arches buf header-end pos idx count seen acc =
+    if idx >= count then Ok (reverse acc)
+    else if pos + 20 > bytes-len buf then Err (MachOTruncated pos "fat arch header")
+    else case read-u32 BigEndian buf pos "fat cpu" of
+      Err e -> Err e
+      Ok cpu-raw -> case read-u32 BigEndian buf (pos + 4) "fat subcpu" of
+        Err e -> Err e
+        Ok subcpu -> case read-u32 BigEndian buf (pos + 8) "fat offset" of
+          Err e -> Err e
+          Ok off -> case read-u32 BigEndian buf (pos + 12) "fat size" of
+            Err e -> Err e
+            Ok sz -> case read-u32 BigEndian buf (pos + 16) "fat align" of
+              Err e -> Err e
+              Ok align ->
+                let off-nat = u32-to-nat off in
+                let sz-nat = u32-to-nat sz in
+                if off-nat < header-end then Err (MachOInvalidFatArch idx "slice overlaps fat header")
+                else if off-nat + sz-nat > bytes-len buf then Err (MachOInvalidFatArch idx "slice extends past end of file")
+                else if overlaps-any off-nat sz-nat seen then Err (MachOInvalidFatArch idx "slice overlaps another architecture")
+                else case slice-checked buf off-nat sz-nat "fat arch slice" of
+                  Err e -> Err e
+                  Ok slice -> case macho-parse slice of
+                    Err e -> Err e
+                    Ok mfile ->
+                      let arch = MachOFatArch (decode-cpu cpu-raw) subcpu off sz align mfile in
+                      parse-fat-arches buf header-end (pos + 20) (idx + 1) count (Cons (off-nat, off-nat + sz-nat) seen) (Cons arch acc)
+
+  -- | Parse a universal (fat) Mach-O binary from raw bytes.
+  macho-parse-fat :: Bytes -> Result MachOError MachOFatFile
+  macho-parse-fat buf =
+    if bytes-len buf < 8 then Err (MachOTruncated 0 "fat header requires at least 8 bytes")
+    else case read-u32 BigEndian buf 0 "fat magic" of
+      Err e -> Err e
+      Ok magic ->
+        if ne-u32 magic macho-magic-fat then Err (MachONotFat magic)
+        else case read-u32 BigEndian buf 4 "nfat_arch" of
+          Err e -> Err e
+          Ok narch-u ->
+            let narch = u32-to-nat narch-u in
+            if narch < 1 then Err (MachOInvalidFatArch 0 "fat file contains zero architectures")
+            else
+              let header-end = 8 + narch * 20 in
+              if header-end > bytes-len buf then Err (MachOTruncated 8 "fat architecture table truncated")
+              else case parse-fat-arches buf header-end 8 0 narch Nil Nil of
+                Err e -> Err e
+                Ok arches -> Ok (MachOFatFile magic arches)

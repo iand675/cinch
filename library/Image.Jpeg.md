@@ -18,17 +18,17 @@ supported; arithmetic coding, the lossless and hierarchical processes and 12-bit
 jpeg-decode-config reads the size and colour model without decoding pixels.
 
 Entropy-coded segments are destuffed sixteen bytes at a time and then read by bit offset. Huffman
-codes resolve through an eight-bit lookup table, with a branch-free search over all sixteen code
-lengths for longer codes, in one kernel call that also extends the magnitude bits. Dequantization and
-the two-pass integer inverse DCT (after the MPEG Software Simulation Group's) run in 32-bit vector
-lanes with the scalar definition's wrapping arithmetic, so any input decodes to the same samples on
-every target; colour conversion runs four pixels per step.
+codes resolve through an eight-bit lookup table, with a portable SIMD search over all sixteen code
+lengths for longer codes, extending the magnitude bits in the same pass. Dequantization and the
+two-pass integer inverse DCT (after the MPEG Software Simulation Group's) run in portable 32-bit
+vector lanes with the scalar definition's wrapping arithmetic, so any input decodes to the same
+samples on every target; colour conversion runs four pixels per step.
 
 The encoder writes baseline streams with the standard Annex K tables scaled by a quality from 1 to
 100 (75 by default): Gray8 rasters as one component and everything else as YCbCr 4:2:0, replicating
 edge pixels into partial blocks. Pixels with alpha are premultiplied first, as sixteen-bit colour
 readers do. The forward DCT follows the Independent JPEG Group's integer jfdctint; its row pass, its
-column pass with rounding quantization, colour conversion and chroma averaging run in vector lanes.
+column pass with rounding quantization, colour conversion and chroma averaging run in portable SIMD lanes.
 
 </details>
 
@@ -201,7 +201,7 @@ The width in pixels.
 </article>
 
 <article class="doc-entry" id="v-jpeg-decode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L470" title="View source at line 470">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegImage" title="Image.Jpeg.JpegImage">JpegImage</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L462" title="View source at line 462">Source</a></span></div>
 <div class="doc-body">
 
 Decode a whole image.
@@ -210,7 +210,7 @@ Decode a whole image.
 </article>
 
 <article class="doc-entry" id="v-jpeg-decode-config">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L481" title="View source at line 481">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-decode-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegConfig" title="Image.Jpeg.JpegConfig">JpegConfig</a></code><span class="doc-sig-links"><a href="#v-jpeg-decode-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L473" title="View source at line 473">Source</a></span></div>
 <div class="doc-body">
 
 Read the colour model and size: stops at the frame header after a JFIF marker, otherwise at the first scan.
@@ -219,7 +219,7 @@ Read the colour model and size: stops at the frame header after a JFIF marker, o
 </article>
 
 <article class="doc-entry" id="v-jpeg-default-quality">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-default-quality</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-jpeg-default-quality" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1718" title="View source at line 1718">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-default-quality</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-jpeg-default-quality" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1694" title="View source at line 1694">Source</a></span></div>
 <div class="doc-body">
 
 The quality used when none is chosen.
@@ -228,7 +228,7 @@ The quality used when none is chosen.
 </article>
 
 <article class="doc-entry" id="v-jpeg-encode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1723" title="View source at line 1723">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1699" title="View source at line 1699">Source</a></span></div>
 <div class="doc-body">
 
 Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every other format as YCbCr
@@ -238,7 +238,7 @@ Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every 
 </article>
 
 <article class="doc-entry" id="v-jpeg-encode-ycbcr">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode-ycbcr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode-ycbcr" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1734" title="View source at line 1734">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jpeg-encode-ycbcr</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-YcbcrImage" title="Image.Jpeg.YcbcrImage">YcbcrImage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Jpeg/#t-JpegError" title="Image.Jpeg.JpegError">JpegError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-jpeg-encode-ycbcr" title="Permalink">#</a><a href="/packages/stdlib/Image.Jpeg/source/#L1710" title="View source at line 1710">Source</a></span></div>
 <div class="doc-body">
 
 Encode YCbCr planes at a quality as YCbCr 4:2:0; each pixel takes the chroma sample covering it, and

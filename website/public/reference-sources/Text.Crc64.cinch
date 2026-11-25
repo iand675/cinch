@@ -1,8 +1,8 @@
 -- | CRC-64 polynomial tables, persistent accumulators and binary checkpoints.
 -- Tables own immutable slicing-by-eight storage; construction generates pairs
--- of entries with SIMD. Updates combine eight packed input bytes per step and
--- handle exact tails. Digest and checkpoint words use network order. Retaining
--- a state branches the computation. This checksum does not authenticate data.
+-- of entries with 128-bit SIMD lanes. Updates combine eight packed input bytes per
+-- step and handle exact tails. Digest and checkpoint words use network order.
+-- Retaining a state branches the computation. This checksum does not authenticate data.
 module Text.Crc64 where
 
   import Data.Bytes
@@ -12,6 +12,7 @@ module Text.Crc64 where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128, bit-and-u128, bit-xor-u128, simd-u64x2-splat, simd-u64x2-pack, simd-u64x2-sub, simd-u64x2-shr)
   import Text.Binary
 
   export crc64-iso, crc64-ecma, crc64-size, crc64-sum, crc64-update
@@ -46,14 +47,14 @@ module Text.Crc64 where
   fill-base storage poly pos index =
     if pos + 16 <= 2048 && pos + 16 <= bytes-len storage then
       let pair = table-pair poly index in
-      let first = bytes-write-le64 storage pos (pair-low pair) in
-      let last = bytes-write-le64 storage (pos + 8) (pair-high pair) in
+      let first = bytes-store-le64 storage pos (pair-low pair) in
+      let last = bytes-store-le64 storage (pos + 8) (pair-high pair) in
       fill-base storage poly (pos + 16) (wrapping-add-u64 index 2)
     else ()
 
   -- | Read one private table word only after checking its complete byte interval.
   table-word :: Bytes -> Nat -> U64
-  table-word storage pos = if pos + 8 <= bytes-len storage then bytes-read-le64 storage pos else 0
+  table-word storage pos = if pos + 8 <= bytes-len storage then bytes-load-le64 storage pos else 0
 
   -- | Derive successive byte-shift slices from the previous row and the base row.
   fill-slices :: Bytes -> Nat -> Unit
@@ -62,22 +63,19 @@ module Text.Crc64 where
       let previous = table-word storage (pos - 2048) in
       let index = u8-to-nat (wrapping-u64-to-u8 previous) in
       let value = bit-xor-u64 (table-word storage (index * 8)) (wrapping-shr-u64 previous 8) in
-      let written = bytes-write-le64 storage pos value in fill-slices storage (pos + 8)
+      let written = bytes-store-le64 storage pos value in fill-slices storage (pos + 8)
     else ()
 
   -- | Checksum the base entries as 2048 network-order bytes using the fixed ISO polynomial.
   fingerprint :: Bytes -> Nat -> U64 -> U64
   fingerprint storage pos acc =
     if pos + 8 <= 2048 && pos + 8 <= bytes-len storage then
-      fingerprint storage (pos + 8) (crc64-word acc (network-word (bytes-read-le64 storage pos)) crc64-iso)
+      fingerprint storage (pos + 8) (crc64-word acc (network-word (bytes-load-le64 storage pos)) crc64-iso)
     else acc
 
   -- | Put a numeric network-order entry into the packed little-endian input word.
-  prim network-word :: U64 -> U64 where
-    llvm {
-      %result = call i64 @llvm.bswap.i64(i64 %0)
-      ret i64 %result
-    }
+  network-word :: U64 -> U64
+  network-word word = swap-bytes-u64 word
 
   -- | Observe a base entry at an index in 0..255; other indices return None.
   crc64-table-entry :: Crc64Table -> Nat -> Option U64
@@ -107,50 +105,32 @@ module Text.Crc64 where
   crc64-table-update :: Crc64Table -> U64 -> Bytes -> U64
   crc64-table-update table previous input = case table of
     CrcTable storage sum ->
-      if 16384 <= bytes-len storage then
-        bit-not-u64 (hold-table storage (hold-table input
-          (word-from (bytes-data storage) (bytes-data input)
-            (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input))) (bit-not-u64 previous))))
+      if 16384 <= bytes-len-i64 storage then
+        bit-not-u64 (word-from-blocks storage input 0 (bit-not-u64 previous))
       else previous
 
-  -- | Traverse only the remaining input bytes using fixed-width counters and private addresses.
-  -- The caller retains both owners throughout the call and supplies the exact input length.
-  -- Subtraction follows positive bounds checks; address steps stay inside that owned interval.
-  word-from :: I64 -> I64 -> U64 -> U64 -> U64
-  word-from table input remaining acc =
-    if ge-u64 remaining 8 then
-      word-from table (wrapping-add-i64 input 8) (wrapping-sub-u64 remaining 8)
-        (slice-eight table (bit-xor-u64 acc (input-word input)))
-    else if ne-u64 remaining 0 then
-      word-from table (wrapping-add-i64 input 1) (wrapping-sub-u64 remaining 1)
-        (slice-one table acc (input-byte input))
+  -- | Traverse complete 8-byte blocks using slicing-by-eight with unboxed I64 indices.
+  word-from-blocks :: Bytes -> Bytes -> I64 -> U64 -> U64
+  word-from-blocks storage input pos acc =
+    if 16384 <= bytes-len-i64 storage then
+      let n = bytes-len-i64 input in
+      if 8 <= n then
+        let nn = nat-from-i64 n in
+        let lim = nn - 8 in
+        if 0 <= pos && pos <= wrapping-sub-i64 n 8 && nat-from-i64 pos <= lim then
+          let w = bytes-load-le64-at input pos in
+          word-from-blocks storage input (wrapping-add-i64 pos 8) (slice-eight storage (bit-xor-u64 acc w))
+        else word-from-tail storage input pos acc
+      else word-from-tail storage input pos acc
     else acc
 
-  -- | Load exactly one remaining input byte; the private caller proves remaining is positive.
-  prim input-byte :: I64 -> U8 where
-    unsafe llvm {
-      %address = inttoptr i64 %0 to ptr
-      %value = load i8, ptr %address, align 1
-      ret i8 %value
-    }
-
-  -- | Load exactly eight remaining input bytes and normalize to low-byte-first wire order.
-  prim input-word :: I64 -> U64 where
-    unsafe llvm {
-      %address = inttoptr i64 %0 to ptr
-      %value = load i64, ptr %address, align 1
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %address = inttoptr i64 %0 to ptr
-      %host = load i64, ptr %address, align 1
-      %value = call i64 @llvm.bswap.i64(i64 %host)
-      ret i64 %value
-    } when endian big
-
-  -- | Retain the private table owner until the strict raw-address lookup result has completed.
-  hold-table :: Bytes -> U64 -> U64
-  hold-table storage value = case bytes-len storage of _ -> value
+  -- | Finish remaining tail bytes after the final complete 8-byte block.
+  word-from-tail :: Bytes -> Bytes -> I64 -> U64 -> U64
+  word-from-tail storage input pos acc =
+    if 16384 <= bytes-len-i64 storage && 0 <= pos && pos < bytes-len-i64 input then
+      let b = bytes-get-u8-at input pos in
+      word-from-tail storage input (wrapping-add-i64 pos 1) (slice-one storage acc b)
+    else acc
 
   -- | An immutable checksum accumulator retaining its immutable prepared table.
   data Crc64State where
@@ -259,589 +239,108 @@ module Text.Crc64 where
   crc64-update :: U64 -> U64 -> Bytes -> U64
   crc64-update poly previous b =
     if 16384 <= bytes-len b then crc64-table-update (crc64-table poly) previous b
-    else bit-not-u64 (crc64-from poly b 0 (bit-not-u64 previous))
+    else bit-not-u64 (crc64-blocks poly b 0 (bit-not-u64 previous))
 
-  -- | Consume complete eight-byte native shift-register blocks before handling the exact scalar tail.
-  crc64-from :: U64 -> Bytes -> Nat -> U64 -> U64
-  crc64-from poly b i acc =
-    if i + 8 <= bytes-len b then crc64-from poly b (i + 8) (crc64-word acc (bytes-read-le64 b i) poly)
-    else if i < bytes-len b then
-      let v = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
-      crc64-from poly b (i + 1) (crc64-bits poly (bit-xor-u64 acc v) 8)
+  -- | Consume complete eight-byte shift-register blocks without per-iteration Nat boxing.
+  crc64-blocks :: U64 -> Bytes -> I64 -> U64 -> U64
+  crc64-blocks poly b pos acc =
+    let n = bytes-len-i64 b in
+    if 8 <= n then
+      let nn = nat-from-i64 n in
+      let lim = nn - 8 in
+      if 0 <= pos && pos <= wrapping-sub-i64 n 8 && nat-from-i64 pos <= lim then
+        let w = bytes-load-le64-at b pos in
+        crc64-blocks poly b (wrapping-add-i64 pos 8) (crc64-word acc w poly)
+      else crc64-tail poly b pos acc
+    else crc64-tail poly b pos acc
+
+  -- | Consume remaining tail bytes after the final complete eight-byte block.
+  crc64-tail :: U64 -> Bytes -> I64 -> U64 -> U64
+  crc64-tail poly b pos acc =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let v = u8-to-u64 (bytes-get-u8-at b pos) in
+      crc64-tail poly b (wrapping-add-i64 pos 1) (crc64-byte (bit-xor-u64 acc v) poly)
     else acc
 
-  -- | Advance one scalar byte through eight reflected 64-bit polynomial steps.
-  crc64-bits :: U64 -> U64 -> Nat -> U64
-  crc64-bits poly acc n =
-    if n == 0 then acc
-    else if eq-u64 (bit-and-u64 acc 1) 1 then crc64-bits poly (bit-xor-u64 (wrapping-shr-u64 acc 1) poly) (n - 1)
-    else crc64-bits poly (wrapping-shr-u64 acc 1) (n - 1)
-
+  -- | Advance one reflected CRC-64 step across two independent 64-bit SIMD lanes.
+  table-step :: U128 -> U128 -> U128
+  table-step poly v =
+    let low = bit-and-u128 v (simd-u64x2-splat 1) in
+    let mask = simd-u64x2-sub 0 low in
+    bit-xor-u128 (simd-u64x2-shr v 1) (bit-and-u128 poly mask)
 
   -- | Generate two independent polynomial table entries in SIMD lanes, packed low word first.
-  prim table-pair :: U64 -> U64 -> U128 where
-    llvm {
-      %p = insertelement <2 x i64> zeroinitializer, i64 %0, i32 0
-      %poly = shufflevector <2 x i64> %p, <2 x i64> zeroinitializer, <2 x i32> zeroinitializer
-      %second = add i64 %1, 1
-      %a = insertelement <2 x i64> zeroinitializer, i64 %1, i32 0
-      %start = insertelement <2 x i64> %a, i64 %second, i32 1
-      %low0 = and <2 x i64> %start, <i64 1, i64 1>
-      %mask0 = sub <2 x i64> zeroinitializer, %low0
-      %chosen0 = and <2 x i64> %poly, %mask0
-      %shift0 = lshr <2 x i64> %start, <i64 1, i64 1>
-      %r0 = xor <2 x i64> %shift0, %chosen0
-      %low1 = and <2 x i64> %r0, <i64 1, i64 1>
-      %mask1 = sub <2 x i64> zeroinitializer, %low1
-      %chosen1 = and <2 x i64> %poly, %mask1
-      %shift1 = lshr <2 x i64> %r0, <i64 1, i64 1>
-      %r1 = xor <2 x i64> %shift1, %chosen1
-      %low2 = and <2 x i64> %r1, <i64 1, i64 1>
-      %mask2 = sub <2 x i64> zeroinitializer, %low2
-      %chosen2 = and <2 x i64> %poly, %mask2
-      %shift2 = lshr <2 x i64> %r1, <i64 1, i64 1>
-      %r2 = xor <2 x i64> %shift2, %chosen2
-      %low3 = and <2 x i64> %r2, <i64 1, i64 1>
-      %mask3 = sub <2 x i64> zeroinitializer, %low3
-      %chosen3 = and <2 x i64> %poly, %mask3
-      %shift3 = lshr <2 x i64> %r2, <i64 1, i64 1>
-      %r3 = xor <2 x i64> %shift3, %chosen3
-      %low4 = and <2 x i64> %r3, <i64 1, i64 1>
-      %mask4 = sub <2 x i64> zeroinitializer, %low4
-      %chosen4 = and <2 x i64> %poly, %mask4
-      %shift4 = lshr <2 x i64> %r3, <i64 1, i64 1>
-      %r4 = xor <2 x i64> %shift4, %chosen4
-      %low5 = and <2 x i64> %r4, <i64 1, i64 1>
-      %mask5 = sub <2 x i64> zeroinitializer, %low5
-      %chosen5 = and <2 x i64> %poly, %mask5
-      %shift5 = lshr <2 x i64> %r4, <i64 1, i64 1>
-      %r5 = xor <2 x i64> %shift5, %chosen5
-      %low6 = and <2 x i64> %r5, <i64 1, i64 1>
-      %mask6 = sub <2 x i64> zeroinitializer, %low6
-      %chosen6 = and <2 x i64> %poly, %mask6
-      %shift6 = lshr <2 x i64> %r5, <i64 1, i64 1>
-      %r6 = xor <2 x i64> %shift6, %chosen6
-      %low7 = and <2 x i64> %r6, <i64 1, i64 1>
-      %mask7 = sub <2 x i64> zeroinitializer, %low7
-      %chosen7 = and <2 x i64> %poly, %mask7
-      %shift7 = lshr <2 x i64> %r6, <i64 1, i64 1>
-      %r7 = xor <2 x i64> %shift7, %chosen7
-      %first = extractelement <2 x i64> %r7, i32 0
-      %last = extractelement <2 x i64> %r7, i32 1
-      %lo = zext i64 %first to i128
-      %hi = zext i64 %last to i128
-      %upper = shl i128 %hi, 64
-      %result = or i128 %lo, %upper
-      ret i128 %result
-    }
+  table-pair :: U64 -> U64 -> U128
+  table-pair poly index =
+    let p = simd-u64x2-splat poly in
+    let s0 = table-step p (simd-u64x2-pack index (wrapping-add-u64 index 1)) in
+    let s1 = table-step p s0 in
+    let s2 = table-step p s1 in
+    let s3 = table-step p s2 in
+    let s4 = table-step p s3 in
+    let s5 = table-step p s4 in
+    let s6 = table-step p s5 in
+    table-step p s6
 
   -- | Extract the first SIMD table entry without a wide-scalar ABI in public APIs.
-  prim pair-low :: U128 -> U64 where
-    llvm {
-      %result = trunc i128 %0 to i64
-      ret i64 %result
-    }
+  pair-low :: U128 -> U64
+  pair-low pair = wrapping-u128-to-u64 pair
 
   -- | Extract the second SIMD table entry without truncating its high bit.
-  prim pair-high :: U128 -> U64 where
-    llvm {
-      %shifted = lshr i128 %0, 64
-      %result = trunc i128 %shifted to i64
-      ret i64 %result
-    }
+  pair-high :: U128 -> U64
+  pair-high pair = wrapping-u128-to-u64 (wrapping-shr-u128 pair 64)
 
+  -- | Load one 64-bit slicing-table word at slice base plus byte * 8 with zero bounds checks at -O2.
+  load-slice :: using (16384 <= bytes-len storage) => (storage :: Bytes) -> I64 -> U8 -> U64
+  load-slice storage base byte =
+    let idx = u8-to-i64 byte in
+    let pos = wrapping-add-i64 base (wrapping-shl-i64 idx 3) in
+    if 0 <= pos && pos <= 16376 && nat-from-i64 pos <= 16376 then
+      bytes-load-le64-at storage pos
+    else 0
 
-  -- | Combine eight masked table indices with balanced XORs. The private caller retains
-  -- the complete 16384-byte table and proves the input block bounds before passing its address.
-  prim slice-eight :: I64 -> U64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %shift0 = lshr i64 %1, 0
-      %index0 = and i64 %shift0, 255
-      %byte0 = shl i64 %index0, 3
-      %offset0 = add i64 %byte0, 14336
-      %at0 = getelementptr i8, ptr %base, i64 %offset0
-      %load0 = load i64, ptr %at0, align 1
-      %word0 = or i64 %load0, 0
-      %shift1 = lshr i64 %1, 8
-      %index1 = and i64 %shift1, 255
-      %byte1 = shl i64 %index1, 3
-      %offset1 = add i64 %byte1, 12288
-      %at1 = getelementptr i8, ptr %base, i64 %offset1
-      %load1 = load i64, ptr %at1, align 1
-      %word1 = or i64 %load1, 0
-      %shift2 = lshr i64 %1, 16
-      %index2 = and i64 %shift2, 255
-      %byte2 = shl i64 %index2, 3
-      %offset2 = add i64 %byte2, 10240
-      %at2 = getelementptr i8, ptr %base, i64 %offset2
-      %load2 = load i64, ptr %at2, align 1
-      %word2 = or i64 %load2, 0
-      %shift3 = lshr i64 %1, 24
-      %index3 = and i64 %shift3, 255
-      %byte3 = shl i64 %index3, 3
-      %offset3 = add i64 %byte3, 8192
-      %at3 = getelementptr i8, ptr %base, i64 %offset3
-      %load3 = load i64, ptr %at3, align 1
-      %word3 = or i64 %load3, 0
-      %shift4 = lshr i64 %1, 32
-      %index4 = and i64 %shift4, 255
-      %byte4 = shl i64 %index4, 3
-      %offset4 = add i64 %byte4, 6144
-      %at4 = getelementptr i8, ptr %base, i64 %offset4
-      %load4 = load i64, ptr %at4, align 1
-      %word4 = or i64 %load4, 0
-      %shift5 = lshr i64 %1, 40
-      %index5 = and i64 %shift5, 255
-      %byte5 = shl i64 %index5, 3
-      %offset5 = add i64 %byte5, 4096
-      %at5 = getelementptr i8, ptr %base, i64 %offset5
-      %load5 = load i64, ptr %at5, align 1
-      %word5 = or i64 %load5, 0
-      %shift6 = lshr i64 %1, 48
-      %index6 = and i64 %shift6, 255
-      %byte6 = shl i64 %index6, 3
-      %offset6 = add i64 %byte6, 2048
-      %at6 = getelementptr i8, ptr %base, i64 %offset6
-      %load6 = load i64, ptr %at6, align 1
-      %word6 = or i64 %load6, 0
-      %shift7 = lshr i64 %1, 56
-      %index7 = and i64 %shift7, 255
-      %byte7 = shl i64 %index7, 3
-      %offset7 = add i64 %byte7, 0
-      %at7 = getelementptr i8, ptr %base, i64 %offset7
-      %load7 = load i64, ptr %at7, align 1
-      %word7 = or i64 %load7, 0
-      %a0 = xor i64 %word0, %word1
-      %a1 = xor i64 %word2, %word3
-      %a2 = xor i64 %word4, %word5
-      %a3 = xor i64 %word6, %word7
-      %b0 = xor i64 %a0, %a1
-      %b1 = xor i64 %a2, %a3
-      %result = xor i64 %b0, %b1
-      ret i64 %result
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %shift0 = lshr i64 %1, 0
-      %index0 = and i64 %shift0, 255
-      %byte0 = shl i64 %index0, 3
-      %offset0 = add i64 %byte0, 14336
-      %at0 = getelementptr i8, ptr %base, i64 %offset0
-      %load0 = load i64, ptr %at0, align 1
-      %word0 = call i64 @llvm.bswap.i64(i64 %load0)
-      %shift1 = lshr i64 %1, 8
-      %index1 = and i64 %shift1, 255
-      %byte1 = shl i64 %index1, 3
-      %offset1 = add i64 %byte1, 12288
-      %at1 = getelementptr i8, ptr %base, i64 %offset1
-      %load1 = load i64, ptr %at1, align 1
-      %word1 = call i64 @llvm.bswap.i64(i64 %load1)
-      %shift2 = lshr i64 %1, 16
-      %index2 = and i64 %shift2, 255
-      %byte2 = shl i64 %index2, 3
-      %offset2 = add i64 %byte2, 10240
-      %at2 = getelementptr i8, ptr %base, i64 %offset2
-      %load2 = load i64, ptr %at2, align 1
-      %word2 = call i64 @llvm.bswap.i64(i64 %load2)
-      %shift3 = lshr i64 %1, 24
-      %index3 = and i64 %shift3, 255
-      %byte3 = shl i64 %index3, 3
-      %offset3 = add i64 %byte3, 8192
-      %at3 = getelementptr i8, ptr %base, i64 %offset3
-      %load3 = load i64, ptr %at3, align 1
-      %word3 = call i64 @llvm.bswap.i64(i64 %load3)
-      %shift4 = lshr i64 %1, 32
-      %index4 = and i64 %shift4, 255
-      %byte4 = shl i64 %index4, 3
-      %offset4 = add i64 %byte4, 6144
-      %at4 = getelementptr i8, ptr %base, i64 %offset4
-      %load4 = load i64, ptr %at4, align 1
-      %word4 = call i64 @llvm.bswap.i64(i64 %load4)
-      %shift5 = lshr i64 %1, 40
-      %index5 = and i64 %shift5, 255
-      %byte5 = shl i64 %index5, 3
-      %offset5 = add i64 %byte5, 4096
-      %at5 = getelementptr i8, ptr %base, i64 %offset5
-      %load5 = load i64, ptr %at5, align 1
-      %word5 = call i64 @llvm.bswap.i64(i64 %load5)
-      %shift6 = lshr i64 %1, 48
-      %index6 = and i64 %shift6, 255
-      %byte6 = shl i64 %index6, 3
-      %offset6 = add i64 %byte6, 2048
-      %at6 = getelementptr i8, ptr %base, i64 %offset6
-      %load6 = load i64, ptr %at6, align 1
-      %word6 = call i64 @llvm.bswap.i64(i64 %load6)
-      %shift7 = lshr i64 %1, 56
-      %index7 = and i64 %shift7, 255
-      %byte7 = shl i64 %index7, 3
-      %offset7 = add i64 %byte7, 0
-      %at7 = getelementptr i8, ptr %base, i64 %offset7
-      %load7 = load i64, ptr %at7, align 1
-      %word7 = call i64 @llvm.bswap.i64(i64 %load7)
-      %a0 = xor i64 %word0, %word1
-      %a1 = xor i64 %word2, %word3
-      %a2 = xor i64 %word4, %word5
-      %a3 = xor i64 %word6, %word7
-      %b0 = xor i64 %a0, %a1
-      %b1 = xor i64 %a2, %a3
-      %result = xor i64 %b0, %b1
-      ret i64 %result
-    } when endian big
+  -- | Combine eight masked table indices with balanced XORs over the owned 16384-byte table.
+  slice-eight :: using (16384 <= bytes-len storage) => (storage :: Bytes) -> U64 -> U64
+  slice-eight storage word =
+    let w0 = load-slice storage 14336 (wrapping-u64-to-u8 word) in
+    let w1 = load-slice storage 12288 (wrapping-u64-to-u8 (wrapping-shr-u64 word 8)) in
+    let w2 = load-slice storage 10240 (wrapping-u64-to-u8 (wrapping-shr-u64 word 16)) in
+    let w3 = load-slice storage 8192 (wrapping-u64-to-u8 (wrapping-shr-u64 word 24)) in
+    let w4 = load-slice storage 6144 (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)) in
+    let w5 = load-slice storage 4096 (wrapping-u64-to-u8 (wrapping-shr-u64 word 40)) in
+    let w6 = load-slice storage 2048 (wrapping-u64-to-u8 (wrapping-shr-u64 word 48)) in
+    let w7 = load-slice storage 0 (wrapping-u64-to-u8 (wrapping-shr-u64 word 56)) in
+    let a0 = bit-xor-u64 w0 w1 in
+    let a1 = bit-xor-u64 w2 w3 in
+    let a2 = bit-xor-u64 w4 w5 in
+    let a3 = bit-xor-u64 w6 w7 in
+    bit-xor-u64 (bit-xor-u64 a0 a1) (bit-xor-u64 a2 a3)
 
-  -- | Advance a reflected CRC through eight packed bytes using a native shift register.
-  prim crc64-word :: U64 -> U64 -> U64 -> U64 where
-    llvm {
-      %start = xor i64 %0, %1
-      %bit0 = and i64 %start, 1
-      %set0 = icmp ne i64 %bit0, 0
-      %shift0 = lshr i64 %start, 1
-      %mask0 = select i1 %set0, i64 %2, i64 0
-      %r0 = xor i64 %shift0, %mask0
-      %bit1 = and i64 %r0, 1
-      %set1 = icmp ne i64 %bit1, 0
-      %shift1 = lshr i64 %r0, 1
-      %mask1 = select i1 %set1, i64 %2, i64 0
-      %r1 = xor i64 %shift1, %mask1
-      %bit2 = and i64 %r1, 1
-      %set2 = icmp ne i64 %bit2, 0
-      %shift2 = lshr i64 %r1, 1
-      %mask2 = select i1 %set2, i64 %2, i64 0
-      %r2 = xor i64 %shift2, %mask2
-      %bit3 = and i64 %r2, 1
-      %set3 = icmp ne i64 %bit3, 0
-      %shift3 = lshr i64 %r2, 1
-      %mask3 = select i1 %set3, i64 %2, i64 0
-      %r3 = xor i64 %shift3, %mask3
-      %bit4 = and i64 %r3, 1
-      %set4 = icmp ne i64 %bit4, 0
-      %shift4 = lshr i64 %r3, 1
-      %mask4 = select i1 %set4, i64 %2, i64 0
-      %r4 = xor i64 %shift4, %mask4
-      %bit5 = and i64 %r4, 1
-      %set5 = icmp ne i64 %bit5, 0
-      %shift5 = lshr i64 %r4, 1
-      %mask5 = select i1 %set5, i64 %2, i64 0
-      %r5 = xor i64 %shift5, %mask5
-      %bit6 = and i64 %r5, 1
-      %set6 = icmp ne i64 %bit6, 0
-      %shift6 = lshr i64 %r5, 1
-      %mask6 = select i1 %set6, i64 %2, i64 0
-      %r6 = xor i64 %shift6, %mask6
-      %bit7 = and i64 %r6, 1
-      %set7 = icmp ne i64 %bit7, 0
-      %shift7 = lshr i64 %r6, 1
-      %mask7 = select i1 %set7, i64 %2, i64 0
-      %r7 = xor i64 %shift7, %mask7
-      %bit8 = and i64 %r7, 1
-      %set8 = icmp ne i64 %bit8, 0
-      %shift8 = lshr i64 %r7, 1
-      %mask8 = select i1 %set8, i64 %2, i64 0
-      %r8 = xor i64 %shift8, %mask8
-      %bit9 = and i64 %r8, 1
-      %set9 = icmp ne i64 %bit9, 0
-      %shift9 = lshr i64 %r8, 1
-      %mask9 = select i1 %set9, i64 %2, i64 0
-      %r9 = xor i64 %shift9, %mask9
-      %bit10 = and i64 %r9, 1
-      %set10 = icmp ne i64 %bit10, 0
-      %shift10 = lshr i64 %r9, 1
-      %mask10 = select i1 %set10, i64 %2, i64 0
-      %r10 = xor i64 %shift10, %mask10
-      %bit11 = and i64 %r10, 1
-      %set11 = icmp ne i64 %bit11, 0
-      %shift11 = lshr i64 %r10, 1
-      %mask11 = select i1 %set11, i64 %2, i64 0
-      %r11 = xor i64 %shift11, %mask11
-      %bit12 = and i64 %r11, 1
-      %set12 = icmp ne i64 %bit12, 0
-      %shift12 = lshr i64 %r11, 1
-      %mask12 = select i1 %set12, i64 %2, i64 0
-      %r12 = xor i64 %shift12, %mask12
-      %bit13 = and i64 %r12, 1
-      %set13 = icmp ne i64 %bit13, 0
-      %shift13 = lshr i64 %r12, 1
-      %mask13 = select i1 %set13, i64 %2, i64 0
-      %r13 = xor i64 %shift13, %mask13
-      %bit14 = and i64 %r13, 1
-      %set14 = icmp ne i64 %bit14, 0
-      %shift14 = lshr i64 %r13, 1
-      %mask14 = select i1 %set14, i64 %2, i64 0
-      %r14 = xor i64 %shift14, %mask14
-      %bit15 = and i64 %r14, 1
-      %set15 = icmp ne i64 %bit15, 0
-      %shift15 = lshr i64 %r14, 1
-      %mask15 = select i1 %set15, i64 %2, i64 0
-      %r15 = xor i64 %shift15, %mask15
-      %bit16 = and i64 %r15, 1
-      %set16 = icmp ne i64 %bit16, 0
-      %shift16 = lshr i64 %r15, 1
-      %mask16 = select i1 %set16, i64 %2, i64 0
-      %r16 = xor i64 %shift16, %mask16
-      %bit17 = and i64 %r16, 1
-      %set17 = icmp ne i64 %bit17, 0
-      %shift17 = lshr i64 %r16, 1
-      %mask17 = select i1 %set17, i64 %2, i64 0
-      %r17 = xor i64 %shift17, %mask17
-      %bit18 = and i64 %r17, 1
-      %set18 = icmp ne i64 %bit18, 0
-      %shift18 = lshr i64 %r17, 1
-      %mask18 = select i1 %set18, i64 %2, i64 0
-      %r18 = xor i64 %shift18, %mask18
-      %bit19 = and i64 %r18, 1
-      %set19 = icmp ne i64 %bit19, 0
-      %shift19 = lshr i64 %r18, 1
-      %mask19 = select i1 %set19, i64 %2, i64 0
-      %r19 = xor i64 %shift19, %mask19
-      %bit20 = and i64 %r19, 1
-      %set20 = icmp ne i64 %bit20, 0
-      %shift20 = lshr i64 %r19, 1
-      %mask20 = select i1 %set20, i64 %2, i64 0
-      %r20 = xor i64 %shift20, %mask20
-      %bit21 = and i64 %r20, 1
-      %set21 = icmp ne i64 %bit21, 0
-      %shift21 = lshr i64 %r20, 1
-      %mask21 = select i1 %set21, i64 %2, i64 0
-      %r21 = xor i64 %shift21, %mask21
-      %bit22 = and i64 %r21, 1
-      %set22 = icmp ne i64 %bit22, 0
-      %shift22 = lshr i64 %r21, 1
-      %mask22 = select i1 %set22, i64 %2, i64 0
-      %r22 = xor i64 %shift22, %mask22
-      %bit23 = and i64 %r22, 1
-      %set23 = icmp ne i64 %bit23, 0
-      %shift23 = lshr i64 %r22, 1
-      %mask23 = select i1 %set23, i64 %2, i64 0
-      %r23 = xor i64 %shift23, %mask23
-      %bit24 = and i64 %r23, 1
-      %set24 = icmp ne i64 %bit24, 0
-      %shift24 = lshr i64 %r23, 1
-      %mask24 = select i1 %set24, i64 %2, i64 0
-      %r24 = xor i64 %shift24, %mask24
-      %bit25 = and i64 %r24, 1
-      %set25 = icmp ne i64 %bit25, 0
-      %shift25 = lshr i64 %r24, 1
-      %mask25 = select i1 %set25, i64 %2, i64 0
-      %r25 = xor i64 %shift25, %mask25
-      %bit26 = and i64 %r25, 1
-      %set26 = icmp ne i64 %bit26, 0
-      %shift26 = lshr i64 %r25, 1
-      %mask26 = select i1 %set26, i64 %2, i64 0
-      %r26 = xor i64 %shift26, %mask26
-      %bit27 = and i64 %r26, 1
-      %set27 = icmp ne i64 %bit27, 0
-      %shift27 = lshr i64 %r26, 1
-      %mask27 = select i1 %set27, i64 %2, i64 0
-      %r27 = xor i64 %shift27, %mask27
-      %bit28 = and i64 %r27, 1
-      %set28 = icmp ne i64 %bit28, 0
-      %shift28 = lshr i64 %r27, 1
-      %mask28 = select i1 %set28, i64 %2, i64 0
-      %r28 = xor i64 %shift28, %mask28
-      %bit29 = and i64 %r28, 1
-      %set29 = icmp ne i64 %bit29, 0
-      %shift29 = lshr i64 %r28, 1
-      %mask29 = select i1 %set29, i64 %2, i64 0
-      %r29 = xor i64 %shift29, %mask29
-      %bit30 = and i64 %r29, 1
-      %set30 = icmp ne i64 %bit30, 0
-      %shift30 = lshr i64 %r29, 1
-      %mask30 = select i1 %set30, i64 %2, i64 0
-      %r30 = xor i64 %shift30, %mask30
-      %bit31 = and i64 %r30, 1
-      %set31 = icmp ne i64 %bit31, 0
-      %shift31 = lshr i64 %r30, 1
-      %mask31 = select i1 %set31, i64 %2, i64 0
-      %r31 = xor i64 %shift31, %mask31
-      %bit32 = and i64 %r31, 1
-      %set32 = icmp ne i64 %bit32, 0
-      %shift32 = lshr i64 %r31, 1
-      %mask32 = select i1 %set32, i64 %2, i64 0
-      %r32 = xor i64 %shift32, %mask32
-      %bit33 = and i64 %r32, 1
-      %set33 = icmp ne i64 %bit33, 0
-      %shift33 = lshr i64 %r32, 1
-      %mask33 = select i1 %set33, i64 %2, i64 0
-      %r33 = xor i64 %shift33, %mask33
-      %bit34 = and i64 %r33, 1
-      %set34 = icmp ne i64 %bit34, 0
-      %shift34 = lshr i64 %r33, 1
-      %mask34 = select i1 %set34, i64 %2, i64 0
-      %r34 = xor i64 %shift34, %mask34
-      %bit35 = and i64 %r34, 1
-      %set35 = icmp ne i64 %bit35, 0
-      %shift35 = lshr i64 %r34, 1
-      %mask35 = select i1 %set35, i64 %2, i64 0
-      %r35 = xor i64 %shift35, %mask35
-      %bit36 = and i64 %r35, 1
-      %set36 = icmp ne i64 %bit36, 0
-      %shift36 = lshr i64 %r35, 1
-      %mask36 = select i1 %set36, i64 %2, i64 0
-      %r36 = xor i64 %shift36, %mask36
-      %bit37 = and i64 %r36, 1
-      %set37 = icmp ne i64 %bit37, 0
-      %shift37 = lshr i64 %r36, 1
-      %mask37 = select i1 %set37, i64 %2, i64 0
-      %r37 = xor i64 %shift37, %mask37
-      %bit38 = and i64 %r37, 1
-      %set38 = icmp ne i64 %bit38, 0
-      %shift38 = lshr i64 %r37, 1
-      %mask38 = select i1 %set38, i64 %2, i64 0
-      %r38 = xor i64 %shift38, %mask38
-      %bit39 = and i64 %r38, 1
-      %set39 = icmp ne i64 %bit39, 0
-      %shift39 = lshr i64 %r38, 1
-      %mask39 = select i1 %set39, i64 %2, i64 0
-      %r39 = xor i64 %shift39, %mask39
-      %bit40 = and i64 %r39, 1
-      %set40 = icmp ne i64 %bit40, 0
-      %shift40 = lshr i64 %r39, 1
-      %mask40 = select i1 %set40, i64 %2, i64 0
-      %r40 = xor i64 %shift40, %mask40
-      %bit41 = and i64 %r40, 1
-      %set41 = icmp ne i64 %bit41, 0
-      %shift41 = lshr i64 %r40, 1
-      %mask41 = select i1 %set41, i64 %2, i64 0
-      %r41 = xor i64 %shift41, %mask41
-      %bit42 = and i64 %r41, 1
-      %set42 = icmp ne i64 %bit42, 0
-      %shift42 = lshr i64 %r41, 1
-      %mask42 = select i1 %set42, i64 %2, i64 0
-      %r42 = xor i64 %shift42, %mask42
-      %bit43 = and i64 %r42, 1
-      %set43 = icmp ne i64 %bit43, 0
-      %shift43 = lshr i64 %r42, 1
-      %mask43 = select i1 %set43, i64 %2, i64 0
-      %r43 = xor i64 %shift43, %mask43
-      %bit44 = and i64 %r43, 1
-      %set44 = icmp ne i64 %bit44, 0
-      %shift44 = lshr i64 %r43, 1
-      %mask44 = select i1 %set44, i64 %2, i64 0
-      %r44 = xor i64 %shift44, %mask44
-      %bit45 = and i64 %r44, 1
-      %set45 = icmp ne i64 %bit45, 0
-      %shift45 = lshr i64 %r44, 1
-      %mask45 = select i1 %set45, i64 %2, i64 0
-      %r45 = xor i64 %shift45, %mask45
-      %bit46 = and i64 %r45, 1
-      %set46 = icmp ne i64 %bit46, 0
-      %shift46 = lshr i64 %r45, 1
-      %mask46 = select i1 %set46, i64 %2, i64 0
-      %r46 = xor i64 %shift46, %mask46
-      %bit47 = and i64 %r46, 1
-      %set47 = icmp ne i64 %bit47, 0
-      %shift47 = lshr i64 %r46, 1
-      %mask47 = select i1 %set47, i64 %2, i64 0
-      %r47 = xor i64 %shift47, %mask47
-      %bit48 = and i64 %r47, 1
-      %set48 = icmp ne i64 %bit48, 0
-      %shift48 = lshr i64 %r47, 1
-      %mask48 = select i1 %set48, i64 %2, i64 0
-      %r48 = xor i64 %shift48, %mask48
-      %bit49 = and i64 %r48, 1
-      %set49 = icmp ne i64 %bit49, 0
-      %shift49 = lshr i64 %r48, 1
-      %mask49 = select i1 %set49, i64 %2, i64 0
-      %r49 = xor i64 %shift49, %mask49
-      %bit50 = and i64 %r49, 1
-      %set50 = icmp ne i64 %bit50, 0
-      %shift50 = lshr i64 %r49, 1
-      %mask50 = select i1 %set50, i64 %2, i64 0
-      %r50 = xor i64 %shift50, %mask50
-      %bit51 = and i64 %r50, 1
-      %set51 = icmp ne i64 %bit51, 0
-      %shift51 = lshr i64 %r50, 1
-      %mask51 = select i1 %set51, i64 %2, i64 0
-      %r51 = xor i64 %shift51, %mask51
-      %bit52 = and i64 %r51, 1
-      %set52 = icmp ne i64 %bit52, 0
-      %shift52 = lshr i64 %r51, 1
-      %mask52 = select i1 %set52, i64 %2, i64 0
-      %r52 = xor i64 %shift52, %mask52
-      %bit53 = and i64 %r52, 1
-      %set53 = icmp ne i64 %bit53, 0
-      %shift53 = lshr i64 %r52, 1
-      %mask53 = select i1 %set53, i64 %2, i64 0
-      %r53 = xor i64 %shift53, %mask53
-      %bit54 = and i64 %r53, 1
-      %set54 = icmp ne i64 %bit54, 0
-      %shift54 = lshr i64 %r53, 1
-      %mask54 = select i1 %set54, i64 %2, i64 0
-      %r54 = xor i64 %shift54, %mask54
-      %bit55 = and i64 %r54, 1
-      %set55 = icmp ne i64 %bit55, 0
-      %shift55 = lshr i64 %r54, 1
-      %mask55 = select i1 %set55, i64 %2, i64 0
-      %r55 = xor i64 %shift55, %mask55
-      %bit56 = and i64 %r55, 1
-      %set56 = icmp ne i64 %bit56, 0
-      %shift56 = lshr i64 %r55, 1
-      %mask56 = select i1 %set56, i64 %2, i64 0
-      %r56 = xor i64 %shift56, %mask56
-      %bit57 = and i64 %r56, 1
-      %set57 = icmp ne i64 %bit57, 0
-      %shift57 = lshr i64 %r56, 1
-      %mask57 = select i1 %set57, i64 %2, i64 0
-      %r57 = xor i64 %shift57, %mask57
-      %bit58 = and i64 %r57, 1
-      %set58 = icmp ne i64 %bit58, 0
-      %shift58 = lshr i64 %r57, 1
-      %mask58 = select i1 %set58, i64 %2, i64 0
-      %r58 = xor i64 %shift58, %mask58
-      %bit59 = and i64 %r58, 1
-      %set59 = icmp ne i64 %bit59, 0
-      %shift59 = lshr i64 %r58, 1
-      %mask59 = select i1 %set59, i64 %2, i64 0
-      %r59 = xor i64 %shift59, %mask59
-      %bit60 = and i64 %r59, 1
-      %set60 = icmp ne i64 %bit60, 0
-      %shift60 = lshr i64 %r59, 1
-      %mask60 = select i1 %set60, i64 %2, i64 0
-      %r60 = xor i64 %shift60, %mask60
-      %bit61 = and i64 %r60, 1
-      %set61 = icmp ne i64 %bit61, 0
-      %shift61 = lshr i64 %r60, 1
-      %mask61 = select i1 %set61, i64 %2, i64 0
-      %r61 = xor i64 %shift61, %mask61
-      %bit62 = and i64 %r61, 1
-      %set62 = icmp ne i64 %bit62, 0
-      %shift62 = lshr i64 %r61, 1
-      %mask62 = select i1 %set62, i64 %2, i64 0
-      %r62 = xor i64 %shift62, %mask62
-      %bit63 = and i64 %r62, 1
-      %set63 = icmp ne i64 %bit63, 0
-      %shift63 = lshr i64 %r62, 1
-      %mask63 = select i1 %set63, i64 %2, i64 0
-      %r63 = xor i64 %shift63, %mask63
-      ret i64 %r63
-    }
+  -- | Advance a reflected CRC-64 register by one bit using branchless masking.
+  crc64-bit :: U64 -> U64 -> U64
+  crc64-bit acc poly =
+    let mask = wrapping-sub-u64 0 (bit-and-u64 acc 1) in
+    bit-xor-u64 (wrapping-shr-u64 acc 1) (bit-and-u64 poly mask)
 
+  -- | Advance a reflected CRC-64 register by eight bits.
+  crc64-byte :: U64 -> U64 -> U64
+  crc64-byte acc poly =
+    let a1 = crc64-bit acc poly in let a2 = crc64-bit a1 poly in
+    let a3 = crc64-bit a2 poly in let a4 = crc64-bit a3 poly in
+    let a5 = crc64-bit a4 poly in let a6 = crc64-bit a5 poly in
+    let a7 = crc64-bit a6 poly in crc64-bit a7 poly
+
+  -- | Advance a reflected CRC through eight packed bytes using an unrolled shift register.
+  crc64-word :: U64 -> U64 -> U64 -> U64
+  crc64-word acc word poly =
+    let a1 = crc64-byte (bit-xor-u64 acc word) poly in
+    let a2 = crc64-byte a1 poly in let a3 = crc64-byte a2 poly in
+    let a4 = crc64-byte a3 poly in let a5 = crc64-byte a4 poly in
+    let a6 = crc64-byte a5 poly in let a7 = crc64-byte a6 poly in
+    crc64-byte a7 poly
 
   -- | Advance one exact tail byte using a masked index in the retained 16384-byte table.
-  prim slice-one :: I64 -> U64 -> U8 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %byte = zext i8 %2 to i64
-      %mixed = xor i64 %1, %byte
-      %index = and i64 %mixed, 255
-      %offset = shl i64 %index, 3
-      %at = getelementptr i8, ptr %base, i64 %offset
-      %host = load i64, ptr %at, align 1
-      %word = or i64 %host, 0
-      %shifted = lshr i64 %1, 8
-      %value = xor i64 %word, %shifted
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %byte = zext i8 %2 to i64
-      %mixed = xor i64 %1, %byte
-      %index = and i64 %mixed, 255
-      %offset = shl i64 %index, 3
-      %at = getelementptr i8, ptr %base, i64 %offset
-      %host = load i64, ptr %at, align 1
-      %word = call i64 @llvm.bswap.i64(i64 %host)
-      %shifted = lshr i64 %1, 8
-      %value = xor i64 %word, %shifted
-      ret i64 %value
-    } when endian big
+  slice-one :: using (16384 <= bytes-len storage) => (storage :: Bytes) -> U64 -> U8 -> U64
+  slice-one storage acc byte =
+    let idx = bit-xor-u8 (wrapping-u64-to-u8 acc) byte in
+    bit-xor-u64 (load-slice storage 0 idx) (wrapping-shr-u64 acc 8)

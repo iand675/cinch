@@ -10,6 +10,7 @@ fn run(checks: &[String]) {
     let dir = common::project("png", &[
         ("Image.Png.cinch", include_str!("../prelude/Image/Png.cinch")),
         ("Image.Raster.cinch", include_str!("../prelude/Image/Raster.cinch")),
+        ("Text.Flate.cinch", include_str!("../prelude/Text/Flate.cinch")),
         ("Text.Zlib.cinch", include_str!("../prelude/Text/Zlib.cinch")),
         ("Text.Checksum.cinch", include_str!("../prelude/Text/Checksum.cinch")),
         ("Text.Adler32.cinch", include_str!("../prelude/Text/Adler32.cinch")),
@@ -113,6 +114,7 @@ fn png_kernels_compile_for_arm_wasm_and_big_endian_targets() {
         for (name, text) in [
             ("Image.Png", include_str!("../prelude/Image/Png.cinch")),
             ("Image.Raster", include_str!("../prelude/Image/Raster.cinch")),
+            ("Text.Flate", include_str!("../prelude/Text/Flate.cinch")),
             ("Text.Zlib", include_str!("../prelude/Text/Zlib.cinch")),
             ("Text.Checksum", include_str!("../prelude/Text/Checksum.cinch")),
             ("Text.Adler32", include_str!("../prelude/Text/Adler32.cinch")),
@@ -136,7 +138,7 @@ fn png_kernels_compile_for_arm_wasm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>"));
+        assert!(ir.contains("<16 x i8>"));
         let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .args(["-target", triple, "-O2", "-c", "-x", "ir"])
             .arg(project.join("program.ll"))

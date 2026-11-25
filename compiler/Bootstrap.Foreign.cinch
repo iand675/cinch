@@ -20,14 +20,23 @@ module Bootstrap.Foreign where
   export foreign-blocking, foreign-width, foreign-signed, foreign-nullable, foreign-role
   export foreign-pointer, foreign-document, foreign-display-scheme
   export InlinePrimitive, InlinePrimitiveBody, primitive-plan, foreign-inline, foreign-primitive-assumptions
-  export primitive-object-callable, foreign-primitive-selection
+  export primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op
   export PrimitiveFragment, CheckedFragment
+  export PrimUseContract, MkPrimUseContract, prim-use-symbol, prim-use-params, prim-use-result
   export foreign-llvm-type, primitive-layout
 
   data ForeignParameter where
     Parameter :: UType -> String -> String -> Nat -> Nat -> Bool -> Bool -> ForeignParameter
+  data PrimUseContract where
+    MkPrimUseContract :: String -> List ForeignParameter -> ForeignParameter -> PrimUseContract
+  prim-use-symbol :: PrimUseContract -> String
+  prim-use-symbol c = case c of MkPrimUseContract symbol params result -> symbol
+  prim-use-params :: PrimUseContract -> List ForeignParameter
+  prim-use-params c = case c of MkPrimUseContract symbol params result -> params
+  prim-use-result :: PrimUseContract -> ForeignParameter
+  prim-use-result c = case c of MkPrimUseContract symbol params result -> result
   data PrimitiveFragment where
-    CheckedFragment :: String -> List String -> List Nat -> PrimitiveFragment
+    CheckedFragment :: String -> List String -> List Nat -> List PrimUseContract -> PrimitiveFragment
   data FamilyCandidates where
     Candidates :: Option PrimitiveFragment -> Option (String, PrimitiveFragment) -> FamilyCandidates
   data InlinePrimitive where
@@ -51,8 +60,10 @@ module Bootstrap.Foreign where
     Some (InlinePrimitiveBody owner family Nil llvm assembly) -> pure-primitive-arrows (scheme-body (foreign-scheme plan))
     other -> False
   pure-primitive-arrows :: UType -> Bool
-  pure-primitive-arrows ty = case ty of
+  pure-primitive-arrows ty = case refinement-view ty of
     UFun domain result -> pure-primitive-arrows result
+    UPi id name domain (URow UEnd) result -> pure-primitive-arrows result
+    URefine id name base pred -> pure-primitive-arrows base
     UCon name KType -> True
     other -> False
   foreign-primitive-assumptions :: ForeignPlan -> Option (Option String, List String)
@@ -62,6 +73,36 @@ module Bootstrap.Foreign where
   foreign-primitive-selection :: ForeignPlan -> Option Json
   foreign-primitive-selection plan = case plan of
     Plan symbol scheme params result (Some (body, identity, trust, selection)) -> Some selection
+    other -> None
+  nonempty-ir-lines :: List String -> List (List String)
+  nonempty-ir-lines lines = case lines of
+    Nil -> Nil
+    Cons line rest -> let words = ir-line-words line in
+      case words of
+        Nil -> nonempty-ir-lines rest
+        Cons first more -> Cons words (nonempty-ir-lines rest)
+  i64-cmp-total-name :: String -> Option String
+  i64-cmp-total-name pred =
+    if same pred "eq" then Some "I64Eq"
+    else if same pred "ne" then Some "I64Ne"
+    else if same pred "slt" then Some "I64Lt"
+    else if same pred "sle" then Some "I64Le"
+    else if same pred "sgt" then Some "I64Gt"
+    else if same pred "sge" then Some "I64Ge"
+    else None
+  foreign-primitive-total-op :: ForeignPlan -> Option (String, List String, String)
+  foreign-primitive-total-op plan = case foreign-inline plan of
+    Some (InlinePrimitiveBody owner family Nil (Some (CheckedFragment fragment symbols immarg uses)) assembly) ->
+      (case nonempty-ir-lines (string-split-on "\n" fragment) of
+        [[c, op1, pred, ty1, a0, a1], [r, op2, ty2, c2, kw, ty3], [op3, ty4, r2]] ->
+          if same op1 "icmp" && same ty1 "i64" && same a0 "%0" && same a1 "%1"
+              && same op2 "zext" && same ty2 "i1" && same c c2 && same kw "to" && same ty3 "i8"
+              && same op3 "ret" && same ty4 "i8" && same r r2 then
+            (case i64-cmp-total-name pred of
+              Some total-op -> Some (total-op, ["I64", "I64"], "Bool")
+              None -> None)
+          else None
+        other -> None)
     other -> None
   foreign-parameter-type :: ForeignParameter -> UType
   foreign-parameter-type parameter = case parameter of Parameter ty category role width align signed nullable -> ty
@@ -182,17 +223,62 @@ module Bootstrap.Foreign where
           Err error -> Err error
           Ok (arguments, result) -> Ok (Plan symbol scheme arguments result None)
   primitive-carrier :: UType -> Result String ForeignParameter
-  primitive-carrier ty = case ty of
+  primitive-carrier ty = case refinement-view ty of
+    URefine id name base pred -> primitive-carrier base
     UCon name KType -> if same name "Bool" then Ok (Parameter ty "scalar" "value" 1 1 False False)
       else if same name "Char" then Ok (Parameter ty "scalar" "value" 4 4 False False)
       else (case scalar name of
         Some (width, signed) -> Ok (Parameter ty "scalar" "value" width width signed False)
         None -> Err "a prim needs a first-order machine scalar carrier")
     other -> Err "a prim needs a first-order machine scalar carrier"
+  primitive-use-result :: UType -> Result String ForeignParameter
+  primitive-use-result ty = case ty of
+    UCon name KType | same name "Unit" -> Ok (Parameter ty "unit" "value" 0 1 False False)
+    other -> primitive-carrier ty
+  primitive-use-parameters :: UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
+  primitive-use-parameters ty backwards = case ty of
+    UFun domain rest -> case primitive-carrier domain of
+      Ok argument -> primitive-use-parameters rest (Cons argument backwards)
+      Err error -> Err error
+    UFunEff domain row rest -> if closed-row row then (case primitive-carrier domain of
+        Ok argument -> primitive-use-parameters rest (Cons argument backwards)
+        Err error -> Err error)
+      else Err "a uses entry needs closed explicit effect rows"
+    UPi id name domain row rest -> if closed-row row then (case primitive-carrier domain of
+        Ok argument -> primitive-use-parameters rest (Cons argument backwards)
+        Err error -> Err error)
+      else Err "a uses entry needs closed explicit effect rows"
+    other -> case primitive-use-result ty of
+      Ok result -> Ok (reverse backwards, result)
+      Err error -> Err error
+  check-prim-use-contract :: (String, Scheme) -> Result String PrimUseContract
+  check-prim-use-contract entry = case entry of
+    (sym, scheme) ->
+      if reserved-symbol sym then Err (string-concat-all ["the intrinsic namespaces are reserved: uses must not name ", sym])
+      else if string-length sym == 0 then Err "a uses entry needs a non-empty symbol name"
+      else if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
+        Err "a uses entry needs a monomorphic unconstrained machine ABI"
+      else case primitive-use-parameters (scheme-body scheme) Nil of
+        Err error -> Err error
+        Ok (params, result) -> Ok (MkPrimUseContract sym params result)
+  check-prim-uses :: List (String, Scheme) -> Result String (List PrimUseContract)
+  check-prim-uses entries = case entries of
+    Nil -> Ok Nil
+    Cons entry rest -> case check-prim-use-contract entry of
+      Err error -> Err error
+      Ok entry-contract -> case check-prim-uses rest of
+        Err error -> Err error
+        Ok more -> Ok (Cons entry-contract more)
+  prim-use-symbols :: List PrimUseContract -> List String
+  prim-use-symbols contracts = case contracts of
+    Nil -> Nil
+    Cons c rest -> Cons (string-concat "@" (prim-use-symbol c)) (prim-use-symbols rest)
   primitive-parameters :: UType -> List ForeignParameter -> Result String (List ForeignParameter, ForeignParameter)
   primitive-parameters ty backwards = case ty of
     UFun domain rest -> primitive-domain domain rest backwards
     UFunEff domain row rest -> if closed-row row then primitive-domain domain rest backwards
+      else Err "a prim needs closed explicit effect rows"
+    UPi id name domain row rest -> if closed-row row then primitive-domain domain rest backwards
       else Err "a prim needs closed explicit effect rows"
     other -> (case (backwards, primitive-carrier ty) of
       (Nil, result) -> Err "a prim declaration needs a function type"
@@ -209,14 +295,37 @@ module Bootstrap.Foreign where
   has-index :: Nat -> List Nat -> Bool
   has-index value values = case values of Nil -> False; Cons first rest -> value == first || has-index value rest
   allowed-intrinsic :: String -> Bool
-  allowed-intrinsic symbol = has symbol [
-    "@llvm.bswap.i16", "@llvm.bswap.i32", "@llvm.bswap.i64", "@llvm.vector.reduce.add.v16i32",
-    "@llvm.sadd.with.overflow.i8", "@llvm.sadd.with.overflow.i16", "@llvm.sadd.with.overflow.i32", "@llvm.sadd.with.overflow.i64",
-    "@llvm.uadd.with.overflow.i8", "@llvm.uadd.with.overflow.i16", "@llvm.uadd.with.overflow.i32", "@llvm.uadd.with.overflow.i64",
-    "@llvm.ssub.with.overflow.i8", "@llvm.ssub.with.overflow.i16", "@llvm.ssub.with.overflow.i32", "@llvm.ssub.with.overflow.i64",
-    "@llvm.usub.with.overflow.i8", "@llvm.usub.with.overflow.i16", "@llvm.usub.with.overflow.i32", "@llvm.usub.with.overflow.i64",
-    "@llvm.smul.with.overflow.i8", "@llvm.smul.with.overflow.i16", "@llvm.smul.with.overflow.i32", "@llvm.smul.with.overflow.i64",
-    "@llvm.umul.with.overflow.i8", "@llvm.umul.with.overflow.i16", "@llvm.umul.with.overflow.i32", "@llvm.umul.with.overflow.i64"]
+  allowed-intrinsic symbol =
+    string-starts-with "@llvm.bswap." symbol
+      || string-starts-with "@llvm.ctpop." symbol
+      || string-starts-with "@llvm.ctlz." symbol
+      || string-starts-with "@llvm.cttz." symbol
+      || string-starts-with "@llvm.bitreverse." symbol
+      || string-starts-with "@llvm.fshl." symbol
+      || string-starts-with "@llvm.fshr." symbol
+      || string-starts-with "@llvm.smin." symbol
+      || string-starts-with "@llvm.smax." symbol
+      || string-starts-with "@llvm.umin." symbol
+      || string-starts-with "@llvm.umax." symbol
+      || string-starts-with "@llvm.fabs." symbol
+      || string-starts-with "@llvm.sqrt." symbol
+      || string-starts-with "@llvm.floor." symbol
+      || string-starts-with "@llvm.ceil." symbol
+      || string-starts-with "@llvm.trunc." symbol
+      || string-starts-with "@llvm.round." symbol
+      || string-starts-with "@llvm.roundeven." symbol
+      || string-starts-with "@llvm.copysign." symbol
+      || string-starts-with "@llvm.sadd.sat." symbol
+      || string-starts-with "@llvm.uadd.sat." symbol
+      || string-starts-with "@llvm.ssub.sat." symbol
+      || string-starts-with "@llvm.usub.sat." symbol
+      || string-starts-with "@llvm.sadd.with.overflow." symbol
+      || string-starts-with "@llvm.uadd.with.overflow." symbol
+      || string-starts-with "@llvm.ssub.with.overflow." symbol
+      || string-starts-with "@llvm.usub.with.overflow." symbol
+      || string-starts-with "@llvm.smul.with.overflow." symbol
+      || string-starts-with "@llvm.umul.with.overflow." symbol
+      || same symbol "@llvm.vector.reduce.add.v16i32"
   ir-line-words :: String -> List String
   ir-line-words line = case string-split-on ";" line of
     Nil -> Nil
@@ -316,33 +425,37 @@ module Bootstrap.Foreign where
     Cons operation (Cons actual (Cons operand Nil)) -> same operation "ret" && same actual result
     other -> False
   -- | Validate one straight-line fragment. Explicitly trusted bodies may read
-  -- raw memory; their source identity remains a recorded primitive assumption.
-  contained-ir :: String -> Bool -> List String -> Bool -> List String -> Result String (List String)
-  contained-ir result trusted lines returned symbols = case lines of
+  -- raw memory, invoke inline assembly, or call checked `uses` contracts;
+  -- effectful trusted bodies may also write memory or execute atomics.
+  contained-ir :: String -> Bool -> Bool -> List String -> List String -> Bool -> List String -> Result String (List String)
+  contained-ir result pure trusted use-symbols lines returned symbols = case lines of
     Nil -> if returned then Ok symbols else Err "containment (grammar): an LLVM fragment needs one final return"
     Cons line rest -> let words = ir-line-words line in
       (case ir-instruction words of
-        Nil -> if list-length words == 0 then contained-ir result trusted rest returned symbols
+        Nil -> if list-length words == 0 then contained-ir result pure trusted use-symbols rest returned symbols
           else Err "containment (grammar): an LLVM result binding needs an instruction"
         Cons operation arguments ->
           if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
             Err "containment (no-unwind): the inline body may unwind"
           else if ir-has-word ["define", "declare"] words then Err "containment (signature discipline): a fragment declares extra parameters or results"
-          else if ir-has-word ["store", "atomicrmw", "cmpxchg", "fence", "volatile"] words || (not trusted && ir-has-word ["load"] words) then
+          else if (pure && ir-has-word ["store", "atomicrmw", "cmpxchg", "fence", "volatile"] words)
+              || (not trusted && ir-has-word ["load", "store", "atomicrmw", "cmpxchg", "fence", "volatile"] words) then
             Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
           else if returned then Err "containment (grammar): an instruction follows the return"
           else if same operation "call" && has "asm" arguments then
             if not trusted then Err "containment: mark an embedded assembly call unsafe to trust its effects"
-            else if register-asm-call line then contained-ir result trusted rest False symbols
-            else Err "containment (no-escape): expected register-only embedded assembly"
+            else contained-ir result pure trusted use-symbols rest False symbols
           else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
           else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "ptrtoint", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr"] words) then
             Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
           else if same operation "ret" then
-            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result trusted rest True symbols
+            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted use-symbols rest True symbols
             else Err "containment (signature discipline): LLVM return disagrees with the declared result"
           else if same operation "call" && not (has "call" arguments) then (case ir-symbols arguments of
-            [symbol] -> if allowed-intrinsic symbol then contained-ir result trusted rest False (if has symbol symbols then symbols else Cons symbol symbols)
+            [symbol] -> if has symbol use-symbols then
+                (if trusted then contained-ir result pure trusted use-symbols rest False symbols
+                 else Err "containment: mark a call through uses unsafe to trust its declared effect row")
+              else if allowed-intrinsic symbol then contained-ir result pure trusted use-symbols rest False (if has symbol symbols then symbols else Cons symbol symbols)
               else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
             other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
           else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
@@ -350,8 +463,10 @@ module Bootstrap.Foreign where
           else if has operation ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
               "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "extractvalue", "insertvalue",
               "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze",
-              "extractelement", "insertelement", "shufflevector"] || (trusted && has operation ["inttoptr", "getelementptr", "load"]) then
-            contained-ir result trusted rest False symbols
+              "extractelement", "insertelement", "shufflevector"]
+              || (trusted && has operation ["inttoptr", "getelementptr", "load"])
+              || (trusted && not pure && has operation ["store", "atomicrmw", "cmpxchg", "fence"]) then
+            contained-ir result pure trusted use-symbols rest False symbols
           else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
   -- Unprojected declarations can also enter through a host-side checked splice.
   checked-target :: PrimTarget -> String -> List Expr -> Result String PrimTarget
@@ -407,7 +522,7 @@ module Bootstrap.Foreign where
   choose-primitive :: String -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
   choose-primitive owner llvm assembly missing =
     let finish = \family condition fragment -> case fragment of
-          CheckedFragment text symbols immediates -> Ok (InlinePrimitiveBody owner family immediates (family-body llvm) (family-body assembly), condition) in
+          CheckedFragment text symbols immediates contracts -> Ok (InlinePrimitiveBody owner family immediates (family-body llvm) (family-body assembly), condition) in
     case (llvm, assembly) of
       (Candidates base (Some (clause, fragment)), other) -> finish "llvm" (Some clause) fragment
       (other, Candidates base (Some (clause, fragment))) -> finish "asm" (Some clause) fragment
@@ -415,40 +530,45 @@ module Bootstrap.Foreign where
       (other, Candidates (Some fragment) None) -> finish "asm" None fragment
       other -> Err (string-concat-all ["no body applies to the current target profile: ", strings "; " (reverse missing), ". ", when-vocabulary])
 
-  checked-prim-bodies :: String -> List PrimBody -> Nat -> String -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
-  checked-prim-bodies owner bodies arity result llvm assembly missing = case bodies of
+  checked-prim-bodies :: String -> Bool -> List PrimBody -> List (List (String, Scheme)) -> Nat -> String -> Bool -> FamilyCandidates -> FamilyCandidates -> List String -> Result String (InlinePrimitive, Option String)
+  checked-prim-bodies owner pure bodies body-uses arity result ptr-sized llvm assembly missing = case bodies of
     Nil -> choose-primitive owner llvm assembly missing
     Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+      let (this-uses, rest-uses) = case body-uses of Nil -> (Nil, Nil); Cons u us -> (u, us) in
       if not (immediate-indices-valid arity immediates Nil) then Err "duplicate or out-of-range immarg parameter"
       else if has family ["clr", "jvm"] then Err (string-concat family " target-IR family is reserved")
       else if same family "asm" && not unverified then Err "an assembly fragment must mark it `unsafe`"
       else if same family "asm" && not (contained-assembly fragment) then Err "containment (no-escape): the assembly has an empty or escaping fragment"
-      else if list-length uses /= 0 then Err "inline primitive uses entries need checked foreign contracts"
-      else (case checked-target selected family when of
+      else (case check-prim-uses this-uses of
         Err message -> Err message
-        Ok matched ->
-          let holds = case matched of ApplicablePrimitive -> True; other -> False in
-          let reason = case matched of InapplicablePrimitive detail -> Cons detail missing; other -> missing in
-          if same family "llvm" then (case contained-ir result unverified (string-split-on "\n" fragment) False Nil of
-            Err message -> Err message
-            Ok symbols -> (case record-candidate family when holds (CheckedFragment fragment symbols immediates) llvm of
+        Ok contracts -> (case checked-target selected family when of
+          Err message -> Err message
+          Ok matched ->
+            let holds = case matched of ApplicablePrimitive -> True; other -> False in
+            let reason = case matched of InapplicablePrimitive detail -> Cons detail missing; other -> missing in
+            let body-result = if ptr-sized && string-contains "word-size 32" (condition-text when) then "i32" else result in
+            if same family "llvm" then (case contained-ir body-result pure unverified (prim-use-symbols contracts) (string-split-on "\n" fragment) False Nil of
               Err message -> Err message
-              Ok next -> checked-prim-bodies owner rest arity result next assembly reason))
-          else if same family "asm" then (case record-candidate family when holds (CheckedFragment fragment Nil immediates) assembly of
-            Err message -> Err message
-            Ok next -> checked-prim-bodies owner rest arity result llvm next reason)
-          else Err (string-concat "unsupported inline primitive family " family))
+              Ok symbols -> (case record-candidate family when holds (CheckedFragment fragment symbols immediates contracts) llvm of
+                Err message -> Err message
+                Ok next -> checked-prim-bodies owner pure rest rest-uses arity result ptr-sized next assembly reason))
+            else if same family "asm" then (case record-candidate family when holds (CheckedFragment fragment Nil immediates contracts) assembly of
+              Err message -> Err message
+              Ok next -> checked-prim-bodies owner pure rest rest-uses arity result ptr-sized llvm next reason)
+            else Err (string-concat "unsupported inline primitive family " family)))
   primitive-layout :: Scheme -> Result String (List ForeignParameter, ForeignParameter)
   primitive-layout scheme =
     if not (contract-scheme-closed scheme) || list-length (scheme-params scheme) /= 0 || list-length (scheme-requirements scheme) /= 0 then
       Err "a prim declaration needs a monomorphic checked signature"
     else primitive-parameters (scheme-body scheme) Nil
   -- | Check a declared primitive body against its validated layout and containment rules.
-  primitive-plan :: String -> Scheme -> List PrimBody -> (Nat -> RewriteJustification -> Result String String) -> Result String ForeignPlan
-  primitive-plan name scheme bodies check-law =
+  primitive-plan :: String -> Scheme -> List PrimBody -> List (List (String, Scheme)) -> (Nat -> RewriteJustification -> Result String String) -> Result String ForeignPlan
+  primitive-plan name scheme bodies body-uses check-law =
     case (export-global name, primitive-layout scheme) of
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
-        (case (checked-prim-bodies symbol bodies arity (foreign-llvm-type result) (Candidates None None) (Candidates None None) Nil,
+        let pure = pure-primitive-arrows (scheme-body scheme) in
+        let ptr-sized = case foreign-parameter-type result of UCon rname KType -> has rname ["Usize", "Isize"]; other -> False in
+        (case (checked-prim-bodies symbol pure bodies body-uses arity (foreign-llvm-type result) ptr-sized (Candidates None None) (Candidates None None) Nil,
                primitive-laws (check-law arity) bodies True Nil) of
           (Ok (body, condition), Ok (justified, laws)) ->
             let trust = primitive-trust symbol bodies in

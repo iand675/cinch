@@ -1,0 +1,1287 @@
+-- | Pure bounds-checked parser for PE32, PE32+, and COFF object/executable files.
+-- Supports DOS header and PE signature validation, COFF file headers, PE32 and PE32+
+-- optional headers with data directories, section headers and section data, COFF symbol
+-- and string tables (including auxiliary record skipping and long /offset section names),
+-- import directories and imported libraries/symbols, and export directories.
+module Data.Pe where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Binary (ByteOrder, LittleEndian, binary-read-u16, binary-read-u32, binary-read-u64)
+  import Text.Show (nat-to-string)
+
+  export PeError, PeTruncated, PeBadSignature, PeUnsupportedMachine, PeUnsupportedOptionalMagic, PeInvalidHeader, PeInvalidSection, PeInvalidTable, pe-error-message
+  export PeMachine, PeMachineUnknown, PeMachineI386, PeMachineAmd64, PeMachineArm, PeMachineArmnt, PeMachineArm64, PeMachineRiscv32, PeMachineRiscv64, PeMachineOther, pe-machine-code
+  export PeSubsystem, PeSubsystemUnknown, PeSubsystemNative, PeSubsystemWindowsGui, PeSubsystemWindowsCui, PeSubsystemPosixCui, PeSubsystemEfiApplication, PeSubsystemOther, pe-subsystem-code
+  export pe-magic-pe32, pe-magic-pe64
+  export pe-dir-export, pe-dir-import, pe-dir-resource, pe-dir-exception, pe-dir-security, pe-dir-basereloc, pe-dir-debug, pe-dir-tls, pe-dir-iat, pe-dir-clr
+  export pe-file-relocs-stripped, pe-file-executable-image, pe-file-large-address-aware, pe-file-machine32, pe-file-dll
+  export pe-scn-cnt-code, pe-scn-cnt-initialized-data, pe-scn-cnt-uninitialized-data, pe-scn-mem-discardable, pe-scn-mem-execute, pe-scn-mem-read, pe-scn-mem-write
+  export PeFileHeader, pe-fh-machine, pe-fh-num-sections, pe-fh-timestamp, pe-fh-symbol-table-ptr, pe-fh-num-symbols, pe-fh-optional-header-size, pe-fh-characteristics
+  export PeDataDirectory, pe-dd-virtual-address, pe-dd-size
+  export PeOptionalHeader32, PeOptionalHeader64, PeOptionalHeader, PeOptNone, PeOpt32, PeOpt64
+  export pe-opt32-magic, pe-opt32-entry-point, pe-opt32-image-base, pe-opt32-section-alignment, pe-opt32-file-alignment, pe-opt32-size-of-image, pe-opt32-size-of-headers, pe-opt32-checksum, pe-opt32-subsystem, pe-opt32-dll-characteristics, pe-opt32-num-rva-and-sizes, pe-opt32-data-directories
+  export pe-opt64-magic, pe-opt64-entry-point, pe-opt64-image-base, pe-opt64-section-alignment, pe-opt64-file-alignment, pe-opt64-size-of-image, pe-opt64-size-of-headers, pe-opt64-checksum, pe-opt64-subsystem, pe-opt64-dll-characteristics, pe-opt64-num-rva-and-sizes, pe-opt64-data-directories
+  export PeSection, pe-sec-name, pe-sec-virtual-size, pe-sec-virtual-address, pe-sec-size, pe-sec-offset, pe-sec-reloc-ptr, pe-sec-line-ptr, pe-sec-num-relocs, pe-sec-num-lines, pe-sec-characteristics
+  export PeSymbol, pe-sym-name, pe-sym-value, pe-sym-section-number, pe-sym-type, pe-sym-storage-class
+  export PeImportDirectory, pe-imp-orig-first-thunk, pe-imp-timestamp, pe-imp-forwarder-chain, pe-imp-name-rva, pe-imp-first-thunk, pe-imp-dll
+  export PeImportSymbol, pe-impsym-dll, pe-impsym-name, pe-impsym-hint, pe-impsym-ordinal, pe-impsym-by-ordinal
+  export PeExport, pe-export-name, pe-export-ordinal, pe-export-rva, pe-export-forwarder
+  export PeExportDirectory, pe-expdir-name, pe-expdir-base, pe-expdir-num-functions, pe-expdir-num-names, pe-expdir-entries
+  export PeFile, pe-parse, pe-file-header, pe-optional-header, pe-sections, pe-section, pe-section-data, pe-symbols, pe-data-directory
+  export pe-import-directories, pe-imported-libraries, pe-imported-symbols, pe-imported-symbol-entries, pe-exports
+
+  -- ---------------------------------------------------------------------
+  -- Error vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported when parsing or inspecting a PE or COFF binary.
+  data PeError where
+    -- | Input ended before a required field or table at the given byte offset.
+    PeTruncated :: Nat -> String -> PeError
+    -- | DOS header is present but the PE\0\0 signature is missing or invalid.
+    PeBadSignature :: PeError
+    -- | COFF machine architecture code is not recognized.
+    PeUnsupportedMachine :: U16 -> PeError
+    -- | Optional header magic is neither PE32 (0x10b) nor PE32+ (0x20b).
+    PeUnsupportedOptionalMagic :: U16 -> PeError
+    -- | Structural error in the DOS, COFF, or optional header.
+    PeInvalidHeader :: String -> PeError
+    -- | Invalid section bounds or name in the named section.
+    PeInvalidSection :: String -> String -> PeError
+    -- | Invalid symbol, string, import, or export table structure.
+    PeInvalidTable :: String -> PeError
+
+  -- | Render a human-readable diagnostic for a PE error.
+  pe-error-message :: PeError -> String
+  pe-error-message err = case err of
+    PeTruncated off detail -> string-concat "truncated PE data at offset " (string-concat (nat-to-string off) (string-concat ": " detail))
+    PeBadSignature -> "invalid PE signature"
+    PeUnsupportedMachine m -> string-concat "unsupported PE machine " (nat-to-string (u16-to-nat m))
+    PeUnsupportedOptionalMagic m -> string-concat "unsupported PE optional header magic " (nat-to-string (u16-to-nat m))
+    PeInvalidHeader detail -> string-concat "invalid PE header: " detail
+    PeInvalidSection name detail -> string-concat "invalid PE section " (string-concat name (string-concat ": " detail))
+    PeInvalidTable detail -> string-concat "invalid PE table: " detail
+
+  -- ---------------------------------------------------------------------
+  -- Constants and enumerations.
+  -- ---------------------------------------------------------------------
+
+  -- | Optional header magic for 32-bit PE32 images (0x10b).
+  pe-magic-pe32 :: U16
+  pe-magic-pe32 = 0x10b
+
+  -- | Optional header magic for 64-bit PE32+ images (0x20b).
+  pe-magic-pe64 :: U16
+  pe-magic-pe64 = 0x20b
+
+  -- | Export table data directory index (0).
+  pe-dir-export :: Nat
+  pe-dir-export = 0
+
+  -- | Import table data directory index (1).
+  pe-dir-import :: Nat
+  pe-dir-import = 1
+
+  -- | Resource table data directory index (2).
+  pe-dir-resource :: Nat
+  pe-dir-resource = 2
+
+  -- | Exception table data directory index (3).
+  pe-dir-exception :: Nat
+  pe-dir-exception = 3
+
+  -- | Certificate/security table data directory index (4).
+  pe-dir-security :: Nat
+  pe-dir-security = 4
+
+  -- | Base relocation table data directory index (5).
+  pe-dir-basereloc :: Nat
+  pe-dir-basereloc = 5
+
+  -- | Debug data directory index (6).
+  pe-dir-debug :: Nat
+  pe-dir-debug = 6
+
+  -- | Thread-local storage data directory index (9).
+  pe-dir-tls :: Nat
+  pe-dir-tls = 9
+
+  -- | Import address table data directory index (12).
+  pe-dir-iat :: Nat
+  pe-dir-iat = 12
+
+  -- | CLR runtime header data directory index (14).
+  pe-dir-clr :: Nat
+  pe-dir-clr = 14
+
+  -- | File characteristic: base relocations stripped (0x0001).
+  pe-file-relocs-stripped :: U16
+  pe-file-relocs-stripped = 0x0001
+
+  -- | File characteristic: image is executable (0x0002).
+  pe-file-executable-image :: U16
+  pe-file-executable-image = 0x0002
+
+  -- | File characteristic: application handles addresses above 2 GiB (0x0020).
+  pe-file-large-address-aware :: U16
+  pe-file-large-address-aware = 0x0020
+
+  -- | File characteristic: 32-bit word architecture (0x0100).
+  pe-file-machine32 :: U16
+  pe-file-machine32 = 0x0100
+
+  -- | File characteristic: image is a dynamic-link library (0x2000).
+  pe-file-dll :: U16
+  pe-file-dll = 0x2000
+
+  -- | Section characteristic: contains executable code (0x00000020).
+  pe-scn-cnt-code :: U32
+  pe-scn-cnt-code = 0x00000020
+
+  -- | Section characteristic: contains initialized data (0x00000040).
+  pe-scn-cnt-initialized-data :: U32
+  pe-scn-cnt-initialized-data = 0x00000040
+
+  -- | Section characteristic: contains uninitialized data (0x00000080).
+  pe-scn-cnt-uninitialized-data :: U32
+  pe-scn-cnt-uninitialized-data = 0x00000080
+
+  -- | Section characteristic: section can be discarded (0x02000000).
+  pe-scn-mem-discardable :: U32
+  pe-scn-mem-discardable = 0x02000000
+
+  -- | Section characteristic: section can be executed as code (0x20000000).
+  pe-scn-mem-execute :: U32
+  pe-scn-mem-execute = 0x20000000
+
+  -- | Section characteristic: section can be read (0x40000000).
+  pe-scn-mem-read :: U32
+  pe-scn-mem-read = 0x40000000
+
+  -- | Section characteristic: section can be written (0x80000000).
+  pe-scn-mem-write :: U32
+  pe-scn-mem-write = 0x80000000
+
+  -- | COFF target machine architecture.
+  data PeMachine where
+    -- | Unknown or machine-independent (0x0).
+    PeMachineUnknown :: PeMachine
+    -- | Intel 386 (0x14c).
+    PeMachineI386 :: PeMachine
+    -- | AMD64 / x86-64 (0x8664).
+    PeMachineAmd64 :: PeMachine
+    -- | ARM little-endian (0x1c0).
+    PeMachineArm :: PeMachine
+    -- | ARM Thumb-2 little-endian (0x1c4).
+    PeMachineArmnt :: PeMachine
+    -- | ARM64 / AArch64 (0xaa64).
+    PeMachineArm64 :: PeMachine
+    -- | RISC-V 32-bit (0x5032).
+    PeMachineRiscv32 :: PeMachine
+    -- | RISC-V 64-bit (0x5064).
+    PeMachineRiscv64 :: PeMachine
+    -- | Any other machine architecture code.
+    PeMachineOther :: U16 -> PeMachine
+
+  -- | Decode a numeric COFF machine code into PeMachine.
+  decode-machine :: U16 -> PeMachine
+  decode-machine v =
+    if eq-u16 v 0x0 then PeMachineUnknown
+    else if eq-u16 v 0x14c then PeMachineI386
+    else if eq-u16 v 0x8664 then PeMachineAmd64
+    else if eq-u16 v 0x1c0 then PeMachineArm
+    else if eq-u16 v 0x1c4 then PeMachineArmnt
+    else if eq-u16 v 0xaa64 then PeMachineArm64
+    else if eq-u16 v 0x5032 then PeMachineRiscv32
+    else if eq-u16 v 0x5064 then PeMachineRiscv64
+    else PeMachineOther v
+
+  -- | Report whether a COFF machine code is recognized by this parser.
+  is-supported-machine :: U16 -> Bool
+  is-supported-machine v =
+    eq-u16 v 0x0 || eq-u16 v 0x14c || eq-u16 v 0x8664 || eq-u16 v 0x1c0 || eq-u16 v 0x1c4 || eq-u16 v 0xaa64 || eq-u16 v 0x5032 || eq-u16 v 0x5064
+
+  -- | Numeric COFF machine code for a PeMachine.
+  pe-machine-code :: PeMachine -> U16
+  pe-machine-code m = case m of
+    PeMachineUnknown -> 0x0
+    PeMachineI386 -> 0x14c
+    PeMachineAmd64 -> 0x8664
+    PeMachineArm -> 0x1c0
+    PeMachineArmnt -> 0x1c4
+    PeMachineArm64 -> 0xaa64
+    PeMachineRiscv32 -> 0x5032
+    PeMachineRiscv64 -> 0x5064
+    PeMachineOther v -> v
+
+  -- | Windows subsystem required to run a PE image.
+  data PeSubsystem where
+    -- | Unknown subsystem (0).
+    PeSubsystemUnknown :: PeSubsystem
+    -- | Device drivers and native processes (1).
+    PeSubsystemNative :: PeSubsystem
+    -- | Graphical user interface subsystem (2).
+    PeSubsystemWindowsGui :: PeSubsystem
+    -- | Character-mode console subsystem (3).
+    PeSubsystemWindowsCui :: PeSubsystem
+    -- | POSIX character-mode subsystem (7).
+    PeSubsystemPosixCui :: PeSubsystem
+    -- | EFI application (10).
+    PeSubsystemEfiApplication :: PeSubsystem
+    -- | Any other subsystem code.
+    PeSubsystemOther :: U16 -> PeSubsystem
+
+  -- | Decode a numeric subsystem code into PeSubsystem.
+  decode-subsystem :: U16 -> PeSubsystem
+  decode-subsystem v =
+    if eq-u16 v 0 then PeSubsystemUnknown
+    else if eq-u16 v 1 then PeSubsystemNative
+    else if eq-u16 v 2 then PeSubsystemWindowsGui
+    else if eq-u16 v 3 then PeSubsystemWindowsCui
+    else if eq-u16 v 7 then PeSubsystemPosixCui
+    else if eq-u16 v 10 then PeSubsystemEfiApplication
+    else PeSubsystemOther v
+
+  -- | Numeric subsystem code for a PeSubsystem.
+  pe-subsystem-code :: PeSubsystem -> U16
+  pe-subsystem-code s = case s of
+    PeSubsystemUnknown -> 0
+    PeSubsystemNative -> 1
+    PeSubsystemWindowsGui -> 2
+    PeSubsystemWindowsCui -> 3
+    PeSubsystemPosixCui -> 7
+    PeSubsystemEfiApplication -> 10
+    PeSubsystemOther v -> v
+
+  -- ---------------------------------------------------------------------
+  -- Structured PE/COFF types.
+  -- ---------------------------------------------------------------------
+
+  -- | COFF file header (20 bytes).
+  data PeFileHeader where
+    -- | Construct a PeFileHeader from machine, num sections, timestamp, symtab ptr, num symbols, optional header size, characteristics.
+    PeFileHeader :: PeMachine -> U16 -> U32 -> U32 -> U32 -> U16 -> U16 -> PeFileHeader
+
+  -- | Target machine architecture.
+  pe-fh-machine :: PeFileHeader -> PeMachine
+  pe-fh-machine h = case h of PeFileHeader m _ _ _ _ _ _ -> m
+
+  -- | Number of section headers.
+  pe-fh-num-sections :: PeFileHeader -> U16
+  pe-fh-num-sections h = case h of PeFileHeader _ n _ _ _ _ _ -> n
+
+  -- | Low 32 bits of the file creation Unix timestamp.
+  pe-fh-timestamp :: PeFileHeader -> U32
+  pe-fh-timestamp h = case h of PeFileHeader _ _ t _ _ _ _ -> t
+
+  -- | File offset of the COFF symbol table, or 0 if absent.
+  pe-fh-symbol-table-ptr :: PeFileHeader -> U32
+  pe-fh-symbol-table-ptr h = case h of PeFileHeader _ _ _ p _ _ _ -> p
+
+  -- | Number of entries in the COFF symbol table.
+  pe-fh-num-symbols :: PeFileHeader -> U32
+  pe-fh-num-symbols h = case h of PeFileHeader _ _ _ _ n _ _ -> n
+
+  -- | Byte size of the optional header (0 for COFF object files).
+  pe-fh-optional-header-size :: PeFileHeader -> U16
+  pe-fh-optional-header-size h = case h of PeFileHeader _ _ _ _ _ sz _ -> sz
+
+  -- | Image characteristics bitmask.
+  pe-fh-characteristics :: PeFileHeader -> U16
+  pe-fh-characteristics h = case h of PeFileHeader _ _ _ _ _ _ ch -> ch
+
+  -- | One entry in the optional header DataDirectory array.
+  data PeDataDirectory where
+    -- | Construct a PeDataDirectory from relative virtual address and byte size.
+    PeDataDirectory :: U32 -> U32 -> PeDataDirectory
+
+  -- | Relative virtual address (RVA) of the table.
+  pe-dd-virtual-address :: PeDataDirectory -> U32
+  pe-dd-virtual-address d = case d of PeDataDirectory va _ -> va
+
+  -- | Byte size of the table.
+  pe-dd-size :: PeDataDirectory -> U32
+  pe-dd-size d = case d of PeDataDirectory _ sz -> sz
+
+  -- | Shared standard optional header fields (magic, linker versions, sizes, entry point, base of code).
+  data PeOptStd where
+    -- | Construct PeOptStd from magic, major/minor linker, code/init/uninit sizes, entry point, base of code.
+    PeOptStd :: U16 -> U8 -> U8 -> U32 -> U32 -> U32 -> U32 -> U32 -> PeOptStd
+
+  -- | Shared Windows-specific sizing/alignment/subsystem metadata for optional headers.
+  data PeOptWin where
+    -- | Construct PeOptWin from section/file alignment, image/headers size, checksum, subsystem, dll characteristics, num rva and sizes.
+    PeOptWin :: U32 -> U32 -> U32 -> U32 -> U32 -> PeSubsystem -> U16 -> U32 -> PeOptWin
+
+  -- | Parsed 32-bit PE32 optional header.
+  data PeOptionalHeader32 where
+    -- | Construct a PeOptionalHeader32 from standard fields, base of data, 32-bit image base, Windows fields, and data directories.
+    PeOptionalHeader32 :: PeOptStd -> U32 -> U32 -> PeOptWin -> List PeDataDirectory -> PeOptionalHeader32
+
+  -- | Parsed 64-bit PE32+ optional header.
+  data PeOptionalHeader64 where
+    -- | Construct a PeOptionalHeader64 from standard fields, 64-bit image base, Windows fields, and data directories.
+    PeOptionalHeader64 :: PeOptStd -> U64 -> PeOptWin -> List PeDataDirectory -> PeOptionalHeader64
+
+  -- | Optional header present in a PE image, or absent in a COFF object file.
+  data PeOptionalHeader where
+    -- | No optional header (SizeOfOptionalHeader == 0).
+    PeOptNone :: PeOptionalHeader
+    -- | 32-bit PE32 optional header (magic 0x10b).
+    PeOpt32 :: PeOptionalHeader32 -> PeOptionalHeader
+    -- | 64-bit PE32+ optional header (magic 0x20b).
+    PeOpt64 :: PeOptionalHeader64 -> PeOptionalHeader
+
+  -- | Optional header magic for PE32 (0x10b).
+  pe-opt32-magic :: PeOptionalHeader32 -> U16
+  pe-opt32-magic o = case o of PeOptionalHeader32 std _ _ _ _ -> case std of PeOptStd m _ _ _ _ _ _ _ -> m
+
+  -- | Entry point RVA for PE32.
+  pe-opt32-entry-point :: PeOptionalHeader32 -> U32
+  pe-opt32-entry-point o = case o of PeOptionalHeader32 std _ _ _ _ -> case std of PeOptStd _ _ _ _ _ _ ep _ -> ep
+
+  -- | Preferred 32-bit image load address for PE32.
+  pe-opt32-image-base :: PeOptionalHeader32 -> U32
+  pe-opt32-image-base o = case o of PeOptionalHeader32 _ _ base _ _ -> base
+
+  -- | Section alignment in memory for PE32.
+  pe-opt32-section-alignment :: PeOptionalHeader32 -> U32
+  pe-opt32-section-alignment o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin sa _ _ _ _ _ _ _ -> sa
+
+  -- | Section alignment in the file for PE32.
+  pe-opt32-file-alignment :: PeOptionalHeader32 -> U32
+  pe-opt32-file-alignment o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ fa _ _ _ _ _ _ -> fa
+
+  -- | Total image size in memory for PE32.
+  pe-opt32-size-of-image :: PeOptionalHeader32 -> U32
+  pe-opt32-size-of-image o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ si _ _ _ _ _ -> si
+
+  -- | Combined header size for PE32.
+  pe-opt32-size-of-headers :: PeOptionalHeader32 -> U32
+  pe-opt32-size-of-headers o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ _ sh _ _ _ _ -> sh
+
+  -- | Image checksum for PE32.
+  pe-opt32-checksum :: PeOptionalHeader32 -> U32
+  pe-opt32-checksum o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ _ _ cs _ _ _ -> cs
+
+  -- | Required subsystem for PE32.
+  pe-opt32-subsystem :: PeOptionalHeader32 -> PeSubsystem
+  pe-opt32-subsystem o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ _ _ _ sub _ _ -> sub
+
+  -- | DLL characteristics bitmask for PE32.
+  pe-opt32-dll-characteristics :: PeOptionalHeader32 -> U16
+  pe-opt32-dll-characteristics o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ _ _ _ _ dc _ -> dc
+
+  -- | Declared count of data directory entries for PE32.
+  pe-opt32-num-rva-and-sizes :: PeOptionalHeader32 -> U32
+  pe-opt32-num-rva-and-sizes o = case o of PeOptionalHeader32 _ _ _ win _ -> case win of PeOptWin _ _ _ _ _ _ _ nr -> nr
+
+  -- | Parsed data directory entries for PE32.
+  pe-opt32-data-directories :: PeOptionalHeader32 -> List PeDataDirectory
+  pe-opt32-data-directories o = case o of PeOptionalHeader32 _ _ _ _ dds -> dds
+
+  -- | Optional header magic for PE32+ (0x20b).
+  pe-opt64-magic :: PeOptionalHeader64 -> U16
+  pe-opt64-magic o = case o of PeOptionalHeader64 std _ _ _ -> case std of PeOptStd m _ _ _ _ _ _ _ -> m
+
+  -- | Entry point RVA for PE32+.
+  pe-opt64-entry-point :: PeOptionalHeader64 -> U32
+  pe-opt64-entry-point o = case o of PeOptionalHeader64 std _ _ _ -> case std of PeOptStd _ _ _ _ _ _ ep _ -> ep
+
+  -- | Preferred 64-bit image load address for PE32+.
+  pe-opt64-image-base :: PeOptionalHeader64 -> U64
+  pe-opt64-image-base o = case o of PeOptionalHeader64 _ base _ _ -> base
+
+  -- | Section alignment in memory for PE32+.
+  pe-opt64-section-alignment :: PeOptionalHeader64 -> U32
+  pe-opt64-section-alignment o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin sa _ _ _ _ _ _ _ -> sa
+
+  -- | Section alignment in the file for PE32+.
+  pe-opt64-file-alignment :: PeOptionalHeader64 -> U32
+  pe-opt64-file-alignment o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ fa _ _ _ _ _ _ -> fa
+
+  -- | Total image size in memory for PE32+.
+  pe-opt64-size-of-image :: PeOptionalHeader64 -> U32
+  pe-opt64-size-of-image o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ si _ _ _ _ _ -> si
+
+  -- | Combined header size for PE32+.
+  pe-opt64-size-of-headers :: PeOptionalHeader64 -> U32
+  pe-opt64-size-of-headers o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ _ sh _ _ _ _ -> sh
+
+  -- | Image checksum for PE32+.
+  pe-opt64-checksum :: PeOptionalHeader64 -> U32
+  pe-opt64-checksum o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ _ _ cs _ _ _ -> cs
+
+  -- | Required subsystem for PE32+.
+  pe-opt64-subsystem :: PeOptionalHeader64 -> PeSubsystem
+  pe-opt64-subsystem o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ _ _ _ sub _ _ -> sub
+
+  -- | DLL characteristics bitmask for PE32+.
+  pe-opt64-dll-characteristics :: PeOptionalHeader64 -> U16
+  pe-opt64-dll-characteristics o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ _ _ _ _ dc _ -> dc
+
+  -- | Declared count of data directory entries for PE32+.
+  pe-opt64-num-rva-and-sizes :: PeOptionalHeader64 -> U32
+  pe-opt64-num-rva-and-sizes o = case o of PeOptionalHeader64 _ _ win _ -> case win of PeOptWin _ _ _ _ _ _ _ nr -> nr
+
+  -- | Parsed data directory entries for PE32+.
+  pe-opt64-data-directories :: PeOptionalHeader64 -> List PeDataDirectory
+  pe-opt64-data-directories o = case o of PeOptionalHeader64 _ _ _ dds -> dds
+
+  -- | Parsed PE/COFF section header with resolved section name.
+  data PeSection where
+    -- | Construct a PeSection from name, virtual size, virtual address, raw size, raw offset, reloc ptr, line ptr, num relocs, num lines, characteristics.
+    PeSection :: String -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U16 -> U16 -> U32 -> PeSection
+
+  -- | Resolved section name (including /offset COFF string table lookup).
+  pe-sec-name :: PeSection -> String
+  pe-sec-name s = case s of PeSection n _ _ _ _ _ _ _ _ _ -> n
+
+  -- | Total size of the section when loaded into memory.
+  pe-sec-virtual-size :: PeSection -> U32
+  pe-sec-virtual-size s = case s of PeSection _ vs _ _ _ _ _ _ _ _ -> vs
+
+  -- | Relative virtual address of the section.
+  pe-sec-virtual-address :: PeSection -> U32
+  pe-sec-virtual-address s = case s of PeSection _ _ va _ _ _ _ _ _ _ -> va
+
+  -- | Size of the initialized section data on disk (SizeOfRawData).
+  pe-sec-size :: PeSection -> U32
+  pe-sec-size s = case s of PeSection _ _ _ sz _ _ _ _ _ _ -> sz
+
+  -- | File byte offset of the section data (PointerToRawData).
+  pe-sec-offset :: PeSection -> U32
+  pe-sec-offset s = case s of PeSection _ _ _ _ off _ _ _ _ _ -> off
+
+  -- | File offset of relocation entries.
+  pe-sec-reloc-ptr :: PeSection -> U32
+  pe-sec-reloc-ptr s = case s of PeSection _ _ _ _ _ rp _ _ _ _ -> rp
+
+  -- | File offset of COFF line numbers.
+  pe-sec-line-ptr :: PeSection -> U32
+  pe-sec-line-ptr s = case s of PeSection _ _ _ _ _ _ lp _ _ _ -> lp
+
+  -- | Number of relocation entries.
+  pe-sec-num-relocs :: PeSection -> U16
+  pe-sec-num-relocs s = case s of PeSection _ _ _ _ _ _ _ nr _ _ -> nr
+
+  -- | Number of line number entries.
+  pe-sec-num-lines :: PeSection -> U16
+  pe-sec-num-lines s = case s of PeSection _ _ _ _ _ _ _ _ nl _ -> nl
+
+  -- | Section characteristics bitmask.
+  pe-sec-characteristics :: PeSection -> U32
+  pe-sec-characteristics s = case s of PeSection _ _ _ _ _ _ _ _ _ ch -> ch
+
+  -- | Parsed COFF symbol with auxiliary symbol records already skipped.
+  data PeSymbol where
+    -- | Construct a PeSymbol from name, value, signed section number, type, storage class.
+    PeSymbol :: String -> U32 -> I16 -> U16 -> U8 -> PeSymbol
+
+  -- | Resolved COFF symbol name.
+  pe-sym-name :: PeSymbol -> String
+  pe-sym-name s = case s of PeSymbol n _ _ _ _ -> n
+
+  -- | Symbol value.
+  pe-sym-value :: PeSymbol -> U32
+  pe-sym-value s = case s of PeSymbol _ v _ _ _ -> v
+
+  -- | Signed 1-based section number (0 = undefined, -1 = absolute, -2 = debug).
+  pe-sym-section-number :: PeSymbol -> I16
+  pe-sym-section-number s = case s of PeSymbol _ _ sn _ _ -> sn
+
+  -- | COFF symbol type word.
+  pe-sym-type :: PeSymbol -> U16
+  pe-sym-type s = case s of PeSymbol _ _ _ t _ -> t
+
+  -- | COFF symbol storage class byte.
+  pe-sym-storage-class :: PeSymbol -> U8
+  pe-sym-storage-class s = case s of PeSymbol _ _ _ _ sc -> sc
+
+  -- | Parsed entry from the PE Import Directory Table.
+  data PeImportDirectory where
+    -- | Construct a PeImportDirectory from original first thunk, timestamp, forwarder chain, name RVA, first thunk, and resolved DLL name.
+    PeImportDirectory :: U32 -> U32 -> U32 -> U32 -> U32 -> String -> PeImportDirectory
+
+  -- | RVA of the Import Lookup Table (OriginalFirstThunk).
+  pe-imp-orig-first-thunk :: PeImportDirectory -> U32
+  pe-imp-orig-first-thunk d = case d of PeImportDirectory oft _ _ _ _ _ -> oft
+
+  -- | Binding timestamp.
+  pe-imp-timestamp :: PeImportDirectory -> U32
+  pe-imp-timestamp d = case d of PeImportDirectory _ ts _ _ _ _ -> ts
+
+  -- | Index of first forwarder reference.
+  pe-imp-forwarder-chain :: PeImportDirectory -> U32
+  pe-imp-forwarder-chain d = case d of PeImportDirectory _ _ fc _ _ _ -> fc
+
+  -- | RVA of the imported DLL name string.
+  pe-imp-name-rva :: PeImportDirectory -> U32
+  pe-imp-name-rva d = case d of PeImportDirectory _ _ _ nr _ _ -> nr
+
+  -- | RVA of the Import Address Table (FirstThunk).
+  pe-imp-first-thunk :: PeImportDirectory -> U32
+  pe-imp-first-thunk d = case d of PeImportDirectory _ _ _ _ ft _ -> ft
+
+  -- | Resolved imported DLL name.
+  pe-imp-dll :: PeImportDirectory -> String
+  pe-imp-dll d = case d of PeImportDirectory _ _ _ _ _ dll -> dll
+
+  -- | Structured imported function entry from a PE Import Lookup Table.
+  data PeImportSymbol where
+    -- | Construct a PeImportSymbol from DLL name, function name (empty if ordinal), hint, ordinal, and by-ordinal flag.
+    PeImportSymbol :: String -> String -> U16 -> U16 -> Bool -> PeImportSymbol
+
+  -- | Name of the imported DLL.
+  pe-impsym-dll :: PeImportSymbol -> String
+  pe-impsym-dll s = case s of PeImportSymbol d _ _ _ _ -> d
+
+  -- | Imported function name, or empty string when imported by ordinal.
+  pe-impsym-name :: PeImportSymbol -> String
+  pe-impsym-name s = case s of PeImportSymbol _ n _ _ _ -> n
+
+  -- | Hint index into the DLL's export name pointer table (0 when imported by ordinal).
+  pe-impsym-hint :: PeImportSymbol -> U16
+  pe-impsym-hint s = case s of PeImportSymbol _ _ h _ _ -> h
+
+  -- | Imported ordinal number (0 when imported by name).
+  pe-impsym-ordinal :: PeImportSymbol -> U16
+  pe-impsym-ordinal s = case s of PeImportSymbol _ _ _ o _ -> o
+
+  -- | True when imported by ordinal rather than by name.
+  pe-impsym-by-ordinal :: PeImportSymbol -> Bool
+  pe-impsym-by-ordinal s = case s of PeImportSymbol _ _ _ _ b -> b
+
+  -- | One named export entry from the PE Export Directory.
+  data PeExport where
+    -- | Construct a PeExport from exported name, ordinal, RVA, and optional forwarder string.
+    PeExport :: String -> U32 -> U32 -> Option String -> PeExport
+
+  -- | Exported symbol name.
+  pe-export-name :: PeExport -> String
+  pe-export-name e = case e of PeExport n _ _ _ -> n
+
+  -- | Exported ordinal (ordinal base + unbiased ordinal).
+  pe-export-ordinal :: PeExport -> U32
+  pe-export-ordinal e = case e of PeExport _ o _ _ -> o
+
+  -- | Relative virtual address of the exported function or data.
+  pe-export-rva :: PeExport -> U32
+  pe-export-rva e = case e of PeExport _ _ r _ -> r
+
+  -- | Forwarder string when the export forwards to another DLL, or None.
+  pe-export-forwarder :: PeExport -> Option String
+  pe-export-forwarder e = case e of PeExport _ _ _ fwd -> fwd
+
+  -- | Parsed PE Export Directory Table.
+  data PeExportDirectory where
+    -- | Construct a PeExportDirectory from DLL name, ordinal base, function count, name count, and export entries.
+    PeExportDirectory :: String -> U32 -> U32 -> U32 -> List PeExport -> PeExportDirectory
+
+  -- | Internal DLL name stored in the export directory.
+  pe-expdir-name :: PeExportDirectory -> String
+  pe-expdir-name d = case d of PeExportDirectory n _ _ _ _ -> n
+
+  -- | Starting ordinal number (Base).
+  pe-expdir-base :: PeExportDirectory -> U32
+  pe-expdir-base d = case d of PeExportDirectory _ b _ _ _ -> b
+
+  -- | Total number of entries in the Export Address Table.
+  pe-expdir-num-functions :: PeExportDirectory -> U32
+  pe-expdir-num-functions d = case d of PeExportDirectory _ _ nf _ _ -> nf
+
+  -- | Number of named exports in the Export Name Pointer Table.
+  pe-expdir-num-names :: PeExportDirectory -> U32
+  pe-expdir-num-names d = case d of PeExportDirectory _ _ _ nn _ -> nn
+
+  -- | Named export entries in Export Name Pointer Table order.
+  pe-expdir-entries :: PeExportDirectory -> List PeExport
+  pe-expdir-entries d = case d of PeExportDirectory _ _ _ _ es -> es
+
+  -- | Parsed PE or COFF file holding headers, sections, symbols, string table, and raw bytes.
+  data PeFile where
+    -- | Construct a PeFile from file header, optional header, sections, symbols, string table, and backing bytes.
+    PeFile :: PeFileHeader -> PeOptionalHeader -> List PeSection -> List PeSymbol -> Bytes -> Bytes -> PeFile
+
+  -- | COFF file header of a parsed PE binary.
+  pe-file-header :: PeFile -> PeFileHeader
+  pe-file-header f = case f of PeFile fh _ _ _ _ _ -> fh
+
+  -- | Optional header of a parsed PE binary (PeOptNone for COFF object files).
+  pe-optional-header :: PeFile -> PeOptionalHeader
+  pe-optional-header f = case f of PeFile _ oh _ _ _ _ -> oh
+
+  -- | Section headers of a parsed PE binary.
+  pe-sections :: PeFile -> List PeSection
+  pe-sections f = case f of PeFile _ _ secs _ _ _ -> secs
+
+  -- | COFF symbols with auxiliary records omitted.
+  pe-symbols :: PeFile -> List PeSymbol
+  pe-symbols f = case f of PeFile _ _ _ syms _ _ -> syms
+
+  -- ---------------------------------------------------------------------
+  -- Low-level bounds-checked binary helpers (PE is always little-endian).
+  -- ---------------------------------------------------------------------
+
+  -- | Read one byte as a U8 at a checked offset.
+  read-u8 :: Bytes -> Nat -> String -> Result PeError U8
+  read-u8 buf pos label =
+    if pos < bytes-len buf then Ok (wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf pos)))
+    else Err (PeTruncated pos label)
+
+  -- | Read a little-endian U16 at pos.
+  read-u16 :: Bytes -> Nat -> String -> Result PeError U16
+  read-u16 buf pos label = case binary-read-u16 LittleEndian buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (PeTruncated pos label)
+
+  -- | Read a little-endian U32 at pos.
+  read-u32 :: Bytes -> Nat -> String -> Result PeError U32
+  read-u32 buf pos label = case binary-read-u32 LittleEndian buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (PeTruncated pos label)
+
+  -- | Read a little-endian U64 at pos.
+  read-u64 :: Bytes -> Nat -> String -> Result PeError U64
+  read-u64 buf pos label = case binary-read-u64 LittleEndian buf pos of
+    Ok v -> Ok v
+    Err _ -> Err (PeTruncated pos label)
+
+  -- | Copy a bounds-checked slice out of a byte buffer.
+  slice-checked :: Bytes -> Nat -> Nat -> String -> Result PeError Bytes
+  slice-checked buf off len label =
+    if off + len <= bytes-len buf then
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 off len in
+      Ok out
+    else Err (PeTruncated off label)
+
+  -- | Replace any non-ASCII bytes with '?' for safe decoding of non-UTF-8 strings.
+  sanitize-ascii :: Bytes -> Bytes -> Nat -> Unit
+  sanitize-ascii src dst i =
+    if i < bytes-len src && i < bytes-len dst then
+      let b = bytes-get src i in
+      let v = if b < 128 then b else 63 in
+      let w = bytes-set dst i v in
+      sanitize-ascii src dst (i + 1)
+    else ()
+
+  -- | Convert a byte slice to a String, sanitizing non-UTF-8 bytes if needed.
+  bytes-to-text :: Bytes -> String
+  bytes-to-text buf = case string-from-bytes buf of
+    Some s -> s
+    None ->
+      let clean = bytes-new (bytes-len buf) in
+      let filled = sanitize-ascii buf clean 0 in
+      case string-from-bytes clean of
+        Some s -> s
+        None -> empty-string
+
+  -- | Measure a NUL-terminated string starting at pos up to at most limit bytes.
+  cstr-len-bounded :: Bytes -> Nat -> Nat -> Nat -> Nat
+  cstr-len-bounded buf pos limit acc =
+    if acc >= limit then acc
+    else if pos < bytes-len buf then
+      if bytes-get buf pos == 0 then acc
+      else cstr-len-bounded buf (pos + 1) limit (acc + 1)
+    else acc
+
+  -- | Read a NUL-terminated string from buf[off .. off + limit].
+  read-cstr-bounded :: Bytes -> Nat -> Nat -> String
+  read-cstr-bounded buf off limit =
+    let len = cstr-len-bounded buf off limit 0 in
+    if off + len <= bytes-len buf then
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 off len in
+      bytes-to-text out
+    else empty-string
+
+  -- | Read a NUL-terminated string from the COFF string table at byte offset off.
+  read-strtab :: Bytes -> Nat -> Result PeError String
+  read-strtab strtab off =
+    if off < 4 || off >= bytes-len strtab then Err (PeInvalidTable "COFF string table offset out of range")
+    else Ok (read-cstr-bounded strtab off (saturating-sub (bytes-len strtab) off))
+
+  -- | Parse an unsigned ASCII decimal integer from buf[pos .. end).
+  parse-ascii-decimal :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  parse-ascii-decimal buf pos end acc =
+    if pos >= end then Some acc
+    else if pos < bytes-len buf then
+      let b = bytes-get buf pos in
+      if b == 0 then Some acc
+      else if b >= 48 && b <= 57 then parse-ascii-decimal buf (pos + 1) end (acc * 10 + (b - 48))
+      else None
+    else None
+
+  -- ---------------------------------------------------------------------
+  -- COFF string table and symbol table parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Read the COFF string table following the COFF symbol table, or empty Bytes when no symbol table exists.
+  load-coff-strtab :: Bytes -> U32 -> U32 -> Result PeError Bytes
+  load-coff-strtab buf sym-ptr num-syms =
+    if eq-u32 sym-ptr 0 || eq-u32 num-syms 0 then Ok (bytes-new 0)
+    else
+      let off = u32-to-nat sym-ptr + u32-to-nat num-syms * 18 in
+      if off == bytes-len buf then Ok (bytes-new 0)
+      else if off + 4 > bytes-len buf then Err (PeTruncated off "COFF string table length")
+      else case read-u32 buf off "COFF string table length" of
+        Err e -> Err e
+        Ok len-u ->
+          let len = u32-to-nat len-u in
+          if len < 4 then Err (PeInvalidTable "COFF string table length smaller than 4")
+          else slice-checked buf off len "COFF string table"
+
+  -- | Resolve an 8-byte COFF symbol name field (either inline or 4 zero bytes + string table offset).
+  resolve-symbol-name :: Bytes -> Nat -> Bytes -> Result PeError String
+  resolve-symbol-name buf pos strtab =
+    case read-u32 buf pos "symbol name low" of
+      Err e -> Err e
+      Ok low ->
+        if eq-u32 low 0 then
+          case read-u32 buf (pos + 4) "symbol name offset" of
+            Err e -> Err e
+            Ok off -> read-strtab strtab (u32-to-nat off)
+        else Ok (read-cstr-bounded buf pos 8)
+
+  -- | Parse COFF symbols while skipping auxiliary symbol records.
+  parse-symbols-loop :: Bytes -> Bytes -> Nat -> Nat -> Nat -> List PeSymbol -> Result PeError (List PeSymbol)
+  parse-symbols-loop buf strtab base idx total acc =
+    if idx >= total then Ok (reverse acc)
+    else
+      let pos = base + idx * 18 in
+      if pos + 18 > bytes-len buf then Err (PeTruncated pos "COFF symbol entry")
+      else case resolve-symbol-name buf pos strtab of
+        Err e -> Err e
+        Ok name -> case read-u32 buf (pos + 8) "symbol value" of
+          Err e -> Err e
+          Ok val -> case read-u16 buf (pos + 12) "symbol section" of
+            Err e -> Err e
+            Ok sec-u -> case read-u16 buf (pos + 14) "symbol type" of
+              Err e -> Err e
+              Ok typ -> case read-u8 buf (pos + 16) "symbol storage class" of
+                Err e -> Err e
+                Ok sc -> case read-u8 buf (pos + 17) "symbol aux count" of
+                  Err e -> Err e
+                  Ok aux ->
+                    let aux-nat = u8-to-nat aux in
+                    if idx + 1 + aux-nat > total then Err (PeInvalidTable "COFF auxiliary symbols exceed NumberOfSymbols")
+                    else
+                      let sym = PeSymbol name val (wrapping-u16-to-i16 sec-u) typ sc in
+                      parse-symbols-loop buf strtab base (idx + 1 + aux-nat) total (Cons sym acc)
+
+  -- | Load all COFF symbols if PointerToSymbolTable and NumberOfSymbols are non-zero.
+  load-coff-symbols :: Bytes -> Bytes -> U32 -> U32 -> Result PeError (List PeSymbol)
+  load-coff-symbols buf strtab sym-ptr num-syms =
+    if eq-u32 sym-ptr 0 || eq-u32 num-syms 0 then Ok Nil
+    else
+      let base = u32-to-nat sym-ptr in
+      let total = u32-to-nat num-syms in
+      if base + total * 18 > bytes-len buf then Err (PeTruncated base "COFF symbol table")
+      else parse-symbols-loop buf strtab base 0 total Nil
+
+  -- ---------------------------------------------------------------------
+  -- Optional header parsing (PE32 and PE32+).
+  -- ---------------------------------------------------------------------
+
+  -- | Parse n DataDirectory entries (8 bytes each) tail-recursively.
+  parse-data-dirs :: Bytes -> Nat -> Nat -> Nat -> List PeDataDirectory -> Result PeError (List PeDataDirectory)
+  parse-data-dirs buf pos idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else case read-u32 buf pos "DataDirectory VirtualAddress" of
+      Err e -> Err e
+      Ok va -> case read-u32 buf (pos + 4) "DataDirectory Size" of
+        Err e -> Err e
+        Ok sz -> parse-data-dirs buf (pos + 8) (idx + 1) count (Cons (PeDataDirectory va sz) acc)
+
+  -- | Compute the safe bounded count of data directories that fit in available bytes (capped at 16).
+  bounded-dd-count :: U32 -> Nat -> Nat
+  bounded-dd-count declared avail-bytes =
+    let max-fit = nat-div avail-bytes 8 in
+    let d = u32-to-nat declared in
+    let c1 = if d < max-fit then d else max-fit in
+    if c1 < 16 then c1 else 16
+
+  -- | Parse the 24-byte standard optional header prefix shared by PE32 and PE32+.
+  parse-opt-std :: Bytes -> Nat -> U16 -> Result PeError PeOptStd
+  parse-opt-std buf pos magic =
+    case read-u8 buf (pos + 2) "MajorLinkerVersion" of
+      Err e -> Err e
+      Ok maj -> case read-u8 buf (pos + 3) "MinorLinkerVersion" of
+        Err e -> Err e
+        Ok minv -> case read-u32 buf (pos + 4) "SizeOfCode" of
+          Err e -> Err e
+          Ok soc -> case read-u32 buf (pos + 8) "SizeOfInitializedData" of
+            Err e -> Err e
+            Ok soid -> case read-u32 buf (pos + 12) "SizeOfUninitializedData" of
+              Err e -> Err e
+              Ok soud -> case read-u32 buf (pos + 16) "AddressOfEntryPoint" of
+                Err e -> Err e
+                Ok ep -> case read-u32 buf (pos + 20) "BaseOfCode" of
+                  Err e -> Err e
+                  Ok boc -> Ok (PeOptStd magic maj minv soc soid soud ep boc)
+
+  -- | Parse the Windows-specific optional header fields (identical offsets for alignments/sizes/subsystem, distinct rva-count offset).
+  parse-opt-win :: Bytes -> Nat -> Nat -> Result PeError PeOptWin
+  parse-opt-win buf pos rva-off =
+    case read-u32 buf (pos + 32) "SectionAlignment" of
+      Err e -> Err e
+      Ok sa -> case read-u32 buf (pos + 36) "FileAlignment" of
+        Err e -> Err e
+        Ok fa -> case read-u32 buf (pos + 56) "SizeOfImage" of
+          Err e -> Err e
+          Ok si -> case read-u32 buf (pos + 60) "SizeOfHeaders" of
+            Err e -> Err e
+            Ok sh -> case read-u32 buf (pos + 64) "CheckSum" of
+              Err e -> Err e
+              Ok cs -> case read-u16 buf (pos + 68) "Subsystem" of
+                Err e -> Err e
+                Ok sub -> case read-u16 buf (pos + 70) "DllCharacteristics" of
+                  Err e -> Err e
+                  Ok dc -> case read-u32 buf (pos + rva-off) "NumberOfRvaAndSizes" of
+                    Err e -> Err e
+                    Ok nr -> Ok (PeOptWin sa fa si sh cs (decode-subsystem sub) dc nr)
+
+  -- | Parse the optional header starting at pos with declared byte length opt-sz.
+  parse-optional-header :: Bytes -> Nat -> Nat -> Result PeError PeOptionalHeader
+  parse-optional-header buf pos opt-sz =
+    if opt-sz == 0 then Ok PeOptNone
+    else if opt-sz < 2 || pos + opt-sz > bytes-len buf then Err (PeTruncated pos "PE optional header")
+    else case read-u16 buf pos "OptionalHeader magic" of
+      Err e -> Err e
+      Ok magic ->
+        if eq-u16 magic pe-magic-pe32 then
+          if opt-sz < 96 then Err (PeInvalidHeader "PE32 optional header smaller than 96 bytes")
+          else case parse-opt-std buf pos magic of
+            Err e -> Err e
+            Ok std -> case read-u32 buf (pos + 24) "BaseOfData" of
+              Err e -> Err e
+              Ok bod -> case read-u32 buf (pos + 28) "ImageBase32" of
+                Err e -> Err e
+                Ok base -> case parse-opt-win buf pos 92 of
+                  Err e -> Err e
+                  Ok win ->
+                    let declared = (case win of PeOptWin _ _ _ _ _ _ _ nr -> nr) in
+                    let dd-cnt = bounded-dd-count declared (saturating-sub opt-sz 96) in
+                    case parse-data-dirs buf (pos + 96) 0 dd-cnt Nil of
+                      Err e -> Err e
+                      Ok dds -> Ok (PeOpt32 (PeOptionalHeader32 std bod base win dds))
+        else if eq-u16 magic pe-magic-pe64 then
+          if opt-sz < 112 then Err (PeInvalidHeader "PE32+ optional header smaller than 112 bytes")
+          else case parse-opt-std buf pos magic of
+            Err e -> Err e
+            Ok std -> case read-u64 buf (pos + 24) "ImageBase64" of
+              Err e -> Err e
+              Ok base -> case parse-opt-win buf pos 108 of
+                Err e -> Err e
+                Ok win ->
+                  let declared = (case win of PeOptWin _ _ _ _ _ _ _ nr -> nr) in
+                  let dd-cnt = bounded-dd-count declared (saturating-sub opt-sz 112) in
+                  case parse-data-dirs buf (pos + 112) 0 dd-cnt Nil of
+                    Err e -> Err e
+                    Ok dds -> Ok (PeOpt64 (PeOptionalHeader64 std base win dds))
+        else Err (PeUnsupportedOptionalMagic magic)
+
+  -- ---------------------------------------------------------------------
+  -- Section header parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Resolve an 8-byte PE section name, following /decimal offsets into the COFF string table.
+  resolve-section-name :: Bytes -> Nat -> Bytes -> Result PeError String
+  resolve-section-name buf pos strtab =
+    if pos < bytes-len buf && bytes-get buf pos == 47 then
+      case parse-ascii-decimal buf (pos + 1) (pos + 8) 0 of
+        None -> Ok (read-cstr-bounded buf pos 8)
+        Some off -> read-strtab strtab off
+    else Ok (read-cstr-bounded buf pos 8)
+
+  -- | Parse one 40-byte PE section header at pos.
+  parse-section :: Bytes -> Bytes -> Nat -> Result PeError PeSection
+  parse-section buf strtab pos =
+    if pos + 40 > bytes-len buf then Err (PeTruncated pos "PE section header")
+    else case resolve-section-name buf pos strtab of
+      Err e -> Err e
+      Ok name -> case read-u32 buf (pos + 8) "VirtualSize" of
+        Err e -> Err e
+        Ok vs -> case read-u32 buf (pos + 12) "VirtualAddress" of
+          Err e -> Err e
+          Ok va -> case read-u32 buf (pos + 16) "SizeOfRawData" of
+            Err e -> Err e
+            Ok sz -> case read-u32 buf (pos + 20) "PointerToRawData" of
+              Err e -> Err e
+              Ok off -> case read-u32 buf (pos + 24) "PointerToRelocations" of
+                Err e -> Err e
+                Ok rp -> case read-u32 buf (pos + 28) "PointerToLineNumbers" of
+                  Err e -> Err e
+                  Ok lp -> case read-u16 buf (pos + 32) "NumberOfRelocations" of
+                    Err e -> Err e
+                    Ok nr -> case read-u16 buf (pos + 34) "NumberOfLineNumbers" of
+                      Err e -> Err e
+                      Ok nl -> case read-u32 buf (pos + 36) "Characteristics" of
+                        Err e -> Err e
+                        Ok ch -> Ok (PeSection name vs va sz off rp lp nr nl ch)
+
+  -- | Parse all section headers tail-recursively.
+  parse-sections-loop :: Bytes -> Bytes -> Nat -> Nat -> Nat -> List PeSection -> Result PeError (List PeSection)
+  parse-sections-loop buf strtab pos idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else case parse-section buf strtab pos of
+      Err e -> Err e
+      Ok sec -> parse-sections-loop buf strtab (pos + 40) (idx + 1) count (Cons sec acc)
+
+  -- ---------------------------------------------------------------------
+  -- Main PE/COFF parser.
+  -- ---------------------------------------------------------------------
+
+  -- | Locate the start offset of the COFF FileHeader, validating DOS stub and PE\0\0 signature when MZ is present.
+  find-coff-base :: Bytes -> Result PeError Nat
+  find-coff-base buf =
+    if bytes-len buf < 20 then Err (PeTruncated 0 "PE/COFF header requires at least 20 bytes")
+    else if bytes-get buf 0 == 77 && bytes-get buf 1 == 90 then
+      if bytes-len buf < 64 then Err (PeTruncated 0 "DOS header requires at least 64 bytes")
+      else case read-u32 buf 60 "e_lfanew" of
+        Err e -> Err e
+        Ok lfanew ->
+          let sig-off = u32-to-nat lfanew in
+          if sig-off + 4 > bytes-len buf then Err (PeTruncated sig-off "PE signature")
+          else if bytes-get buf sig-off == 80 && bytes-get buf (sig-off + 1) == 69 && bytes-get buf (sig-off + 2) == 0 && bytes-get buf (sig-off + 3) == 0 then
+            Ok (sig-off + 4)
+          else Err PeBadSignature
+    else Ok 0
+
+  -- | Parse a PE32, PE32+, or COFF binary from raw bytes.
+  pe-parse :: Bytes -> Result PeError PeFile
+  pe-parse buf = case find-coff-base buf of
+    Err e -> Err e
+    Ok base ->
+      if base + 20 > bytes-len buf then Err (PeTruncated base "COFF FileHeader")
+      else case read-u16 buf base "Machine" of
+        Err e -> Err e
+        Ok mach-u ->
+          if not (is-supported-machine mach-u) then Err (PeUnsupportedMachine mach-u)
+          else case read-u16 buf (base + 2) "NumberOfSections" of
+            Err e -> Err e
+            Ok nsec -> case read-u32 buf (base + 4) "TimeDateStamp" of
+              Err e -> Err e
+              Ok ts -> case read-u32 buf (base + 8) "PointerToSymbolTable" of
+                Err e -> Err e
+                Ok sym-ptr -> case read-u32 buf (base + 12) "NumberOfSymbols" of
+                  Err e -> Err e
+                  Ok nsym -> case read-u16 buf (base + 16) "SizeOfOptionalHeader" of
+                    Err e -> Err e
+                    Ok opt-sz -> case read-u16 buf (base + 18) "Characteristics" of
+                      Err e -> Err e
+                      Ok ch ->
+                        let fh = PeFileHeader (decode-machine mach-u) nsec ts sym-ptr nsym opt-sz ch in
+                        case load-coff-strtab buf sym-ptr nsym of
+                          Err e -> Err e
+                          Ok strtab -> case load-coff-symbols buf strtab sym-ptr nsym of
+                            Err e -> Err e
+                            Ok syms ->
+                              let opt-off = base + 20 in
+                              let opt-nat = u16-to-nat opt-sz in
+                              case parse-optional-header buf opt-off opt-nat of
+                                Err e -> Err e
+                                Ok opt ->
+                                  let sec-off = opt-off + opt-nat in
+                                  let nsec-nat = u16-to-nat nsec in
+                                  if sec-off + nsec-nat * 40 > bytes-len buf then Err (PeTruncated sec-off "PE section header table")
+                                  else case parse-sections-loop buf strtab sec-off 0 nsec-nat Nil of
+                                    Err e -> Err e
+                                    Ok secs -> Ok (PeFile fh opt secs syms strtab buf)
+
+  -- ---------------------------------------------------------------------
+  -- Section lookup, RVA translation, and section data slicing.
+  -- ---------------------------------------------------------------------
+
+  -- | Find the first section with the given name.
+  pe-section :: PeFile -> String -> Option PeSection
+  pe-section f name = find-pe-section (pe-sections f) name
+
+  -- | Tail-recursive lookup of a section by name.
+  find-pe-section :: List PeSection -> String -> Option PeSection
+  find-pe-section secs name = case secs of
+    Nil -> None
+    Cons s rest ->
+      if pe-sec-name s == name then Some s
+      else find-pe-section rest name
+
+  -- | Read the raw bytes of a PE section.
+  pe-section-data :: PeFile -> PeSection -> Result PeError Bytes
+  pe-section-data f sec = case f of
+    PeFile _ _ _ _ _ buf ->
+      let sz = u32-to-nat (pe-sec-size sec) in
+      if sz == 0 then Ok (bytes-new 0)
+      else slice-checked buf (u32-to-nat (pe-sec-offset sec)) sz (pe-sec-name sec)
+
+  -- | Return the DataDirectory entry at index (e.g. pe-dir-export or pe-dir-import), if present.
+  pe-data-directory :: PeFile -> Nat -> Option PeDataDirectory
+  pe-data-directory f idx = case pe-optional-header f of
+    PeOptNone -> None
+    PeOpt32 o -> nth idx (pe-opt32-data-directories o)
+    PeOpt64 o -> nth idx (pe-opt64-data-directories o)
+
+  -- | Report whether the PE file uses the 64-bit PE32+ optional header.
+  pe-is64 :: PeFile -> Bool
+  pe-is64 f = case pe-optional-header f of
+    PeOpt64 _ -> True
+    _ -> False
+
+  -- | Locate the file-backed section containing a relative virtual address (RVA).
+  find-section-for-rva :: List PeSection -> U32 -> Option PeSection
+  find-section-for-rva secs rva = case secs of
+    Nil -> None
+    Cons s rest ->
+      let off = pe-sec-offset s in
+      let va = pe-sec-virtual-address s in
+      let vs = pe-sec-virtual-size s in
+      let raw-sz = pe-sec-size s in
+      let span = if gt-u32 vs 0 then vs else raw-sz in
+      if ne-u32 off 0 && le-u32 va rva && lt-u32 (wrapping-sub-u32 rva va) span then Some s
+      else find-section-for-rva rest rva
+
+  -- | Translate an RVA into a file byte offset using the section table.
+  rva-to-file-offset :: PeFile -> U32 -> Option Nat
+  rva-to-file-offset f rva = case find-section-for-rva (pe-sections f) rva of
+    None -> None
+    Some s ->
+      let delta = u32-to-nat (wrapping-sub-u32 rva (pe-sec-virtual-address s)) in
+      let file-off = u32-to-nat (pe-sec-offset s) + delta in
+      let sec-end = u32-to-nat (pe-sec-offset s) + u32-to-nat (pe-sec-size s) in
+      if file-off < sec-end then Some file-off else None
+
+  -- | Read a NUL-terminated ASCII string located at an RVA within the image.
+  read-rva-cstr :: PeFile -> U32 -> Result PeError String
+  read-rva-cstr f rva = case f of
+    PeFile _ _ _ _ _ buf -> case find-section-for-rva (pe-sections f) rva of
+      None -> Err (PeInvalidTable "RVA does not map to any file-backed section")
+      Some s ->
+        let delta = u32-to-nat (wrapping-sub-u32 rva (pe-sec-virtual-address s)) in
+        let file-off = u32-to-nat (pe-sec-offset s) + delta in
+        let sec-end = u32-to-nat (pe-sec-offset s) + u32-to-nat (pe-sec-size s) in
+        if file-off >= sec-end || file-off >= bytes-len buf then Err (PeInvalidTable "RVA string offset out of section bounds")
+        else
+          let lim1 = saturating-sub sec-end file-off in
+          let lim2 = saturating-sub (bytes-len buf) file-off in
+          let lim = if lim1 < lim2 then lim1 else lim2 in
+          Ok (read-cstr-bounded buf file-off lim)
+
+  -- ---------------------------------------------------------------------
+  -- Import directory table parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Walk 20-byte IMAGE_IMPORT_DESCRIPTOR records until a zero terminator.
+  parse-import-dirs-loop :: PeFile -> Bytes -> Nat -> Nat -> List PeImportDirectory -> Result PeError (List PeImportDirectory)
+  parse-import-dirs-loop f buf pos limit acc =
+    if pos + 20 > limit || pos + 20 > bytes-len buf then Ok (reverse acc)
+    else case read-u32 buf pos "OriginalFirstThunk" of
+      Err e -> Err e
+      Ok oft -> case read-u32 buf (pos + 4) "TimeDateStamp" of
+        Err e -> Err e
+        Ok ts -> case read-u32 buf (pos + 8) "ForwarderChain" of
+          Err e -> Err e
+          Ok fc -> case read-u32 buf (pos + 12) "Name RVA" of
+            Err e -> Err e
+            Ok name-rva -> case read-u32 buf (pos + 16) "FirstThunk" of
+              Err e -> Err e
+              Ok ft ->
+                if eq-u32 oft 0 && eq-u32 name-rva 0 && eq-u32 ft 0 then Ok (reverse acc)
+                else if eq-u32 name-rva 0 then Ok (reverse acc)
+                else case read-rva-cstr f name-rva of
+                  Err e -> Err e
+                  Ok dll ->
+                    let entry = PeImportDirectory oft ts fc name-rva ft dll in
+                    parse-import-dirs-loop f buf (pos + 20) limit (Cons entry acc)
+
+  -- | Parse all entries in the PE Import Directory Table (IMAGE_DIRECTORY_ENTRY_IMPORT).
+  pe-import-directories :: PeFile -> Result PeError (List PeImportDirectory)
+  pe-import-directories f = case pe-data-directory f pe-dir-import of
+    None -> Ok Nil
+    Some dd ->
+      let va = pe-dd-virtual-address dd in
+      let sz = pe-dd-size dd in
+      if eq-u32 va 0 || eq-u32 sz 0 then Ok Nil
+      else case find-section-for-rva (pe-sections f) va of
+        None -> Ok Nil
+        Some sec -> case f of
+          PeFile _ _ _ _ _ buf ->
+            let delta = u32-to-nat (wrapping-sub-u32 va (pe-sec-virtual-address sec)) in
+            let start = u32-to-nat (pe-sec-offset sec) + delta in
+            let sec-end = u32-to-nat (pe-sec-offset sec) + u32-to-nat (pe-sec-size sec) in
+            parse-import-dirs-loop f buf start sec-end Nil
+
+  -- | Extract DLL names from parsed import directories.
+  extract-dll-names :: List PeImportDirectory -> List String -> List String
+  extract-dll-names dirs acc = case dirs of
+    Nil -> reverse acc
+    Cons d rest -> extract-dll-names rest (Cons (pe-imp-dll d) acc)
+
+  -- | Return the names of all DLLs referenced in the PE Import Directory.
+  pe-imported-libraries :: PeFile -> Result PeError (List String)
+  pe-imported-libraries f = case pe-import-directories f of
+    Err e -> Err e
+    Ok dirs -> Ok (extract-dll-names dirs Nil)
+
+  -- | Parse one DLL's Import Lookup Table (32-bit or 64-bit thunks) into structured PeImportSymbol entries.
+  parse-thunks-loop :: PeFile -> Bytes -> String -> Bool -> Nat -> Nat -> List PeImportSymbol -> Result PeError (List PeImportSymbol)
+  parse-thunks-loop f buf dll is64 pos limit acc =
+    let step = if is64 then (8 :: Nat) else 4 in
+    if pos + step > limit || pos + step > bytes-len buf then Ok (reverse acc)
+    else if is64 then
+      case read-u64 buf pos "import thunk64" of
+        Err e -> Err e
+        Ok val ->
+          if eq-u64 val 0 then Ok (reverse acc)
+          else if ne-u64 (bit-and-u64 val 0x8000000000000000) 0 then
+            let ord = wrapping-u64-to-u16 val in
+            parse-thunks-loop f buf dll True (pos + 8) limit (Cons (PeImportSymbol dll empty-string 0 ord True) acc)
+          else
+            let hint-rva = wrapping-u64-to-u32 val in
+            case rva-to-file-offset f hint-rva of
+              None -> Err (PeInvalidTable "import hint/name RVA out of section bounds")
+              Some h-off -> case read-u16 buf h-off "import hint" of
+                Err e -> Err e
+                Ok hint -> case read-rva-cstr f (wrapping-add-u32 hint-rva 2) of
+                  Err e -> Err e
+                  Ok name -> parse-thunks-loop f buf dll True (pos + 8) limit (Cons (PeImportSymbol dll name hint 0 False) acc)
+    else
+      case read-u32 buf pos "import thunk32" of
+        Err e -> Err e
+        Ok val ->
+          if eq-u32 val 0 then Ok (reverse acc)
+          else if ne-u32 (bit-and-u32 val 0x80000000) 0 then
+            let ord = wrapping-u32-to-u16 val in
+            parse-thunks-loop f buf dll False (pos + 4) limit (Cons (PeImportSymbol dll empty-string 0 ord True) acc)
+          else
+            case rva-to-file-offset f val of
+              None -> Err (PeInvalidTable "import hint/name RVA out of section bounds")
+              Some h-off -> case read-u16 buf h-off "import hint" of
+                Err e -> Err e
+                Ok hint -> case read-rva-cstr f (wrapping-add-u32 val 2) of
+                  Err e -> Err e
+                  Ok name -> parse-thunks-loop f buf dll False (pos + 4) limit (Cons (PeImportSymbol dll name hint 0 False) acc)
+
+  -- | Append list ys onto reversed accumulator acc.
+  push-all-rev :: forall a. List a -> List a -> List a
+  push-all-rev xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> push-all-rev ys (Cons y acc)
+
+  -- | Collect structured imported symbol entries across all import directory records.
+  collect-import-entries :: PeFile -> Bytes -> Bool -> List PeImportDirectory -> List PeImportSymbol -> Result PeError (List PeImportSymbol)
+  collect-import-entries f buf is64 dirs acc = case dirs of
+    Nil -> Ok (reverse acc)
+    Cons d rest ->
+      let thunk-rva = if ne-u32 (pe-imp-orig-first-thunk d) 0 then pe-imp-orig-first-thunk d else pe-imp-first-thunk d in
+      if eq-u32 thunk-rva 0 then collect-import-entries f buf is64 rest acc
+      else case find-section-for-rva (pe-sections f) thunk-rva of
+        None -> Err (PeInvalidTable "import thunk table RVA out of section bounds")
+        Some sec ->
+          let delta = u32-to-nat (wrapping-sub-u32 thunk-rva (pe-sec-virtual-address sec)) in
+          let start = u32-to-nat (pe-sec-offset sec) + delta in
+          let sec-end = u32-to-nat (pe-sec-offset sec) + u32-to-nat (pe-sec-size sec) in
+          case parse-thunks-loop f buf (pe-imp-dll d) is64 start sec-end Nil of
+            Err e -> Err e
+            Ok syms -> collect-import-entries f buf is64 rest (push-all-rev syms acc)
+
+  -- | Return structured imported symbol entries across all imported DLLs (including ordinal imports).
+  pe-imported-symbol-entries :: PeFile -> Result PeError (List PeImportSymbol)
+  pe-imported-symbol-entries f = case pe-import-directories f of
+    Err e -> Err e
+    Ok dirs -> case f of
+      PeFile _ _ _ _ _ buf -> collect-import-entries f buf (pe-is64 f) dirs Nil
+
+  -- | Format named imported symbols as "symbol:dll" strings, skipping ordinal-only entries.
+  format-named-imports :: List PeImportSymbol -> List String -> List String
+  format-named-imports syms acc = case syms of
+    Nil -> reverse acc
+    Cons s rest ->
+      if pe-impsym-by-ordinal s then format-named-imports rest acc
+      else
+        let formatted = string-concat (pe-impsym-name s) (string-concat ":" (pe-impsym-dll s)) in
+        format-named-imports rest (Cons formatted acc)
+
+  -- | Return all named imported symbols formatted as "symbol:dll".
+  pe-imported-symbols :: PeFile -> Result PeError (List String)
+  pe-imported-symbols f = case pe-imported-symbol-entries f of
+    Err e -> Err e
+    Ok entries -> Ok (format-named-imports entries Nil)
+
+  -- ---------------------------------------------------------------------
+  -- Export directory table parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse named export entries from the Export Name Pointer, Ordinal, and Address tables.
+  parse-exports-loop :: PeFile -> Bytes -> U32 -> U32 -> U32 -> U32 -> Nat -> Nat -> Nat -> Nat -> Nat -> List PeExport -> Result PeError (List PeExport)
+  parse-exports-loop f buf exp-va exp-end base nfuncs funcs-off names-off ords-off idx count acc =
+    if idx >= count then Ok (reverse acc)
+    else case read-u32 buf (names-off + idx * 4) "export name RVA" of
+      Err e -> Err e
+      Ok name-rva -> case read-u16 buf (ords-off + idx * 2) "export ordinal index" of
+        Err e -> Err e
+        Ok ord-idx-u ->
+          let ord-idx = u16-to-nat ord-idx-u in
+          if ord-idx >= u32-to-nat nfuncs then Err (PeInvalidTable "export ordinal index out of range")
+          else case read-rva-cstr f name-rva of
+            Err e -> Err e
+            Ok name -> case read-u32 buf (funcs-off + ord-idx * 4) "export function RVA" of
+              Err e -> Err e
+              Ok func-rva ->
+                let ord = wrapping-add-u32 base (u16-to-u32 ord-idx-u) in
+                if ge-u32 func-rva exp-va && lt-u32 func-rva exp-end then
+                  case read-rva-cstr f func-rva of
+                    Err e -> Err e
+                    Ok fwd -> parse-exports-loop f buf exp-va exp-end base nfuncs funcs-off names-off ords-off (idx + 1) count (Cons (PeExport name ord func-rva (Some fwd)) acc)
+                else parse-exports-loop f buf exp-va exp-end base nfuncs funcs-off names-off ords-off (idx + 1) count (Cons (PeExport name ord func-rva None) acc)
+
+  -- | Parse the PE Export Directory Table (IMAGE_DIRECTORY_ENTRY_EXPORT), or None when absent.
+  pe-exports :: PeFile -> Result PeError (Option PeExportDirectory)
+  pe-exports f = case pe-data-directory f pe-dir-export of
+    None -> Ok None
+    Some dd ->
+      let va = pe-dd-virtual-address dd in
+      let sz = pe-dd-size dd in
+      if eq-u32 va 0 || eq-u32 sz 0 then Ok None
+      else case rva-to-file-offset f va of
+        None -> Err (PeInvalidTable "export directory RVA out of section bounds")
+        Some dir-off -> case f of
+          PeFile _ _ _ _ _ buf ->
+            if dir-off + 40 > bytes-len buf then Err (PeTruncated dir-off "IMAGE_EXPORT_DIRECTORY")
+            else case read-u32 buf (dir-off + 12) "export Name RVA" of
+              Err e -> Err e
+              Ok name-rva -> case read-u32 buf (dir-off + 16) "export Base" of
+                Err e -> Err e
+                Ok base -> case read-u32 buf (dir-off + 20) "NumberOfFunctions" of
+                  Err e -> Err e
+                  Ok nfuncs -> case read-u32 buf (dir-off + 24) "NumberOfNames" of
+                    Err e -> Err e
+                    Ok nnames -> case read-u32 buf (dir-off + 28) "AddressOfFunctions" of
+                      Err e -> Err e
+                      Ok aof -> case read-u32 buf (dir-off + 32) "AddressOfNames" of
+                        Err e -> Err e
+                        Ok aon -> case read-u32 buf (dir-off + 36) "AddressOfNameOrdinals" of
+                          Err e -> Err e
+                          Ok aoo ->
+                            let dll-res = if eq-u32 name-rva 0 then Ok empty-string else read-rva-cstr f name-rva in
+                            case dll-res of
+                              Err e -> Err e
+                              Ok dll-name ->
+                                if eq-u32 nnames 0 then Ok (Some (PeExportDirectory dll-name base nfuncs nnames Nil))
+                                else case rva-to-file-offset f aof of
+                                  None -> Err (PeInvalidTable "AddressOfFunctions RVA out of bounds")
+                                  Some funcs-off -> case rva-to-file-offset f aon of
+                                    None -> Err (PeInvalidTable "AddressOfNames RVA out of bounds")
+                                    Some names-off -> case rva-to-file-offset f aoo of
+                                      None -> Err (PeInvalidTable "AddressOfNameOrdinals RVA out of bounds")
+                                      Some ords-off ->
+                                        let exp-end = saturating-add-u32 va sz in
+                                        case parse-exports-loop f buf va exp-end base nfuncs funcs-off names-off ords-off 0 (u32-to-nat nnames) Nil of
+                                          Err e -> Err e
+                                          Ok entries -> Ok (Some (PeExportDirectory dll-name base nfuncs nnames entries))

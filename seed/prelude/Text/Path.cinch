@@ -4,7 +4,7 @@
 -- Matching supports *, ?, escaped literals and nonempty Unicode range classes.
 -- Stars never consume /; classes can explicitly match it. Patterns are checked
 -- completely before matching, including patterns whose first term fails.
--- Complete scans use inline LLVM SIMD lanes with retained owners and exact tails.
+-- Complete scans use portable 16-byte SIMD lanes with bounded loads and exact tails.
 module Text.Path where
 
   import Data.Bool
@@ -16,6 +16,7 @@ module Text.Path where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export path-clean, path-base, path-dir, path-ext, path-is-absolute, path-join, path-split
   export PathPatternError, InvalidPathPattern, path-pattern-error-message
@@ -34,189 +35,168 @@ module Text.Path where
     Some text -> text
     None -> empty-string
 
-  -- | Hold a private backing owner until its borrowed machine-counter traversal has completed.
-  hold-path-buffer :: forall a. Bytes -> a -> a
-  hold-path-buffer owner value = case bytes-len owner of _ -> value
-
   -- | Convert a checked physical-buffer result to a natural offset outside the machine loop.
   path-index :: I64 -> Nat
   path-index value = if 0 <= value then nat-from-i64 value else 0
 
-  -- | Read exactly eight proved bytes without alignment assumptions; the checked caller retains the owner.
-  prim load-path-word :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i64, ptr %at, align 1
-      ret i64 %value
-    }
+  -- | Classify sixteen bytes for shell metacharacters (*, ?, [, \) and return a 16-bit lane mask.
+  meta-mask16 :: U128 -> U32
+  meta-mask16 chunk =
+    let a = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 42)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 63)) in
+    let b = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 91)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 92)) in
+    simd-u8x16-movemask (bit-or-u128 a b)
 
-  -- | Read one proved byte from a retained private backing interval.
-  prim load-path-byte :: I64 -> I64 -> U8 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i8, ptr %at, align 1
-      ret i8 %value
-    }
-
-  -- | Recognize any slash in a complete packed word using SIMD byte classification.
-  prim word-has-slash :: U64 -> Bool where
-    llvm {
-      %bytes = bitcast i64 %0 to <8 x i8>
-      %matches = icmp eq <8 x i8> %bytes, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %mask = bitcast <8 x i1> %matches to i8
-      %found = icmp ne i8 %mask, 0
-      %result = zext i1 %found to i8
-      ret i8 %result
-    }
-
-  -- | Recognize a complete slash run with one packed equality comparison.
-  prim word-all-slashes :: U64 -> Bool where
-    llvm {
-      %all = icmp eq i64 %0, 3399988123389603631
-      %result = zext i1 %all to i8
-      ret i8 %result
-    }
-
-  -- | Recognize a slash or dot in a complete eight-byte word with SIMD classification.
-  prim word-has-slash-or-dot :: U64 -> Bool where
-    llvm {
-      %bytes = bitcast i64 %0 to <8 x i8>
-      %slash = icmp eq <8 x i8> %bytes, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %dot = icmp eq <8 x i8> %bytes, <i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46, i8 46>
-      %matches = or <8 x i1> %slash, %dot
-      %mask = bitcast <8 x i1> %matches to i8
-      %found = icmp ne i8 %mask, 0
-      %result = zext i1 %found to i8
-      ret i8 %result
-    }
-
-  -- | Recognize shell metacharacters in eight independent byte lanes; lane order is irrelevant.
-  prim word-has-meta :: U64 -> Bool where
-    llvm {
-      %bytes = bitcast i64 %0 to <8 x i8>
-      %star = icmp eq <8 x i8> %bytes, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
-      %question = icmp eq <8 x i8> %bytes, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %class = icmp eq <8 x i8> %bytes, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
-      %escape = icmp eq <8 x i8> %bytes, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %a = or <8 x i1> %star, %question
-      %b = or <8 x i1> %class, %escape
-      %matches = or <8 x i1> %a, %b
-      %mask = bitcast <8 x i1> %matches to i8
-      %found = icmp ne i8 %mask, 0
-      %result = zext i1 %found to i8
-      ret i8 %result
-    }
-
-  -- | Dispatch once before the machine-only forward traversal; all intervals are caller-proved.
-  scan-forward :: I64 -> I64 -> I64 -> U8 -> I64
-  scan-forward base start end mode =
-    if eq-u8 mode 0 then seek-forward base start end
-    else if eq-u8 mode 1 then skip-forward base start end
-    else meta-forward base start end
-
-  -- | Seek a slash using exact complete words and fixed-width counters, without owner operations inside the loop.
-  seek-forward :: I64 -> I64 -> I64 -> I64
-  seek-forward base at end =
-    if ge-i64 (wrapping-sub-i64 end at) 8 then
-      if word-has-slash (load-path-word base at) then forward-tail base at end 0
-      else seek-forward base (wrapping-add-i64 at 8) end
-    else forward-tail base at end 0
-
-  -- | Skip only complete slash words before the first non-slash scalar byte.
-  skip-forward :: I64 -> I64 -> I64 -> I64
-  skip-forward base at end =
-    if ge-i64 (wrapping-sub-i64 end at) 8 then
-      if word-all-slashes (load-path-word base at) then skip-forward base (wrapping-add-i64 at 8) end
-      else forward-tail base at end 1
-    else forward-tail base at end 1
-
-  -- | Seek the first shell metacharacter using SIMD classification and machine-only loop state.
-  meta-forward :: I64 -> I64 -> I64 -> I64
-  meta-forward base at end =
-    if ge-i64 (wrapping-sub-i64 end at) 8 then
-      if word-has-meta (load-path-word base at) then forward-tail base at end 2
-      else meta-forward base (wrapping-add-i64 at 8) end
-    else forward-tail base at end 2
-
-  -- | Finish the first matching forward word or short tail using exact one-byte reads.
-  forward-tail :: I64 -> I64 -> I64 -> U8 -> I64
-  forward-tail base at end mode =
-    if lt-i64 at end then
-      let byte = load-path-byte base at in
+  -- | Finish a forward scan tail using exact bounded one-byte reads.
+  forward-tail :: Bytes -> I64 -> I64 -> U8 -> I64
+  forward-tail input at end mode =
+    if 0 <= at && at < end && at < bytes-len-i64 input then
+      let byte = bytes-get-u8-at input at in
       let stop = if eq-u8 mode 0 then eq-u8 byte 47 else if eq-u8 mode 1 then not (eq-u8 byte 47) else eq-u8 byte 42 || eq-u8 byte 63 || eq-u8 byte 91 || eq-u8 byte 92 in
-      if stop then at else forward-tail base (wrapping-add-i64 at 1) end mode
+      if stop then at else forward-tail input (wrapping-add-i64 at 1) end mode
     else end
 
-  -- | Dispatch once before the machine-only backwards traversal; all prefixes are caller-proved.
-  scan-backward :: I64 -> I64 -> U8 -> I64
-  scan-backward base end mode =
-    if eq-u8 mode 0 then trim-backward base end
-    else if eq-u8 mode 1 then seek-backward base end
-    else extension-backward base end end
+  -- | Seek a slash using complete sixteen-byte SIMD blocks and fixed-width counters.
+  seek-forward :: Bytes -> I64 -> I64 -> I64
+  seek-forward input at end =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit && 0 <= at then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let ni = nat-from-i64 at in
+        if ni <= nl - 16 then
+          let mask = simd-u8x16-movemask (simd-u8x16-cmpeq (bytes-load-u128 input ni) (simd-u8x16-splat 47)) in
+          if ne-u32 mask 0 then wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))
+          else seek-forward input (wrapping-add-i64 at 16) limit
+        else forward-tail input at limit 0
+      else forward-tail input at limit 0
+    else forward-tail input at limit 0
 
-  -- | Trim complete trailing slash words before an exact scalar boundary check.
-  trim-backward :: I64 -> I64 -> I64
-  trim-backward base end =
-    if ge-i64 end 8 then
-      if word-all-slashes (load-path-word base (wrapping-sub-i64 end 8)) then trim-backward base (wrapping-sub-i64 end 8)
-      else backward-tail base end end 0
-    else backward-tail base end end 0
+  -- | Skip complete sixteen-byte slash blocks before the first non-slash byte.
+  skip-forward :: Bytes -> I64 -> I64 -> I64
+  skip-forward input at end =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit && 0 <= at then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let ni = nat-from-i64 at in
+        if ni <= nl - 16 then
+          let mask = bit-xor-u32 (simd-u8x16-movemask (simd-u8x16-cmpeq (bytes-load-u128 input ni) (simd-u8x16-splat 47))) 65535 in
+          if ne-u32 mask 0 then wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))
+          else skip-forward input (wrapping-add-i64 at 16) limit
+        else forward-tail input at limit 1
+      else forward-tail input at limit 1
+    else forward-tail input at limit 1
 
-  -- | Seek the final slash using complete backwards words and machine counters.
-  seek-backward :: I64 -> I64 -> I64
-  seek-backward base end =
-    if ge-i64 end 8 then
-      if word-has-slash (load-path-word base (wrapping-sub-i64 end 8)) then backward-tail base end end 1
-      else seek-backward base (wrapping-sub-i64 end 8)
-    else backward-tail base end end 1
+  -- | Seek the first shell metacharacter using sixteen-byte SIMD classification.
+  meta-forward :: Bytes -> I64 -> I64 -> I64
+  meta-forward input at end =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit && 0 <= at then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let ni = nat-from-i64 at in
+        if ni <= nl - 16 then
+          let mask = meta-mask16 (bytes-load-u128 input ni) in
+          if ne-u32 mask 0 then wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))
+          else meta-forward input (wrapping-add-i64 at 16) limit
+        else forward-tail input at limit 2
+      else forward-tail input at limit 2
+    else forward-tail input at limit 2
 
-  -- | Seek the last component's final dot, preserving the original no-extension sentinel.
-  extension-backward :: I64 -> I64 -> I64 -> I64
-  extension-backward base end original =
-    if ge-i64 end 8 then
-      if word-has-slash-or-dot (load-path-word base (wrapping-sub-i64 end 8)) then backward-tail base end original 2
-      else extension-backward base (wrapping-sub-i64 end 8) original
-    else backward-tail base end original 2
-
-  -- | Finish a backwards matching word or short prefix without reading before its start.
-  backward-tail :: I64 -> I64 -> I64 -> U8 -> I64
-  backward-tail base end original mode =
-    if gt-i64 end 0 then
-      let previous = wrapping-sub-i64 end 1 in let byte = load-path-byte base previous in
-      if eq-u8 mode 0 then
-        if eq-u8 byte 47 then backward-tail base previous original mode else end
-      else if eq-u8 mode 1 then
-        if eq-u8 byte 47 then end else backward-tail base previous original mode
-      else if eq-u8 byte 46 then previous
-      else if eq-u8 byte 47 then original
-      else backward-tail base previous original mode
+  -- | Finish a backwards matching block or short prefix without reading before its start.
+  backward-tail :: Bytes -> I64 -> I64 -> U8 -> I64
+  backward-tail input end original mode =
+    if 0 < end && end <= bytes-len-i64 input then
+      let previous = wrapping-sub-i64 end 1 in
+      if 0 <= previous && previous < bytes-len-i64 input then
+        let byte = bytes-get-u8-at input previous in
+        if eq-u8 mode 0 then
+          if eq-u8 byte 47 then backward-tail input previous original mode else end
+        else if eq-u8 mode 1 then
+          if eq-u8 byte 47 then end else backward-tail input previous original mode
+        else if eq-u8 byte 46 then previous
+        else if eq-u8 byte 47 then original
+        else backward-tail input previous original mode
+      else if eq-u8 mode 2 then original else 0
     else if eq-u8 mode 2 then original else 0
 
-  -- | Find the next slash while retaining the complete borrowed backing interval.
+  -- | Trim complete trailing sixteen-byte slash blocks before the last non-slash byte.
+  trim-backward :: Bytes -> I64 -> I64
+  trim-backward input end =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let chunk = bytes-load-u128 input (nl - 16) in
+        let mask = bit-xor-u32 (simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat 47))) 65535 in
+        if eq-u32 mask 0 then trim-backward input (wrapping-sub-i64 limit 16)
+        else wrapping-add-i64 (wrapping-sub-i64 limit 16) (u32-to-i64 (wrapping-sub-u32 32 (leading-zeros-u32 mask)))
+      else backward-tail input limit limit 0
+    else backward-tail input limit limit 0
+
+  -- | Seek the final slash using complete backwards sixteen-byte SIMD blocks.
+  seek-backward :: Bytes -> I64 -> I64
+  seek-backward input end =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let chunk = bytes-load-u128 input (nl - 16) in
+        let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat 47)) in
+        if eq-u32 mask 0 then seek-backward input (wrapping-sub-i64 limit 16)
+        else wrapping-add-i64 (wrapping-sub-i64 limit 16) (u32-to-i64 (wrapping-sub-u32 32 (leading-zeros-u32 mask)))
+      else backward-tail input limit limit 1
+    else backward-tail input limit limit 1
+
+  -- | Seek the last component's final dot, preserving the original no-extension sentinel.
+  extension-backward :: Bytes -> I64 -> I64 -> I64
+  extension-backward input end original =
+    let n = bytes-len-i64 input in
+    let limit = if le-i64 end n then end else n in
+    if 16 <= limit then
+      let nl = nat-from-i64 limit in
+      let nb = nat-from-i64 n in
+      if 16 <= nl && nl <= nb then
+        let chunk = bytes-load-u128 input (nl - 16) in
+        let both = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 47)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 46)) in
+        if eq-u32 (simd-u8x16-movemask both) 0 then extension-backward input (wrapping-sub-i64 limit 16) original
+        else backward-tail input limit original 2
+      else backward-tail input limit original 2
+    else backward-tail input limit original 2
+
+  -- | Find the next slash in the checked backing interval.
   next-slash :: Bytes -> Nat -> Nat
   next-slash input i =
     if i <= bytes-len input then
-      path-index (hold-path-buffer input (scan-forward (bytes-data input) (nat-to-i64 i) (nat-to-i64 (bytes-len input)) 0))
+      path-index (seek-forward input (nat-to-i64 i) (bytes-len-i64 input))
     else bytes-len input
 
-  -- | Skip repeated separators in complete words and then an exact scalar fringe.
+  -- | Skip repeated separators in complete sixteen-byte blocks and then an exact scalar fringe.
   skip-slashes :: Bytes -> Nat -> Nat
   skip-slashes input i =
     if i <= bytes-len input then
-      path-index (hold-path-buffer input (scan-forward (bytes-data input) (nat-to-i64 i) (nat-to-i64 (bytes-len input)) 1))
+      path-index (skip-forward input (nat-to-i64 i) (bytes-len-i64 input))
     else bytes-len input
 
   -- | Remove trailing slash bytes, preserving their original byte interval for callers.
   trim-slashes :: Bytes -> Nat -> Nat
   trim-slashes input end =
-    if end <= bytes-len input then path-index (hold-path-buffer input (scan-backward (bytes-data input) (nat-to-i64 end) 0)) else 0
+    if end <= bytes-len input then path-index (trim-backward input (nat-to-i64 end)) else 0
 
   -- | Find the byte immediately after the last slash in a complete prefix, or zero.
   after-last-slash :: Bytes -> Nat -> Nat
   after-last-slash input end =
-    if end <= bytes-len input then path-index (hold-path-buffer input (scan-backward (bytes-data input) (nat-to-i64 end) 1)) else 0
+    if end <= bytes-len input then path-index (seek-backward input (nat-to-i64 end)) else 0
 
   -- | Whether a path starts with /; no normalization or filesystem lookup is performed.
   path-is-absolute :: String -> Bool
@@ -243,7 +223,7 @@ module Text.Path where
   -- | Find the final dot in the last component, stopping at a slash.
   extension-start :: Bytes -> Nat -> Nat
   extension-start input end =
-    if end <= bytes-len input then path-index (hold-path-buffer input (scan-backward (bytes-data input) (nat-to-i64 end) 2)) else bytes-len input
+    if end <= bytes-len input then path-index (extension-backward input (nat-to-i64 end) (nat-to-i64 end)) else bytes-len input
 
   -- | Return the final dot and following bytes of the last component, or empty text.
   -- Leading dots count as extensions; a path ending in / has no extension.
@@ -355,11 +335,11 @@ module Text.Path where
     -- | Private complete list of compiled terms and owned literal buffers.
     CompiledPattern :: List PathTerm -> PathPattern
 
-  -- | Find the next metacharacter with a machine-counter SIMD loop and a retained owner.
+  -- | Find the next metacharacter with a machine-counter SIMD loop.
   literal-end :: Bytes -> Nat -> Nat
   literal-end pattern at =
     if at <= bytes-len pattern then
-      path-index (hold-path-buffer pattern (scan-forward (bytes-data pattern) (nat-to-i64 at) (nat-to-i64 (bytes-len pattern)) 2))
+      path-index (meta-forward pattern (nat-to-i64 at) (bytes-len-i64 pattern))
     else bytes-len pattern
 
   -- | Parse a complete pattern, rejecting malformed suffixes even when an earlier term cannot match.
@@ -425,29 +405,41 @@ module Text.Path where
     Nil -> False
     Cons pair rest -> case pair of (low, high) -> if low <= char && char <= high then True else in-ranges char rest
 
-  -- | Compare exact borrowed literal intervals in complete native words, retaining owners at the checked caller.
-  equal-literal :: I64 -> I64 -> I64 -> Bool
-  equal-literal left right remaining =
-    if ge-i64 remaining 8 then
-      if eq-u64 (load-path-word left 0) (load-path-word right 0) then
-        equal-literal (wrapping-add-i64 left 8) (wrapping-add-i64 right 8) (wrapping-sub-i64 remaining 8)
+  -- | Compare exact literal intervals in complete sixteen-byte blocks before the scalar tail.
+  equal-literal :: Bytes -> Bytes -> I64 -> I64 -> I64 -> Bool
+  equal-literal left right li ri remaining =
+    if 16 <= remaining && 0 <= li && 0 <= ri then
+      let ln = bytes-len-i64 left in
+      let rn = bytes-len-i64 right in
+      if 16 <= ln && 16 <= rn then
+        let nln = nat-from-i64 ln in
+        let nrn = nat-from-i64 rn in
+        let nli = nat-from-i64 li in
+        let nri = nat-from-i64 ri in
+        if 16 <= nln && 16 <= nrn && nli <= nln - 16 && nri <= nrn - 16 then
+          if eq-u128 (bytes-load-u128 left nli) (bytes-load-u128 right nri) then
+            equal-literal left right (wrapping-add-i64 li 16) (wrapping-add-i64 ri 16) (wrapping-sub-i64 remaining 16)
+          else False
+        else False
       else False
-    else equal-literal-tail left right remaining
+    else equal-literal-tail left right li ri remaining
 
-  -- | Compare the exact final bytes with machine-only tail-loop state and no overread.
-  equal-literal-tail :: I64 -> I64 -> I64 -> Bool
-  equal-literal-tail left right remaining =
-    if gt-i64 remaining 0 then
-      if eq-u8 (load-path-byte left 0) (load-path-byte right 0) then
-        equal-literal-tail (wrapping-add-i64 left 1) (wrapping-add-i64 right 1) (wrapping-sub-i64 remaining 1)
+  -- | Compare the exact final bytes with bounded reads and no overread.
+  equal-literal-tail :: Bytes -> Bytes -> I64 -> I64 -> I64 -> Bool
+  equal-literal-tail left right li ri remaining =
+    if 0 < remaining then
+      if 0 <= li && li < bytes-len-i64 left && 0 <= ri && ri < bytes-len-i64 right then
+        if eq-u8 (bytes-get-u8-at left li) (bytes-get-u8-at right ri) then
+          equal-literal-tail left right (wrapping-add-i64 li 1) (wrapping-add-i64 ri 1) (wrapping-sub-i64 remaining 1)
+        else False
       else False
     else True
 
-  -- | Check a complete literal interval and retain both backing owners around its raw traversal.
+  -- | Check a complete literal interval against the target path at a given byte offset.
   literal-matches :: Bytes -> Bytes -> Nat -> Bool
   literal-matches literal name at =
     if at + bytes-len literal <= bytes-len name then
-      hold-path-buffer literal (hold-path-buffer name (equal-literal (bytes-data literal) (wrapping-add-i64 (bytes-data name) (nat-to-i64 at)) (nat-to-i64 (bytes-len literal))))
+      equal-literal literal name 0 (nat-to-i64 at) (bytes-len-i64 literal)
     else False
 
   -- | Match a star-free compiled chunk at one candidate byte position.

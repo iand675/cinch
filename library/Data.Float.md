@@ -4,6 +4,8 @@ Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigon
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Float</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Float/source/">View source</a><a href="/packages/search/?q=%2BData.Float">Search module</a><a href="/reference-sources/Data.Float.cinch" download="Data.Float.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
+**Dependencies:** [Data.Wide](Data.Wide.md).
+
 <details class="doc-notes"><summary>Module notes</summary>
 
 Binary64 mathematics: constants, classification, exact rounding and bit-level splitting, and the
@@ -27,10 +29,9 @@ form (J1 stays odd for tiny arguments: J1(x) = x/2 below 2^-27 for either sign).
 Special values follow the C99 conventions: signed zeros are preserved, NaN propagates, and infinities and
 poles are exact.
 
-The kernels are generated as branch-free LLVM: every special case is a compare and a select, so a call costs
-one straight-line block (only pow's repeated squaring and mod's long division loop). Rounding to integers
-uses the LLVM floor, ceil, trunc, round and roundeven operations, which lower to single instructions where
-the target has them.
+Every function is implemented in pure Cinch over Data.Machine and Data.Wide. Rounding to integers uses the
+Data.Machine floor, ceil, trunc, round and round-to-even operations, which lower to single instructions
+where the target has them.
 
 </details>
 
@@ -41,7 +42,7 @@ the target has them.
 # Values
 
 <article class="doc-entry" id="v-acos-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-acos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3252" title="View source at line 3252">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-acos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L890" title="View source at line 890">Source</a></span></div>
 <div class="doc-body">
 
 The arccosine, in [0, pi]; NaN outside [-1, 1].
@@ -50,7 +51,7 @@ The arccosine, in [0, pi]; NaN outside [-1, 1].
 </article>
 
 <article class="doc-entry" id="v-acosh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acosh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-acosh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L4031" title="View source at line 4031">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">acosh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-acosh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L970" title="View source at line 970">Source</a></span></div>
 <div class="doc-body">
 
 The inverse hyperbolic cosine; NaN below 1.
@@ -59,7 +60,7 @@ The inverse hyperbolic cosine; NaN below 1.
 </article>
 
 <article class="doc-entry" id="v-asin-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asin-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-asin-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3184" title="View source at line 3184">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asin-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-asin-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L875" title="View source at line 875">Source</a></span></div>
 <div class="doc-body">
 
 The arcsine, in [-pi/2, pi/2]; NaN outside [-1, 1].
@@ -68,7 +69,7 @@ The arcsine, in [-pi/2, pi/2]; NaN outside [-1, 1].
 </article>
 
 <article class="doc-entry" id="v-asinh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asinh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-asinh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3774" title="View source at line 3774">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">asinh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-asinh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L957" title="View source at line 957">Source</a></span></div>
 <div class="doc-body">
 
 The inverse hyperbolic sine.
@@ -77,7 +78,7 @@ The inverse hyperbolic sine.
 </article>
 
 <article class="doc-entry" id="v-atan-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3089" title="View source at line 3089">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L868" title="View source at line 868">Source</a></span></div>
 <div class="doc-body">
 
 The arctangent, in [-pi/2, pi/2].
@@ -86,16 +87,17 @@ The arctangent, in [-pi/2, pi/2].
 </article>
 
 <article class="doc-entry" id="v-atan2-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atan2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3321" title="View source at line 3321">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atan2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atan2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L895" title="View source at line 895">Source</a></span></div>
 <div class="doc-body">
 
-The angle of the point (x, y) from the positive x axis, in [-pi, pi], with signed-zero and infinite cases resolved by quadrant.
+The angle of the point (x, y) from the positive x axis, in [-pi, pi], with signed-zero and infinite
+cases resolved by quadrant.
 
 </div>
 </article>
 
 <article class="doc-entry" id="v-atanh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atanh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atanh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L4285" title="View source at line 4285">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">atanh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-atanh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L981" title="View source at line 981">Source</a></span></div>
 <div class="doc-body">
 
 The inverse hyperbolic tangent; NaN outside [-1, 1].
@@ -104,7 +106,7 @@ The inverse hyperbolic tangent; NaN outside [-1, 1].
 </article>
 
 <article class="doc-entry" id="v-cbrt-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cbrt-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cbrt-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L770" title="View source at line 770">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cbrt-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cbrt-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L377" title="View source at line 377">Source</a></span></div>
 <div class="doc-body">
 
 The cube root, exact for perfect cubes of moderate size.
@@ -113,25 +115,15 @@ The cube root, exact for perfect cubes of moderate size.
 </article>
 
 <article class="doc-entry" id="v-ceil-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ceil-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ceil-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L216" title="View source at line 216">Source</a></span></div>
-<div class="doc-body">
-
-The least integer value not below x.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ceil-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ceil-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L640" title="View source at line 640">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-copysign-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">copysign-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-copysign-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L202" title="View source at line 202">Source</a></span></div>
-<div class="doc-body">
-
-The magnitude of the first value with the sign of the second.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">copysign-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-copysign-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L628" title="View source at line 628">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-cos-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L398" title="View source at line 398">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L818" title="View source at line 818">Source</a></span></div>
 <div class="doc-body">
 
 The cosine.
@@ -140,7 +132,7 @@ The cosine.
 </article>
 
 <article class="doc-entry" id="v-cosh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cosh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cosh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3581" title="View source at line 3581">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cosh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-cosh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L933" title="View source at line 933">Source</a></span></div>
 <div class="doc-body">
 
 The hyperbolic cosine.
@@ -149,7 +141,7 @@ The hyperbolic cosine.
 </article>
 
 <article class="doc-entry" id="v-dim-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">dim-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-dim-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L295" title="View source at line 295">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">dim-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-dim-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L294" title="View source at line 294">Source</a></span></div>
 <div class="doc-body">
 
 The positive difference: x - y when positive, otherwise zero.
@@ -158,7 +150,7 @@ The positive difference: x - y when positive, otherwise zero.
 </article>
 
 <article class="doc-entry" id="v-e-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L78" title="View source at line 78">Source</a></span></div>
 <div class="doc-body">
 
 e, the base of natural logarithms.
@@ -167,7 +159,7 @@ e, the base of natural logarithms.
 </article>
 
 <article class="doc-entry" id="v-erf-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L4471" title="View source at line 4471">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1032" title="View source at line 1032">Source</a></span></div>
 <div class="doc-body">
 
 The error function, 2/sqrt(pi) times the integral of exp(-t^2) from 0 to x.
@@ -176,7 +168,7 @@ The error function, 2/sqrt(pi) times the integral of exp(-t^2) from 0 to x.
 </article>
 
 <article class="doc-entry" id="v-erfc-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfc-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfc-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L4945" title="View source at line 4945">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfc-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfc-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1053" title="View source at line 1053">Source</a></span></div>
 <div class="doc-body">
 
 The complementary error function, 1 - erf(x), accurate where erf(x) is near 1.
@@ -185,7 +177,7 @@ The complementary error function, 1 - erf(x), accurate where erf(x) is near 1.
 </article>
 
 <article class="doc-entry" id="v-erfcinv-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfcinv-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfcinv-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L5719" title="View source at line 5719">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfcinv-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfcinv-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1108" title="View source at line 1108">Source</a></span></div>
 <div class="doc-body">
 
 The inverse complementary error function: erfinv(1 - x).
@@ -194,7 +186,7 @@ The inverse complementary error function: erfinv(1 - x).
 </article>
 
 <article class="doc-entry" id="v-erfinv-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfinv-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfinv-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L5424" title="View source at line 5424">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">erfinv-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-erfinv-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1079" title="View source at line 1079">Source</a></span></div>
 <div class="doc-body">
 
 The inverse error function: the y with erf(y) = x, for x in (-1, 1).
@@ -203,7 +195,7 @@ The inverse error function: the y with erf(y) = x, for x in (-1, 1).
 </article>
 
 <article class="doc-entry" id="v-exp-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-exp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L858" title="View source at line 858">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-exp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L437" title="View source at line 437">Source</a></span></div>
 <div class="doc-body">
 
 The natural exponential, e to the power x.
@@ -212,7 +204,7 @@ The natural exponential, e to the power x.
 </article>
 
 <article class="doc-entry" id="v-exp2-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exp2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-exp2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L931" title="View source at line 931">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exp2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-exp2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L452" title="View source at line 452">Source</a></span></div>
 <div class="doc-body">
 
 Two to the power x.
@@ -221,7 +213,7 @@ Two to the power x.
 </article>
 
 <article class="doc-entry" id="v-expm1-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expm1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-expm1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L995" title="View source at line 995">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expm1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-expm1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L494" title="View source at line 494">Source</a></span></div>
 <div class="doc-body">
 
 e to the power x, minus one, accurate when x is near zero.
@@ -230,52 +222,32 @@ e to the power x, minus one, accurate when x is near zero.
 </article>
 
 <article class="doc-entry" id="v-f32-bits">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f32-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-f32-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L59" title="View source at line 59">Source</a></span></div>
-<div class="doc-body">
-
-The bit pattern of a binary32 value.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f32-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-f32-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L396" title="View source at line 396">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-f32-from-bits">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f32-from-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-f32-from-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L66" title="View source at line 66">Source</a></span></div>
-<div class="doc-body">
-
-The binary32 value with a bit pattern.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f32-from-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-f32-from-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L402" title="View source at line 402">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-f64-bits">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f64-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-f64-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f64-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-f64-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L574" title="View source at line 574">Source</a></span></div>
 <div class="doc-body">
 
-The bit pattern of a binary64 value.
+F64.
 
 </div>
 </article>
 
 <article class="doc-entry" id="v-f64-from-bits">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f64-from-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-f64-from-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L52" title="View source at line 52">Source</a></span></div>
-<div class="doc-body">
-
-The binary64 value with a bit pattern.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">f64-from-bits</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-f64-from-bits" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L580" title="View source at line 580">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-floor-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">floor-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-floor-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L209" title="View source at line 209">Source</a></span></div>
-<div class="doc-body">
-
-The greatest integer value not above x (exact; signed zeros, infinities and NaN unchanged).
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">floor-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-floor-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L634" title="View source at line 634">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-fma-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-fma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L13173" title="View source at line 13173">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-fma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1671" title="View source at line 1671">Source</a></span></div>
 <div class="doc-body">
 
 x * y + z computed exactly and rounded once (round to nearest, ties to even).
@@ -284,7 +256,7 @@ x * y + z computed exactly and rounded once (round to nearest, ties to even).
 </article>
 
 <article class="doc-entry" id="v-frexp-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">frexp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-frexp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L245" title="View source at line 245">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">frexp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-frexp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L201" title="View source at line 201">Source</a></span></div>
 <div class="doc-body">
 
 The fraction in [1/2, 1) and exponent with x = fraction * 2^exponent; zeros, infinities and NaN return
@@ -294,7 +266,7 @@ themselves with exponent 0.
 </article>
 
 <article class="doc-entry" id="v-gamma-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gamma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-gamma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L538" title="View source at line 538">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gamma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-gamma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1242" title="View source at line 1242">Source</a></span></div>
 <div class="doc-body">
 
 The Gamma function; NaN at the negative integers and -Inf, signed infinities at the zeros.
@@ -303,7 +275,7 @@ The Gamma function; NaN at the negative integers and -Inf, signed infinities at 
 </article>
 
 <article class="doc-entry" id="v-hypot-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hypot-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-hypot-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L827" title="View source at line 827">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hypot-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-hypot-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L399" title="View source at line 399">Source</a></span></div>
 <div class="doc-body">
 
 The length of the hypotenuse, sqrt(p*p + q*q), without undue overflow or underflow.
@@ -312,7 +284,7 @@ The length of the hypotenuse, sqrt(p*p + q*q), without undue overflow or underfl
 </article>
 
 <article class="doc-entry" id="v-ilogb-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ilogb-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-ilogb-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L258" title="View source at line 258">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ilogb-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-ilogb-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L257" title="View source at line 257">Source</a></span></div>
 <div class="doc-body">
 
 The binary exponent of x as an integer: the least 32-bit integer for zero, the greatest for infinities
@@ -322,7 +294,7 @@ and NaN.
 </article>
 
 <article class="doc-entry" id="v-inf-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">inf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-inf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L186" title="View source at line 186">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">inf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-inf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L182" title="View source at line 182">Source</a></span></div>
 <div class="doc-body">
 
 Positive infinity for a sign of zero or more, negative infinity otherwise.
@@ -331,7 +303,7 @@ Positive infinity for a sign of zero or more, negative infinity otherwise.
 </article>
 
 <article class="doc-entry" id="v-is-inf-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-inf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-inf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-inf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-inf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L194" title="View source at line 194">Source</a></span></div>
 <div class="doc-body">
 
 Whether a value is an infinity of a sign: positive for a sign above zero, negative below, either for zero.
@@ -340,7 +312,7 @@ Whether a value is an infinity of a sign: positive for a sign above zero, negati
 </article>
 
 <article class="doc-entry" id="v-is-nan-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-nan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-nan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-nan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-nan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L190" title="View source at line 190">Source</a></span></div>
 <div class="doc-body">
 
 Whether a value is NaN.
@@ -349,7 +321,7 @@ Whether a value is NaN.
 </article>
 
 <article class="doc-entry" id="v-j0-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">j0-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-j0-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L422" title="View source at line 422">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">j0-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-j0-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1393" title="View source at line 1393">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the first kind of order zero.
@@ -358,7 +330,7 @@ The Bessel function of the first kind of order zero.
 </article>
 
 <article class="doc-entry" id="v-j1-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">j1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-j1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L426" title="View source at line 426">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">j1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-j1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1426" title="View source at line 1426">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the first kind of order one.
@@ -367,7 +339,7 @@ The Bessel function of the first kind of order one.
 </article>
 
 <article class="doc-entry" id="v-jn-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jn-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-jn-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L442" title="View source at line 442">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">jn-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-jn-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1488" title="View source at line 1488">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the first kind of integer order n.
@@ -376,7 +348,7 @@ The Bessel function of the first kind of integer order n.
 </article>
 
 <article class="doc-entry" id="v-ldexp-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ldexp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ldexp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L249" title="View source at line 249">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ldexp-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ldexp-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L212" title="View source at line 212">Source</a></span></div>
 <div class="doc-body">
 
 fraction * 2^exponent, rounded once (gradual underflow, overflow to infinity).
@@ -385,7 +357,7 @@ fraction * 2^exponent, rounded once (gradual underflow, overflow to infinity).
 </article>
 
 <article class="doc-entry" id="v-lgamma-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lgamma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-lgamma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L414" title="View source at line 414">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lgamma-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-lgamma-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1200" title="View source at line 1200">Source</a></span></div>
 <div class="doc-body">
 
 ln |Gamma(x)| and the sign of Gamma(x) (1 or -1); +Inf at zero and the non-positive integers.
@@ -394,7 +366,7 @@ ln |Gamma(x)| and the sign of Gamma(x) (1 or -1); +Inf at zero and the non-posit
 </article>
 
 <article class="doc-entry" id="v-ln10-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ln10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ln10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L146" title="View source at line 146">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ln10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ln10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L110" title="View source at line 110">Source</a></span></div>
 <div class="doc-body">
 
 The natural logarithm of 10.
@@ -403,7 +375,7 @@ The natural logarithm of 10.
 </article>
 
 <article class="doc-entry" id="v-ln2-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ln2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ln2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ln2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-ln2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L102" title="View source at line 102">Source</a></span></div>
 <div class="doc-body">
 
 The natural logarithm of 2.
@@ -412,7 +384,7 @@ The natural logarithm of 2.
 </article>
 
 <article class="doc-entry" id="v-log-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1149" title="View source at line 1149">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L521" title="View source at line 521">Source</a></span></div>
 <div class="doc-body">
 
 The natural logarithm.
@@ -421,7 +393,7 @@ The natural logarithm.
 </article>
 
 <article class="doc-entry" id="v-log10-e-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log10-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log10-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L150" title="View source at line 150">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log10-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log10-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L114" title="View source at line 114">Source</a></span></div>
 <div class="doc-body">
 
 The decimal logarithm of e.
@@ -430,7 +402,7 @@ The decimal logarithm of e.
 </article>
 
 <article class="doc-entry" id="v-log10-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1226" title="View source at line 1226">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L543" title="View source at line 543">Source</a></span></div>
 <div class="doc-body">
 
 The decimal logarithm.
@@ -439,7 +411,7 @@ The decimal logarithm.
 </article>
 
 <article class="doc-entry" id="v-log1p-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log1p-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log1p-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1413" title="View source at line 1413">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log1p-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log1p-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L593" title="View source at line 593">Source</a></span></div>
 <div class="doc-body">
 
 The natural logarithm of 1 + x, accurate when x is near zero.
@@ -448,7 +420,7 @@ The natural logarithm of 1 + x, accurate when x is near zero.
 </article>
 
 <article class="doc-entry" id="v-log2-e-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log2-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log2-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log2-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log2-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L106" title="View source at line 106">Source</a></span></div>
 <div class="doc-body">
 
 The binary logarithm of e.
@@ -457,7 +429,7 @@ The binary logarithm of e.
 </article>
 
 <article class="doc-entry" id="v-log2-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1304" title="View source at line 1304">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-log2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L547" title="View source at line 547">Source</a></span></div>
 <div class="doc-body">
 
 The binary logarithm, exact for powers of two.
@@ -466,7 +438,7 @@ The binary logarithm, exact for powers of two.
 </article>
 
 <article class="doc-entry" id="v-logb-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">logb-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-logb-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L265" title="View source at line 265">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">logb-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-logb-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L264" title="View source at line 264">Source</a></span></div>
 <div class="doc-body">
 
 The binary exponent of x as a value: negative infinity for zero, positive infinity for infinities.
@@ -475,7 +447,7 @@ The binary exponent of x as a value: negative infinity for zero, positive infini
 </article>
 
 <article class="doc-entry" id="v-max-f32">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-max-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L162" title="View source at line 162">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-max-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L126" title="View source at line 126">Source</a></span></div>
 <div class="doc-body">
 
 The largest finite binary32 value.
@@ -484,7 +456,7 @@ The largest finite binary32 value.
 </article>
 
 <article class="doc-entry" id="v-max-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-max-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-max-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L118" title="View source at line 118">Source</a></span></div>
 <div class="doc-body">
 
 The largest finite binary64 value.
@@ -493,7 +465,7 @@ The largest finite binary64 value.
 </article>
 
 <article class="doc-entry" id="v-max-of-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-of-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-max-of-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L299" title="View source at line 299">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-of-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-max-of-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L298" title="View source at line 298">Source</a></span></div>
 <div class="doc-body">
 
 The larger value: positive infinity if either is, then NaN if either is; +0 beats -0.
@@ -502,7 +474,7 @@ The larger value: positive infinity if either is, then NaN if either is; +0 beat
 </article>
 
 <article class="doc-entry" id="v-min-of-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-of-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-min-of-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L307" title="View source at line 307">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-of-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-min-of-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L306" title="View source at line 306">Source</a></span></div>
 <div class="doc-body">
 
 The smaller value: negative infinity if either is, then NaN if either is; -0 beats +0.
@@ -511,7 +483,7 @@ The smaller value: negative infinity if either is, then NaN if either is; -0 bea
 </article>
 
 <article class="doc-entry" id="v-mod-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mod-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-mod-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L319" title="View source at line 319">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mod-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-mod-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L318" title="View source at line 318">Source</a></span></div>
 <div class="doc-body">
 
 The remainder of x / y with the sign of x (truncated division); NaN when y is zero or x is infinite.
@@ -520,7 +492,7 @@ The remainder of x / y with the sign of x (truncated division); NaN when y is ze
 </article>
 
 <article class="doc-entry" id="v-modf-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">modf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-modf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L253" title="View source at line 253">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">modf-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-modf-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L238" title="View source at line 238">Source</a></span></div>
 <div class="doc-body">
 
 The integer and fractional parts, both carrying the sign of x.
@@ -529,7 +501,7 @@ The integer and fractional parts, both carrying the sign of x.
 </article>
 
 <article class="doc-entry" id="v-nan-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-nan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-nan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L186" title="View source at line 186">Source</a></span></div>
 <div class="doc-body">
 
 A quiet NaN.
@@ -538,7 +510,7 @@ A quiet NaN.
 </article>
 
 <article class="doc-entry" id="v-nextafter-f32">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nextafter-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-nextafter-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L282" title="View source at line 282">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nextafter-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-nextafter-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L281" title="View source at line 281">Source</a></span></div>
 <div class="doc-body">
 
 The next representable binary32 value after x toward y.
@@ -547,7 +519,7 @@ The next representable binary32 value after x toward y.
 </article>
 
 <article class="doc-entry" id="v-nextafter-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nextafter-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-nextafter-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L273" title="View source at line 273">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nextafter-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-nextafter-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L272" title="View source at line 272">Source</a></span></div>
 <div class="doc-body">
 
 The next representable value after x toward y.
@@ -556,7 +528,7 @@ The next representable value after x toward y.
 </article>
 
 <article class="doc-entry" id="v-phi-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">phi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-phi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">phi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-phi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L82" title="View source at line 82">Source</a></span></div>
 <div class="doc-body">
 
 The golden ratio.
@@ -565,7 +537,7 @@ The golden ratio.
 </article>
 
 <article class="doc-entry" id="v-pi-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L74" title="View source at line 74">Source</a></span></div>
 <div class="doc-body">
 
 pi, the nearest binary64 value.
@@ -574,7 +546,7 @@ pi, the nearest binary64 value.
 </article>
 
 <article class="doc-entry" id="v-pow-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pow-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L355" title="View source at line 355">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pow-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L619" title="View source at line 619">Source</a></span></div>
 <div class="doc-body">
 
 x to the power y, with the C99 special cases (pow(x, 0) = 1 and pow(1, y) = 1 even for NaN; negative
@@ -584,7 +556,7 @@ bases need integer exponents; signed zeros and infinities by parity).
 </article>
 
 <article class="doc-entry" id="v-pow10-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pow10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1969" title="View source at line 1969">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pow10-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-pow10-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L688" title="View source at line 688">Source</a></span></div>
 <div class="doc-body">
 
 Ten to an integer power, from exact tables.
@@ -593,7 +565,7 @@ Ten to an integer power, from exact tables.
 </article>
 
 <article class="doc-entry" id="v-remainder-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">remainder-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-remainder-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L337" title="View source at line 337">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">remainder-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-remainder-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L344" title="View source at line 344">Source</a></span></div>
 <div class="doc-body">
 
 The IEEE remainder x - n*y with n the integer nearest x / y (halves to even).
@@ -602,25 +574,15 @@ The IEEE remainder x - n*y with n the integer nearest x / y (halves to even).
 </article>
 
 <article class="doc-entry" id="v-round-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-round-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L230" title="View source at line 230">Source</a></span></div>
-<div class="doc-body">
-
-x rounded to the nearest integer value, halves away from zero.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-round-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L652" title="View source at line 652">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-round-to-even-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-to-even-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-round-to-even-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L237" title="View source at line 237">Source</a></span></div>
-<div class="doc-body">
-
-x rounded to the nearest integer value, halves to even.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-to-even-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-round-to-even-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L658" title="View source at line 658">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-sin-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sin-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sin-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L394" title="View source at line 394">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sin-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sin-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L810" title="View source at line 810">Source</a></span></div>
 <div class="doc-body">
 
 The sine.
@@ -629,7 +591,7 @@ The sine.
 </article>
 
 <article class="doc-entry" id="v-sincos-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sincos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-sincos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L406" title="View source at line 406">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sincos-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-sincos-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L832" title="View source at line 832">Source</a></span></div>
 <div class="doc-body">
 
 The sine and cosine together, sharing one argument reduction.
@@ -638,7 +600,7 @@ The sine and cosine together, sharing one argument reduction.
 </article>
 
 <article class="doc-entry" id="v-sinh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sinh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sinh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3480" title="View source at line 3480">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sinh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sinh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L917" title="View source at line 917">Source</a></span></div>
 <div class="doc-body">
 
 The hyperbolic sine.
@@ -647,7 +609,7 @@ The hyperbolic sine.
 </article>
 
 <article class="doc-entry" id="v-smallest-f32">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">smallest-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-smallest-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L166" title="View source at line 166">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">smallest-f32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-smallest-f32" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L130" title="View source at line 130">Source</a></span></div>
 <div class="doc-body">
 
 The smallest positive (subnormal) binary32 value.
@@ -656,7 +618,7 @@ The smallest positive (subnormal) binary32 value.
 </article>
 
 <article class="doc-entry" id="v-smallest-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">smallest-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-smallest-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L158" title="View source at line 158">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">smallest-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-smallest-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L122" title="View source at line 122">Source</a></span></div>
 <div class="doc-body">
 
 The smallest positive (subnormal) binary64 value.
@@ -665,7 +627,7 @@ The smallest positive (subnormal) binary64 value.
 </article>
 
 <article class="doc-entry" id="v-sqrt-e-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-e-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-e-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L90" title="View source at line 90">Source</a></span></div>
 <div class="doc-body">
 
 The square root of e.
@@ -674,7 +636,7 @@ The square root of e.
 </article>
 
 <article class="doc-entry" id="v-sqrt-phi-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-phi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-phi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-phi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-phi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L98" title="View source at line 98">Source</a></span></div>
 <div class="doc-body">
 
 The square root of the golden ratio.
@@ -683,7 +645,7 @@ The square root of the golden ratio.
 </article>
 
 <article class="doc-entry" id="v-sqrt-pi-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-pi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-pi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L130" title="View source at line 130">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt-pi-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt-pi-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L94" title="View source at line 94">Source</a></span></div>
 <div class="doc-body">
 
 The square root of pi.
@@ -692,7 +654,7 @@ The square root of pi.
 </article>
 
 <article class="doc-entry" id="v-sqrt2-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sqrt2-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-sqrt2-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L86" title="View source at line 86">Source</a></span></div>
 <div class="doc-body">
 
 The square root of 2.
@@ -701,7 +663,7 @@ The square root of 2.
 </article>
 
 <article class="doc-entry" id="v-tan-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-tan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L402" title="View source at line 402">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tan-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-tan-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L824" title="View source at line 824">Source</a></span></div>
 <div class="doc-body">
 
 The tangent.
@@ -710,7 +672,7 @@ The tangent.
 </article>
 
 <article class="doc-entry" id="v-tanh-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tanh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-tanh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L3662" title="View source at line 3662">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tanh-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-tanh-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L941" title="View source at line 941">Source</a></span></div>
 <div class="doc-body">
 
 The hyperbolic tangent.
@@ -719,16 +681,11 @@ The hyperbolic tangent.
 </article>
 
 <article class="doc-entry" id="v-trunc-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">trunc-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-trunc-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L223" title="View source at line 223">Source</a></span></div>
-<div class="doc-body">
-
-x rounded toward zero to an integer value.
-
-</div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">trunc-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-trunc-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Machine/source/#L646" title="View source at line 646">Source</a></span></div>
 </article>
 
 <article class="doc-entry" id="v-y0-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">y0-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-y0-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L430" title="View source at line 430">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">y0-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-y0-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1408" title="View source at line 1408">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the second kind of order zero; NaN for negative x, -Inf at zero.
@@ -737,7 +694,7 @@ The Bessel function of the second kind of order zero; NaN for negative x, -Inf a
 </article>
 
 <article class="doc-entry" id="v-y1-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">y1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-y1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L434" title="View source at line 434">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">y1-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-y1-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1442" title="View source at line 1442">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the second kind of order one; NaN for negative x, -Inf at zero.
@@ -746,7 +703,7 @@ The Bessel function of the second kind of order one; NaN for negative x, -Inf at
 </article>
 
 <article class="doc-entry" id="v-yn-f64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yn-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-yn-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L517" title="View source at line 517">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yn-f64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-yn-f64" title="Permalink">#</a><a href="/packages/stdlib/Data.Float/source/#L1563" title="View source at line 1563">Source</a></span></div>
 <div class="doc-body">
 
 The Bessel function of the second kind of integer order n; NaN for negative x.

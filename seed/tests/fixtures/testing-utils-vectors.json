@@ -1,0 +1,1104 @@
+{
+  "iotest": {
+    "one_byte": [
+      {
+        "input": "",
+        "chunks": []
+      },
+      {
+        "input": "a",
+        "chunks": [
+          "a"
+        ]
+      },
+      {
+        "input": "hello",
+        "chunks": [
+          "h",
+          "e",
+          "l",
+          "l",
+          "o"
+        ]
+      },
+      {
+        "input": "0123456789",
+        "chunks": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ]
+      }
+    ],
+    "half_reader": [
+      {
+        "input": "abcdefghijklmnopqrstuvwx",
+        "requests": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          20
+        ],
+        "chunks": [
+          "a",
+          "b",
+          "cd",
+          "ef",
+          "ghi",
+          "jkl",
+          "mnopq",
+          "rstuvwx"
+        ]
+      },
+      {
+        "input": "abcde",
+        "requests": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          20
+        ],
+        "chunks": [
+          "a",
+          "b",
+          "cd",
+          "e",
+          "",
+          "",
+          "",
+          ""
+        ]
+      },
+      {
+        "input": "",
+        "requests": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          10,
+          20
+        ],
+        "chunks": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      }
+    ],
+    "timeout": {
+      "input": "abcdefghij",
+      "steps": [
+        {
+          "request": 3,
+          "data": "abc",
+          "is_timeout": false,
+          "is_eof": false
+        },
+        {
+          "request": 3,
+          "data": "",
+          "is_timeout": true,
+          "is_eof": false
+        },
+        {
+          "request": 3,
+          "data": "def",
+          "is_timeout": false,
+          "is_eof": false
+        },
+        {
+          "request": 3,
+          "data": "ghi",
+          "is_timeout": false,
+          "is_eof": false
+        },
+        {
+          "request": 3,
+          "data": "j",
+          "is_timeout": false,
+          "is_eof": false
+        },
+        {
+          "request": 3,
+          "data": "",
+          "is_timeout": false,
+          "is_eof": true
+        }
+      ]
+    },
+    "data_err": [
+      {
+        "input": "",
+        "wrapper": "plain",
+        "output": ""
+      },
+      {
+        "input": "a",
+        "wrapper": "plain",
+        "output": "a"
+      },
+      {
+        "input": "hello world",
+        "wrapper": "plain",
+        "output": "hello world"
+      },
+      {
+        "input": "hello world",
+        "wrapper": "one_byte",
+        "output": "hello world"
+      },
+      {
+        "input": "0123456789abcdef",
+        "wrapper": "half",
+        "output": "0123456789abcdef"
+      }
+    ],
+    "truncate": [
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 0,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": ""
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 1,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "h"
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 5,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "hello"
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 6,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "hello "
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 11,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "hello world"
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 12,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "hello world!"
+      },
+      {
+        "chunks": [
+          "hello",
+          " ",
+          "world!"
+        ],
+        "limit": 50,
+        "reported": [
+          5,
+          1,
+          6
+        ],
+        "written": "hello world!"
+      }
+    ],
+    "test_reader": [
+      {
+        "name": "plain_ok",
+        "kind": "plain",
+        "input": "hello world 12345",
+        "expected": "hello world 12345",
+        "should_pass": true
+      },
+      {
+        "name": "empty_ok",
+        "kind": "plain",
+        "input": "",
+        "expected": "",
+        "should_pass": true
+      },
+      {
+        "name": "one_byte_ok",
+        "kind": "one_byte",
+        "input": "cinch stream test",
+        "expected": "cinch stream test",
+        "should_pass": true
+      },
+      {
+        "name": "half_ok",
+        "kind": "half",
+        "input": "cinch half reader verification",
+        "expected": "cinch half reader verification",
+        "should_pass": true
+      },
+      {
+        "name": "one_byte_half_ok",
+        "kind": "one_byte_half",
+        "input": "lookahead payload",
+        "expected": "lookahead payload",
+        "should_pass": true
+      },
+      {
+        "name": "timeout_fail",
+        "kind": "timeout",
+        "input": "abcdef",
+        "expected": "abcdef",
+        "should_pass": false
+      },
+      {
+        "name": "err_fail",
+        "kind": "err",
+        "input": "abcdef",
+        "expected": "abcdef",
+        "should_pass": false
+      },
+      {
+        "name": "mismatch_fail",
+        "kind": "plain",
+        "input": "hello",
+        "expected": "world",
+        "should_pass": false
+      },
+      {
+        "name": "short_fail",
+        "kind": "plain",
+        "input": "hel",
+        "expected": "hello",
+        "should_pass": false
+      },
+      {
+        "name": "long_fail",
+        "kind": "plain",
+        "input": "hello world",
+        "expected": "hello",
+        "should_pass": false
+      }
+    ]
+  },
+  "fstest": {
+    "valid_path": [
+      {
+        "path": ".",
+        "valid": true
+      },
+      {
+        "path": "",
+        "valid": false
+      },
+      {
+        "path": "/",
+        "valid": false
+      },
+      {
+        "path": "..",
+        "valid": false
+      },
+      {
+        "path": "./a",
+        "valid": false
+      },
+      {
+        "path": "a/.",
+        "valid": false
+      },
+      {
+        "path": "a/..",
+        "valid": false
+      },
+      {
+        "path": "a/../b",
+        "valid": false
+      },
+      {
+        "path": "a/./b",
+        "valid": false
+      },
+      {
+        "path": "/a",
+        "valid": false
+      },
+      {
+        "path": "a/",
+        "valid": false
+      },
+      {
+        "path": "a//b",
+        "valid": false
+      },
+      {
+        "path": "a",
+        "valid": true
+      },
+      {
+        "path": "a/b",
+        "valid": true
+      },
+      {
+        "path": "a/b/c.txt",
+        "valid": true
+      },
+      {
+        "path": ".hidden",
+        "valid": true
+      },
+      {
+        "path": "a/.hidden",
+        "valid": true
+      },
+      {
+        "path": "a/..dots",
+        "valid": true
+      },
+      {
+        "path": "a/dots..",
+        "valid": true
+      },
+      {
+        "path": "a\\b",
+        "valid": true
+      },
+      {
+        "path": "a:b",
+        "valid": true
+      },
+      {
+        "path": "a b/c d",
+        "valid": true
+      },
+      {
+        "path": "café/naïve.txt",
+        "valid": true
+      },
+      {
+        "path": "...",
+        "valid": true
+      },
+      {
+        "path": "a/.../b",
+        "valid": true
+      },
+      {
+        "path": "/.",
+        "valid": false
+      },
+      {
+        "path": "./",
+        "valid": false
+      },
+      {
+        "path": "../",
+        "valid": false
+      },
+      {
+        "path": "a///",
+        "valid": false
+      },
+      {
+        "path": "dir/sub/file.tar.gz",
+        "valid": true
+      }
+    ],
+    "files": [
+      {
+        "path": "README.md",
+        "data": "# Title\n",
+        "mode": 420,
+        "mod_time": 1700000000,
+        "is_dir": false
+      },
+      {
+        "path": "a/b/c.txt",
+        "data": "hello",
+        "mode": 420,
+        "mod_time": 1700000001,
+        "is_dir": false
+      },
+      {
+        "path": "a/b/d.log",
+        "data": "logdata",
+        "mode": 384,
+        "mod_time": 1700000002,
+        "is_dir": false
+      },
+      {
+        "path": "a/d.txt",
+        "data": "world!",
+        "mode": 420,
+        "mod_time": 1700000003,
+        "is_dir": false
+      },
+      {
+        "path": "a/x.txt",
+        "data": "",
+        "mode": 292,
+        "mod_time": 1700000004,
+        "is_dir": false
+      },
+      {
+        "path": "empty",
+        "data": "",
+        "mode": 2147484141,
+        "mod_time": 1700000005,
+        "is_dir": true
+      },
+      {
+        "path": "z/nested/deep/file.bin",
+        "data": "binary",
+        "mode": 420,
+        "mod_time": 1700000006,
+        "is_dir": false
+      }
+    ],
+    "read_file": [
+      {
+        "path": "README.md",
+        "data": "# Title\n",
+        "error": ""
+      },
+      {
+        "path": "a/b/c.txt",
+        "data": "hello",
+        "error": ""
+      },
+      {
+        "path": "a/x.txt",
+        "data": "",
+        "error": ""
+      },
+      {
+        "path": "z/nested/deep/file.bin",
+        "data": "binary",
+        "error": ""
+      },
+      {
+        "path": ".",
+        "data": "",
+        "error": "is_dir"
+      },
+      {
+        "path": "a",
+        "data": "",
+        "error": "is_dir"
+      },
+      {
+        "path": "empty",
+        "data": "",
+        "error": "is_dir"
+      },
+      {
+        "path": "missing.txt",
+        "data": "",
+        "error": "not_found"
+      },
+      {
+        "path": "/a",
+        "data": "",
+        "error": "invalid"
+      },
+      {
+        "path": "a/",
+        "data": "",
+        "error": "invalid"
+      },
+      {
+        "path": "a/../README.md",
+        "data": "",
+        "error": "invalid"
+      }
+    ],
+    "stat": [
+      {
+        "path": ".",
+        "name": ".",
+        "size": 0,
+        "mode": 2147484013,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "README.md",
+        "name": "README.md",
+        "size": 8,
+        "mode": 420,
+        "is_dir": false,
+        "error": ""
+      },
+      {
+        "path": "a",
+        "name": "a",
+        "size": 0,
+        "mode": 2147484013,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "a/b",
+        "name": "b",
+        "size": 0,
+        "mode": 2147484013,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "a/b/c.txt",
+        "name": "c.txt",
+        "size": 5,
+        "mode": 420,
+        "is_dir": false,
+        "error": ""
+      },
+      {
+        "path": "a/x.txt",
+        "name": "x.txt",
+        "size": 0,
+        "mode": 292,
+        "is_dir": false,
+        "error": ""
+      },
+      {
+        "path": "empty",
+        "name": "empty",
+        "size": 0,
+        "mode": 2147484141,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "z",
+        "name": "z",
+        "size": 0,
+        "mode": 2147484013,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "z/nested",
+        "name": "nested",
+        "size": 0,
+        "mode": 2147484013,
+        "is_dir": true,
+        "error": ""
+      },
+      {
+        "path": "missing",
+        "name": "",
+        "size": 0,
+        "mode": 0,
+        "is_dir": false,
+        "error": "not_found"
+      },
+      {
+        "path": "",
+        "name": "",
+        "size": 0,
+        "mode": 0,
+        "is_dir": false,
+        "error": "invalid"
+      },
+      {
+        "path": "/a",
+        "name": "",
+        "size": 0,
+        "mode": 0,
+        "is_dir": false,
+        "error": "invalid"
+      },
+      {
+        "path": "a//b",
+        "name": "",
+        "size": 0,
+        "mode": 0,
+        "is_dir": false,
+        "error": "invalid"
+      }
+    ],
+    "read_dir": [
+      {
+        "path": ".",
+        "entries": [
+          {
+            "name": "README.md",
+            "is_dir": false
+          },
+          {
+            "name": "a",
+            "is_dir": true
+          },
+          {
+            "name": "empty",
+            "is_dir": true
+          },
+          {
+            "name": "z",
+            "is_dir": true
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "a",
+        "entries": [
+          {
+            "name": "b",
+            "is_dir": true
+          },
+          {
+            "name": "d.txt",
+            "is_dir": false
+          },
+          {
+            "name": "x.txt",
+            "is_dir": false
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "a/b",
+        "entries": [
+          {
+            "name": "c.txt",
+            "is_dir": false
+          },
+          {
+            "name": "d.log",
+            "is_dir": false
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "empty",
+        "entries": [],
+        "error": ""
+      },
+      {
+        "path": "z",
+        "entries": [
+          {
+            "name": "nested",
+            "is_dir": true
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "z/nested",
+        "entries": [
+          {
+            "name": "deep",
+            "is_dir": true
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "z/nested/deep",
+        "entries": [
+          {
+            "name": "file.bin",
+            "is_dir": false
+          }
+        ],
+        "error": ""
+      },
+      {
+        "path": "README.md",
+        "entries": null,
+        "error": "not_dir"
+      },
+      {
+        "path": "missing",
+        "entries": null,
+        "error": "not_found"
+      },
+      {
+        "path": "/a",
+        "entries": null,
+        "error": "invalid"
+      },
+      {
+        "path": "a/",
+        "entries": null,
+        "error": "invalid"
+      }
+    ],
+    "glob": [
+      {
+        "pattern": "*",
+        "matches": [
+          "README.md",
+          "a",
+          "empty",
+          "z"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "*/*",
+        "matches": [
+          "a/b",
+          "a/d.txt",
+          "a/x.txt",
+          "z/nested"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "*/*/*",
+        "matches": [
+          "a/b/c.txt",
+          "a/b/d.log",
+          "z/nested/deep"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/*.txt",
+        "matches": [
+          "a/d.txt",
+          "a/x.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/*/*.txt",
+        "matches": [
+          "a/b/c.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/*/*",
+        "matches": [
+          "a/b/c.txt",
+          "a/b/d.log"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/b/c.txt",
+        "matches": [
+          "a/b/c.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/missing",
+        "matches": [],
+        "error": ""
+      },
+      {
+        "pattern": ".",
+        "matches": [
+          "."
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "empty",
+        "matches": [
+          "empty"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "[a-z]/*.txt",
+        "matches": [
+          "a/d.txt",
+          "a/x.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/[dx].txt",
+        "matches": [
+          "a/d.txt",
+          "a/x.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "a/?.txt",
+        "matches": [
+          "a/d.txt",
+          "a/x.txt"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "z/*/*/file.*",
+        "matches": [
+          "z/nested/deep/file.bin"
+        ],
+        "error": ""
+      },
+      {
+        "pattern": "[invalid",
+        "matches": [],
+        "error": "bad_pattern"
+      },
+      {
+        "pattern": "a/[invalid",
+        "matches": [],
+        "error": "bad_pattern"
+      }
+    ],
+    "sub": [
+      {
+        "dir": ".",
+        "entries": [
+          {
+            "name": "README.md",
+            "is_dir": false
+          },
+          {
+            "name": "a",
+            "is_dir": true
+          },
+          {
+            "name": "empty",
+            "is_dir": true
+          },
+          {
+            "name": "z",
+            "is_dir": true
+          }
+        ],
+        "sample_path": "README.md",
+        "sample_data": "# Title\n",
+        "error": ""
+      },
+      {
+        "dir": "a",
+        "entries": [
+          {
+            "name": "b",
+            "is_dir": true
+          },
+          {
+            "name": "d.txt",
+            "is_dir": false
+          },
+          {
+            "name": "x.txt",
+            "is_dir": false
+          }
+        ],
+        "sample_path": "b/c.txt",
+        "sample_data": "hello",
+        "error": ""
+      },
+      {
+        "dir": "a/b",
+        "entries": [
+          {
+            "name": "c.txt",
+            "is_dir": false
+          },
+          {
+            "name": "d.log",
+            "is_dir": false
+          }
+        ],
+        "sample_path": "c.txt",
+        "sample_data": "hello",
+        "error": ""
+      },
+      {
+        "dir": "empty",
+        "entries": [],
+        "sample_path": "",
+        "sample_data": "",
+        "error": ""
+      },
+      {
+        "dir": "/a",
+        "entries": null,
+        "sample_path": "",
+        "sample_data": "",
+        "error": "invalid"
+      }
+    ],
+    "test_fs": [
+      {
+        "name": "empty_ok",
+        "use_empty": true,
+        "expected": [],
+        "should_pass": true
+      },
+      {
+        "name": "empty_missing",
+        "use_empty": true,
+        "expected": [
+          "a.txt"
+        ],
+        "should_pass": false
+      },
+      {
+        "name": "nonempty_no_expected",
+        "use_empty": false,
+        "expected": [],
+        "should_pass": false
+      },
+      {
+        "name": "subset_ok",
+        "use_empty": false,
+        "expected": [
+          "README.md",
+          "a/b/c.txt"
+        ],
+        "should_pass": true
+      },
+      {
+        "name": "all_ok",
+        "use_empty": false,
+        "expected": [
+          "README.md",
+          "a/b/c.txt",
+          "a/b/d.log",
+          "a/d.txt",
+          "a/x.txt",
+          "empty",
+          "z/nested/deep/file.bin"
+        ],
+        "should_pass": true
+      },
+      {
+        "name": "missing_fail",
+        "use_empty": false,
+        "expected": [
+          "README.md",
+          "does/not/exist"
+        ],
+        "should_pass": false
+      }
+    ]
+  },
+  "quick": {
+    "checks": [
+      {
+        "name": "always_true_100",
+        "max_count": 100,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "always_false_10",
+        "max_count": 10,
+        "should_pass": false,
+        "fail_count": 1
+      },
+      {
+        "name": "add_comm_i64",
+        "max_count": 100,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "xor_self_zero_u32",
+        "max_count": 100,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "double_neg_bool",
+        "max_count": 50,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "string_concat_assoc",
+        "max_count": 50,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "eq_double",
+        "max_count": 100,
+        "should_pass": true,
+        "fail_count": 0
+      },
+      {
+        "name": "eq_mismatch",
+        "max_count": 20,
+        "should_pass": false,
+        "fail_count": 1
+      }
+    ]
+  }
+}

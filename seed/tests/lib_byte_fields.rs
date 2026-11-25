@@ -361,7 +361,10 @@ fn reaches(functions: &std::collections::BTreeMap<&str, &str>, wanted: &str) -> 
                 .is_some_and(|suffix| {
                     !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
                 });
-        if symbol == wanted || specialized_collector {
+        let unboxed_worker = symbol
+            .strip_prefix(wanted)
+            .is_some_and(|suffix| suffix == "#cc" || suffix == "#cpr");
+        if symbol == wanted || unboxed_worker || specialized_collector {
             return true;
         }
         if !seen.insert(symbol) {
@@ -441,9 +444,13 @@ fn fields_complete_adapter_compiles_for_wasm_arm_and_big_endian() {
             "Data.Bytes.Fields.visit-with",
             "Data.Bytes.Fields.scan-space",
             "Data.Bytes.Fields.scan-with",
-            "Data.Bytes.View.ascii-space-sixteen.llvm",
-            "Data.Bytes.View.ascii-space-byte.llvm",
-            "Data.Bytes.View.load-byte.llvm",
+            "Data.Bytes.View.ascii-space-blocks",
+            "Data.Bytes.View.ascii-space-tail",
+            "cinch.runtime.bytesLoadU128",
+            "cinch.runtime.bytesGetU8At",
+            "Prim.Wide.simd-u8x16-cmplt.llvm",
+            "Prim.Wide.simd-u8x16-cmpeq.llvm",
+            "Prim.Wide.simd-u8x16-movemask.llvm",
             "Data.Bytes.Utf8.utf8-decode-between",
             "Data.Unicode.Kernel.unicode-is-space-code",
         ] {
@@ -453,10 +460,18 @@ fn fields_complete_adapter_compiles_for_wasm_arm_and_big_endian() {
                 file.display()
             );
         }
-        let vector = functions["Data.Bytes.View.ascii-space-sixteen.llvm"];
-        assert!(vector.contains("load <16 x i8>") && vector.contains("align 1"));
-        assert!(vector.contains("icmp ule <16 x i8>") && vector.contains("icmp ult <16 x i8>"));
-        assert!(!vector.contains("store "));
+        let load128 = functions["cinch.runtime.bytesLoadU128"];
+        assert!(load128.contains("load i128") && load128.contains("align 1"));
+        assert!(!load128.contains("store "));
+        if endian == "big" {
+            assert!(load128.contains("@llvm.bswap.i128"));
+        }
+        let cmplt = functions["Prim.Wide.simd-u8x16-cmplt.llvm"];
+        assert!(cmplt.contains("icmp ult <16 x i8>") && !cmplt.contains("store "));
+        let cmpeq = functions["Prim.Wide.simd-u8x16-cmpeq.llvm"];
+        assert!(cmpeq.contains("icmp eq <16 x i8>") && !cmpeq.contains("store "));
+        let movemask = functions["Prim.Wide.simd-u8x16-movemask.llvm"];
+        assert!(movemask.contains("bitcast <16 x i1>") && !movemask.contains("store "));
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

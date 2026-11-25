@@ -1,6 +1,6 @@
 # Standard library (`cinch/stdlib`)
 
-Standard library API reference extracted from checked `.cinchif` compiler interfaces across **288 modules** and **7,907 indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).
+Standard library API reference extracted from checked `.cinchif` compiler interfaces across **324 modules** and **10,928 indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).
 
 <form class="doc-hoogle-box" action="/packages/search/" method="get" role="search">
 <label for="lib-index-search">Search by symbol name or type signature</label>
@@ -29,7 +29,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 
 | Module | Exports | Purpose |
 | --- | --- | --- |
-| [Prelude](Prelude.md) | 1107 | The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library. |
+| [Prelude](Prelude.md) | 1150 | The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library. |
 
 ## Algebra
 
@@ -81,10 +81,15 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Crypto.Hmac](Crypto.Hmac.md) | 13 | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
 | [Crypto.Hpke](Crypto.Hpke.md) | 32 | Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes. |
 | [Crypto.Kdf](Crypto.Kdf.md) | 8 | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
+| [Crypto.MlDsa](Crypto.MlDsa.md) | 20 | FIPS 204 ML-DSA-44, ML-DSA-65, and ML-DSA-87 post-quantum digital signatures: deterministic and hedged signing, verification, and key/signature codecs. |
 | [Crypto.MlKem](Crypto.MlKem.md) | 18 | ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels. |
 | [Crypto.P256](Crypto.P256.md) | 28 | Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels. |
+| [Crypto.Pkix](Crypto.Pkix.md) | 106 | PKIX distinguished names, OIDs, RFC 4514 formatting, algorithm identifiers, X.509 extensions, times and certificate revocation lists (CRLs). |
 | [Crypto.Rc4](Crypto.Rc4.md) | 5 | The RC4 stream cipher as a persistent keystream state, for legacy data only. |
+| [Crypto.Rsa](Crypto.Rsa.md) | 44 | RSA PKCS#1 v1.5 and PSS signing/verification, OAEP and PKCS#1 v1.5 encryption/decryption, PKCS#1 DER key codecs and seeded key generation. |
+| [Crypto.Tls](Crypto.Tls.md) | 88 | Pure sans-I/O RFC 8446 TLS 1.3 client and server handshake state machine, key schedule, record AEAD framing, ALPN/SNI and X.509 verification. |
 | [Crypto.X25519](Crypto.X25519.md) | 10 | Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection. |
+| [Crypto.X509](Crypto.X509.md) | 133 | X.509 v3 certificate parsing, creation and chain verification, RFC 6125 hostname and IP SAN checks, CSRs, and PKIX/PKCS#8/SEC1/PKCS#1 key codecs. |
 
 ## Data
 
@@ -104,17 +109,18 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Bytes.Utf8](Data.Bytes.Utf8.md) | 30 | Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding. |
 | [Data.Bytes.View](Data.Bytes.View.md) | 53 | Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | 4 | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
-| [Data.Bytes](Data.Bytes.md) | 10 | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
+| [Data.Bytes](Data.Bytes.md) | 27 | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
 | [Data.ChaCha8](Data.ChaCha8.md) | 9 | The ChaCha8 pseudorandom generator: four interleaved eight-round blocks per vector kernel call, byte reads and state encoding. |
 | [Data.Char](Data.Char.md) | 21 | Unicode scalar values and checked character/code conversions, with range information for safe use. |
 | [Data.Columnar](Data.Columnar.md) | 8 | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
 | [Data.Compare](Data.Compare.md) | 10 | Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection. |
-| [Data.Complex](Data.Complex.md) | 16 | Complex values and numeric operations using the module's current floating representation. |
+| [Data.Complex](Data.Complex.md) | 42 | Binary64 complex arithmetic, overflow-safe division, polar conversions, and full elementary, trigonometric, hyperbolic, and inverse functions over Data.Float. |
 | [Data.Compose](Data.Compose.md) | 2 | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | 3 | A constant container that retains its first parameter while ignoring the mapped value parameter. |
 | [Data.CookieJar](Data.CookieJar.md) | 7 | An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends. |
 | [Data.Core](Data.Core.md) | 3 | Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles. |
 | [Data.Date](Data.Date.md) | 18 | Civil date values, validation, parsing/formatting, and calendar calculations. |
+| [Data.Elf](Data.Elf.md) | 131 | Bounds-checked ELF32 and ELF64 (little/big-endian) parser for headers, segments, sections, symbols, relocations, dynamic tables and zlib-compressed sections. |
 | [Data.Enum](Data.Enum.md) | 6 | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
 | [Data.Float](Data.Float.md) | 79 | Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target. |
 | [Data.FromList](Data.FromList.md) | 1 | The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type. |
@@ -126,8 +132,10 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.IpAddr](Data.IpAddr.md) | 16 | Validated IP addresses, parsing/rendering, and address-family vocabulary. |
 | [Data.Json](Data.Json.md) | 1 | The JSON value representation shared by parsers, renderers, codecs, and structured observability. |
 | [Data.List](Data.List.md) | 42 | Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances. |
-| [Data.Machine](Data.Machine.md) | 825 | Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit. |
+| [Data.MachO](Data.MachO.md) | 116 | Bounds-checked Mach-O 32/64 (little/big-endian) and Universal/Fat binary parser for load commands, segments, sections, symbols and dylibs. |
+| [Data.Machine](Data.Machine.md) | 851 | Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit. |
 | [Data.Map](Data.Map.md) | 16 | Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support. |
+| [Data.MapHash](Data.MapHash.md) | 22 | Fast keyed 64-bit non-cryptographic hash with persistent streaming state, one-shot byte/string fast paths and MapHashable typed comparable hashing. |
 | [Data.Matrix](Data.Matrix.md) | 17 | Matrix construction, shape checks, indexing, transformation, and arithmetic operations. |
 | [Data.Mutable.Array](Data.Mutable.Array.md) | 14 | A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array. |
 | [Data.Mutable.BTree](Data.Mutable.BTree.md) | 26 | An ordered mutable map: a degree-8 B-tree whose nodes are indices into one pooled set of slot arrays, with floor, ceiling, range folds, pop-min/max and a structural verifier. |
@@ -150,11 +158,13 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Mutable.Vec](Data.Mutable.Vec.md) | 30 | A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array. |
 | [Data.Mutable](Data.Mutable.md) | 231 | A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports. |
 | [Data.Nat](Data.Nat.md) | 16 | Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions. |
+| [Data.NetIp](Data.NetIp.md) | 65 | Immutable IPv4, IPv6, 4-in-6 and zoned addresses, AddrPort pairs and CIDR prefixes with RFC 5952 formatting, containment, overlap and binary codecs. |
 | [Data.NonEmpty](Data.NonEmpty.md) | 2 | Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate. |
 | [Data.NonZero](Data.NonZero.md) | 2 | Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors. |
 | [Data.Option](Data.Option.md) | 10 | Optional values with None and Some, plus combinators for propagating or consuming absence. |
 | [Data.Ordering](Data.Ordering.md) | 1 | The LT, EQ, and GT comparison result vocabulary and its instances. |
 | [Data.Path](Data.Path.md) | 11 | Platform path values and composition/conversion operations used by filesystem and process APIs. |
+| [Data.Pe](Data.Pe.md) | 123 | Bounds-checked PE32, PE32+ and COFF binary parser for headers, data directories, sections, COFF symbols, imports and exports. |
 | [Data.Producer](Data.Producer.md) | 10 | Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive. |
 | [Data.Rand](Data.Rand.md) | 26 | Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf. |
 | [Data.Rational](Data.Rational.md) | 14 | Rational numbers with explicit denominator/error policy and arithmetic operations. |
@@ -162,8 +172,10 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Search](Data.Search.md) | 2 | Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons. |
 | [Data.Set](Data.Set.md) | 16 | Ordered sets and their membership, combination, difference, and conversion operations. |
 | [Data.Sorted](Data.Sorted.md) | 3 | Lists refined by sortedness, with construction and combination that preserve ordering. |
+| [Data.Sql](Data.Sql.md) | 77 | Pure typed SQL values, NULLs, named parameters, isolation levels, column metadata, errors and checked row scanners. |
 | [Data.String](Data.String.md) | 32 | Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability. |
 | [Data.StringIo](Data.StringIo.md) | 14 | In-memory string-oriented I/O utilities with explicit state and error results. |
+| [Data.SuffixArray](Data.SuffixArray.md) | 13 | Immutable O(n log n) suffix arrays over raw bytes with binary-search lookup, regex search and checked versioned binary serialization. |
 | [Data.Sym](Data.Sym.md) | 2 | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | 9 | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | 5 | Immutable row-major tensors with checked runtime shapes of any rank. |
@@ -191,7 +203,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Unicode.Tables](Data.Unicode.Tables.md) | 16 | Generated Unicode property, case and folding data with a pinned version and source provenance. |
 | [Data.Unicode](Data.Unicode.md) | 141 | Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges. |
 | [Data.Uuid](Data.Uuid.md) | 24 | Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state. |
-| [Data.Wide](Data.Wide.md) | 244 | Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies. |
+| [Data.Wide](Data.Wide.md) | 295 | Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies. |
 | [Data.Word](Data.Word.md) | 33 | Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words. |
 
 ## Text
@@ -218,11 +230,15 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Text.Csv](Text.Csv.md) | 8 | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | 8 | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
 | [Text.FilePath](Text.FilePath.md) | 4 | POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting. |
+| [Text.Flate](Text.Flate.md) | 15 | RFC 1951 raw DEFLATE compression (hash-chain LZ77 and Package-Merge dynamic/fixed Huffman) and bounded decompression with preset dictionaries. |
 | [Text.Fnv.State](Text.Fnv.State.md) | 21 | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.Fnv](Text.Fnv.md) | 12 | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
-| [Text.Gzip](Text.Gzip.md) | 5 | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
+| [Text.Gob](Text.Gob.md) | 49 | Wire-compatible Go gob binary encoder and decoder for primitives, slices, arrays, maps and structs with stateful type-descriptor reuse. |
+| [Text.Gzip](Text.Gzip.md) | 7 | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
 | [Text.Hex](Text.Hex.md) | 14 | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
 | [Text.Html](Text.Html.md) | 5 | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
+| [Text.HtmlTemplate](Text.HtmlTemplate.md) | 30 | Context-aware auto-escaping HTML template engine over Text.Template and Text.Html with typed safe content wrappers for HTML, attributes, URLs, JS, CSS and srcset. |
+| [Text.Http](Text.Http.md) | 187 | Pure HTTP/1.1 wire parsing/rendering, chunked transfer coding, status texts, canonical headers, forms and Go 1.22 ServeMux pattern routing. |
 | [Text.Json.Binary32](Text.Json.Binary32.md) | 2 | Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons. |
 | [Text.Json.Codec](Text.Json.Codec.md) | 137 | Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values. |
 | [Text.Json.Dynamic](Text.Json.Dynamic.md) | 24 | Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction. |
@@ -243,6 +259,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Text.Punycode](Text.Punycode.md) | 5 | Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels. |
 | [Text.QuotedPrintable](Text.QuotedPrintable.md) | 24 | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | 22 | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
+| [Text.Rpc](Text.Rpc.md) | 71 | Pure JSON-RPC 1.0/2.0 (single, notification, batch) and length-prefixed gob-RPC wire codecs, envelopes, and standard error codes. |
 | [Text.Scan](Text.Scan.md) | 31 | Scanning primitives over input text and the shared position/error vocabulary. |
 | [Text.Sha1](Text.Sha1.md) | 16 | SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints. |
 | [Text.Sha256](Text.Sha256.md) | 19 | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
@@ -251,6 +268,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Text.Shellwords](Text.Shellwords.md) | 5 | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | 7 | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
 | [Text.Smtp](Text.Smtp.md) | 19 | SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges. |
+| [Text.Strconv](Text.Strconv.md) | 53 | Explicit-base and width-aware integer codecs, exact decimal and hexadecimal float parsing and formatting, complex parsing/formatting and Go string/rune quoting. |
 | [Text.TabWriter](Text.TabWriter.md) | 14 | Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing. |
 | [Text.Tar](Text.Tar.md) | 43 | Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums. |
 | [Text.Template](Text.Template.md) | 23 | Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values. |
@@ -274,12 +292,13 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Text.Url.Scan](Text.Url.Scan.md) | 9 | Private portable SIMD byte scanning shared by URL parsing, queries and path traversal. |
 | [Text.Url.Userinfo](Text.Url.Userinfo.md) | 6 | Immutable copied URL user information with explicit password presence and checked percent encoding. |
 | [Text.Url](Text.Url.md) | 92 | Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution. |
+| [Text.User](Text.User.md) | 27 | Pure Unix /etc/passwd and /etc/group parsers, user/group lookup tables, and supplementary group resolution. |
 | [Text.Utf16](Text.Utf16.md) | 10 | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
 | [Text.Utf8](Text.Utf8.md) | 35 | Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes. |
 | [Text.Xml](Text.Xml.md) | 33 | Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation. |
 | [Text.Yaml](Text.Yaml.md) | 9 | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
-| [Text.Zip](Text.Zip.md) | 29 | Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives. |
-| [Text.Zlib](Text.Zlib.md) | 8 | Compression/decompression operations and named malformed/unsupported-stream results. |
+| [Text.Zip](Text.Zip.md) | 30 | Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or Text.Flate-compressed deflated archives. |
+| [Text.Zlib](Text.Zlib.md) | 12 | RFC 1950 zlib and raw DEFLATE compression (backed by Text.Flate LZ77 + dynamic Huffman) and decompression with named error results. |
 
 ## Effect
 
@@ -305,18 +324,25 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.Crc64](Effect.Crc64.md) | 3 | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
 | [Effect.Crypto](Effect.Crypto.md) | 12 | Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source. |
 | [Effect.Csv](Effect.Csv.md) | 27 | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
+| [Effect.Expvar](Effect.Expvar.md) | 46 | Region-scoped live metrics registry (Int, Float, String, Map, Func) with deterministic sorted JSON snapshots and /debug/vars HTTP response adapter. |
 | [Effect.FileUtils](Effect.FileUtils.md) | 9 | Convenience filesystem operations built on the lower-level filesystem API. |
 | [Effect.Find](Effect.Find.md) | 4 | Filesystem walking/search utilities with the module's traversal and error policy. |
+| [Effect.Flate](Effect.Flate.md) | 11 | Incremental raw DEFLATE streaming readers and writers over Effect.Stream with sync flush and preset dictionaries. |
 | [Effect.Fnv](Effect.Fnv.md) | 6 | Inspectable FNV hashing sinks, generic byte-writer composition and bounded reader-to-hash copying with advanced continuations. |
 | [Effect.Fs](Effect.Fs.md) | 10 | Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors. |
+| [Effect.Gob](Effect.Gob.md) | 14 | Streaming Go gob encoders and decoders over Effect.Stream preserving type IDs across multi-message streams. |
 | [Effect.Hex](Effect.Hex.md) | 11 | Hexadecimal encoding writers, decoding readers and formatted dump sinks with explicit continuations and sticky errors. |
-| [Effect.Http](Effect.Http.md) | 20 | A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation. |
+| [Effect.Http.Server](Effect.Http.Server.md) | 44 | HTTP/1.1 and TLS 1.3 HTTPS listener/socket servers with keep-alive, size limits and ServeMux dispatch, plus a TLS/CookieJar/redirect-aware HTTP client. |
+| [Effect.Http.Util](Effect.Http.Util.md) | 21 | HTTP/1.1 wire request/response dumping, strict chunked codecs, hop-by-hop header stripping, and HTTP/HTTPS ReverseProxy forwarding. |
+| [Effect.Http](Effect.Http.md) | 23 | Bounded HTTP/1.1 and TLS 1.3 HTTPS client operations with response framing, header helpers, and named errors. |
+| [Effect.HttpTest](Effect.HttpTest.md) | 23 | In-memory HTTP ResponseRecorder, request builder and loopback wire/socket testing helpers. |
 | [Effect.Io](Effect.Io.md) | 5 | A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration. |
 | [Effect.Log](Effect.Log.md) | 21 | Structured log operations and records with runtime capability/effect accounting. |
+| [Effect.MapHash](Effect.MapHash.md) | 1 | Operating-system entropy seed generation for Data.MapHash. |
 | [Effect.Md5](Effect.Md5.md) | 3 | Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Mime](Effect.Mime.md) | 20 | Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations. |
 | [Effect.Multipart](Effect.Multipart.md) | 79 | Explicit shared multipart sessions with borrowed byte I/O capabilities. |
-| [Effect.Net](Effect.Net.md) | 8 | Socket operations with explicit handles, address values, errors, and runtime effects. |
+| [Effect.Net](Effect.Net.md) | 15 | TCP client sockets, TCP listeners (listen/accept), UDP send, address values, named errors, and runtime effects. |
 | [Effect.Pem](Effect.Pem.md) | 3 | Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining. |
 | [Effect.Process](Effect.Process.md) | 15 | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
 | [Effect.Pty](Effect.Pty.md) | 13 | Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations. |
@@ -324,6 +350,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.Rand](Effect.Rand.md) | 2 | Pseudorandom sources seeded from operating-system entropy. |
 | [Effect.Random](Effect.Random.md) | 7 | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | 6 | Hostname/address resolution through the runtime, with named failure results. |
+| [Effect.Rpc](Effect.Rpc.md) | 33 | Effectful JSON-RPC and gob-RPC TCP listener servers, clients, and HTTP POST JSON-RPC handler over Effect.Net and Effect.Http.Server. |
 | [Effect.Scanner.Split](Effect.Scanner.Split.md) | 11 | Byte-preserving token splitters with explicit absent, empty and final token states. |
 | [Effect.Scanner](Effect.Scanner.md) | 12 | Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures. |
 | [Effect.Sequencing](Effect.Sequencing.md) | 6 | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
@@ -332,7 +359,8 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.Sha3](Effect.Sha3.md) | 4 | Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader. |
 | [Effect.Sha512](Effect.Sha512.md) | 3 | Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
 | [Effect.Signal](Effect.Signal.md) | 5 | Operating-system signal vocabulary and runtime operations with explicit error/effect handling. |
-| [Effect.Smtp](Effect.Smtp.md) | 15 | An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail. |
+| [Effect.Smtp](Effect.Smtp.md) | 32 | An SMTP client over sockets and TLS 1.3 (implicit SMTPS and RFC 3207 STARTTLS) with explicit client state, HELO fallback, PLAIN/CRAM-MD5 authentication, envelope, data, quit and send-mail. |
+| [Effect.Sql](Effect.Sql.md) | 78 | Capability-explicit SQL driver protocol, STM-backed connection pooling, prepared statements, transactions, retries and an in-memory transactional driver. |
 | [Effect.Stm.TBQueue](Effect.Stm.TBQueue.md) | 11 | A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty. |
 | [Effect.Stm.TMVar](Effect.Stm.TMVar.md) | 13 | A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions. |
 | [Effect.Stm.TQueue](Effect.Stm.TQueue.md) | 10 | An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables. |
@@ -341,10 +369,16 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.Stream.Offset](Effect.Stream.Offset.md) | 12 | Positional byte writers, signed cursor movement and streaming at a base offset. |
 | [Effect.Stream.Section](Effect.Stream.Section.md) | 14 | Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters. |
 | [Effect.Stream](Effect.Stream.md) | 27 | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
+| [Effect.Syslog](Effect.Syslog.md) | 36 | RFC 3164 and RFC 5424 syslog message formatting, facility/severity priorities, Effect.Log sink bridge, and UDP/TCP network writers. |
+| [Effect.Test.Fs](Effect.Test.Fs.md) | 33 | Immutable in-memory MapFs with synthesized directories, path validation, globbing, subtrees and filesystem conformance checks. |
+| [Effect.Test.Io](Effect.Test.Io.md) | 13 | Stream fault-injection, logging and conformance-testing adapters over Effect.Stream. |
+| [Effect.Test.Quick](Effect.Test.Quick.md) | 23 | Deterministic property-based testing engine with Arbitrary instances over Data.Rand. |
 | [Effect.Test](Effect.Test.md) | 24 | A subprocess-based test runner and named test-result/report vocabulary. |
 | [Effect.Time.Zone](Effect.Time.Zone.md) | 15 | The system time zone database and the current system zone. |
 | [Effect.Time](Effect.Time.md) | 15 | Typed readers for the system and monotonic clocks. |
+| [Effect.Tls](Effect.Tls.md) | 12 | Effectful TLS 1.3 client and server connections over Effect.Net sockets with OS entropy and clock-checked certificate verification. |
 | [Effect.Trace](Effect.Trace.md) | 6 | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
+| [Effect.User](Effect.User.md) | 11 | Operating-system user and group lookups (current user, by name/UID/GID, supplementary group IDs) over Prim.Sys and Effect.Process. |
 | [Effect.Uuid](Effect.Uuid.md) | 5 | Secure UUID generation with explicit serialized version 7 ownership. |
 
 ## Image
@@ -363,10 +397,12 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 
 | Module | Exports | Purpose |
 | --- | --- | --- |
+| [Prim.Machine](Prim.Machine.md) | 355 | Leaf inline-LLVM scalar machine primitives (fixed-width wrapping/saturating/overflow/bitwise/shift/rotate/bitscan/comparison/conversion operations and word-size bridges), re-exported through Data.Machine and shared directly by Data.Char, Data.Bytes, and Data.String. |
 | [Prim.Sys.Darwin](Prim.Sys.Darwin.md) | 19 | The Darwin half of the syscall layer: libSystem calls bound with foreign import ccall (open, read, write, close, lseek, fstat, mkdir, unlink, rename, fsync, getpid), with the -1 result mapped to a named error read from the thread error slot. |
 | [Prim.Sys.Linux](Prim.Sys.Linux.md) | 18 | The Linux half of the syscall layer: prim bodies that issue syscall with the pinned number per architecture (x86_64 and aarch64), with the kernel negative result mapped to the same named errors as the Darwin module. |
 | [Prim.Sys.Portable](Prim.Sys.Portable.md) | 10 | The floor under Prim.Sys: the same entry names and the same named errors as the real backends, with every entry point answering Err SysIoError. It is what a target with no backend yet gets, and it keeps the prelude surface from being empty there. |
 | [Prim.Sys](Prim.Sys.md) | 18 | The syscall layer for the compile target under one name: conditional imports and re-exports select Prim.Sys.Darwin on a Darwin target, Prim.Sys.Linux on a Linux target, and the portable floor everywhere else, so a caller imports one module and never names an operating system. |
+| [Prim.Wide](Prim.Wide.md) | 50 | Leaf inline-LLVM 128-bit SIMD lane primitives and target-guarded hardware AES/CLMUL instructions (AES-NI, ARMv8 AES, PCLMULQDQ, PMULL) with portable fallbacks, re-exported through Data.Wide and shared directly by Data.String. |
 
 # Regeneration and verification
 

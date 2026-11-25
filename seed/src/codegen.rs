@@ -83,8 +83,7 @@ mod mvar_codegen;
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
-    CmpOp, ConcOp, ConvMode, Core, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
+    CmpOp, ConcOp, ConvMode, Core, CtorLayout, FieldAccess, FieldShape, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
     Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op, symbol_in_modules,
 };
 use crate::types::Scalar;
@@ -112,6 +111,9 @@ struct LowerCx {
     /// lower for it (primitive operations and inline target IR
     /// specification section 3).
     native: bool,
+    /// True on big-endian targets (e.g. powerpc64) so little-endian word
+    /// memory ops byte-swap via `llvm.bswap`.
+    big_endian: bool,
 }
 
 impl LowerCx {
@@ -334,6 +336,7 @@ fn emit_module(
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
         native: profile.artifact == crate::core::ArtifactProfile::Native,
+        big_endian: profile.endian == "big",
     };
     // The internal convention is a target property (`tail_conv`): where
     // LLVM's `tailcc` exists, the units whose tail calls are guaranteed run
@@ -543,6 +546,13 @@ fn emit_module(
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
         "declare i64 @cinch_stm_cell_new(i64, i64)",
+        "declare i64 @cinch_stm_state(i64)",
+        "declare i64 @cinch_stm_publish(i64, i64)",
+        "declare i64 @cinch_stm_wait_begin(i64)",
+        "declare i64 @cinch_stm_wait_park(i64)",
+        "declare i64 @cinch_stm_wait_cancel(i64)",
+        "declare i64 @cinch_stm_wake(i64)",
+        "declare i64 @cinch_stm_yield(i64)",
         "declare i64 @cinch_mvar_new(i64, i64, i64)",
         "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
         crate::slots::DECLARES[0],
@@ -617,6 +627,11 @@ fn emit_module(
         // The networking family (`seed/runtime/src/net.rs`): TCP
         // sockets by handle and platform name resolution.
         "declare i64 @cinch_net_tcp_connect(i64, i64)",
+        "declare i64 @cinch_net_tcp_listen(i64, i64)",
+        "declare i64 @cinch_net_tcp_accept(i64)",
+        "declare i64 @cinch_net_listener_addr(i64)",
+        "declare i64 @cinch_net_listener_close(i64)",
+        "declare i64 @cinch_net_udp_send(i64, i64, i64)",
         "declare i64 @cinch_net_read(i64, i64)",
         "declare i64 @cinch_net_write(i64, i64)",
         "declare i64 @cinch_net_close(i64)",
@@ -725,6 +740,12 @@ fn emit_module(
     out.push_str("declare double @llvm.fabs.f64(double)\n");
     out.push_str("declare float @llvm.sqrt.f32(float)\n");
     out.push_str("declare double @llvm.sqrt.f64(double)\n");
+    out.push_str("declare float @llvm.copysign.f32(float, float)\n");
+    out.push_str("declare double @llvm.copysign.f64(double, double)\n");
+    for f in ["floor", "ceil", "trunc", "round", "roundeven"] {
+        out.push_str(&format!("declare float @llvm.{f}.f32(float)\n"));
+        out.push_str(&format!("declare double @llvm.{f}.f64(double)\n"));
+    }
     for w in ["i8", "i16", "i32", "i64"] {
         out.push_str(&format!("declare {w} @llvm.ctpop.{w}({w})\n"));
         out.push_str(&format!("declare {w} @llvm.ctlz.{w}({w}, i1)\n"));
@@ -751,6 +772,14 @@ fn emit_module(
         out.push_str("declare i128 @llvm.ctlz.i128(i128, i1)\n");
         out.push_str("declare i128 @llvm.cttz.i128(i128, i1)\n");
         out.push_str("declare i128 @llvm.bitreverse.i128(i128)\n");
+        out.push_str("declare <8 x i16> @llvm.smin.v8i16(<8 x i16>, <8 x i16>)\n");
+        out.push_str("declare <8 x i16> @llvm.smax.v8i16(<8 x i16>, <8 x i16>)\n");
+        out.push_str("declare <4 x i32> @llvm.smin.v4i32(<4 x i32>, <4 x i32>)\n");
+        out.push_str("declare <4 x i32> @llvm.smax.v4i32(<4 x i32>, <4 x i32>)\n");
+        out.push_str("declare <4 x i32> @llvm.fshl.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\n");
+        out.push_str("declare <4 x i32> @llvm.fshr.v4i32(<4 x i32>, <4 x i32>, <4 x i32>)\n");
+        out.push_str("declare <2 x i64> @llvm.fshl.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n");
+        out.push_str("declare <2 x i64> @llvm.fshr.v2i64(<2 x i64>, <2 x i64>, <2 x i64>)\n");
         out.push_str("declare i64 @cinch_int_from_i128(i128)\n");
         out.push_str("declare i128 @cinch_int_to_i128(i64)\n");
         out.push_str("declare i64 @cinch_nat_from_u128(i128)\n");
@@ -811,6 +840,13 @@ fn emit_module(
     let prim_use_declares = prim_use_declares(program, &out);
     if !prim_use_declares.is_empty() {
         for line in prim_use_declares {
+            out.push_str(&line);
+        }
+        out.push('\n');
+    }
+    let prim_intrinsics = prim_llvm_intrinsic_declares(program, &out);
+    if !prim_intrinsics.is_empty() {
+        for line in prim_intrinsics {
             out.push_str(&line);
         }
         out.push('\n');
@@ -1203,11 +1239,19 @@ struct Registry {
     /// Boundary layout plans by constructor unit name (attribute
     /// annotations specification section 4.3).
     plans: BTreeMap<String, CtorLayout>,
-    /// Module-level metadata nodes (branch weights) in emission order;
-    /// metadata ids are module-scoped and the registry is one per
-    /// module (attribute annotations specification section 3.1).
+    /// Module-level metadata nodes (branch weights, TBAA, invariant.load)
+    /// in emission order; metadata ids are module-scoped and the registry
+    /// is one per module (attribute annotations specification section 3.1).
     meta_defs: RefCell<Vec<String>>,
     meta_next: Cell<usize>,
+    /// Cached `!{}` node for `!invariant.load`.
+    meta_empty: Cell<Option<usize>>,
+    /// Cached TBAA access tags separating Cinch block headers from Bytes payloads.
+    meta_tbaa_hdr: Cell<Option<usize>>,
+    meta_tbaa_bytes: Cell<Option<usize>>,
+    /// Cached `!prof` branch weight nodes (`9999/1` and `1/9999`).
+    meta_prof_likely: Cell<Option<usize>>,
+    meta_prof_unlikely: Cell<Option<usize>>,
     /// Function attribute groups by content (attribute annotations
     /// specification section 5).
     attr_groups: RefCell<Vec<(String, usize)>>,
@@ -1594,6 +1638,64 @@ impl Registry {
     fn branch_weights(&self, ws: &[u32]) -> String {
         let list: Vec<String> = ws.iter().map(|w| format!("i32 {w}")).collect();
         self.meta_node(format!("!{{!\"branch_weights\", {}}}", list.join(", ")))
+    }
+
+    fn meta_id(&self, def: String) -> usize {
+        let id = self.meta_next.get();
+        self.meta_next.set(id + 1);
+        self.meta_defs.borrow_mut().push(format!("!{id} = {def}\n"));
+        id
+    }
+
+    /// Empty `!{}` node for `!invariant.load`.
+    fn invariant_load(&self) -> String {
+        let id = self.meta_empty.get().unwrap_or_else(|| {
+            let id = self.meta_id("!{}".to_string());
+            self.meta_empty.set(Some(id));
+            id
+        });
+        format!("!{id}")
+    }
+
+    /// Initialize TBAA nodes separating block headers/descriptors from `Bytes` payloads.
+    fn ensure_tbaa(&self) -> (usize, usize) {
+        if let (Some(h), Some(b)) = (self.meta_tbaa_hdr.get(), self.meta_tbaa_bytes.get()) {
+            return (h, b);
+        }
+        let root = self.meta_id("!{!\"cinch TBAA\"}".to_string());
+        let hdr_ty = self.meta_id(format!("!{{!\"cinch block header\", !{root}, i64 0}}"));
+        let bytes_ty = self.meta_id(format!("!{{!\"cinch bytes payload\", !{root}, i64 0}}"));
+        let hdr = self.meta_id(format!("!{{!{hdr_ty}, !{hdr_ty}, i64 0}}"));
+        let bytes = self.meta_id(format!("!{{!{bytes_ty}, !{bytes_ty}, i64 0}}"));
+        self.meta_tbaa_hdr.set(Some(hdr));
+        self.meta_tbaa_bytes.set(Some(bytes));
+        (hdr, bytes)
+    }
+
+    fn tbaa_hdr(&self) -> String {
+        format!("!{}", self.ensure_tbaa().0)
+    }
+
+    fn tbaa_bytes(&self) -> String {
+        format!("!{}", self.ensure_tbaa().1)
+    }
+
+    fn prof_likely(&self) -> String {
+        let id = self.meta_prof_likely.get().unwrap_or_else(|| {
+            let id = self.meta_id("!{!\"branch_weights\", i32 9999, i32 1}".to_string());
+            self.meta_prof_likely.set(Some(id));
+            id
+        });
+        format!("!{id}")
+    }
+
+    fn prof_unlikely(&self) -> String {
+        let id = self.meta_prof_unlikely.get().unwrap_or_else(|| {
+            let id = self.meta_id("!{!\"branch_weights\", i32 1, i32 9999}".to_string());
+            self.meta_prof_unlikely.set(Some(id));
+            id
+        });
+        format!("!{id}")
     }
 
     /// The `#N` function attribute group for one unit: its hint set and
@@ -3907,9 +4009,17 @@ struct Cpr {
 }
 
 impl Cpr {
-    /// The aggregate the body returns: `{ i64, i64 }` for a pair.
+    /// The LLVM type of one field in the returned aggregate.
+    fn field_ty(c: Class) -> &'static str {
+        if c == Class::Wide { "i128" } else { "i64" }
+    }
+
+    /// The aggregate the body returns: `{ i64, i64 }` for a word pair,
+    /// `{ i128 }` for a single wide wrapper, `{ i64, i128 }` for a
+    /// word-and-wide pair.
     fn ty(&self) -> String {
-        format!("{{ {} }}", vec!["i64"; self.fields.len()].join(", "))
+        let parts: Vec<&'static str> = self.fields.iter().map(|c| Self::field_ty(*c)).collect();
+        format!("{{ {} }}", parts.join(", "))
     }
 }
 
@@ -4032,13 +4142,22 @@ fn product_ctors(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
             let ctor = f.id.0.as_str();
             let (tag, n) = *reg.ctors.get(ctor)?;
             let fields = &f.repr.fields;
-            ((1..=CPR_MAX_FIELDS).contains(&n)
+            // Measure both field count and register words: a `Class::Wide` field
+            // occupies two words (`i128`), so a single-field wide wrapper (`{ i128 }`),
+            // a word-and-wide pair (`{ i64, i128 }`), or a wide pair (`{ i128, i128 }`)
+            // returns unboxed without heap allocation while keeping word-only
+            // structs bounded at `CPR_MAX_FIELDS`.
+            let words: usize = fields.iter().map(|c| c.words()).sum();
+            let max_words = if fields.iter().any(|c| *c == Class::Wide) {
+                4
+            } else {
+                CPR_MAX_FIELDS
+            };
+            ((1..=CPR_MAX_FIELDS).contains(&fields.len())
+                && (1..=max_words).contains(&words)
                 && fields.len() == n
                 && reg.plan_of(ctor).is_none()
-                && fields.iter().all(|c| !c.is_param())
-                // A wide field is two payload words and an `i128` binder,
-                // not one register word (design/wide-scalars.md).
-                && !fields.contains(&Class::Wide))
+                && fields.iter().all(|c| !c.is_param()))
             .then(|| (ctor.to_string(), Cpr { ctor: ctor.to_string(), tag, fields: fields.clone() }))
         })
         .collect()
@@ -4286,10 +4405,10 @@ fn product_uses_only_take_apart(body: &Core, x: LocalId, cpr: &Cpr) -> bool {
 /// block through the constructor's own unit, answering the block word.
 fn box_product(b: &mut Builder, cpr: &Cpr, r: &str) -> String {
     let mut words = Vec::with_capacity(cpr.fields.len());
-    for i in 0..cpr.fields.len() {
+    for (i, c) in cpr.fields.iter().enumerate() {
         let w = b.reg();
         b.line(&format!("{w} = extractvalue {} {r}, {i}", cpr.ty()));
-        words.push(format!("i64 {w}"));
+        words.push(format!("{} {w}", Cpr::field_ty(*c)));
     }
     let block = b.reg();
     b.line(&format!("{block} = call i64 @{}({})", quote(&cpr.ctor), words.join(", ")));
@@ -4399,12 +4518,49 @@ fn build_unit(
     match &body {
         UnitBody::Prim(op) => {
             if matches!(op, PrimOp::MVar { .. }) { lang.pure = false; }
-            // Expose tagged immediate paths to the caller's constant/range
-            // simplification. Ownership fallbacks otherwise inflate LLVM's
-            // generic inlining cost for these bounded wrapper operations.
-            if matches!(op,
-                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::Div | crate::core::NatOp::Rem | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
-                | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::Copy)) {
+            // Always inline pure single-instruction scalar/wide/float/bit/cmp/
+            // conversion primitives and direct Bytes/Nat fast paths so LLVM
+            // never hits its inline budget inside large crypto/math kernels.
+            if op.is_trivial_pure()
+                || matches!(
+                    op,
+                    PrimOp::Div { .. }
+                        | PrimOp::Rem { .. }
+                        | PrimOp::Nat(
+                            crate::core::NatOp::Add
+                                | crate::core::NatOp::Sub
+                                | crate::core::NatOp::Cmp
+                                | crate::core::NatOp::Div
+                                | crate::core::NatOp::Rem
+                                | crate::core::NatOp::FromI64
+                                | crate::core::NatOp::ToI64
+                        )
+                        | PrimOp::Bytes(
+                            BytesOp::Len
+                                | BytesOp::LenI64
+                                | BytesOp::Get
+                                | BytesOp::Set
+                                | BytesOp::Data
+                                | BytesOp::Copy
+                                | BytesOp::GetU8
+                                | BytesOp::SetU8
+                                | BytesOp::GetU8At
+                                | BytesOp::SetU8At
+                                | BytesOp::LoadLe32
+                                | BytesOp::StoreLe32
+                                | BytesOp::LoadLe32At
+                                | BytesOp::StoreLe32At
+                                | BytesOp::LoadLe64
+                                | BytesOp::StoreLe64
+                                | BytesOp::LoadLe64At
+                                | BytesOp::StoreLe64At
+                                | BytesOp::LoadU128
+                                | BytesOp::StoreU128
+                                | BytesOp::LoadU128At
+                                | BytesOp::StoreU128At
+                        )
+                )
+            {
                 hints.inline = Some(crate::core::InlineHint::Always);
             }
             // A primitive that returns `Option` or `Ordering` boxes its
@@ -4560,9 +4716,9 @@ fn build_unit(
             args.join(", ")
         );
         let mut words = Vec::with_capacity(cpr.fields.len());
-        for i in 0..cpr.fields.len() {
+        for (i, c) in cpr.fields.iter().enumerate() {
             text.push_str(&format!("  %f{i} = extractvalue {} %r, {i}\n", cpr.ty()));
-            words.push(format!("i64 %f{i}"));
+            words.push(format!("{} %f{i}", Cpr::field_ty(*c)));
         }
         text.push_str(&format!(
             "  %b = call i64 @{}({})\n  ret i64 %b\n}}\n\n",
@@ -6437,6 +6593,26 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
             b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
             b.line(&format!("ret i64 {w}"));
         }
+        Div { .. } | Rem { .. } => {
+            let z = b.reg();
+            b.line(&format!("{z} = icmp eq i128 %p1, 0"));
+            let safe = b.reg();
+            b.line(&format!("{safe} = select i1 {z}, i128 1, i128 %p1"));
+            let inst = if matches!(op, Div { .. }) { "udiv" } else { "urem" };
+            let q = b.reg();
+            b.line(&format!("{q} = {inst} i128 %p0, {safe}"));
+            let out = b.reg();
+            b.line(&format!("{out} = select i1 {z}, i128 0, i128 {q}"));
+            ret128(b, &out);
+        }
+        Bytes(k @ (BytesOp::LoadU128 | BytesOp::LoadU128At)) => {
+            let v = bytes_access_word(b, cx, reg, k);
+            ret128(b, &v);
+        }
+        Bytes(k @ (BytesOp::StoreU128 | BytesOp::StoreU128At)) => {
+            let _ = bytes_access_word(b, cx, reg, k);
+            ret(b, "0");
+        }
         _ => return not_yet("phase 2's surface"),
     }
     Ok(())
@@ -6736,59 +6912,160 @@ fn nat_divrem_word(b: &mut Builder, operation: crate::core::NatOp) -> String {
 /// buffers, read-only writes, invalid indices and invalid byte values retain
 /// the runtime's checked fault path. The ABI layout is an i64 length followed
 /// by a target-width data pointer; header reads match the runtime's atomics.
-fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
-    let index = matches!(op, BytesOp::Get | BytesOp::Set).then(|| nat_to_i64_word(b, "%p1"));
-    let value = (op == BytesOp::Set).then(|| nat_to_i64_word(b, "%p2"));
-    let (header_l, payload_l, slow_l, done_l) = (b.label(), b.label(), b.label(), b.label());
+fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp) -> String {
+    let width: i64 = match op {
+        BytesOp::LoadLe32 | BytesOp::LoadLe32At | BytesOp::StoreLe32 | BytesOp::StoreLe32At => 4,
+        BytesOp::LoadLe64 | BytesOp::LoadLe64At | BytesOp::StoreLe64 | BytesOp::StoreLe64At => 8,
+        BytesOp::LoadU128 | BytesOp::LoadU128At | BytesOp::StoreU128 | BytesOp::StoreU128At => 16,
+        BytesOp::Get | BytesOp::Set | BytesOp::GetU8 | BytesOp::SetU8 | BytesOp::GetU8At | BytesOp::SetU8At => 1,
+        BytesOp::Len | BytesOp::LenI64 | BytesOp::Data => 0,
+        BytesOp::New | BytesOp::Copy | BytesOp::Compare => unreachable!(),
+    };
+    let is_write = matches!(
+        op,
+        BytesOp::Set
+            | BytesOp::SetU8
+            | BytesOp::SetU8At
+            | BytesOp::StoreLe32
+            | BytesOp::StoreLe32At
+            | BytesOp::StoreLe64
+            | BytesOp::StoreLe64At
+            | BytesOp::StoreU128
+            | BytesOp::StoreU128At
+    );
+    let nat_index = matches!(
+        op,
+        BytesOp::Get
+            | BytesOp::Set
+            | BytesOp::GetU8
+            | BytesOp::SetU8
+            | BytesOp::LoadLe32
+            | BytesOp::StoreLe32
+            | BytesOp::LoadLe64
+            | BytesOp::StoreLe64
+            | BytesOp::LoadU128
+            | BytesOp::StoreU128
+    );
+    let i64_index = matches!(
+        op,
+        BytesOp::GetU8At
+            | BytesOp::SetU8At
+            | BytesOp::LoadLe32At
+            | BytesOp::StoreLe32At
+            | BytesOp::LoadLe64At
+            | BytesOp::StoreLe64At
+            | BytesOp::LoadU128At
+            | BytesOp::StoreU128At
+    );
+    let check_kind = is_write || matches!(op, BytesOp::Len | BytesOp::Get | BytesOp::Data);
+
+    let index = if nat_index {
+        Some(nat_to_i64_word(b, "%p1"))
+    } else if i64_index {
+        Some("%p1".to_string())
+    } else {
+        None
+    };
+    let value = if op == BytesOp::Set {
+        Some(nat_to_i64_word(b, "%p2"))
+    } else if is_write {
+        Some("%p2".to_string())
+    } else {
+        None
+    };
+
+    let inv = reg.invariant_load();
+    let tbaa_h = reg.tbaa_hdr();
+    let tbaa_b = reg.tbaa_bytes();
+    let likely = reg.prof_likely();
+    let unlikely = reg.prof_unlikely();
+
+    let (payload_l, slow_l) = (b.label(), b.label());
     let null = b.reg();
     b.line(&format!("{null} = icmp eq i64 %p0, 0"));
-    b.line(&format!("br i1 {null}, label %{slow_l}, label %{header_l}"));
-    b.start(&header_l);
-    let payload = b.reg();
-    b.line(&format!("{payload} = inttoptr i64 %p0 to ptr"));
-    let header_ptr = b.reg();
-    b.line(&format!(
-        "{header_ptr} = getelementptr i8, ptr {payload}, i64 -8"
-    ));
-    let header = header_load(b, &header_ptr);
-    let shifted = b.reg();
-    b.line(&format!(
-        "{shifted} = lshr i64 {header}, {}",
-        block::KIND_SHIFT
-    ));
-    let kind = b.reg();
-    b.line(&format!(
-        "{kind} = and i64 {shifted}, {}",
-        (1u64 << block::KIND_BITS) - 1
-    ));
-    let heap = b.reg();
-    b.line(&format!(
-        "{heap} = icmp eq i64 {kind}, {}",
-        block::KIND_BYTES
-    ));
-    let valid = if op == BytesOp::Set {
-        heap
-    } else {
-        let readonly = b.reg();
+    let payload = if check_kind {
+        let header_l = b.label();
         b.line(&format!(
-            "{readonly} = icmp eq i64 {kind}, {}",
-            block::KIND_BYTES_STATIC
+            "br i1 {null}, label %{slow_l}, label %{header_l}, !prof {unlikely}"
         ));
-        let either = b.reg();
-        b.line(&format!("{either} = or i1 {heap}, {readonly}"));
-        either
+        b.start(&header_l);
+        let payload = b.reg();
+        b.line(&format!("{payload} = inttoptr i64 %p0 to ptr"));
+        let header_ptr = b.reg();
+        b.line(&format!(
+            "{header_ptr} = getelementptr i8, ptr {payload}, i64 -8"
+        ));
+        let header = header_load(b, &header_ptr);
+        let shifted = b.reg();
+        b.line(&format!(
+            "{shifted} = lshr i64 {header}, {}",
+            block::KIND_SHIFT
+        ));
+        let kind = b.reg();
+        b.line(&format!(
+            "{kind} = and i64 {shifted}, {}",
+            (1u64 << block::KIND_BITS) - 1
+        ));
+        let valid = if is_write {
+            let heap = b.reg();
+            b.line(&format!(
+                "{heap} = icmp eq i64 {kind}, {}",
+                block::KIND_BYTES
+            ));
+            heap
+        } else {
+            // All four Bytes kinds (KIND_BYTES=8, KIND_BYTES_STATIC=9,
+            // KIND_BYTES_MAPPED=19, KIND_BYTES_VIEW=20) share the same
+            // `{ len: i64, data: ptr }` layout.
+            let d1 = b.reg();
+            b.line(&format!("{d1} = sub i64 {kind}, {}", block::KIND_BYTES));
+            let ok1 = b.reg();
+            b.line(&format!("{ok1} = icmp ule i64 {d1}, 1"));
+            let d2 = b.reg();
+            b.line(&format!("{d2} = sub i64 {kind}, {}", block::KIND_BYTES_MAPPED));
+            let ok2 = b.reg();
+            b.line(&format!("{ok2} = icmp ule i64 {d2}, 1"));
+            let both = b.reg();
+            b.line(&format!("{both} = or i1 {ok1}, {ok2}"));
+            both
+        };
+        b.line(&format!(
+            "br i1 {valid}, label %{payload_l}, label %{slow_l}, !prof {likely}"
+        ));
+        b.start(&payload_l);
+        payload
+    } else {
+        b.line(&format!(
+            "br i1 {null}, label %{slow_l}, label %{payload_l}, !prof {unlikely}"
+        ));
+        b.start(&payload_l);
+        let payload = b.reg();
+        b.line(&format!("{payload} = inttoptr i64 %p0 to ptr"));
+        payload
     };
-    b.line(&format!(
-        "br i1 {valid}, label %{payload_l}, label %{slow_l}"
-    ));
-    b.start(&payload_l);
+
     let len = b.reg();
-    b.line(&format!("{len} = load i64, ptr {payload}, align 8"));
-    let mut fast_exit = payload_l;
+    b.line(&format!(
+        "{len} = load i64, ptr {payload}, align 8, !invariant.load {inv}, !tbaa {tbaa_h}"
+    ));
     if let Some(index) = &index {
-        let inside = b.reg();
-        b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
-        let valid = if let Some(value) = &value {
+        let inside = if width == 1 {
+            let c = b.reg();
+            b.line(&format!("{c} = icmp ult i64 {index}, {len}"));
+            c
+        } else {
+            let fits = b.reg();
+            b.line(&format!("{fits} = icmp sge i64 {len}, {width}"));
+            let limit = b.reg();
+            b.line(&format!("{limit} = sub i64 {len}, {width}"));
+            let in_range = b.reg();
+            b.line(&format!("{in_range} = icmp ule i64 {index}, {limit}"));
+            let both = b.reg();
+            b.line(&format!("{both} = and i1 {fits}, {in_range}"));
+            both
+        };
+        let valid = if op == BytesOp::Set {
+            let value = value.as_ref().unwrap();
             let byte = b.reg();
             b.line(&format!("{byte} = icmp ule i64 {value}, 255"));
             let both = b.reg();
@@ -6799,12 +7076,12 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
         };
         let access_l = b.label();
         b.line(&format!(
-            "br i1 {valid}, label %{access_l}, label %{slow_l}"
+            "br i1 {valid}, label %{access_l}, label %{slow_l}, !prof {likely}"
         ));
         b.start(&access_l);
-        fast_exit = access_l;
     }
-    let fast = if op == BytesOp::Len {
+
+    let fast = if matches!(op, BytesOp::Len | BytesOp::LenI64) {
         len
     } else {
         let data_at = b.reg();
@@ -6813,25 +7090,109 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
         ));
         let data = b.reg();
         b.line(&format!(
-            "{data} = load ptr, ptr {data_at}, align {}",
+            "{data} = load ptr, ptr {data_at}, align {}, !invariant.load {inv}, !tbaa {tbaa_h}",
             b.pointer_bytes
         ));
         if let Some(index) = &index {
             let at = b.reg();
             b.line(&format!("{at} = getelementptr i8, ptr {data}, i64 {index}"));
             if let Some(value) = &value {
-                let byte = b.reg();
-                b.line(&format!("{byte} = trunc i64 {value} to i8"));
-                b.line(&format!("store i8 {byte}, ptr {at}, align 1"));
+                match width {
+                    1 => {
+                        let byte = b.reg();
+                        b.line(&format!("{byte} = trunc i64 {value} to i8"));
+                        b.line(&format!("store i8 {byte}, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                    }
+                    4 => {
+                        let w32 = b.reg();
+                        b.line(&format!("{w32} = trunc i64 {value} to i32"));
+                        let stored = if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i32 @llvm.bswap.i32(i32 {w32})"));
+                            s
+                        } else {
+                            w32
+                        };
+                        b.line(&format!("store i32 {stored}, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                    }
+                    8 => {
+                        let stored = if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i64 @llvm.bswap.i64(i64 {value})"));
+                            s
+                        } else {
+                            value.clone()
+                        };
+                        b.line(&format!("store i64 {stored}, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                    }
+                    16 => {
+                        let stored = if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i128 @llvm.bswap.i128(i128 {value})"));
+                            s
+                        } else {
+                            value.clone()
+                        };
+                        b.line(&format!("store i128 {stored}, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                    }
+                    _ => unreachable!(),
+                }
                 "0".to_string()
             } else {
-                let byte = b.reg();
-                b.line(&format!("{byte} = load i8, ptr {at}, align 1"));
-                let frozen = b.reg();
-                b.line(&format!("{frozen} = freeze i8 {byte}"));
-                let wide = b.reg();
-                b.line(&format!("{wide} = zext i8 {frozen} to i64"));
-                wide
+                match width {
+                    1 => {
+                        let byte = b.reg();
+                        b.line(&format!("{byte} = load i8, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                        let frozen = b.reg();
+                        b.line(&format!("{frozen} = freeze i8 {byte}"));
+                        let wide = b.reg();
+                        b.line(&format!("{wide} = zext i8 {frozen} to i64"));
+                        wide
+                    }
+                    4 => {
+                        let raw = b.reg();
+                        b.line(&format!("{raw} = load i32, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                        let frozen = b.reg();
+                        b.line(&format!("{frozen} = freeze i32 {raw}"));
+                        let val = if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i32 @llvm.bswap.i32(i32 {frozen})"));
+                            s
+                        } else {
+                            frozen
+                        };
+                        let wide = b.reg();
+                        b.line(&format!("{wide} = zext i32 {val} to i64"));
+                        wide
+                    }
+                    8 => {
+                        let raw = b.reg();
+                        b.line(&format!("{raw} = load i64, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                        let frozen = b.reg();
+                        b.line(&format!("{frozen} = freeze i64 {raw}"));
+                        if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i64 @llvm.bswap.i64(i64 {frozen})"));
+                            s
+                        } else {
+                            frozen
+                        }
+                    }
+                    16 => {
+                        let raw = b.reg();
+                        b.line(&format!("{raw} = load i128, ptr {at}, align 1, !tbaa {tbaa_b}"));
+                        let frozen = b.reg();
+                        b.line(&format!("{frozen} = freeze i128 {raw}"));
+                        if cx.big_endian {
+                            let s = b.reg();
+                            b.line(&format!("{s} = call i128 @llvm.bswap.i128(i128 {frozen})"));
+                            s
+                        } else {
+                            frozen
+                        }
+                    }
+                    _ => unreachable!(),
+                }
             }
         } else {
             let word = b.reg();
@@ -6846,23 +7207,36 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
             selected
         }
     };
+    let done_l = b.label();
     b.line(&format!("br label %{done_l}"));
     b.start(&slow_l);
     let mut args = vec!["i64 %p0".to_string()];
-    if let Some(index) = &index {
-        args.push(format!("i64 {index}"));
+    if index.is_some() {
+        // Multi-byte reads/writes may fail when `index < len < index + width`;
+        // pass `-1` so the runtime unconditionally raises `Error::OutOfBounds`
+        // after validating the handle and writability.
+        if width > 1 {
+            args.push("i64 -1".to_string());
+        } else {
+            args.push(format!("i64 {}", index.as_ref().unwrap()));
+        }
     }
-    if let Some(value) = &value {
-        args.push(format!("i64 {value}"));
+    if value.is_some() {
+        if width > 1 {
+            args.push("i64 0".to_string());
+        } else {
+            args.push(format!("i64 {}", value.as_ref().unwrap()));
+        }
     }
-    let slow = rt_call(b, op.extern_name(), &args);
-    b.line(&format!("br label %{done_l}"));
-    b.start(&done_l);
-    let result = b.reg();
+    let slow_r = b.reg();
     b.line(&format!(
-        "{result} = phi i64 [ {fast}, %{fast_exit} ], [ {slow}, %{slow_l} ]"
+        "{slow_r} = call i64 @{}({}) cold",
+        op.extern_name(),
+        args.join(", ")
     ));
-    result
+    b.line("unreachable");
+    b.start(&done_l);
+    fast
 }
 
 /// The count field shifted to the top of the word: the count's sign is
@@ -7426,12 +7800,16 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &r);
                 }
                 BytesOp::Len => {
-                    let l = bytes_access_word(b, k);
+                    let l = bytes_access_word(b, cx, reg, k);
                     let r = nat_from_i64_word(b, &l, Some(i64::MAX as u64));
                     ret(b, &r);
                 }
+                BytesOp::LenI64 => {
+                    let l = bytes_access_word(b, cx, reg, k);
+                    ret(b, &l);
+                }
                 BytesOp::Get => {
-                    let v = bytes_access_word(b, k);
+                    let v = bytes_access_word(b, cx, reg, k);
                     // `Bytes` data is untrusted (foreign spans wrap into
                     // buffers): the byte freezes before it can branch
                     // or compare (the plan note's poison containment).
@@ -7439,8 +7817,23 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let r = nat_from_i64_word(b, &v, Some(255));
                     ret(b, &r);
                 }
-                BytesOp::Set => {
-                    let _ = bytes_access_word(b, k);
+                BytesOp::GetU8
+                | BytesOp::GetU8At
+                | BytesOp::LoadLe32
+                | BytesOp::LoadLe32At
+                | BytesOp::LoadLe64
+                | BytesOp::LoadLe64At => {
+                    let v = bytes_access_word(b, cx, reg, k);
+                    ret(b, &v);
+                }
+                BytesOp::Set
+                | BytesOp::SetU8
+                | BytesOp::SetU8At
+                | BytesOp::StoreLe32
+                | BytesOp::StoreLe32At
+                | BytesOp::StoreLe64
+                | BytesOp::StoreLe64At => {
+                    let _ = bytes_access_word(b, cx, reg, k);
                     ret(b, "0");
                 }
                 BytesOp::Copy => {
@@ -7465,7 +7858,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // `Bytes` becomes something the kernel can be handed.
                     // Nothing to box and nothing to freeze, because the
                     // value is used as a pointer, never as a branch.
-                    let p = bytes_access_word(b, k);
+                    let p = bytes_access_word(b, cx, reg, k);
                     ret(b, &p);
                 }
                 BytesOp::Compare => {
@@ -7474,6 +7867,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let r = rt_call(b, k.extern_name(), &args);
                     ret(b, &r);
                 }
+                BytesOp::LoadU128
+                | BytesOp::LoadU128At
+                | BytesOp::StoreU128
+                | BytesOp::StoreU128At => unreachable!("wide Bytes ops lower in wide_prim_body"),
             }
         }
         Sym(k) => {
@@ -7583,12 +7980,17 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             // the prelude `Result` through `ret_result`.
             use NetOp::*;
             match k {
-                TcpConnect | Resolve => {
+                TcpConnect | TcpListen | Resolve => {
                     let r = rt_call(
                         b,
                         k.extern_name(),
                         &["i64 %p0".to_string(), "i64 %p1".to_string()],
                     );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, reg, op, &w, |_| w.clone());
+                }
+                TcpAccept | ListenerAddr => {
+                    let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |_| w.clone());
                 }
@@ -7598,6 +8000,22 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         b,
                         k.extern_name(),
                         &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, reg, op, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                UdpSend => {
+                    // `(host, port, data)`: the byte count is a `Nat`.
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            "i64 %p2".to_string(),
+                        ],
                     );
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |b| {
@@ -7617,7 +8035,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |_| w.clone());
                 }
-                Close => {
+                Close | ListenerClose => {
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     let w = freeze_word(b, &r);
                     // `Ok` over the Unit word.
@@ -8113,6 +8531,16 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 canon(b, ty, &r)
             });
         }
+        Div { ty } | Rem { ty } => {
+            let z = b.reg();
+            b.line(&format!("{z} = icmp eq i64 %p1, 0"));
+            fault_when(b, name, &z, "division by zero");
+            let inst = if matches!(op, Div { .. }) { "udiv" } else { "urem" };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i64 %p0, %p1"));
+            let c = canon(b, ty, &r);
+            ret(b, &c);
+        }
         Shift {
             ty,
             op: sop,
@@ -8249,221 +8677,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             ret(b, &r);
         }
 
-        FloatBin { ty, op: fop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let y = word_to_float(b, ty, "%p1");
-            let v = match fop {
-                FloatBinOp::Add | FloatBinOp::Sub | FloatBinOp::Mul | FloatBinOp::Div => {
-                    let inst = match fop {
-                        FloatBinOp::Add => "fadd",
-                        FloatBinOp::Sub => "fsub",
-                        FloatBinOp::Mul => "fmul",
-                        FloatBinOp::Div => "fdiv",
-                        _ => unreachable!(),
-                    };
-                    let r = b.reg();
-                    b.line(&format!("{r} = {inst} {ft} {x}, {y}"));
-                    float_to_word(b, ty, &r)
-                }
-                FloatBinOp::Minimum | FloatBinOp::Maximum => {
-                    // IEEE 754-2019 minimum/maximum: propagate NaN (as a
-                    // quiet NaN), and distinguish -0 from +0.
-                    let qmask: i64 = if ty == Scalar::F32 {
-                        0x00400000
-                    } else {
-                        0x0008000000000000
-                    };
-                    let nan = b.reg();
-                    b.line(&format!("{nan} = fcmp uno {ft} {x}, {y}"));
-                    let xnan = b.reg();
-                    b.line(&format!("{xnan} = fcmp uno {ft} {x}, {x}"));
-                    let sel = b.reg();
-                    b.line(&format!("{sel} = select i1 {xnan}, i64 %p0, i64 %p1"));
-                    let q = b.reg();
-                    b.line(&format!("{q} = or i64 {sel}, {qmask}"));
-                    let eq = b.reg();
-                    b.line(&format!("{eq} = fcmp oeq {ft} {x}, {y}"));
-                    // On equality the words are identical except for -0
-                    // and +0, where minimum picks -0 (the `or` of the sign
-                    // bits) and maximum picks +0 (the `and`).
-                    let bit = if fop == FloatBinOp::Minimum {
-                        "or"
-                    } else {
-                        "and"
-                    };
-                    let both = b.reg();
-                    b.line(&format!("{both} = {bit} i64 %p0, %p1"));
-                    let cmp = b.reg();
-                    let pred = if fop == FloatBinOp::Minimum {
-                        "olt"
-                    } else {
-                        "ogt"
-                    };
-                    b.line(&format!("{cmp} = fcmp {pred} {ft} {x}, {y}"));
-                    let pick = b.reg();
-                    b.line(&format!("{pick} = select i1 {cmp}, i64 %p0, i64 %p1"));
-                    let nonnan = b.reg();
-                    b.line(&format!(
-                        "{nonnan} = select i1 {eq}, i64 {both}, i64 {pick}"
-                    ));
-                    let r = b.reg();
-                    b.line(&format!("{r} = select i1 {nan}, i64 {q}, i64 {nonnan}"));
-                    r
-                }
-            };
-            ret(b, &v);
-        }
-        FloatUn { ty, op: fop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let r = b.reg();
-            match fop {
-                FloatUnOp::Neg => b.line(&format!("{r} = fneg {ft} {x}")),
-                FloatUnOp::Abs => b.line(&format!("{r} = call {ft} @llvm.fabs.{ft}({ft} {x})")),
-                FloatUnOp::Sqrt => b.line(&format!("{r} = call {ft} @llvm.sqrt.{ft}({ft} {x})")),
-            }
-            let w = float_to_word(b, ty, &r);
-            ret(b, &w);
-        }
-        FCmp { ty, op: cop } => {
-            // Quiet, non-signaling IEEE comparisons (section 5): `fne` is
-            // unordered-or-not-equal, so it is true on NaN.
-            let pred = match cop {
-                CmpOp::Eq => "oeq",
-                CmpOp::Ne => "une",
-                CmpOp::Lt => "olt",
-                CmpOp::Le => "ole",
-                CmpOp::Gt => "ogt",
-                CmpOp::Ge => "oge",
-            };
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let y = word_to_float(b, ty, "%p1");
-            let c = b.reg();
-            b.line(&format!("{c} = fcmp {pred} {ft} {x}, {y}"));
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
-        }
-        FClass { ty, op: cop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let c = match cop {
-                FClassOp::IsNan => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = fcmp uno {ft} {x}, {x}"));
-                    r
-                }
-                FClassOp::IsInfinite => {
-                    let a = b.reg();
-                    b.line(&format!("{a} = call {ft} @llvm.fabs.{ft}({ft} {x})"));
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = fcmp oeq {ft} {a}, {}",
-                        fcst(ty, f64::INFINITY)
-                    ));
-                    r
-                }
-                FClassOp::IsFinite => {
-                    let a = b.reg();
-                    b.line(&format!("{a} = call {ft} @llvm.fabs.{ft}({ft} {x})"));
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = fcmp olt {ft} {a}, {}",
-                        fcst(ty, f64::INFINITY)
-                    ));
-                    r
-                }
-                FClassOp::IsNormal => {
-                    // Normal: the exponent bits are neither all zero nor
-                    // all ones (subnormals and infinities excluded).
-                    let it = int_ty(ty);
-                    let emask: i64 = if ty == Scalar::F32 {
-                        0x7F800000
-                    } else {
-                        0x7FF0000000000000
-                    };
-                    let v = trunc_n(b, ty, "%p0");
-                    let e = b.reg();
-                    b.line(&format!("{e} = and {it} {v}, {emask}"));
-                    let z = b.reg();
-                    b.line(&format!("{z} = icmp ne {it} {e}, 0"));
-                    let m = b.reg();
-                    b.line(&format!("{m} = icmp ne {it} {e}, {emask}"));
-                    let r = b.reg();
-                    b.line(&format!("{r} = and i1 {z}, {m}"));
-                    r
-                }
-                FClassOp::SignBit => {
-                    // The raw sign bit, so -0 and -NaN are negative.
-                    let r = if ty == Scalar::F32 {
-                        let s = b.reg();
-                        b.line(&format!("{s} = and i64 %p0, 2147483648"));
-                        let c = b.reg();
-                        b.line(&format!("{c} = icmp ne i64 {s}, 0"));
-                        c
-                    } else {
-                        let c = b.reg();
-                        b.line(&format!("{c} = icmp slt i64 %p0, 0"));
-                        c
-                    };
-                    r
-                }
-            };
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
-        }
-        TotalOrder { ty } => {
-            // IEEE 754-2019 totalOrder: -NaN < -inf < ... < -0 < +0 < ...
-            // < +inf < +NaN. Map each word to an order key (negated words
-            // flip, non-negated gain the sign bit) and compare unsigned.
-            let f32words = ty == Scalar::F32;
-            let signmask: i64 = if f32words { 2147483648i64 } else { i64::MIN };
-            let key = |b: &mut Builder, v: &str| -> String {
-                let n = b.reg();
-                if f32words {
-                    let s = b.reg();
-                    b.line(&format!("{s} = and i64 {v}, {signmask}"));
-                    b.line(&format!("{n} = icmp ne i64 {s}, 0"));
-                } else {
-                    b.line(&format!("{n} = icmp slt i64 {v}, 0"));
-                }
-                let inv = b.reg();
-                b.line(&format!(
-                    "{inv} = xor i64 {v}, {}",
-                    if f32words { 4294967295i64 } else { -1i64 }
-                ));
-                let pos = b.reg();
-                b.line(&format!("{pos} = or i64 {v}, {signmask}"));
-                let k = b.reg();
-                b.line(&format!("{k} = select i1 {n}, i64 {inv}, i64 {pos}"));
-                k
-            };
-            let kx = key(b, "%p0");
-            let ky = key(b, "%p1");
-            let lt = b.reg();
-            b.line(&format!("{lt} = icmp ult i64 {kx}, {ky}"));
-            let eq = b.reg();
-            b.line(&format!("{eq} = icmp eq i64 {kx}, {ky}"));
-            let llt = b.label();
-            let leq = b.label();
-            let lgt = b.label();
-            let lsecond = b.label();
-            b.line(&format!("br i1 {lt}, label %{llt}, label %{lsecond}"));
-            b.start(&lsecond);
-            b.line(&format!("br i1 {eq}, label %{leq}, label %{lgt}"));
-            for (l, suf, tag) in [(llt, ".lt", 0), (leq, ".eq", 1), (lgt, ".gt", 2)] {
-                b.start(&l);
-                let w = b.reg();
-                b.line(&format!(
-                    "{w} = ptrtoint ptr {blk} to i64",
-                    blk = static_payload(&format!("{name}{suf}"), reg.shape_desc(&[], tag))
-                ));
-                ret(b, &w);
-            }
-        }
         CharToU32 => {
             // A `Char` word already is its `U32` code point.
             ret(b, "%p0");
@@ -9047,6 +9260,107 @@ fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
                     continue;
                 }
                 lines.push(prim_use_declare(u));
+            }
+        }
+    }
+    lines
+}
+
+/// Emit `declare` lines for `@llvm.*` intrinsics called by `prim` fragments
+/// that are not already declared in the module preamble.
+fn prim_llvm_intrinsic_declares(program: &Program, so_far: &str) -> Vec<String> {
+    fn llvm_type_of_suffix(suf: &str) -> Option<String> {
+        match suf {
+            "i8" | "i16" | "i32" | "i64" | "i128" => Some(suf.to_string()),
+            "f32" => Some("float".to_string()),
+            "f64" => Some("double".to_string()),
+            "v16i8" => Some("<16 x i8>".to_string()),
+            "v8i16" => Some("<8 x i16>".to_string()),
+            "v4i32" => Some("<4 x i32>".to_string()),
+            "v2i64" => Some("<2 x i64>".to_string()),
+            "v16i32" => Some("<16 x i32>".to_string()),
+            _ => None,
+        }
+    }
+    fn declare_for_intrinsic(sym: &str) -> Option<String> {
+        if sym == "llvm.sideeffect" {
+            return Some("declare void @llvm.sideeffect()\n".to_string());
+        }
+        if sym == "llvm.vector.reduce.add.v16i32" {
+            return Some("declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)\n".to_string());
+        }
+        let suf = sym.rsplit('.').next()?;
+        let ty = llvm_type_of_suffix(suf)?;
+        if sym.starts_with("llvm.sadd.with.overflow.")
+            || sym.starts_with("llvm.uadd.with.overflow.")
+            || sym.starts_with("llvm.ssub.with.overflow.")
+            || sym.starts_with("llvm.usub.with.overflow.")
+            || sym.starts_with("llvm.smul.with.overflow.")
+            || sym.starts_with("llvm.umul.with.overflow.")
+        {
+            return Some(format!("declare {{ {ty}, i1 }} @{sym}({ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.sadd.sat.")
+            || sym.starts_with("llvm.uadd.sat.")
+            || sym.starts_with("llvm.ssub.sat.")
+            || sym.starts_with("llvm.usub.sat.")
+            || sym.starts_with("llvm.smin.")
+            || sym.starts_with("llvm.smax.")
+            || sym.starts_with("llvm.umin.")
+            || sym.starts_with("llvm.umax.")
+            || sym.starts_with("llvm.copysign.")
+        {
+            return Some(format!("declare {ty} @{sym}({ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.fshl.") || sym.starts_with("llvm.fshr.") {
+            return Some(format!("declare {ty} @{sym}({ty}, {ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.ctlz.") || sym.starts_with("llvm.cttz.") {
+            return Some(format!("declare {ty} @{sym}({ty}, i1)\n"));
+        }
+        if sym.starts_with("llvm.ctpop.")
+            || sym.starts_with("llvm.bswap.")
+            || sym.starts_with("llvm.bitreverse.")
+            || sym.starts_with("llvm.fabs.")
+            || sym.starts_with("llvm.sqrt.")
+            || sym.starts_with("llvm.floor.")
+            || sym.starts_with("llvm.ceil.")
+            || sym.starts_with("llvm.trunc.")
+            || sym.starts_with("llvm.round.")
+            || sym.starts_with("llvm.roundeven.")
+        {
+            return Some(format!("declare {ty} @{sym}({ty})\n"));
+        }
+        None
+    }
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    for p in &program.prims {
+        for (_, bi) in &p.family_units {
+            let frag = &p.bodies[*bi].fragment;
+            let bytes = frag.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'@' && frag[i + 1..].starts_with("llvm.") {
+                    let start = i + 1;
+                    let mut end = start;
+                    while end < bytes.len()
+                        && (bytes[end].is_ascii_alphanumeric()
+                            || bytes[end] == b'.'
+                            || bytes[end] == b'_')
+                    {
+                        end += 1;
+                    }
+                    let sym = &frag[start..end];
+                    if seen.insert(sym.to_string()) && !so_far.contains(&format!("@{sym}(")) {
+                        if let Some(decl) = declare_for_intrinsic(sym) {
+                            lines.push(decl);
+                        }
+                    }
+                    i = end;
+                } else {
+                    i += 1;
+                }
             }
         }
     }
@@ -10181,11 +10495,11 @@ enum Dest {
     Ret,
     Slot { slot: String, label: String, base: usize, ty: &'static str },
     /// A product that is never boxed ([`CoreEmitter::virtual_let`]): each
-    /// leaf stores the constructor's field words into `slots` and branches
-    /// to `label`. Only a leaf that builds the product (or calls a unit
-    /// returning it) delivers here; [`product_leaves`] admitted the value
-    /// on that condition.
-    Fields { slots: Vec<String>, label: String, base: usize },
+    /// leaf stores the constructor's field values into `slots` (each typed by
+    /// `tys`, `i64` or `i128`) and branches to `label`. Only a leaf that
+    /// builds the product (or calls a unit returning it) delivers here;
+    /// [`product_leaves`] admitted the value on that condition.
+    Fields { slots: Vec<String>, tys: Vec<&'static str>, label: String, base: usize },
 }
 
 impl Dest {
@@ -10210,11 +10524,11 @@ impl Dest {
         }
     }
 
-    /// Deliver a product's field words.
+    /// Deliver a product's field values.
     fn settle_fields(&self, b: &mut Builder, vals: &[String]) {
-        if let Dest::Fields { slots, label, .. } = self {
-            for (v, slot) in vals.iter().zip(slots) {
-                b.line(&format!("store i64 {v}, ptr {slot}"));
+        if let Dest::Fields { slots, tys, label, .. } = self {
+            for ((v, slot), ty) in vals.iter().zip(slots).zip(tys) {
+                b.line(&format!("store {ty} {v}, ptr {slot}"));
             }
             b.line(&format!("br label %{label}"));
         }
@@ -10884,6 +11198,9 @@ impl CoreEmitter<'_, '_> {
         // The count of a block that was never built is its fields' counts.
         if let Some((slots, classes)) = self.virt.get(&x).cloned() {
             for (s, c) in slots.iter().zip(classes) {
+                if matches!(c, Class::Raw | Class::Wide) {
+                    continue;
+                }
                 let w = self.b.reg();
                 self.b.line(&format!("{w} = load i64, ptr {s}"));
                 rc_op(self.b, self.reg.rc_debug, matches!(e, Core::Drop(..)), &w, c);
@@ -11413,11 +11730,59 @@ impl CoreEmitter<'_, '_> {
     ///   mixed arities share one widened signature
     ///   (`crate::core::tail_widths`), so their mutual calls qualify.
     /// - Anything else is an ordinary call followed by `ret`.
+    /// Whether `e` is pure, total, non-allocating, non-faulting, and small
+    /// enough to evaluate speculatively inside an LLVM `select`.
+    fn select_trivial(&self, e: &Core, budget: &mut usize) -> bool {
+        if *budget == 0 {
+            return false;
+        }
+        *budget -= 1;
+        match e {
+            Core::Int(_) | Core::Bool(_) | Core::Unit => true,
+            Core::Var(x) => !self.virt.contains_key(x),
+            Core::App(h, args) => match &**h {
+                Core::Prim(op) if op.is_trivial_pure() && args.len() == op.arity() => {
+                    args.iter().all(|a| self.select_trivial(a, budget))
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn can_select_if(&self, t: &CBranch<Core>, f: &CBranch<Core>) -> Option<&'static str> {
+        if t.weight.is_some() || f.weight.is_some() {
+            return None;
+        }
+        let ty = self.rep_ty(&t.body);
+        if ty != self.rep_ty(&f.body) {
+            return None;
+        }
+        let (mut bt, mut bf) = (6usize, 6usize);
+        if self.select_trivial(&t.body, &mut bt) && self.select_trivial(&f.body, &mut bf) {
+            Some(ty)
+        } else {
+            None
+        }
+    }
+
     /// Emit `e` as a value: a destination slot the structured forms store
     /// into, then the load. Decisions, joins and the count and `let` chains
     /// in front of them deliver through [`CoreEmitter::emit_to`], so a
     /// `Jump` inside them still reaches the one destination of this value.
     fn emit_value(&mut self, e: &Core) -> Result<String> {
+        if let Core::If(c, t, f) = e {
+            if let Some(ty) = self.can_select_if(t, f) {
+                let cv = self.emit_expr(c)?;
+                let cmp = self.b.reg();
+                self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
+                let tv = self.emit_expr(&t.body)?;
+                let fv = self.emit_expr(&f.body)?;
+                let sel = self.b.reg();
+                self.b.line(&format!("{sel} = select i1 {cmp}, {ty} {tv}, {ty} {fv}"));
+                return Ok(sel);
+            }
+        }
         let ty = self.rep_ty(e);
         let slot = self.b.alloca_ty(ty);
         let label = self.b.label();
@@ -11518,6 +11883,22 @@ impl CoreEmitter<'_, '_> {
                 self.in_release(slot, |this| this.emit_to(body, dest))
             }
             Core::If(c, t, f) => {
+                if matches!(dest, Dest::Slot { .. })
+                    || (matches!(dest, Dest::Ret) && self.cpr.is_none())
+                {
+                    if let Some(ty) = self.can_select_if(t, f) {
+                        let cv = self.emit_expr(c)?;
+                        let cmp = self.b.reg();
+                        self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
+                        let tv = self.emit_expr(&t.body)?;
+                        let fv = self.emit_expr(&f.body)?;
+                        let sel = self.b.reg();
+                        self.b.line(&format!("{sel} = select i1 {cmp}, {ty} {tv}, {ty} {fv}"));
+                        self.settle_tokens(dest.base());
+                        dest.settle(self.b, &sel, self.ret);
+                        return Ok(());
+                    }
+                }
                 let cv = self.emit_expr(c)?;
                 let cmp = self.b.reg();
                 self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
@@ -11926,18 +12307,20 @@ impl CoreEmitter<'_, '_> {
     /// reaches the same destination through its join's block.
     /// Return `vals` as this product result's aggregate.
     fn ret_product(&mut self, vals: &[String]) {
-        let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+        let Some(cpr) = self.cpr.clone() else { return };
+        let ty = cpr.ty();
         let mut agg = "poison".to_string();
-        for (i, v) in vals.iter().enumerate() {
+        for (i, (v, c)) in vals.iter().zip(&cpr.fields).enumerate() {
+            let fty = Cpr::field_ty(*c);
             let r = self.b.reg();
-            self.b.line(&format!("{r} = insertvalue {ty} {agg}, i64 {v}, {i}"));
+            self.b.line(&format!("{r} = insertvalue {ty} {agg}, {fty} {v}, {i}"));
             agg = r;
         }
         self.b.line(&format!("ret {ty} {agg}"));
     }
 
     /// `let x = f args in body` where `f` returns a product ([`Cpr`]) and
-    /// `body` only takes `x` apart: call `f`'s body, keep the field words
+    /// `body` only takes `x` apart: call `f`'s body, keep the field values
     /// in slots, and never build the block. Answers whether it did.
     ///
     /// `body` may mention `x` only as the scrutinee of a `case` with the
@@ -11954,9 +12337,10 @@ impl CoreEmitter<'_, '_> {
         if !product_uses_only_take_apart(body, x, &cpr) {
             return Ok(false);
         }
-        let slots: Vec<String> = cpr.fields.iter().map(|_| self.b.alloca_i64()).collect();
+        let tys: Vec<&'static str> = cpr.fields.iter().map(|c| Cpr::field_ty(*c)).collect();
+        let slots: Vec<String> = tys.iter().map(|ty| self.b.alloca_ty(ty)).collect();
         let label = self.b.label();
-        let dest = Dest::Fields { slots: slots.clone(), label: label.clone(), base: self.pending.len() };
+        let dest = Dest::Fields { slots: slots.clone(), tys, label: label.clone(), base: self.pending.len() };
         self.emit_to(v, &dest)?;
         self.b.start(&label);
         self.virt.insert(x, (slots, cpr.fields.clone()));
@@ -11986,24 +12370,32 @@ impl CoreEmitter<'_, '_> {
 
     fn emit_case_to(&mut self, scrut: &Core, alts: &[CAlt<Core>], dest: &Dest) -> Result<()> {
         // A product result that was never boxed: one alternative, whose
-        // binders take the field words ([`CoreEmitter::virtual_let`]
+        // binders take the field values ([`CoreEmitter::virtual_let`]
         // admitted the local only for this shape).
         if let Core::Var(t) = scrut {
-            if let Some((slots, _)) = self.virt.get(t).cloned() {
+            if let Some((slots, classes)) = self.virt.get(t).cloned() {
                 let (Some(alt), 1) = (alts.first(), alts.len()) else {
                     return err("internal error: a case on an unboxed product result has more than one alternative");
                 };
                 let CPat::Con { fields, .. } = &alt.pat else {
                     return err("internal error: a case on an unboxed product result binds no fields");
                 };
-                for (x, s) in fields.iter().zip(&slots) {
+                for ((x, s), c) in fields.iter().zip(&slots).zip(&classes) {
                     if !self.bound.contains(x) {
                         return err(format!("pattern binds unknown local {}", x.0));
                     }
+                    let fty = Cpr::field_ty(*c);
+                    let lty = self.local_ty(*x);
+                    if lty != fty {
+                        return err(format!(
+                            "{}: an unboxed product pattern binder's width ({lty}) disagrees with its field's type ({fty})",
+                            self.unit
+                        ));
+                    }
                     let w = self.b.reg();
-                    self.b.line(&format!("{w} = load i64, ptr {s}"));
+                    self.b.line(&format!("{w} = load {fty}, ptr {s}"));
                     let slot = self.slot(*x);
-                    self.b.line(&format!("store i64 {w}, ptr {slot}"));
+                    self.b.line(&format!("store {fty} {w}, ptr {slot}"));
                 }
                 return self.emit_to(&alt.body, dest);
             }
@@ -12878,6 +13270,36 @@ int main(void) {{
                 PrimOp::Net(NetOp::TcpConnect),
                 vec![bytes("127.0.0.1"), n(70000)],
                 // `InvalidArgument`.
+                6,
+            ),
+            (
+                "net-tcp-listen",
+                PrimOp::Net(NetOp::TcpListen),
+                vec![bytes("127.0.0.1"), n(70000)],
+                6,
+            ),
+            (
+                "net-tcp-accept",
+                PrimOp::Net(NetOp::TcpAccept),
+                vec![n(4242)],
+                6,
+            ),
+            (
+                "net-listener-addr",
+                PrimOp::Net(NetOp::ListenerAddr),
+                vec![n(4242)],
+                6,
+            ),
+            (
+                "net-listener-close",
+                PrimOp::Net(NetOp::ListenerClose),
+                vec![n(4242)],
+                6,
+            ),
+            (
+                "net-udp-send",
+                PrimOp::Net(NetOp::UdpSend),
+                vec![bytes("127.0.0.1"), n(70000), bytes("x")],
                 6,
             ),
             (
@@ -15609,9 +16031,11 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         format!("{}\n", body.fragment.trim_end())
     };
     let scan = scan_body(&code, reg.unit_symbols(), None);
+    let mut impl_hints = crate::core::FnHints::default();
+    impl_hints.inline = Some(crate::core::InlineHint::Always);
     Ok(EmittedUnit {
         name,
-        hints: crate::core::FnHints::default(),
+        hints: impl_hints,
         globals: String::new(),
         header,
         allocas: String::new(),
@@ -15668,9 +16092,13 @@ fn prim_wrapper_unit(
     let result = ret_cross.narrow(&mut b, &r);
     b.line(&format!("ret {} {result}", ret_cross.ty()));
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
+    let mut wrapper_hints = f.hints.clone();
+    if wrapper_hints.inline.is_none() {
+        wrapper_hints.inline = Some(crate::core::InlineHint::Always);
+    }
     Ok(EmittedUnit {
         name: name.clone(),
-        hints: f.hints.clone(),
+        hints: wrapper_hints,
         globals: String::new(),
         header: fn_header(name, plan.arity, None, &vec![true; plan.arity], narrow),
         allocas: b.allocas,

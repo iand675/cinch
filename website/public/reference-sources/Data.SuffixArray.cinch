@@ -1,0 +1,804 @@
+-- | In-memory suffix array for fast substring search, sorted match lookup,
+-- regular expression scanning, and validated binary serialization.
+--
+-- A SuffixArray owns an immutable snapshot of its indexed byte sequence and
+-- the lexicographically sorted array of all suffix starting offsets. Neither
+-- construction nor inspection aliases caller-owned byte buffers, so mutating
+-- a buffer passed to suffix-array-new or returned by suffix-array-bytes never
+-- invalidates the index.
+--
+-- Construction uses prefix doubling with linear counting sort in O(n log n)
+-- time and O(n) space over packed little-endian offset tables, with early exit
+-- once all suffix ranks become unique. Substring queries run two binary
+-- searches in O(log(n) * len(pattern) + k) time. Serialization uses a
+-- versioned binary framing ("CSA1") whose decoder checks header integrity,
+-- exact payload length, permutation validity, and full lexicographic order in
+-- O(n) time before accepting an index.
+module Data.SuffixArray where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Result
+  import Data.String
+  import Text.Regex
+
+  export SuffixArray, SuffixArrayError, SuffixArrayInvalidHeader, SuffixArrayTruncated, SuffixArrayCorruptIndex
+  export suffix-array-error-message, suffix-array-new, suffix-array-bytes, suffix-array-len
+  export suffix-array-at, suffix-array-count, suffix-array-lookup, suffix-array-lookup-sorted
+  export suffix-array-find-all-regex, suffix-array-encode, suffix-array-decode
+
+  -- | An immutable suffix array over a private snapshot of the indexed bytes
+  -- together with its packed sorted suffix offsets.
+  data SuffixArray where
+    -- | Internal representation holding the copied data bytes and packed suffix offsets.
+    MkSuffixArray :: Bytes -> Bytes -> SuffixArray
+
+  -- | Reasons why decoding a serialized suffix array can fail.
+  data SuffixArrayError where
+    -- | The header magic, version, entry width, reserved flags, or declared length is invalid.
+    SuffixArrayInvalidHeader :: SuffixArrayError
+    -- | The input ended before the full header, data bytes, and suffix table were present.
+    SuffixArrayTruncated :: SuffixArrayError
+    -- | Trailing bytes were present or the suffix table failed bounds, uniqueness, or order validation.
+    SuffixArrayCorruptIndex :: SuffixArrayError
+
+  -- | Human-readable explanation of a suffix array decode error.
+  suffix-array-error-message :: SuffixArrayError -> String
+  suffix-array-error-message err = case err of
+    SuffixArrayInvalidHeader -> "invalid suffix array header"
+    SuffixArrayTruncated -> "truncated suffix array payload"
+    SuffixArrayCorruptIndex -> "corrupt suffix array index"
+
+  -- | Build an immutable suffix array over a fresh snapshot copy of the input bytes.
+  suffix-array-new :: Bytes -> SuffixArray
+  suffix-array-new input =
+    let snapshot = copy-bytes input in
+    let table = build-sa snapshot in
+    MkSuffixArray snapshot table
+
+  -- | Return a fresh copy of the indexed bytes so the caller cannot mutate internal storage.
+  suffix-array-bytes :: SuffixArray -> Bytes
+  suffix-array-bytes idx = case idx of
+    MkSuffixArray buf _ -> copy-bytes buf
+
+  -- | Number of indexed bytes (and suffixes) in the suffix array.
+  suffix-array-len :: SuffixArray -> Nat
+  suffix-array-len idx = case idx of
+    MkSuffixArray buf _ -> bytes-len buf
+
+  -- | Read the suffix starting offset at position pos in the sorted suffix array.
+  suffix-array-at :: SuffixArray -> Nat -> Option Nat
+  suffix-array-at idx pos = case idx of
+    MkSuffixArray buf table ->
+      let n = bytes-len buf in
+      if pos < n then Some (slot-get table (is-wide n) pos) else None
+
+  -- | Count all occurrences of pattern in the indexed bytes in O(log(n) * len(pattern)) time.
+  -- An empty pattern returns zero.
+  suffix-array-count :: SuffixArray -> Bytes -> Nat
+  suffix-array-count idx pat = case idx of
+    MkSuffixArray buf table ->
+      let n = bytes-len buf in
+      if bytes-len pat == 0 || n == 0 then 0
+      else
+        let wide = is-wide n in
+        let lo = lower-bound-ge buf table wide pat 0 n in
+        let hi = upper-bound-prefix buf table wide pat lo n in
+        if lo <= hi then hi - lo else 0
+
+  -- | Return at most limit starting offsets where pat occurs in the indexed bytes.
+  -- A negative limit returns all matches; zero or an empty pattern returns Nil.
+  -- Offsets are returned in suffix-array order in O(log(n) * len(pat) + k) time.
+  suffix-array-lookup :: SuffixArray -> Bytes -> Int -> List Nat
+  suffix-array-lookup idx pat limit = case idx of
+    MkSuffixArray buf table ->
+      let n = bytes-len buf in
+      if bytes-len pat == 0 || limit == 0 || n == 0 then Nil
+      else
+        let wide = is-wide n in
+        let lo = lower-bound-ge buf table wide pat 0 n in
+        let hi = upper-bound-prefix buf table wide pat lo n in
+        if hi <= lo then Nil
+        else
+          let count = hi - lo in
+          let take = (if limit < 0 then count else let cap = nat-from-int limit in if count < cap then count else cap) in
+          collect-range table wide lo (lo + take) Nil
+
+  -- | Return at most limit starting offsets where pat occurs, sorted in ascending offset order.
+  -- A negative limit returns all matches in ascending document order; zero or an empty pattern returns Nil.
+  suffix-array-lookup-sorted :: SuffixArray -> Bytes -> Int -> List Nat
+  suffix-array-lookup-sorted idx pat limit =
+    mergesort-nats (suffix-array-lookup idx pat limit)
+
+  -- | Find up to limit non-overlapping matches of a compiled regular expression as (start, end)
+  -- byte offset pairs in ascending order. A negative limit returns all matches; zero returns Nil.
+  -- Returns Nil when the indexed bytes are not valid UTF-8.
+  suffix-array-find-all-regex :: SuffixArray -> Regex -> Int -> List (Nat, Nat)
+  suffix-array-find-all-regex idx re limit = case idx of
+    MkSuffixArray buf _ ->
+      if limit == 0 then Nil
+      else case string-from-bytes buf of
+        None -> Nil
+        Some text ->
+          let rem = (if limit < 0 then None else Some (nat-from-int limit)) in
+          scan-regex-all re text buf 0 None rem Nil
+
+  -- | Encode a suffix array into the versioned "CSA1" binary representation containing
+  -- the 16-byte header, raw indexed bytes, and packed little-endian suffix offsets.
+  suffix-array-encode :: SuffixArray -> Bytes
+  suffix-array-encode idx = case idx of
+    MkSuffixArray buf table ->
+      let n = bytes-len buf in
+      let width = slot-width n in
+      let sa-len = bytes-len table in
+      let total = 16 + n + sa-len in
+      let out = bytes-new total in
+      let h = write-header out width n in
+      let d = (if 16 + n <= bytes-len out then bytes-copy-range out buf 16 0 n else ()) in
+      let s = (if 16 + n + sa-len <= bytes-len out then bytes-copy-range out table (16 + n) 0 sa-len else ()) in
+      out
+
+  -- | Decode and validate a "CSA1" binary suffix array representation.
+  -- Rejects malformed headers, truncated payloads, trailing bytes, out-of-range offsets,
+  -- duplicate offsets, and unsorted suffix tables.
+  suffix-array-decode :: Bytes -> Result SuffixArrayError SuffixArray
+  suffix-array-decode encoded =
+    if bytes-len encoded < 16 then Err SuffixArrayTruncated
+    else if not (valid-magic encoded) then Err SuffixArrayInvalidHeader
+    else
+      let version = bytes-get encoded 4 in
+      let enc-width = bytes-get encoded 5 in
+      let res-a = bytes-get encoded 6 in
+      let res-b = bytes-get encoded 7 in
+      if version /= 1 || (enc-width /= 4 && enc-width /= 8) || res-a /= 0 || res-b /= 0 then Err SuffixArrayInvalidHeader
+      else
+        let n-word = bytes-read-le64 encoded 8 in
+        case u64-to-checked-nat n-word of
+          None -> Err SuffixArrayInvalidHeader
+          Some n ->
+            if enc-width == 4 && n > 4294967295 then Err SuffixArrayInvalidHeader
+            else
+              let sa-bytes = n * enc-width in
+              let expected = 16 + n + sa-bytes in
+              if bytes-len encoded < expected then Err SuffixArrayTruncated
+              else if bytes-len encoded > expected then Err SuffixArrayCorruptIndex
+              else
+                let buf = bytes-new n in
+                let copied = (if 16 + n <= bytes-len encoded then bytes-copy-range buf encoded 0 16 n else ()) in
+                case decode-table encoded (16 + n) n enc-width of
+                  Err err -> Err err
+                  Ok table ->
+                    if validate-sa buf table n (is-wide n) then Ok (MkSuffixArray buf table)
+                    else Err SuffixArrayCorruptIndex
+
+  -- | Create an independent copy of a byte buffer.
+  copy-bytes :: Bytes -> Bytes
+  copy-bytes src =
+    let n = bytes-len src in
+    let dst = bytes-new n in
+    let done = bytes-copy-range dst src 0 0 n in
+    dst
+
+  -- | Return True when suffix offsets require 64-bit slots instead of 32-bit slots.
+  is-wide :: Nat -> Bool
+  is-wide n = n > 4294967295
+
+  -- | Byte width of one packed offset slot for an input of length n.
+  slot-width :: Nat -> Nat
+  slot-width n = if n <= 4294967295 then 4 else 8
+
+  -- | Convert an unsigned 64-bit word whose top bit is clear into a Nat.
+  u64-to-nat :: U64 -> Nat
+  u64-to-nat word = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 word) 9223372036854775807)
+
+  -- | Convert an unsigned 64-bit word into a Nat only when it fits in 63-bit signed range.
+  u64-to-checked-nat :: U64 -> Option Nat
+  u64-to-checked-nat word =
+    if le-u64 word 9223372036854775807 then Some (u64-to-nat word) else None
+
+  -- | Convert a Nat within signed 64-bit range into a U64 word.
+  nat-to-u64 :: Nat -> U64
+  nat-to-u64 value =
+    if value <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 value) else 0
+
+  -- | Convert a Nat within unsigned 32-bit range into a U32 word.
+  nat-to-u32 :: Nat -> U32
+  nat-to-u32 value =
+    if value <= 4294967295 then wrapping-i64-to-u32 (nat-to-i64 value) else 0
+
+  -- | Read one packed offset or rank from a little-endian table buffer.
+  slot-get :: Bytes -> Bool -> Nat -> Nat
+  slot-get buf wide idx =
+    if wide then
+      let off = 8 * idx in
+      if off + 8 <= bytes-len buf then u64-to-nat (bytes-read-le64 buf off) else 0
+    else
+      let off = 4 * idx in
+      if off + 4 <= bytes-len buf then u32-to-nat (bytes-read-le32 buf off) else 0
+
+  -- | Write one packed offset or rank into a little-endian table buffer.
+  slot-set :: Bytes -> Bool -> Nat -> Nat -> Unit
+  slot-set buf wide idx val =
+    if wide then
+      let off = 8 * idx in
+      if off + 8 <= bytes-len buf then bytes-write-le64 buf off (nat-to-u64 val) else ()
+    else
+      let off = 4 * idx in
+      if off + 4 <= bytes-len buf then bytes-write-le32 buf off (nat-to-u32 val) else ()
+
+  -- | Zero a prefix of a byte buffer up to stop, writing eight bytes per step where possible.
+  zero-bytes :: Bytes -> Nat -> Nat -> Unit
+  zero-bytes buf i stop =
+    if i + 8 <= stop && i + 8 <= bytes-len buf then
+      let u = bytes-write-le64 buf i 0 in
+      zero-bytes buf (i + 8) stop
+    else if i < stop && i < bytes-len buf then
+      let u = bytes-set buf i 0 in
+      zero-bytes buf (i + 1) stop
+    else ()
+
+  -- | Construct the packed suffix array for buf using O(n log n) prefix doubling with counting sort.
+  build-sa :: Bytes -> Bytes
+  build-sa buf =
+    let n = bytes-len buf in
+    if n == 0 then bytes-new 0
+    else if n == 1 then bytes-new (slot-width n)
+    else if n <= 1073741822 then build-sa-u32 buf n (nat-to-u32 n)
+    else build-sa-general buf n
+
+  -- | Fast unboxed-U32 suffix array construction for inputs up to 2^30 - 2 bytes.
+  build-sa-u32 :: Bytes -> Nat -> U32 -> Bytes
+  build-sa-u32 buf n nu =
+    let sa = bytes-new (n * 4) in
+    let cls = bytes-new (n * 4) in
+    let tmp = bytes-new (n * 4) in
+    let cnt-slots = (if n + 1 > 256 then n + 1 else 256) in
+    let cnt = bytes-new (cnt-slots * 4) in
+    let u1 = count-bytes-u32 buf cnt 0 n in
+    let u2 = prefix-sums-u32 cnt 0 0 1024 in
+    let u3 = scatter-bytes-u32 buf cnt sa n in
+    let first-off = read-u32-at sa 0 in
+    let first-off-nat = u32-to-nat first-off in
+    let first-byte = (if first-off-nat < bytes-len buf then bytes-get buf first-off-nat else 0) in
+    let u4 = write-u32-slot cls first-off 1 in
+    let classes = assign-initial-classes-u32 buf sa cls 4 (n * 4) first-byte 1 in
+    if eq-u32 classes 1 then
+      let u5 = fill-reverse-u32 sa 0 nu in
+      sa
+    else doubling-loop-u32 n nu (n * 4) sa cls tmp cnt 1 classes
+
+  -- | Fill sa with [n - 1, n - 2, ..., 0] in one linear pass when all bytes are equal.
+  fill-reverse-u32 :: Bytes -> Nat -> U32 -> Unit
+  fill-reverse-u32 sa byte-off rem =
+    if gt-u32 rem 0 && byte-off + 4 <= bytes-len sa then
+      let val = wrapping-sub-u32 rem 1 in
+      let u = bytes-write-le32 sa byte-off val in
+      fill-reverse-u32 sa (byte-off + 4) val
+    else ()
+
+  -- | Read a 32-bit word at a byte offset, returning 0 if out of range.
+  read-u32-at :: Bytes -> Nat -> U32
+  read-u32-at buf byte-off =
+    if byte-off + 4 <= bytes-len buf then bytes-read-le32 buf byte-off else 0
+
+  -- | Read a 32-bit word at U32 slot index idx (byte offset 4 * idx).
+  read-u32-slot :: Bytes -> U32 -> U32
+  read-u32-slot buf idx =
+    let off = u32-to-nat (wrapping-shl-u32 idx 2) in
+    if off + 4 <= bytes-len buf then bytes-read-le32 buf off else 0
+
+  -- | Write a 32-bit word at U32 slot index idx (byte offset 4 * idx).
+  write-u32-slot :: Bytes -> U32 -> U32 -> Unit
+  write-u32-slot buf idx val =
+    let off = u32-to-nat (wrapping-shl-u32 idx 2) in
+    if off + 4 <= bytes-len buf then bytes-write-le32 buf off val else ()
+
+  -- | Accumulate single-byte frequencies into 32-bit buckets cnt[0..255].
+  count-bytes-u32 :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  count-bytes-u32 buf cnt i n =
+    if i < n && i < bytes-len buf then
+      let off = 4 * bytes-get buf i in
+      let u = (if off + 4 <= bytes-len cnt then bytes-write-le32 cnt off (wrapping-add-u32 (bytes-read-le32 cnt off) 1) else ()) in
+      count-bytes-u32 buf cnt (i + 1) n
+    else ()
+
+  -- | Convert 32-bit bucket counts into inclusive prefix sums carrying the running sum in a register.
+  prefix-sums-u32 :: Bytes -> U32 -> Nat -> Nat -> Unit
+  prefix-sums-u32 cnt acc byte-off stop-bytes =
+    if byte-off + 4 <= stop-bytes && byte-off + 4 <= bytes-len cnt then
+      let next = wrapping-add-u32 acc (bytes-read-le32 cnt byte-off) in
+      let u = bytes-write-le32 cnt byte-off next in
+      prefix-sums-u32 cnt next (byte-off + 4) stop-bytes
+    else ()
+
+  -- | Stable backward scatter of suffix indices into sa using 32-bit byte buckets.
+  scatter-bytes-u32 :: Bytes -> Bytes -> Bytes -> Nat -> Unit
+  scatter-bytes-u32 buf cnt sa rem =
+    if 1 <= rem then
+      let i = rem - 1 in
+      if i < bytes-len buf then
+        let coff = 4 * bytes-get buf i in
+        let pos = (if coff + 4 <= bytes-len cnt then
+          let p = wrapping-sub-u32 (bytes-read-le32 cnt coff) 1 in
+          let u1 = bytes-write-le32 cnt coff p in
+          p
+          else 0) in
+        let u2 = write-u32-slot sa pos (nat-to-u32 i) in
+        scatter-bytes-u32 buf cnt sa i
+      else ()
+    else ()
+
+  -- | Assign 1-based U32 equivalence classes after the initial byte counting sort.
+  assign-initial-classes-u32 :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> U32 -> U32
+  assign-initial-classes-u32 buf sa cls byte-off limit-bytes prev-byte cur-cls =
+    if byte-off + 4 <= limit-bytes && byte-off + 4 <= bytes-len sa then
+      let off = bytes-read-le32 sa byte-off in
+      let off-nat = u32-to-nat off in
+      let cur-byte = (if off-nat < bytes-len buf then bytes-get buf off-nat else 0) in
+      let next-cls = (if cur-byte == prev-byte then cur-cls else wrapping-add-u32 cur-cls 1) in
+      let u = write-u32-slot cls off next-cls in
+      assign-initial-classes-u32 buf sa cls (byte-off + 4) limit-bytes cur-byte next-cls
+    else cur-cls
+
+  -- | Prefix-doubling loop in unboxed U32 arithmetic until k >= nu or classes == nu.
+  doubling-loop-u32 :: Nat -> U32 -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> U32 -> U32 -> Bytes
+  doubling-loop-u32 n nu n-bytes sa cls tmp cnt k classes =
+    if lt-u32 k nu && lt-u32 classes nu then
+      let tail-start = wrapping-sub-u32 nu k in
+      let u1 = fill-tail-u32 tmp 0 tail-start nu in
+      let k-bytes = u32-to-nat (wrapping-shl-u32 k 2) in
+      let u2 = fill-shifted-u32 sa tmp k 0 k-bytes n-bytes in
+      let cnt-stop = u32-to-nat (wrapping-shl-u32 (wrapping-add-u32 classes 1) 2) in
+      let u3 = zero-bytes cnt 0 cnt-stop in
+      let u4 = count-classes-u32 tmp cls cnt 0 n-bytes in
+      let u5 = prefix-sums-u32 cnt 0 0 cnt-stop in
+      let u6 = scatter-classes-u32 tmp cls cnt sa n-bytes in
+      let s0 = read-u32-at sa 0 in
+      let p0 = read-u32-slot cls s0 in
+      let q0 = second-class-u32 cls s0 k nu in
+      let u7 = write-u32-slot tmp s0 1 in
+      let next-classes = assign-pair-classes-u32 sa cls tmp k nu 4 n-bytes p0 q0 1 in
+      doubling-loop-u32 n nu n-bytes sa tmp cls cnt (wrapping-shl-u32 k 1) next-classes
+    else sa
+
+  -- | Write suffix offsets [pos, nu) whose second-half rank is sentinel 0 into the front of tmp.
+  fill-tail-u32 :: Bytes -> Nat -> U32 -> U32 -> Unit
+  fill-tail-u32 tmp byte-off pos nu =
+    if lt-u32 pos nu && byte-off + 4 <= bytes-len tmp then
+      let u = bytes-write-le32 tmp byte-off pos in
+      fill-tail-u32 tmp (byte-off + 4) (wrapping-add-u32 pos 1) nu
+    else ()
+
+  -- | Append shifted suffix offsets (sa[j] - k) for all sa[j] >= k into tmp.
+  fill-shifted-u32 :: Bytes -> Bytes -> U32 -> Nat -> Nat -> Nat -> Unit
+  fill-shifted-u32 sa tmp k in-off out-off limit-bytes =
+    if in-off + 4 <= limit-bytes && in-off + 4 <= bytes-len sa then
+      let s = bytes-read-le32 sa in-off in
+      if ge-u32 s k then
+        let u = (if out-off + 4 <= bytes-len tmp then bytes-write-le32 tmp out-off (wrapping-sub-u32 s k) else ()) in
+        fill-shifted-u32 sa tmp k (in-off + 4) (out-off + 4) limit-bytes
+      else fill-shifted-u32 sa tmp k (in-off + 4) out-off limit-bytes
+    else ()
+
+  -- | Count primary U32 classes of offsets stored in tmp into cnt.
+  count-classes-u32 :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  count-classes-u32 tmp cls cnt byte-off limit-bytes =
+    if byte-off + 4 <= limit-bytes && byte-off + 4 <= bytes-len tmp then
+      let x = bytes-read-le32 tmp byte-off in
+      let c = read-u32-slot cls x in
+      let coff = u32-to-nat (wrapping-shl-u32 c 2) in
+      let u = (if coff + 4 <= bytes-len cnt then bytes-write-le32 cnt coff (wrapping-add-u32 (bytes-read-le32 cnt coff) 1) else ()) in
+      count-classes-u32 tmp cls cnt (byte-off + 4) limit-bytes
+    else ()
+
+  -- | Stable backward scatter of tmp into sa using U32 primary class buckets.
+  scatter-classes-u32 :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Unit
+  scatter-classes-u32 tmp cls cnt sa rem-bytes =
+    if 4 <= rem-bytes then
+      let byte-off = rem-bytes - 4 in
+      if byte-off + 4 <= bytes-len tmp then
+        let x = bytes-read-le32 tmp byte-off in
+        let c = read-u32-slot cls x in
+        let coff = u32-to-nat (wrapping-shl-u32 c 2) in
+        let pos = (if coff + 4 <= bytes-len cnt then
+          let p = wrapping-sub-u32 (bytes-read-le32 cnt coff) 1 in
+          let u1 = bytes-write-le32 cnt coff p in
+          p
+          else 0) in
+        let u2 = write-u32-slot sa pos x in
+        scatter-classes-u32 tmp cls cnt sa byte-off
+      else ()
+    else ()
+
+  -- | Fetch the second-half U32 rank cls[pos + k], or sentinel 0 when pos + k >= nu.
+  second-class-u32 :: Bytes -> U32 -> U32 -> U32 -> U32
+  second-class-u32 cls pos k nu =
+    let idx = wrapping-add-u32 pos k in
+    if lt-u32 idx nu then read-u32-slot cls idx else 0
+
+  -- | Recompute 1-based U32 equivalence classes for rank pairs into dst.
+  assign-pair-classes-u32 :: Bytes -> Bytes -> Bytes -> U32 -> U32 -> Nat -> Nat -> U32 -> U32 -> U32 -> U32
+  assign-pair-classes-u32 sa cls dst k nu byte-off limit-bytes prev-p prev-q cur-cls =
+    if byte-off + 4 <= limit-bytes && byte-off + 4 <= bytes-len sa then
+      let s = bytes-read-le32 sa byte-off in
+      let p = read-u32-slot cls s in
+      let q = second-class-u32 cls s k nu in
+      let next-cls = (if eq-u32 p prev-p && eq-u32 q prev-q then cur-cls else wrapping-add-u32 cur-cls 1) in
+      let u = write-u32-slot dst s next-cls in
+      assign-pair-classes-u32 sa cls dst k nu (byte-off + 4) limit-bytes p q next-cls
+    else cur-cls
+
+  -- | General suffix array construction supporting 32-bit and 64-bit index tables for arbitrary lengths.
+  build-sa-general :: Bytes -> Nat -> Bytes
+  build-sa-general buf n =
+    let wide = is-wide n in
+    let width = slot-width n in
+    let sa = bytes-new (n * width) in
+    let cls = bytes-new (n * width) in
+    let tmp = bytes-new (n * width) in
+    let cnt-slots = (if n + 1 > 256 then n + 1 else 256) in
+    let cnt = bytes-new (cnt-slots * width) in
+    let u1 = count-bytes buf cnt wide 0 n in
+    let u2 = prefix-sums cnt wide 1 256 in
+    let u3 = scatter-bytes buf cnt sa wide n in
+    let first-off = slot-get sa wide 0 in
+    let first-byte = (if first-off < bytes-len buf then bytes-get buf first-off else 0) in
+    let u4 = slot-set cls wide first-off 1 in
+    let classes = assign-initial-classes buf sa cls wide 1 n first-byte 1 in
+    doubling-loop n wide width sa cls tmp cnt 1 classes
+
+  -- | Accumulate single-byte frequencies into cnt[0..255].
+  count-bytes :: Bytes -> Bytes -> Bool -> Nat -> Nat -> Unit
+  count-bytes buf cnt wide i n =
+    if i < n && i < bytes-len buf then
+      let b = bytes-get buf i in
+      let u = slot-set cnt wide b (slot-get cnt wide b + 1) in
+      count-bytes buf cnt wide (i + 1) n
+    else ()
+
+  -- | Convert bucket counts into inclusive prefix sums over [start, stop).
+  prefix-sums :: Bytes -> Bool -> Nat -> Nat -> Unit
+  prefix-sums cnt wide i stop =
+    if i < stop && 1 <= i then
+      let prev = slot-get cnt wide (i - 1) in
+      let cur = slot-get cnt wide i in
+      let u = slot-set cnt wide i (prev + cur) in
+      prefix-sums cnt wide (i + 1) stop
+    else ()
+
+  -- | Stable backward scatter of suffix positions 0..n-1 into sa by their first byte.
+  scatter-bytes :: Bytes -> Bytes -> Bytes -> Bool -> Nat -> Unit
+  scatter-bytes buf cnt sa wide rem =
+    if 1 <= rem then
+      let i = rem - 1 in
+      if i < bytes-len buf then
+        let b = bytes-get buf i in
+        let c = slot-get cnt wide b in
+        let pos = (if 1 <= c then c - 1 else 0) in
+        let u1 = slot-set cnt wide b pos in
+        let u2 = slot-set sa wide pos i in
+        scatter-bytes buf cnt sa wide i
+      else ()
+    else ()
+
+  -- | Assign 1-based equivalence classes after the initial single-byte sort.
+  assign-initial-classes :: Bytes -> Bytes -> Bytes -> Bool -> Nat -> Nat -> Nat -> Nat -> Nat
+  assign-initial-classes buf sa cls wide j n prev-byte cur-cls =
+    if j < n then
+      let off = slot-get sa wide j in
+      let cur-byte = (if off < bytes-len buf then bytes-get buf off else 0) in
+      let next-cls = (if cur-byte == prev-byte then cur-cls else cur-cls + 1) in
+      let u = slot-set cls wide off next-cls in
+      assign-initial-classes buf sa cls wide (j + 1) n cur-byte next-cls
+    else cur-cls
+
+  -- | Double the sorted prefix length k until k >= n or all n suffix classes are unique.
+  doubling-loop :: Nat -> Bool -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes
+  doubling-loop n wide width sa cls tmp cnt k classes =
+    if k < n && classes < n then
+      let tail-start = (if k <= n then n - k else 0) in
+      let u1 = fill-tail-indices tmp wide 0 tail-start n in
+      let u2 = fill-shifted-indices sa tmp wide k 0 k n in
+      let u3 = zero-bytes cnt 0 ((classes + 1) * width) in
+      let u4 = count-classes tmp cls cnt wide 0 n in
+      let u5 = prefix-sums cnt wide 1 (classes + 1) in
+      let u6 = scatter-classes tmp cls cnt sa wide n in
+      let s0 = slot-get sa wide 0 in
+      let p0 = slot-get cls wide s0 in
+      let q0 = second-class cls wide s0 k n in
+      let u7 = slot-set tmp wide s0 1 in
+      let next-classes = assign-pair-classes sa cls tmp wide k 1 n p0 q0 1 in
+      doubling-loop n wide width sa tmp cls cnt (k * 2) next-classes
+    else sa
+
+  -- | Place suffixes [pos, n) whose second-half rank is sentinel 0 at the front of tmp.
+  fill-tail-indices :: Bytes -> Bool -> Nat -> Nat -> Nat -> Unit
+  fill-tail-indices tmp wide out-idx pos n =
+    if pos < n then
+      let u = slot-set tmp wide out-idx pos in
+      fill-tail-indices tmp wide (out-idx + 1) (pos + 1) n
+    else ()
+
+  -- | Append suffixes (sa[j] - k) for all sa[j] >= k in order of increasing second-half rank.
+  fill-shifted-indices :: Bytes -> Bytes -> Bool -> Nat -> Nat -> Nat -> Nat -> Unit
+  fill-shifted-indices sa tmp wide k j out-idx n =
+    if j < n then
+      let s = slot-get sa wide j in
+      if k <= s then
+        let u = slot-set tmp wide out-idx (s - k) in
+        fill-shifted-indices sa tmp wide k (j + 1) (out-idx + 1) n
+      else fill-shifted-indices sa tmp wide k (j + 1) out-idx n
+    else ()
+
+  -- | Count primary equivalence classes of indices stored in tmp into cnt.
+  count-classes :: Bytes -> Bytes -> Bytes -> Bool -> Nat -> Nat -> Unit
+  count-classes tmp cls cnt wide j n =
+    if j < n then
+      let x = slot-get tmp wide j in
+      let c = slot-get cls wide x in
+      let u = slot-set cnt wide c (slot-get cnt wide c + 1) in
+      count-classes tmp cls cnt wide (j + 1) n
+    else ()
+
+  -- | Stable backward scatter of tmp into sa using primary class buckets in cnt.
+  scatter-classes :: Bytes -> Bytes -> Bytes -> Bytes -> Bool -> Nat -> Unit
+  scatter-classes tmp cls cnt sa wide rem =
+    if 1 <= rem then
+      let j = rem - 1 in
+      let x = slot-get tmp wide j in
+      let c = slot-get cls wide x in
+      let cur = slot-get cnt wide c in
+      let pos = (if 1 <= cur then cur - 1 else 0) in
+      let u1 = slot-set cnt wide c pos in
+      let u2 = slot-set sa wide pos x in
+      scatter-classes tmp cls cnt sa wide j
+    else ()
+
+  -- | Fetch the second-half rank cls[pos + k], or sentinel 0 when pos + k >= n.
+  second-class :: Bytes -> Bool -> Nat -> Nat -> Nat -> Nat
+  second-class cls wide pos k n =
+    if pos + k < n then slot-get cls wide (pos + k) else 0
+
+  -- | Recompute 1-based equivalence classes for rank pairs (cls[s], second-class s k) into dst.
+  assign-pair-classes :: Bytes -> Bytes -> Bytes -> Bool -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+  assign-pair-classes sa cls dst wide k j n prev-p prev-q cur-cls =
+    if j < n then
+      let s = slot-get sa wide j in
+      let p = slot-get cls wide s in
+      let q = second-class cls wide s k n in
+      let next-cls = (if p == prev-p && q == prev-q then cur-cls else cur-cls + 1) in
+      let u = slot-set dst wide s next-cls in
+      assign-pair-classes sa cls dst wide k (j + 1) n p q next-cls
+    else cur-cls
+
+  -- | Compare suffix buf[off..] lexicographically against pattern pat.
+  compare-suffix-pattern :: Bytes -> Nat -> Bytes -> Nat -> Ordering
+  compare-suffix-pattern buf off pat k =
+    if k < bytes-len pat then
+      if off + k < bytes-len buf then
+        let db = bytes-get buf (off + k) in
+        let pb = bytes-get pat k in
+        if db < pb then LT
+        else if db > pb then GT
+        else compare-suffix-pattern buf off pat (k + 1)
+      else LT
+    else if off + k == bytes-len buf then EQ
+    else GT
+
+  -- | Return True if suffix buf[off..] begins with pattern pat.
+  suffix-has-prefix :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  suffix-has-prefix buf off pat k =
+    if k < bytes-len pat then
+      if off + k < bytes-len buf then
+        if bytes-get buf (off + k) == bytes-get pat k then suffix-has-prefix buf off pat (k + 1)
+        else False
+      else False
+    else True
+
+  -- | Binary search for the first index in [lo, hi) whose suffix is lexicographically >= pat.
+  lower-bound-ge :: Bytes -> Bytes -> Bool -> Bytes -> Nat -> Nat -> Nat
+  lower-bound-ge buf table wide pat lo hi =
+    if lo < hi then
+      let mid = lo + nat-div (hi - lo) 2 in
+      let off = slot-get table wide mid in
+      case compare-suffix-pattern buf off pat 0 of
+        LT -> lower-bound-ge buf table wide pat (mid + 1) hi
+        _ -> lower-bound-ge buf table wide pat lo mid
+    else lo
+
+  -- | Binary search for the first index in [lo, hi) whose suffix does not start with pat.
+  upper-bound-prefix :: Bytes -> Bytes -> Bool -> Bytes -> Nat -> Nat -> Nat
+  upper-bound-prefix buf table wide pat lo hi =
+    if lo < hi then
+      let mid = lo + nat-div (hi - lo) 2 in
+      let off = slot-get table wide mid in
+      if suffix-has-prefix buf off pat 0 then upper-bound-prefix buf table wide pat (mid + 1) hi
+      else upper-bound-prefix buf table wide pat lo mid
+    else lo
+
+  -- | Collect table entries in [lo, hi) into a List Nat in ascending index order using tail recursion.
+  collect-range :: Bytes -> Bool -> Nat -> Nat -> List Nat -> List Nat
+  collect-range table wide lo hi acc =
+    if lo < hi && 1 <= hi then
+      let idx = hi - 1 in
+      collect-range table wide lo idx (Cons (slot-get table wide idx) acc)
+    else acc
+
+  -- | Sort a list of natural numbers in ascending order using iterative bottom-up merge sort.
+  mergesort-nats :: List Nat -> List Nat
+  mergesort-nats xs = merge-all (wrap-runs xs Nil)
+
+  -- | Wrap each element into a singleton sorted run.
+  wrap-runs :: List Nat -> List (List Nat) -> List (List Nat)
+  wrap-runs xs acc = case xs of
+    Nil -> reverse acc
+    Cons x rest -> wrap-runs rest (Cons (Cons x Nil) acc)
+
+  -- | Repeatedly merge adjacent sorted runs until one sorted list remains.
+  merge-all :: List (List Nat) -> List Nat
+  merge-all runs = case runs of
+    Nil -> Nil
+    Cons single Nil -> single
+    _ -> merge-all (merge-pass runs Nil)
+
+  -- | Merge consecutive pairs of sorted runs in one tail-recursive pass.
+  merge-pass :: List (List Nat) -> List (List Nat) -> List (List Nat)
+  merge-pass runs acc = case runs of
+    Nil -> reverse acc
+    Cons a Nil -> reverse (Cons a acc)
+    Cons a (Cons b rest) -> merge-pass rest (Cons (merge-two a b Nil) acc)
+
+  -- | Merge two ascending natural-number lists using a tail-recursive accumulator.
+  merge-two :: List Nat -> List Nat -> List Nat -> List Nat
+  merge-two xs ys acc = case xs of
+    Nil -> prepend-rev acc ys
+    Cons x xrest -> case ys of
+      Nil -> prepend-rev acc xs
+      Cons y yrest ->
+        if x <= y then merge-two xrest ys (Cons x acc)
+        else merge-two xs yrest (Cons y acc)
+
+  -- | Prepend the reverse of prefix onto tail using tail recursion.
+  prepend-rev :: List Nat -> List Nat -> List Nat
+  prepend-rev prefix tail = case prefix of
+    Nil -> tail
+    Cons x rest -> prepend-rev rest (Cons x tail)
+
+  -- | Advance past one UTF-8 scalar at byte offset pos inside buf.
+  next-utf8-pos :: Bytes -> Nat -> Nat
+  next-utf8-pos buf pos = case utf8-at buf pos of
+    None -> pos + 1
+    Some pair -> case pair of
+      (_, width) -> if width > 0 then pos + width else pos + 1
+
+  -- | Decrement an optional remaining match limit.
+  decrement-rem :: Option Nat -> Option Nat
+  decrement-rem rem = case rem of
+    None -> None
+    Some k -> if 1 <= k then Some (k - 1) else Some 0
+
+  -- | Tail-recursively collect non-overlapping regular expression matches matching leftmost-first
+  -- semantics while skipping zero-width matches immediately following a non-empty match.
+  scan-regex-all :: Regex -> String -> Bytes -> Nat -> Option Nat -> Option Nat -> List (Nat, Nat) -> List (Nat, Nat)
+  scan-regex-all re text buf pos prev-end rem acc = case rem of
+    Some 0 -> reverse acc
+    _ -> case regex-search-from re text pos of
+      None -> reverse acc
+      Some m ->
+        let st = match-start m in
+        let en = match-end m in
+        if st == en && is-same-end prev-end st then
+          if st >= bytes-len buf then reverse acc
+          else scan-regex-all re text buf (next-utf8-pos buf st) None rem acc
+        else
+          let next-acc = Cons (st, en) acc in
+          let next-rem = decrement-rem rem in
+          if en > st then scan-regex-all re text buf en (Some en) next-rem next-acc
+          else if st >= bytes-len buf then reverse next-acc
+          else scan-regex-all re text buf (next-utf8-pos buf st) None next-rem next-acc
+
+  -- | Check whether prev-end holds Some pos.
+  is-same-end :: Option Nat -> Nat -> Bool
+  is-same-end prev-end pos = case prev-end of
+    None -> False
+    Some p -> p == pos
+
+  -- | Write the 16-byte "CSA1" header (magic, version 1, slot width, reserved zeroes, and length).
+  write-header :: Bytes -> Nat -> Nat -> Unit
+  write-header out width n =
+    if 16 <= bytes-len out then
+      let u0 = bytes-set out 0 67 in
+      let u1 = bytes-set out 1 83 in
+      let u2 = bytes-set out 2 65 in
+      let u3 = bytes-set out 3 49 in
+      let u4 = bytes-set out 4 1 in
+      let u5 = (if width == 4 then bytes-set out 5 4 else bytes-set out 5 8) in
+      let u6 = bytes-set out 6 0 in
+      let u7 = bytes-set out 7 0 in
+      bytes-write-le64 out 8 (nat-to-u64 n)
+    else ()
+
+  -- | Verify the 4-byte "CSA1" magic prefix of an encoded header.
+  valid-magic :: Bytes -> Bool
+  valid-magic buf =
+    if 4 <= bytes-len buf then
+      bytes-get buf 0 == 67 && bytes-get buf 1 == 83 && bytes-get buf 2 == 65 && bytes-get buf 3 == 49
+    else False
+
+  -- | Extract the suffix offset table from an encoded buffer, converting 64-bit entries into
+  -- canonical 32-bit internal slots when n fits in 32 bits.
+  decode-table :: Bytes -> Nat -> Nat -> Nat -> Result SuffixArrayError Bytes
+  decode-table encoded offset n enc-width =
+    let canon-width = slot-width n in
+    if enc-width == canon-width then
+      let sa-len = n * canon-width in
+      let table = bytes-new sa-len in
+      let u = (if offset + sa-len <= bytes-len encoded then bytes-copy-range table encoded 0 offset sa-len else ()) in
+      Ok table
+    else
+      let table = bytes-new (n * canon-width) in
+      narrow-table encoded offset table 0 n
+
+  -- | Narrow 64-bit encoded suffix offsets to 32-bit internal slots while rejecting out-of-range values.
+  narrow-table :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Result SuffixArrayError Bytes
+  narrow-table encoded offset table i n =
+    if i < n then
+      let pos = offset + 8 * i in
+      if pos + 8 <= bytes-len encoded then
+        case u64-to-checked-nat (bytes-read-le64 encoded pos) of
+          None -> Err SuffixArrayCorruptIndex
+          Some val ->
+            if val >= n then Err SuffixArrayCorruptIndex
+            else
+              let u = slot-set table False i val in
+              narrow-table encoded offset table (i + 1) n
+      else Err SuffixArrayTruncated
+    else Ok table
+
+  -- | Validate in O(n) time that table is a permutation of 0..n-1 and sorts all suffixes of buf.
+  validate-sa :: Bytes -> Bytes -> Nat -> Bool -> Bool
+  validate-sa buf table n wide =
+    if n == 0 then True
+    else
+      let rank = bytes-new (n * slot-width n) in
+      if build-inverse-rank table rank n wide 0 then
+        if n <= 1 then True
+        else check-suffix-order buf table rank n wide 0
+      else False
+
+  -- | Populate 1-based inverse ranks while checking that every entry is in [0, n) and unique.
+  build-inverse-rank :: Bytes -> Bytes -> Nat -> Bool -> Nat -> Bool
+  build-inverse-rank table rank n wide i =
+    if i < n then
+      let off = slot-get table wide i in
+      if off >= n then False
+      else if slot-get rank wide off /= 0 then False
+      else
+        let u = slot-set rank wide off (i + 1) in
+        build-inverse-rank table rank n wide (i + 1)
+    else True
+
+  -- | Check strict lexicographic ordering of every adjacent suffix pair in O(1) per pair via rank.
+  check-suffix-order :: Bytes -> Bytes -> Bytes -> Nat -> Bool -> Nat -> Bool
+  check-suffix-order buf table rank n wide i =
+    if i + 1 < n then
+      let p = slot-get table wide i in
+      let q = slot-get table wide (i + 1) in
+      if p < bytes-len buf && q < bytes-len buf then
+        let bp = bytes-get buf p in
+        let bq = bytes-get buf q in
+        if bp < bq then check-suffix-order buf table rank n wide (i + 1)
+        else if bp > bq then False
+        else if p + 1 == n then check-suffix-order buf table rank n wide (i + 1)
+        else if q + 1 == n then False
+        else if slot-get rank wide (p + 1) < slot-get rank wide (q + 1) then check-suffix-order buf table rank n wide (i + 1)
+        else False
+      else False
+    else True

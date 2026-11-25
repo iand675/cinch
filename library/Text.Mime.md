@@ -4,7 +4,7 @@ Byte-preserving media types, encoded words, immutable parameter maps and explici
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Mime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mime/source/">View source</a><a href="/packages/search/?q=%2BText.Mime">Search module</a><a href="/reference-sources/Text.Mime.cinch" download="Text.Mime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.HashMap](Data.HashMap.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Relation.Eq](Relation.Eq.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.HashMap](Data.HashMap.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -32,7 +32,7 @@ A precise syntax, registration or encoded-word failure without mutable payloads.
 </article>
 
 <article class="doc-entry" id="t-MimeHeaderPart">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeHeaderPart</strong></code><span class="doc-sig-links"><a href="#t-MimeHeaderPart" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1030" title="View source at line 1030">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeHeaderPart</strong></code><span class="doc-sig-links"><a href="#t-MimeHeaderPart" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1089" title="View source at line 1089">Source</a></span></div>
 <div class="doc-body">
 
 A single header scan observation, preserving literal prefixes and candidate spelling.
@@ -60,7 +60,7 @@ Persistent exact-key parameter map with privately copied values.
 </article>
 
 <article class="doc-entry" id="t-MimeRegistry">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeRegistry</strong></code><span class="doc-sig-links"><a href="#t-MimeRegistry" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1065" title="View source at line 1065">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeRegistry</strong></code><span class="doc-sig-links"><a href="#t-MimeRegistry" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1124" title="View source at line 1124">Source</a></span></div>
 <div class="doc-body">
 
 Explicit persistent association context. Exact spellings and lowercase
@@ -70,7 +70,7 @@ fallbacks are distinct; inverse lists preserve historical registered types.
 </article>
 
 <article class="doc-entry" id="t-MimeWordEncoder">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeWordEncoder</strong></code><span class="doc-sig-links"><a href="#t-MimeWordEncoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L769" title="View source at line 769">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeWordEncoder</strong></code><span class="doc-sig-links"><a href="#t-MimeWordEncoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L828" title="View source at line 828">Source</a></span></div>
 <div class="doc-body">
 
 Preserve any U8 selector, including nonstandard values, without silently restricting it.
@@ -80,7 +80,7 @@ Preserve any U8 selector, including nonstandard values, without silently restric
 </article>
 
 <article class="doc-entry" id="t-MimeWordToken">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeWordToken</strong></code><span class="doc-sig-links"><a href="#t-MimeWordToken" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L873" title="View source at line 873">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MimeWordToken</strong></code><span class="doc-sig-links"><a href="#t-MimeWordToken" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L932" title="View source at line 932">Source</a></span></div>
 <div class="doc-body">
 
 A parsed encoded-word charset label and decoded transfer body.
@@ -91,7 +91,7 @@ A parsed encoded-word charset label and decoded transfer body.
 # Values
 
 <article class="doc-entry" id="v-mime-b-encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-b-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a></code><span class="doc-sig-links"><a href="#v-mime-b-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L772" title="View source at line 772">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-b-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a></code><span class="doc-sig-links"><a href="#v-mime-b-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L831" title="View source at line 831">Source</a></span></div>
 <div class="doc-body">
 
 Standard Base64 encoded-word selector, with canonical byte value 98.
@@ -100,7 +100,7 @@ Standard Base64 encoded-word selector, with canonical byte value 98.
 </article>
 
 <article class="doc-entry" id="v-mime-charset-name">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-charset-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-charset-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L995" title="View source at line 995">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-charset-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-charset-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1054" title="View source at line 1054">Source</a></span></div>
 <div class="doc-body">
 
 Produce the lowercase callback label, repairing each malformed source byte separately.
@@ -109,7 +109,7 @@ Produce the lowercase callback label, repairing each malformed source byte separ
 </article>
 
 <article class="doc-entry" id="v-mime-convert-known-charset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-convert-known-charset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-convert-known-charset" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L987" title="View source at line 987">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-convert-known-charset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-convert-known-charset" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1046" title="View source at line 1046">Source</a></span></div>
 <div class="doc-body">
 
 Convert the built-in UTF-8, Latin-1 and US-ASCII charsets. UTF-8-labelled
@@ -128,7 +128,7 @@ Render exact familiar wire diagnostics without discarding their error kind.
 </article>
 
 <article class="doc-entry" id="v-mime-format-media-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-format-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeParameters" title="Text.Mime.MimeParameters">MimeParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-format-media-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L573" title="View source at line 573">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-format-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeParameters" title="Text.Mime.MimeParameters">MimeParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-format-media-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L591" title="View source at line 591">Source</a></span></div>
 <div class="doc-body">
 
 Serialize a valid token or major/subtype pair with sorted parameter names.
@@ -139,7 +139,7 @@ through quoted or extended encoding, and all successful output is UTF-8 ASCII.
 </article>
 
 <article class="doc-entry" id="v-mime-header-step">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-header-step</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeHeaderPart" title="Text.Mime.MimeHeaderPart">MimeHeaderPart</a></code><span class="doc-sig-links"><a href="#v-mime-header-step" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1044" title="View source at line 1044">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-header-step</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeHeaderPart" title="Text.Mime.MimeHeaderPart">MimeHeaderPart</a></code><span class="doc-sig-links"><a href="#v-mime-header-step" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1103" title="View source at line 1103">Source</a></span></div>
 <div class="doc-body">
 
 Parse one header candidate using permissive header rules, which differ from
@@ -221,7 +221,7 @@ Begin with an empty, non-null parameter context.
 </article>
 
 <article class="doc-entry" id="v-mime-parse-media-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-parse-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeMediaResult" title="Text.Mime.MimeMediaResult">MimeMediaResult</a></code><span class="doc-sig-links"><a href="#v-mime-parse-media-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L516" title="View source at line 516">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-parse-media-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeMediaResult" title="Text.Mime.MimeMediaResult">MimeMediaResult</a></code><span class="doc-sig-links"><a href="#v-mime-parse-media-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L534" title="View source at line 534">Source</a></span></div>
 <div class="doc-body">
 
 Parse media syntax and RFC 2231 continuations. Successful parameters are non-null;
@@ -231,7 +231,7 @@ parameter errors retain the valid base, while conflicting duplicates clear it.
 </article>
 
 <article class="doc-entry" id="v-mime-q-encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-q-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a></code><span class="doc-sig-links"><a href="#v-mime-q-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L776" title="View source at line 776">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-q-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a></code><span class="doc-sig-links"><a href="#v-mime-q-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L835" title="View source at line 835">Source</a></span></div>
 <div class="doc-body">
 
 Standard Q encoded-word selector, with canonical byte value 113.
@@ -240,7 +240,7 @@ Standard Q encoded-word selector, with canonical byte value 113.
 </article>
 
 <article class="doc-entry" id="v-mime-quote-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-quote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1026" title="View source at line 1026">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-quote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1085" title="View source at line 1085">Source</a></span></div>
 <div class="doc-body">
 
 Return an immutable quoted diagnostic spelling of arbitrary bytes.
@@ -249,7 +249,7 @@ Return an immutable quoted diagnostic spelling of arbitrary bytes.
 </article>
 
 <article class="doc-entry" id="v-mime-registry-add">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-add" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1085" title="View source at line 1085">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-add</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-add" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1144" title="View source at line 1144">Source</a></span></div>
 <div class="doc-body">
 
 Register one exact association atomically. Text defaults apply only to a
@@ -259,7 +259,7 @@ literal lowercase text/ prefix, and missing or empty charsets become utf-8.
 </article>
 
 <article class="doc-entry" id="v-mime-registry-associations">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-associations</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-associations" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1140" title="View source at line 1140">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-associations</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-associations" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1199" title="View source at line 1199">Source</a></span></div>
 <div class="doc-body">
 
 Import associations explicitly in order, returning the first registration
@@ -270,7 +270,7 @@ as ordinary associations rather than read through ambient initialization.
 </article>
 
 <article class="doc-entry" id="v-mime-registry-default">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-default" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1150" title="View source at line 1150">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-default</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-default" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1209" title="View source at line 1209">Source</a></span></div>
 <div class="doc-body">
 
 Stable built-in associations. Additional host-specific records are imported
@@ -280,7 +280,7 @@ through mime-registry-associations, keeping configuration explicit and reproduci
 </article>
 
 <article class="doc-entry" id="v-mime-registry-empty">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-empty" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1070" title="View source at line 1070">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-empty</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a></code><span class="doc-sig-links"><a href="#v-mime-registry-empty" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1129" title="View source at line 1129">Source</a></span></div>
 <div class="doc-body">
 
 Begin with no hidden host or process-wide registry state.
@@ -289,7 +289,7 @@ Begin with no hidden host or process-wide registry state.
 </article>
 
 <article class="doc-entry" id="v-mime-registry-extensions">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-extensions</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-mime-registry-extensions" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1127" title="View source at line 1127">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-extensions</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-mime-registry-extensions" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1186" title="View source at line 1186">Source</a></span></div>
 <div class="doc-body">
 
 Return sorted historical lowercase extensions after full media-type validation.
@@ -299,7 +299,7 @@ Parameters do not affect the inverse lookup, but parameter errors remain visible
 </article>
 
 <article class="doc-entry" id="v-mime-registry-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-registry-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1108" title="View source at line 1108">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-registry-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeRegistry" title="Text.Mime.MimeRegistry">MimeRegistry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-registry-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1167" title="View source at line 1167">Source</a></span></div>
 <div class="doc-body">
 
 Resolve the exact spelling first, then its Unicode lowercase fallback.
@@ -309,7 +309,7 @@ Unknown extensions return a fresh empty buffer. Observations never alias a conte
 </article>
 
 <article class="doc-entry" id="v-mime-word-encode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L856" title="View source at line 856">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L915" title="View source at line 915">Source</a></span></div>
 <div class="doc-body">
 
 Encode arbitrary source bytes. Plain ASCII including tab is returned freshly
@@ -320,7 +320,7 @@ other labels remain unvalidated and unsplit, with no implicit transcoding.
 </article>
 
 <article class="doc-entry" id="v-mime-word-encode-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-word-encode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L864" title="View source at line 864">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mime-word-encode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L923" title="View source at line 923">Source</a></span></div>
 <div class="doc-body">
 
 Checked String convenience retaining exact byte-valued selector behavior.
@@ -330,7 +330,7 @@ Use the byte API when a nonstandard selector creates non-UTF-8 header bytes.
 </article>
 
 <article class="doc-entry" id="v-mime-word-encoder-byte">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encoder-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-mime-word-encoder-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L780" title="View source at line 780">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-encoder-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordEncoder" title="Text.Mime.MimeWordEncoder">MimeWordEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-mime-word-encoder-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L839" title="View source at line 839">Source</a></span></div>
 <div class="doc-body">
 
 Observe the exact byte-valued selector used in an encoded-word header.
@@ -339,7 +339,7 @@ Observe the exact byte-valued selector used in an encoded-word header.
 </article>
 
 <article class="doc-entry" id="v-mime-word-token">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a></code><span class="doc-sig-links"><a href="#v-mime-word-token" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L958" title="View source at line 958">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeError" title="Text.Mime.MimeError">MimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a></code><span class="doc-sig-links"><a href="#v-mime-word-token" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L1017" title="View source at line 1017">Source</a></span></div>
 <div class="doc-body">
 
 Parse a complete single encoded word with exactly four question delimiters.
@@ -349,7 +349,7 @@ Empty transfer bodies are accepted; charset labels remain unvalidated bytes.
 </article>
 
 <article class="doc-entry" id="v-mime-word-token-charset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token-charset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-token-charset" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L878" title="View source at line 878">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token-charset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-token-charset" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L937" title="View source at line 937">Source</a></span></div>
 <div class="doc-body">
 
 Observe an independent copy of the exact unnormalized charset label.
@@ -358,7 +358,7 @@ Observe an independent copy of the exact unnormalized charset label.
 </article>
 
 <article class="doc-entry" id="v-mime-word-token-content">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-token-content" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L882" title="View source at line 882">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mime-word-token-content</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mime/#t-MimeWordToken" title="Text.Mime.MimeWordToken">MimeWordToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mime-word-token-content" title="Permalink">#</a><a href="/packages/stdlib/Text.Mime/source/#L941" title="View source at line 941">Source</a></span></div>
 <div class="doc-body">
 
 Observe independent decoded transfer bytes before any charset conversion.

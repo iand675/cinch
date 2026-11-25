@@ -1,7 +1,7 @@
 -- | Tape archives: read V7, USTAR, PAX and GNU tar streams and write USTAR or PAX archives.
 -- An archive is a sequence of 512-byte header blocks, each followed by its
 -- file data padded to a whole block, and ends with two zero blocks. Reading
--- verifies every header checksum (summed sixteen bytes at a time in SIMD lanes,
+-- verifies every header checksum (summed sixteen bytes at a time in parallel lanes,
 -- accepting both the unsigned and the historical signed sum), applies PAX
 -- extended records and GNU long names and links to the entry they precede,
 -- returns PAX global headers as entries of their own, and decodes octal and
@@ -20,6 +20,7 @@ module Text.Tar where
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128)
 
   export TarHeader, TarEntry, tar-header, tar-entry, tar-entry-header, tar-entry-data
   export tar-kind, tar-name, tar-link, tar-mode, tar-uid, tar-gid, tar-size, tar-mtime, tar-uname, tar-gname, tar-devmajor, tar-devminor, tar-pax, tar-format
@@ -211,37 +212,54 @@ module Text.Tar where
     TarBadPax at -> string-concat "invalid PAX extended header at offset " (nat-to-string at)
 
   -- | Sum sixteen bytes as unsigned values (low 32 bits) and as signed values (high 32 bits, two's complement).
-  prim block-sums :: U64 -> U64 -> U64 where
-    llvm {
-      %a = bitcast i64 %0 to <8 x i8>
-      %b = bitcast i64 %1 to <8 x i8>
-      %bytes = shufflevector <8 x i8> %a, <8 x i8> %b, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %unsigned = zext <16 x i8> %bytes to <16 x i32>
-      %signed = sext <16 x i8> %bytes to <16 x i32>
-      %u = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %unsigned)
-      %s = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %signed)
-      %lo = zext i32 %u to i64
-      %hi = zext i32 %s to i64
-      %up = shl i64 %hi, 32
-      %value = or i64 %lo, %up
-      ret i64 %value
-    }
+  block-sums :: U64 -> U64 -> U64
+  block-sums w0 w1 =
+    let even0 = bit-and-u64 w0 0x00FF00FF00FF00FF in
+    let odd0 = bit-and-u64 (wrapping-shr-u64 w0 8) 0x00FF00FF00FF00FF in
+    let even1 = bit-and-u64 w1 0x00FF00FF00FF00FF in
+    let odd1 = bit-and-u64 (wrapping-shr-u64 w1 8) 0x00FF00FF00FF00FF in
+    let lanes = wrapping-add-u64 (wrapping-add-u64 even0 odd0) (wrapping-add-u64 even1 odd1) in
+    let unsigned = wrapping-u64-to-u32 (wrapping-shr-u64 (wrapping-mul-u64 lanes 0x0001000100010001) 48) in
+    let high0 = count-ones-u64 (bit-and-u64 w0 0x8080808080808080) in
+    let high1 = count-ones-u64 (bit-and-u64 w1 0x8080808080808080) in
+    let signed = wrapping-sub-u32 unsigned (wrapping-shl-u32 (wrapping-add-u32 high0 high1) 8) in
+    bit-or-u64 (u32-to-u64 unsigned) (wrapping-shl-u64 (u32-to-u64 signed) 32)
 
   -- | Unsigned and signed sums of a 512-byte block, with the checksum field (148..155) counted as spaces.
   checksums :: Bytes -> Nat -> (Nat, Int)
-  checksums input at = sum-blocks input at 0 0 0
+  checksums input at =
+    if at <= bytes-len input then
+      let base = nat-to-i64 at in
+      let n = bytes-len-i64 input in
+      let stop = if 512 <= wrapping-sub-i64 n base then wrapping-add-i64 base 512 else wrapping-add-i64 n 0 in
+      if 16 <= stop then sum-blocks input at base (wrapping-sub-i64 stop 16) 0 0
+      else finish-checksums input at 0 0
+    else finish-checksums input at 0 0
 
-  -- | Accumulate sixteen-byte lanes, then replace the checksum field's contribution by eight spaces.
-  sum-blocks :: Bytes -> Nat -> Nat -> Nat -> Int -> (Nat, Int)
-  sum-blocks input at i unsigned signed =
-    if i < 512 && at + i + 16 <= bytes-len input then
-      let pair = block-sums (bytes-read-le64 input (at + i)) (bytes-read-le64 input (at + i + 8)) in
-      let u = u32-to-nat (wrapping-u64-to-u32 pair) in
-      let s = int-from-i64 (i32-to-i64 (wrapping-u64-to-i32 (wrapping-shr-u64 pair 32))) in
-      sum-blocks input at (i + 16) (unsigned + u) (signed + s)
-    else
-      let field = field-sums input (at + 148) 0 0 0 in
-      case field of (fu, fs) -> (minus (unsigned + 256) fu, signed + 256 - fs)
+  -- | Accumulate sixteen-byte lanes in machine registers, then replace the checksum field's contribution by eight spaces.
+  sum-blocks :: Bytes -> Nat -> I64 -> I64 -> U32 -> I64 -> (Nat, Int)
+  sum-blocks input at pos stop-lim unsigned signed =
+    let n = bytes-len-i64 input in
+    if 16 <= n then
+      let nn = nat-from-i64 n in
+      let lim = nn - 16 in
+      if 0 <= pos && pos <= stop-lim && pos <= wrapping-sub-i64 n 16 && nat-from-i64 pos <= lim then
+        let chunk = bytes-load-u128-at input pos in
+        let w0 = wrapping-u128-to-u64 chunk in
+        let w1 = wrapping-u128-to-u64 (wrapping-shr-u128 chunk 64) in
+        let pair = block-sums w0 w1 in
+        let u = wrapping-u64-to-u32 pair in
+        let s = i32-to-i64 (wrapping-u64-to-i32 (wrapping-shr-u64 pair 32)) in
+        sum-blocks input at (wrapping-add-i64 pos 16) stop-lim
+          (wrapping-add-u32 unsigned u) (wrapping-add-i64 signed s)
+      else finish-checksums input at unsigned signed
+    else finish-checksums input at unsigned signed
+
+  -- | Replace the checksum field's contribution by eight spaces and convert to Nat/Int once.
+  finish-checksums :: Bytes -> Nat -> U32 -> I64 -> (Nat, Int)
+  finish-checksums input at unsigned signed =
+    let field = field-sums input (at + 148) 0 0 0 in
+    case field of (fu, fs) -> (minus (u32-to-nat unsigned + 256) fu, int-from-i64 signed + 256 - fs)
 
   -- | Saturating subtraction.
   minus :: Nat -> Nat -> Nat

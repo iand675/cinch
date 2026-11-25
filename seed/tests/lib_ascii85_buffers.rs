@@ -185,12 +185,21 @@ fn ascii85_source_offsets_keep_small_destination_allocation_linear() {
     run_observed("large-offsets", "", Some(64 * 1024 * 1024));
 }
 
-/// Unsigned interval arithmetic handles empty, adjacent, high-address and overlapping ranges without wrapping ends.
+/// Public buffer APIs handle empty, adjacent, disjoint, shrinking and expanding overlapping intervals safely.
 #[test]
 fn ascii85_overlap_kernel_handles_empty_adjacent_and_high_addresses() {
-    let source = include_str!("../prelude/Text/Ascii85.cinch");
-    let kernel = &source[source.find("  prim address-overlap ::").unwrap()..];
-    run_observed("address-overlap 100 5 104 1 && address-overlap 104 1 100 5 && not (address-overlap 100 4 104 1) && not (address-overlap 100 0 100 8) && not (address-overlap 100 8 100 0) && not (address-overlap (-16) 8 (-8) 8) && address-overlap (-16) 9 (-8) 1 && not (address-overlap 9223372036854775807 1 (-9223372036854775808) 1) && address-overlap 9223372036854775807 2 (-9223372036854775808) 1", kernel, None);
+    run_observed(
+        "(case ascii85-encode-into (bytes-new 0) 0 (bytes-new 0) of Ok n -> n == 0; _ -> False) && \
+         (case ascii85-decode-into (bytes-new 0) 0 (bytes-new 0) True of Ok (n, used, None) -> n == 0 && used == 0; _ -> False) && \
+         (case ascii85-decode-at (bytes-new 0) 0 (bytes-new 0) 0 True of Ok (n, used, None) -> n == 0 && used == 0; _ -> False) && \
+         (let buf = bytes-from-u8s [1,2,3,4] in case ascii85-encode-into buf 0 buf of Err (Ascii85ShortDestination required available) -> required == 5 && available == 4 && same buf (bytes-from-u8s [1,2,3,4]); _ -> False) && \
+         (let buf = bytes-from-u8s [85,85,85,85,33,33,33,33,33] in case ascii85-decode-at buf 0 buf 4 True of Ok (n, used, None) -> n == 4 && used == 5 && same buf (bytes-from-u8s [0,0,0,0,33,33,33,33,33]); _ -> False) && \
+         (let buf = bytes-from-u8s [33,33,33,33,33,85,85,85,85] in case ascii85-decode-at buf 5 buf 0 True of Ok (n, used, None) -> n == 4 && used == 5 && same buf (bytes-from-u8s [33,33,33,33,33,0,0,0,0]); _ -> False) && \
+         (let buf = bytes-from-u8s [33,33,33,33,33,33,33,33,33,33] in case ascii85-decode-into buf 0 buf False of Ok (n, used, None) -> n == 8 && used == 10 && same buf (bytes-from-u8s [0,0,0,0,0,0,0,0,33,33]); _ -> False) && \
+         overlap && overlap-expansion && overlap-error",
+        "",
+        None,
+    );
 }
 
 /// New public carriers and private progress loops have canonical module-owned documentation.

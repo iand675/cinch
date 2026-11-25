@@ -339,15 +339,20 @@ struct Tables {
     /// Instances: subdictionary count and the method unit per physical
     /// slot.
     instances: HashMap<String, (usize, Vec<GlobalId>)>,
+    /// Units backed by inline `prim` target-IR fragments (priced like `Core::Prim`).
+    prim_bodies: HashSet<String>,
 }
 
 impl Tables {
     fn new(program: &Program) -> Tables {
         let mut tables =
-            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), params: HashMap::new(), instances: HashMap::new() };
+            Tables { ctors: HashMap::new(), lambdas: HashMap::new(), static_records: HashMap::new(), arity: HashMap::new(), params: HashMap::new(), instances: HashMap::new(), prim_bodies: HashSet::new() };
         for f in &program.fns {
             tables.arity.insert(f.id.0.clone(), f.params.len());
             tables.params.insert(f.id.0.clone(), f.repr.params.clone());
+            if f.meta.prim_body {
+                tables.prim_bodies.insert(f.id.0.clone());
+            }
             if is_lambda_unit(&f.id.0) && f.prim.is_none() && f.ctor.is_none() {
                 tables.lambdas.insert(f.id.0.clone(), (f.repr.params.clone(), f.body.clone()));
             }
@@ -384,6 +389,9 @@ impl Tables {
         for f in foreign {
             self.arity.insert(f.id.0.clone(), f.params.len());
             self.params.insert(f.id.0.clone(), f.repr.params.clone());
+            if f.meta.prim_body {
+                self.prim_bodies.insert(f.id.0.clone());
+            }
             if let Some((tag, fields)) = f.ctor {
                 self.ctors.insert(f.id.0.clone(), (tag, fields));
             }
@@ -1055,7 +1063,7 @@ fn interesting_arg(e: &Core, tables: &Tables) -> bool {
         | Core::Lam { .. }
         | Core::Prim(_) => true,
         Core::Ctor(..) => true,
-        Core::Global(id, _) => tables.ctors.contains_key(&id.0),
+        Core::Global(id, _) => tables.ctors.contains_key(&id.0) || tables.prim_bodies.contains(&id.0),
         _ => matches!(e, Core::App(head, _) if matches!(&**head, Core::Ctor(..))),
     }
 }
@@ -3288,6 +3296,8 @@ fn code_size(e: &Core, tables: &Tables) -> usize {
                     5 + fields + args.iter().map(|a| code_size(a, tables)).sum::<usize>()
                 }
             }
+            // An inline `prim` fragment's instruction sequence, priced like `Core::Prim`.
+            Core::Global(g, _) if tables.prim_bodies.contains(&g.0) => 1 + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),
             // A direct call: four units, which is Flambda 2's price for
             // `Apply` with a `Direct` call kind.
             Core::Global(..) => 4 + args.iter().map(|a| code_size(a, tables)).sum::<usize>(),

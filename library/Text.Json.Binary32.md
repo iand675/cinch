@@ -21,7 +21,7 @@ comparisons repair binary64 double rounding without accumulating input bignums.
 # Values
 
 <article class="doc-entry" id="v-binary32-from-decimal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">binary32-from-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-binary32-from-decimal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Binary32/source/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">binary32-from-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-binary32-from-decimal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Binary32/source/#L112" title="View source at line 112">Source</a></span></div>
 <div class="doc-body">
 
 Round a validated nonempty JSON decimal exactly to binary32, including signed underflow and overflow.
@@ -30,7 +30,7 @@ Round a validated nonempty JSON decimal exactly to binary32, including signed un
 </article>
 
 <article class="doc-entry" id="v-binary32-to-decimal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">binary32-to-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-binary32-to-decimal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Binary32/source/#L189" title="View source at line 189">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">binary32-to-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-binary32-to-decimal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Binary32/source/#L183" title="View source at line 183">Source</a></span></div>
 <div class="doc-body">
 
 Format a finite binary32 as its shortest exact JSON decimal, preserving negative zero.

@@ -4,7 +4,7 @@ Decompress concatenated bzip2 streams with table-driven Huffman decoding and ver
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Bzip2</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Bzip2/source/">View source</a><a href="/packages/search/?q=%2BText.Bzip2">Search module</a><a href="/reference-sources/Text.Bzip2.cinch" download="Text.Bzip2.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -32,7 +32,7 @@ are rejected; streams that follow the first are decoded in turn.
 # Types
 
 <article class="doc-entry" id="t-Bzip2Error">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Bzip2Error</strong></code><span class="doc-sig-links"><a href="#t-Bzip2Error" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Bzip2Error</strong></code><span class="doc-sig-links"><a href="#t-Bzip2Error" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L28" title="View source at line 28">Source</a></span></div>
 <div class="doc-body">
 
 A malformed or corrupted bzip2 stream.
@@ -44,7 +44,7 @@ A malformed or corrupted bzip2 stream.
 # Values
 
 <article class="doc-entry" id="v-bzip2-decompress">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bzip2-decompress" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-decompress</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bzip2-decompress" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L105" title="View source at line 105">Source</a></span></div>
 <div class="doc-body">
 
 Decompress a complete input of one or more concatenated streams.
@@ -53,7 +53,7 @@ Decompress a complete input of one or more concatenated streams.
 </article>
 
 <article class="doc-entry" id="v-bzip2-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-bzip2-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bzip2-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Bzip2/#t-Bzip2Error" title="Text.Bzip2.Bzip2Error">Bzip2Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-bzip2-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Bzip2/source/#L39" title="View source at line 39">Source</a></span></div>
 <div class="doc-body">
 
 Render a bzip2 error.

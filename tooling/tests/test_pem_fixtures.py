@@ -31,12 +31,12 @@ class PemFixtureTests(unittest.TestCase):
         self.assertNotIn('__ENCODE',source);self.assertNotIn('__DECODE',source);self.assertNotIn('__WORDS__',source)
         self.assertIn('else False\n\n  -- | Select one exact independent',source)
 
-    def test_actual_kernel_snapshots_are_fresh(self):
-        """Host mutations and foreign objects compile the maintained primitive bodies, not test substitutes."""
-        for foreign,name in [(False,'pem-kernels.cinch'),(True,'pem-kernels-foreign.cinch')]:
-            self.assertEqual(kernels(foreign),(ROOT/'seed/tests/fixtures'/name).read_text())
-        self.assertEqual(kernels(True).count('  prim '),11)
-        self.assertEqual(kernels(True).count('    unsafe llvm {'),7)
+    def test_actual_pem_module_uses_pure_cinch_kernels(self):
+        """Text.Pem relies on portable pure-Cinch Data.Wide SIMD and Data.Bytes without inline LLVM."""
+        source=(ROOT/'seed/prelude/Text/Pem.cinch').read_text()
+        self.assertEqual(source.count('llvm {'),0)
+        self.assertEqual(source.count('  prim '),0)
+        self.assertIn('simd-u8x16-movemask',source)
 
     def test_actual_writer_budget_prefixes(self):
         """Every independently observed stream failure retains exactly its accepted byte prefix."""

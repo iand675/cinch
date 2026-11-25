@@ -63,7 +63,7 @@
 
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::os::fd::AsRawFd;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex};
@@ -72,6 +72,10 @@ use crate::platform::{io_code, io_code_errno, INVALID_ARGUMENT};
 
 /// The live sockets, by handle word.
 static SOCKETS: LazyLock<Mutex<BTreeMap<i64, TcpStream>>> =
+    LazyLock::new(|| Mutex::new(BTreeMap::new()));
+
+/// The live TCP listeners, by handle word.
+static LISTENERS: LazyLock<Mutex<BTreeMap<i64, TcpListener>>> =
     LazyLock::new(|| Mutex::new(BTreeMap::new()));
 
 /// The next handle word. Handles are handed out once and never reused,
@@ -84,10 +88,22 @@ fn table() -> std::sync::MutexGuard<'static, BTreeMap<i64, TcpStream>> {
     SOCKETS.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// The listener handle table.
+fn listener_table() -> std::sync::MutexGuard<'static, BTreeMap<i64, TcpListener>> {
+    LISTENERS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// Take ownership of a connected stream and answer its handle word.
 fn insert(stream: TcpStream) -> i64 {
     let h = NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     table().insert(h, stream);
+    h
+}
+
+/// Take ownership of a bound TCP listener and answer its handle word.
+fn insert_listener(listener: TcpListener) -> i64 {
+    let h = NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    listener_table().insert(h, listener);
     h
 }
 
@@ -96,6 +112,11 @@ fn insert(stream: TcpStream) -> i64 {
 /// table lock is released before any blocking call.
 fn dup(h: i64) -> Option<TcpStream> {
     table().get(&h).and_then(|s| s.try_clone().ok())
+}
+
+/// A dup of a live listener handle so blocking `accept` runs outside the lock.
+fn dup_listener(h: i64) -> Option<TcpListener> {
+    listener_table().get(&h).and_then(|l| l.try_clone().ok())
 }
 
 /// A port word: the `u16` range only.
@@ -127,6 +148,90 @@ pub unsafe extern "C" fn cinch_net_tcp_connect(host: i64, port: i64) -> i64 {
     };
     match TcpStream::connect((name, port)) {
         Ok(s) => insert(s),
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Bind a TCP listener on `host` (UTF-8 host text) and `port` (0..=65535,
+/// with 0 requesting an OS-assigned ephemeral port): a live listener handle
+/// or the negated error code.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_net_tcp_listen(host: i64, port: i64) -> i64 {
+    let Some(name) = (unsafe { host_of(host) }) else {
+        return -INVALID_ARGUMENT;
+    };
+    let Some(port) = port_of(port) else {
+        return -INVALID_ARGUMENT;
+    };
+    match TcpListener::bind((name, port)) {
+        Ok(l) => insert_listener(l),
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Accept one incoming TCP connection on listener handle `h`: a live
+/// socket handle (in the shared `SOCKETS` table, usable with `cinch_net_read`,
+/// `cinch_net_write`, and `cinch_net_close`), or the negated error code.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_net_tcp_accept(h: i64) -> i64 {
+    let Some(l) = dup_listener(h) else {
+        return -INVALID_ARGUMENT;
+    };
+    match l.accept() {
+        Ok((stream, _peer)) => insert(stream),
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Return the bound local address (`<ip>:<port>`) of listener handle `h` as
+/// a fresh UTF-8 `Bytes` word, or the negated error code.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_net_listener_addr(h: i64) -> i64 {
+    let Some(l) = dup_listener(h) else {
+        return -INVALID_ARGUMENT;
+    };
+    match l.local_addr() {
+        Ok(addr) => crate::abi::box_bytes(crate::bytes::Bytes::from(addr.to_string().into_bytes())),
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Close a TCP listener handle: 0, or `-INVALID_ARGUMENT` if the handle is
+/// not live.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_net_listener_close(h: i64) -> i64 {
+    if listener_table().remove(&h).is_some() {
+        0
+    } else {
+        -INVALID_ARGUMENT
+    }
+}
+
+/// Send one UDP datagram containing `data` to `(host, port)`: the number of
+/// bytes sent, or the negated error code.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_net_udp_send(host: i64, port: i64, data: i64) -> i64 {
+    let Some(name) = (unsafe { host_of(host) }) else {
+        return -INVALID_ARGUMENT;
+    };
+    let Some(port) = port_of(port) else {
+        return -INVALID_ARGUMENT;
+    };
+    let payload = unsafe { crate::abi::as_bytes(data) }.as_slice();
+    let addr = match (name, port).to_socket_addrs() {
+        Ok(mut addrs) => match addrs.next() {
+            Some(a) => a,
+            None => return -INVALID_ARGUMENT,
+        },
+        Err(e) => return -io_code(&e),
+    };
+    let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
+    let sock = match UdpSocket::bind(bind_addr) {
+        Ok(s) => s,
+        Err(e) => return -io_code(&e),
+    };
+    match sock.send_to(payload, addr) {
+        Ok(n) => i64::try_from(n).unwrap_or(i64::MAX),
         Err(e) => -io_code(&e),
     }
 }
@@ -202,7 +307,6 @@ pub extern "C" fn cinch_net_close(h: i64) -> i64 {
 /// error: the resolver answered.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_net_resolve(host: i64, port: i64) -> i64 {
-    use std::net::ToSocketAddrs;
     let Some(name) = (unsafe { host_of(host) }) else {
         return -INVALID_ARGUMENT;
     };
@@ -283,6 +387,11 @@ mod tests {
         let candidates = crate::test_artifacts::runtime_archives();
         let syms = [
             "cinch_net_tcp_connect",
+            "cinch_net_tcp_listen",
+            "cinch_net_tcp_accept",
+            "cinch_net_listener_addr",
+            "cinch_net_listener_close",
+            "cinch_net_udp_send",
             "cinch_net_read",
             "cinch_net_write",
             "cinch_net_close",
@@ -366,5 +475,49 @@ mod tests {
         // A malformed host or port is the named argument error.
         assert_eq!(unsafe { cinch_net_tcp_connect(localhost, 70000) }, -INVALID_ARGUMENT);
         assert_eq!(unsafe { cinch_net_resolve(host, -1) }, -INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn listener_accept_addr_close_and_udp_send_round_trip() {
+        let host = bytes_of("127.0.0.1");
+        let l = unsafe { cinch_net_tcp_listen(host, 0) };
+        assert!(l > 0, "listen: {l}");
+        let addr_word = cinch_net_listener_addr(l);
+        assert!(addr_word > 0, "addr: {addr_word}");
+        let addr_text = text_of(addr_word);
+        let port: u16 = addr_text
+            .rsplit(':')
+            .next()
+            .expect("port")
+            .parse()
+            .expect("numeric port");
+        assert!(port > 0);
+        let client_thread = std::thread::spawn(move || {
+            let mut s = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+            s.write_all(b"ping").expect("write");
+            let mut buf = [0u8; 4];
+            std::io::Read::read_exact(&mut s, &mut buf).expect("read");
+            assert_eq!(&buf, b"pong");
+        });
+        let accepted = cinch_net_tcp_accept(l);
+        assert!(accepted > 0, "accept: {accepted}");
+        let got = unsafe { cinch_net_read(accepted, 16) };
+        assert!(got > 0);
+        assert_eq!(text_of(got), "ping");
+        assert_eq!(unsafe { cinch_net_write(accepted, bytes_of("pong")) }, 4);
+        assert_eq!(cinch_net_close(accepted), 0);
+        client_thread.join().expect("client join");
+        assert_eq!(cinch_net_listener_close(l), 0);
+        assert_eq!(cinch_net_listener_close(l), -INVALID_ARGUMENT);
+        assert_eq!(cinch_net_tcp_accept(l), -INVALID_ARGUMENT);
+        assert_eq!(cinch_net_listener_addr(l), -INVALID_ARGUMENT);
+        // UDP datagram loopback round trip.
+        let udp_rx = UdpSocket::bind("127.0.0.1:0").expect("bind udp");
+        let udp_port = udp_rx.local_addr().expect("udp addr").port();
+        let sent = unsafe { cinch_net_udp_send(host, i64::from(udp_port), bytes_of("syslog!")) };
+        assert_eq!(sent, 7);
+        let mut rx_buf = [0u8; 32];
+        let (n, _) = udp_rx.recv_from(&mut rx_buf).expect("udp recv");
+        assert_eq!(&rx_buf[..n], b"syslog!");
     }
 }

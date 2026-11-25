@@ -132,21 +132,10 @@ fn sha3_declarations_have_canonical_documentation() {
     common::assert_documented("Effect.Sha3", include_str!("../prelude/Effect/Sha3.cinch"));
 }
 
-/// The permutation and raw lane loads remain legal on 32-bit and non-x86 object targets.
+/// The Keccak-f[1600] permutation and sponge absorption kernels remain legal on 32-bit and non-x86 object targets.
 #[test]
 fn sha3_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Sha3.cinch");
-    let marker = "  -- | Generated Keccak-f[1600] permutation:";
-    let data = source.find("  data KeccakLanes where").unwrap();
-    let data_end = data + source[data..].find("\n\n").unwrap();
-    let mut kernels = format!("-- | Isolated permutation compilation.\nmodule Main where\n  import Data.Machine\n{}\n", &source[data..data_end]);
-    kernels.push_str(&source[source.find(marker).unwrap()..]);
-    let start = source.find("  prim lane-word ::").unwrap();
-    let rest = &source[start..];
-    kernels.push_str("\n  -- | Checked private raw load under target compilation.\n");
-    kernels.push_str(&rest[..rest.find("\n  -- |").unwrap()]);
-    kernels.push_str("\n  -- | Retain the fixture buffer while its private loads finish.\n  keep :: Bytes -> KeccakLanes -> KeccakLanes\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every absorb step reachable.\n  main :: Int\n  main = let bytes = bytes-new 168 in let z = Lanes 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 in\n    let a = keep bytes (keccak-absorb21 (keccak-absorb18 (keccak-absorb17 (keccak-absorb13 (keccak-absorb9 z (bytes-data bytes)) (bytes-data bytes)) (bytes-data bytes)) (bytes-data bytes)) (bytes-data bytes)) in\n    case a of Lanes x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 -> if eq-u64 x0 0 then 0 else 1\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -160,25 +149,40 @@ fn sha3_kernels_compile_for_wasm_arm_and_big_endian_targets() {
                 profile.endian = endian.into();
                 profile
             });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, text) in [
+            ("Text.Sha3", include_str!("../prelude/Text/Sha3.cinch")),
+            ("Text.Binary", include_str!("../prelude/Text/Binary.cinch")),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), text).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "module Main where\n  import Text.Sha3\n  -- | Reach the kernels.\n  main :: Int\n  main = if bytes-len (sha3-sum256 (bytes-new 136)) == 32 && bytes-len (shake128-sum (bytes-new 168) 64) == 64 then 0 else 1\n",
+        )
+        .unwrap();
+        let ir_path = project.join("program.ll");
+        let entry = project.join("Main.cinch");
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program = cinch::driver::check_sources_profile(&input, "keccak.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(Mode::EmitIr, cinch::check::StageMode::Refresh, &entry, Some(&ir_path), &profile, &cinch::driver::DriverOptions::default())
+                    .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("@llvm.fshl.i64"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(ir.contains("call i64 @llvm.fshl.i64"));
+        if endian == "big" {
+            assert!(ir.contains("call i64 @llvm.bswap.i64"));
+        }
         let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
             .args(["-target", triple, "-O2", "-c", "-x", "ir"])
-            .arg(&path)
+            .arg(project.join("program.ll"))
             .arg("-o")
-            .arg(path.with_extension("o"))
+            .arg(project.join("program.o"))
             .output()
             .unwrap();
         assert!(output.status.success(), "{triple}: {}", String::from_utf8_lossy(&output.stderr));

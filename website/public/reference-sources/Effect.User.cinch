@@ -1,0 +1,546 @@
+-- | Effectful Unix user and group account lookups backed by system account files
+-- and process identity records.
+-- On Linux, current-user resolution reads `/proc/self/status` via streaming `Prim.Sys`
+-- reads (avoiding `lseek` on procfs pseudo-files) and resolves the process UID against
+-- `/etc/passwd`, falling back to `/proc/self/environ` synthesis when the UID is absent.
+-- On platforms without `/proc/self/status`, current-user resolution falls back to
+-- `Effect.Process` (`id` and `printenv`) paired with `/etc/passwd`.
+-- Explicit-path variants allow hermetic testing against custom account files.
+module Effect.User where
+
+  import Algebra.Arithmetic
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Effect.Fs
+  import Effect.Process
+  import Prim.Sys
+  import Relation.Eq
+  import Relation.Ord
+  import Text.User
+
+  export user-current, user-lookup, user-lookup-id
+  export user-lookup-group, user-lookup-group-id, user-group-ids
+  export user-lookup-in-file, user-lookup-id-in-file
+  export user-lookup-group-in-file, user-lookup-group-id-in-file, user-group-ids-in-file
+
+  -- ---------------------------------------------------------------------------
+  -- Default system database paths.
+  -- ---------------------------------------------------------------------------
+
+  -- | Default POSIX passwd database path.
+  passwd-path :: Path
+  passwd-path = path-from-string "/etc/passwd"
+
+  -- | Default POSIX group database path.
+  group-path :: Path
+  group-path = path-from-string "/etc/group"
+
+  -- ---------------------------------------------------------------------------
+  -- Byte chunk assembly and text trimming helpers.
+  -- ---------------------------------------------------------------------------
+
+  -- | Copy the first `count` bytes of `chunk` into a tight fresh buffer.
+  copy-prefix :: Bytes -> Nat -> Bytes
+  copy-prefix chunk count =
+    if count <= bytes-len chunk then
+      let out = bytes-new count in
+      let copied = (
+        if count <= bytes-len out && count <= bytes-len chunk then
+          bytes-copy-range out chunk 0 0 count
+        else ()
+      ) in
+      out
+    else bytes-new 0
+
+  -- | Copy a list of byte chunks sequentially into a pre-sized buffer.
+  copy-chunks-into :: Bytes -> Nat -> List Bytes -> Unit
+  copy-chunks-into dst pos chunks = case chunks of
+    Nil -> ()
+    Cons piece rest ->
+      let plen = bytes-len piece in
+      if pos + plen <= bytes-len dst && plen <= bytes-len piece then
+        let copied = bytes-copy-range dst piece pos 0 plen in
+        copy-chunks-into dst (pos + plen) rest
+      else ()
+
+  -- | Concatenate an ordered list of byte chunks whose total byte length is `total`.
+  concat-chunks :: List Bytes -> Nat -> Bytes
+  concat-chunks chunks total =
+    let out = bytes-new total in
+    let filled = copy-chunks-into out 0 chunks in
+    out
+
+  -- | Test whether an ASCII byte is whitespace (space, tab, LF, or CR).
+  is-ascii-space :: Nat -> Bool
+  is-ascii-space b = b == 32 || b == 9 || b == 10 || b == 13
+
+  -- | Find the first non-whitespace byte offset from `pos` to `end`.
+  trim-start :: Bytes -> Nat -> Nat -> Nat
+  trim-start buf pos end =
+    if pos < end && pos < bytes-len buf then
+      if is-ascii-space (bytes-get buf pos) then trim-start buf (pos + 1) end else pos
+    else pos
+
+  -- | Find one past the last non-whitespace byte offset in `[start, end)`.
+  trim-end :: Bytes -> Nat -> Nat -> Nat
+  trim-end buf start end =
+    if end > start && end <= bytes-len buf then
+      let prev = end - 1 in
+      if is-ascii-space (bytes-get buf prev) then trim-end buf start prev else end
+    else end
+
+  -- | Strip leading and trailing ASCII spaces, tabs, and line endings from a string.
+  trim-ascii :: String -> String
+  trim-ascii text =
+    let raw = string-to-bytes text in
+    let total = bytes-len raw in
+    let lo = trim-start raw 0 total in
+    let hi = trim-end raw lo total in
+    if lo <= hi && hi <= total then
+      let count = hi - lo in
+      let out = bytes-new count in
+      let copied = (
+        if count <= bytes-len out && lo + count <= bytes-len raw then
+          bytes-copy-range out raw 0 lo count
+        else ()
+      ) in
+      case string-from-bytes out of
+        Some trimmed -> trimmed
+        None -> empty-string
+    else empty-string
+
+  -- | Convert an `FsError` into a short descriptive text phrase.
+  fs-error-text :: FsError -> String
+  fs-error-text err = case err of
+    NotFound -> "not found"
+    PermissionDenied -> "permission denied"
+    AlreadyExists -> "already exists"
+    NotADirectory -> "not a directory"
+    IsADirectory -> "is a directory"
+    InvalidName -> "invalid name"
+    IoError -> "i/o error"
+
+  -- | Convert a `SysError` into a short descriptive text phrase.
+  sys-error-text :: SysError -> String
+  sys-error-text err = case err of
+    SysNotFound -> "not found"
+    SysPermissionDenied -> "permission denied"
+    SysAlreadyExists -> "already exists"
+    SysNotADirectory -> "not a directory"
+    SysIsADirectory -> "is a directory"
+    SysInvalidName -> "invalid name"
+    SysIoError -> "i/o error"
+
+  -- | Build a `UserIoError` describing a failed read of `path`.
+  read-io-error :: String -> String -> UserError
+  read-io-error path reason =
+    UserIoError (string-concat "cannot read " (string-concat path (string-concat ": " reason)))
+
+  -- ---------------------------------------------------------------------------
+  -- Streaming file and procfs readers.
+  -- ---------------------------------------------------------------------------
+
+  -- | Read up to `limit` 4096-byte chunks from an open descriptor until EOF.
+  read-fd-chunks :: forall r. using (io :: Io r) => I64 -> Nat -> List Bytes -> Nat ->{IO r} Result SysError Bytes
+  read-fd-chunks fd limit chunks total =
+    if limit == 0 then Ok (concat-chunks (reverse chunks) total)
+    else
+      let buf = bytes-new 4096 in
+      let read-res = sys-read fd buf 0 4096 in
+      case read-res of
+        Err err -> Err err
+        Ok got ->
+          if got == 0 then Ok (concat-chunks (reverse chunks) total)
+          else case 0 <= got of
+            False -> Err SysIoError
+            True ->
+              let count = nat-from-i64 got in
+              let piece = copy-prefix buf count in
+              read-fd-chunks fd (limit - 1) (Cons piece chunks) (total + count)
+
+  -- | Read all bytes of `path` using streaming `Prim.Sys` reads without requiring `lseek`.
+  read-streaming-bytes :: forall r. using (io :: Io r) => String ->{IO r} Result UserError Bytes
+  read-streaming-bytes path =
+    let opened = sys-open-read path in
+    case opened of
+      Err err -> Err (read-io-error path (sys-error-text err))
+      Ok fd ->
+        let body = read-fd-chunks fd 1024 Nil 0 in
+        let closed = sys-close fd in
+        case closed of
+          _ -> case body of
+            Err err -> Err (read-io-error path (sys-error-text err))
+            Ok raw -> Ok raw
+
+  -- | Read a regular or pseudo-file as UTF-8 text, falling back to streaming reads when `lseek` is unsupported.
+  read-file-text :: forall r. using (io :: Io r) => Path ->{IO r} Result UserError String
+  read-file-text file-path =
+    let path-str = path-to-string file-path in
+    let read-res = fs-read file-path in
+    case read-res of
+      Ok raw -> case string-from-bytes raw of
+        Some text -> Ok text
+        None -> Err (read-io-error path-str "invalid UTF-8")
+      Err err -> case err of
+        InvalidName ->
+          let stream-res = read-streaming-bytes path-str in
+          case stream-res of
+            Err io-err -> Err io-err
+            Ok raw -> case string-from-bytes raw of
+              Some text -> Ok text
+              None -> Err (read-io-error path-str "invalid UTF-8")
+        _ -> Err (read-io-error path-str (fs-error-text err))
+
+  -- | Attempt to read and parse `/proc/self/status` into a `ProcIdentity`.
+  read-proc-identity :: forall r. using (io :: Io r) => Unit ->{IO r} Option ProcIdentity
+  read-proc-identity unit =
+    let res = read-streaming-bytes "/proc/self/status" in
+    case res of
+      Err _ -> None
+      Ok raw -> case string-from-bytes raw of
+        None -> None
+        Some text -> parse-proc-status text
+
+  -- ---------------------------------------------------------------------------
+  -- NUL-delimited `/proc/self/environ` parsing helpers.
+  -- ---------------------------------------------------------------------------
+
+  -- | Find the next occurrence of byte `needle` in `buf` starting at `pos`.
+  find-byte-from :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  find-byte-from buf needle pos total =
+    if pos < total && pos < bytes-len buf then
+      if bytes-get buf pos == needle then Some pos
+      else find-byte-from buf needle (pos + 1) total
+    else None
+
+  -- | Check whether `buf` at `[pos, end)` begins with `key` followed immediately by `=`.
+  env-entry-matches :: Bytes -> Nat -> Nat -> Bytes -> Bool
+  env-entry-matches buf pos end key =
+    let klen = bytes-len key in
+    if pos + klen < end && pos + klen < bytes-len buf then
+      if bytes-get buf (pos + klen) == 61 then
+        env-bytes-eq buf pos key 0 klen
+      else False
+    else False
+
+  -- | Compare `klen` bytes of `buf` starting at `pos` against `key` starting at `0`.
+  env-bytes-eq :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  env-bytes-eq buf pos key idx klen =
+    if idx >= klen then True
+    else if pos + idx < bytes-len buf && idx < bytes-len key then
+      if bytes-get buf (pos + idx) == bytes-get key idx then
+        env-bytes-eq buf pos key (idx + 1) klen
+      else False
+    else False
+
+  -- | Look up `key` inside a NUL-delimited `KEY=VALUE` byte buffer (such as `/proc/self/environ`).
+  lookup-environ-bytes :: Bytes -> String -> Option String
+  lookup-environ-bytes buf key =
+    let key-bytes = string-to-bytes key in
+    lookup-environ-scan buf 0 (bytes-len buf) key-bytes
+
+  -- | Scan NUL-terminated entries in an environ buffer for a matching key prefix.
+  lookup-environ-scan :: Bytes -> Nat -> Nat -> Bytes -> Option String
+  lookup-environ-scan buf pos total key-bytes =
+    if pos >= total then None
+    else
+      let entry-end = (
+        case find-byte-from buf 0 pos total of
+          None -> total
+          Some nul -> nul
+      ) in
+      let next-pos = if entry-end < total then entry-end + 1 else total in
+      if env-entry-matches buf pos entry-end key-bytes then
+        let val-start = pos + bytes-len key-bytes + 1 in
+        if val-start <= entry-end && entry-end <= bytes-len buf then
+          let count = entry-end - val-start in
+          let out = bytes-new count in
+          let copied = (
+            if count <= bytes-len out && val-start + count <= bytes-len buf then
+              bytes-copy-range out buf 0 val-start count
+            else ()
+          ) in
+          string-from-bytes out
+        else None
+      else lookup-environ-scan buf next-pos total key-bytes
+
+  -- | Try to synthesize a `UserInfo` from `/proc/self/environ` `USER`/`LOGNAME` and `HOME` values.
+  synthesize-from-proc-environ :: forall r. using (io :: Io r) => String -> String ->{IO r} Option UserInfo
+  synthesize-from-proc-environ uid gid =
+    let env-res = read-streaming-bytes "/proc/self/environ" in
+    case env-res of
+      Err _ -> None
+      Ok raw ->
+        let uname-opt = (
+          case lookup-environ-bytes raw "USER" of
+            Some u -> if string-byte-length u > 0 then Some u else lookup-environ-bytes raw "LOGNAME"
+            None -> lookup-environ-bytes raw "LOGNAME"
+        ) in
+        case uname-opt of
+          None -> None
+          Some uname ->
+            if string-byte-length uname == 0 then None
+            else
+              let home = (
+                case lookup-environ-bytes raw "HOME" of
+                  Some h -> h
+                  None -> empty-string
+              ) in
+              Some (UserInfo uid gid uname uname home empty-string)
+
+  -- ---------------------------------------------------------------------------
+  -- Bounded subprocess fallback helpers for non-procfs platforms.
+  -- ---------------------------------------------------------------------------
+
+  -- | Drain up to `limit` chunks from a child process's stdout pipe.
+  read-child-chunks :: forall r. using (io :: Io r) => Child -> Nat -> List Bytes -> Nat ->{IO r} Option Bytes
+  read-child-chunks child limit chunks total =
+    if limit == 0 then Some (concat-chunks (reverse chunks) total)
+    else
+      let chunk-res = child-read child Stdout 4096 in
+      case chunk-res of
+        Err _ -> None
+        Ok chunk ->
+          let n = bytes-len chunk in
+          if n == 0 then Some (concat-chunks (reverse chunks) total)
+          else read-child-chunks child (limit - 1) (Cons chunk chunks) (total + n)
+
+  -- | Spawn a short-lived helper command, capture and trim its stdout, and always reap/close it.
+  run-helper-stdout :: forall r. using (io :: Io r) => String -> List String ->{IO r} Option String
+  run-helper-stdout prog args =
+    let cmd = command (path-from-string prog) args in
+    let spawned = process-spawn None cmd in
+    case spawned of
+      Err _ -> None
+      Ok child ->
+        let closed-in = child-close-stdin child in
+        case closed-in of
+          _ ->
+            let output = read-child-chunks child 256 Nil 0 in
+            let waited = child-wait child in
+            let closed = child-close child in
+            case closed of
+              _ -> case waited of
+                Err _ -> None
+                Ok exit-code ->
+                  if exit-code == 0 then
+                    case output of
+                      None -> None
+                      Some raw -> case string-from-bytes raw of
+                        None -> None
+                        Some text -> Some (trim-ascii text)
+                  else None
+
+  -- | Query a single environment variable via `printenv` when `/proc/self/environ` is unavailable.
+  read-env-via-process :: forall r. using (io :: Io r) => String ->{IO r} Option String
+  read-env-via-process key =
+    let res = run-helper-stdout "printenv" (Cons key Nil) in
+    case res of
+      None -> None
+      Some val -> if string-byte-length val > 0 then Some val else None
+
+  -- | Fallback current-user resolution for systems without `/proc/self/status`.
+  current-user-fallback :: forall r. using (io :: Io r) => Unit ->{IO r} Result UserError UserInfo
+  current-user-fallback unit =
+    let uid-opt = run-helper-stdout "id" (Cons "-u" Nil) in
+    case uid-opt of
+      Some uid ->
+        if string-byte-length uid > 0 then
+          let by-uid = user-lookup-id uid in
+          case by-uid of
+            Ok info -> Ok info
+            Err err -> current-user-from-env-or-err (Some uid) err
+        else current-user-by-env-name ()
+      None -> current-user-by-env-name ()
+
+  -- | Resolve the current user via `USER`/`LOGNAME` against `/etc/passwd`, or synthesize from environment variables.
+  current-user-by-env-name :: forall r. using (io :: Io r) => Unit ->{IO r} Result UserError UserInfo
+  current-user-by-env-name unit =
+    let uname-opt = first-env-username () in
+    case uname-opt of
+      None -> Err (UserIoError "unable to determine current user")
+      Some uname ->
+        let by-name = user-lookup uname in
+        case by-name of
+          Ok info -> Ok info
+          Err _ ->
+            let home-opt = read-env-via-process "HOME" in
+            let home = (
+              case home-opt of
+                Some h -> h
+                None -> empty-string
+            ) in
+            Ok (UserInfo empty-string empty-string uname uname home empty-string)
+
+  -- | Try to synthesize a `UserInfo` when a known UID is absent from `/etc/passwd`.
+  current-user-from-env-or-err :: forall r. using (io :: Io r) => Option String -> UserError ->{IO r} Result UserError UserInfo
+  current-user-from-env-or-err uid-opt fallback-err =
+    let uname-opt = first-env-username () in
+    case uname-opt of
+      None -> Err fallback-err
+      Some uname ->
+        let gid-opt = run-helper-stdout "id" (Cons "-g" Nil) in
+        let home-opt = read-env-via-process "HOME" in
+        let uid = (
+          case uid-opt of
+            Some u -> u
+            None -> empty-string
+        ) in
+        let gid = (
+          case gid-opt of
+            Some g -> g
+            None -> empty-string
+        ) in
+        let home = (
+          case home-opt of
+            Some h -> h
+            None -> empty-string
+        ) in
+        Ok (UserInfo uid gid uname uname home empty-string)
+
+  -- | Read the first non-empty username from `USER`, `LOGNAME`, or `id -un`.
+  first-env-username :: forall r. using (io :: Io r) => Unit ->{IO r} Option String
+  first-env-username unit =
+    let user-val = read-env-via-process "USER" in
+    case user-val of
+      Some u -> Some u
+      None ->
+        let logname-val = read-env-via-process "LOGNAME" in
+        case logname-val of
+          Some l -> Some l
+          None ->
+            let id-name = run-helper-stdout "id" (Cons "-un" Nil) in
+            case id-name of
+              Some n -> if string-byte-length n > 0 then Some n else None
+              None -> None
+
+  -- ---------------------------------------------------------------------------
+  -- Deduplicated group-ID merging helper.
+  -- ---------------------------------------------------------------------------
+
+  -- | Check whether `needle` is present in `xs`.
+  list-has-string :: String -> List String -> Bool
+  list-has-string needle xs = case xs of
+    Nil -> False
+    Cons item rest ->
+      if item == needle then True
+      else list-has-string needle rest
+
+  -- | Append items from `extra` that are non-empty and not already present in `base`, preserving order.
+  merge-unique-gids :: List String -> List String -> List String
+  merge-unique-gids base extra = reverse (merge-unique-acc extra (reverse base))
+
+  -- | Accumulate unseen non-empty strings onto a reversed accumulator list.
+  merge-unique-acc :: List String -> List String -> List String
+  merge-unique-acc extra rev-acc = case extra of
+    Nil -> rev-acc
+    Cons item rest ->
+      if string-byte-length item == 0 || list-has-string item rev-acc then
+        merge-unique-acc rest rev-acc
+      else merge-unique-acc rest (Cons item rev-acc)
+
+  -- ---------------------------------------------------------------------------
+  -- Public effectful API.
+  -- ---------------------------------------------------------------------------
+
+  -- | Return the current process's user account information.
+  -- On Linux, reads the process UID from `/proc/self/status` and looks it up in `/etc/passwd`,
+  -- falling back to `/proc/self/environ` synthesis when the UID is absent from `/etc/passwd`.
+  -- On platforms without `/proc/self/status`, falls back to `id` / `printenv` and `/etc/passwd`.
+  user-current :: forall r. using (io :: Io r) => Unit ->{IO r} Result UserError UserInfo
+  user-current unit =
+    let ident-opt = read-proc-identity () in
+    case ident-opt of
+      None -> current-user-fallback ()
+      Some ident ->
+        let uid = proc-real-uid ident in
+        let gid = proc-real-gid ident in
+        let found = user-lookup-id uid in
+        case found of
+          Ok info -> Ok info
+          Err err ->
+            let synth = synthesize-from-proc-environ uid gid in
+            case synth of
+              Some info -> Ok info
+              None -> Err err
+
+  -- | Look up a user account by username in `/etc/passwd`.
+  user-lookup :: forall r. using (io :: Io r) => String ->{IO r} Result UserError UserInfo
+  user-lookup username = user-lookup-in-file passwd-path username
+
+  -- | Look up a user account by numeric UID string in `/etc/passwd`.
+  user-lookup-id :: forall r. using (io :: Io r) => String ->{IO r} Result UserError UserInfo
+  user-lookup-id uid = user-lookup-id-in-file passwd-path uid
+
+  -- | Look up a group by group name in `/etc/group`.
+  user-lookup-group :: forall r. using (io :: Io r) => String ->{IO r} Result UserError GroupInfo
+  user-lookup-group gname = user-lookup-group-in-file group-path gname
+
+  -- | Look up a group by numeric GID string in `/etc/group`.
+  user-lookup-group-id :: forall r. using (io :: Io r) => String ->{IO r} Result UserError GroupInfo
+  user-lookup-group-id gid = user-lookup-group-id-in-file group-path gid
+
+  -- | Return all deduplicated group IDs to which `info` belongs.
+  -- Reads `/etc/group` and, when `info` matches the current process's UID, merges
+  -- active supplementary group IDs reported by `/proc/self/status`.
+  user-group-ids :: forall r. using (io :: Io r) => UserInfo ->{IO r} Result UserError (List String)
+  user-group-ids info =
+    let from-file = user-group-ids-in-file group-path info in
+    case from-file of
+      Err err -> Err err
+      Ok base-gids ->
+        let ident-opt = read-proc-identity () in
+        case ident-opt of
+          None -> Ok base-gids
+          Some ident ->
+            let uid = user-uid info in
+            if uid == proc-real-uid ident || uid == proc-effective-uid ident then
+              Ok (merge-unique-gids base-gids (proc-supplementary-gids ident))
+            else Ok base-gids
+
+  -- | Look up a user by username in an explicit passwd-format file path.
+  user-lookup-in-file :: forall r. using (io :: Io r) => Path -> String ->{IO r} Result UserError UserInfo
+  user-lookup-in-file file-path username =
+    let text-res = read-file-text file-path in
+    case text-res of
+      Err err -> Err err
+      Ok content -> lookup-user-in (parse-passwd content) username
+
+  -- | Look up a user by numeric UID string in an explicit passwd-format file path.
+  user-lookup-id-in-file :: forall r. using (io :: Io r) => Path -> String ->{IO r} Result UserError UserInfo
+  user-lookup-id-in-file file-path uid =
+    let text-res = read-file-text file-path in
+    case text-res of
+      Err err -> Err err
+      Ok content -> lookup-user-id-in (parse-passwd content) uid
+
+  -- | Look up a group by group name in an explicit group-format file path.
+  user-lookup-group-in-file :: forall r. using (io :: Io r) => Path -> String ->{IO r} Result UserError GroupInfo
+  user-lookup-group-in-file file-path gname =
+    let text-res = read-file-text file-path in
+    case text-res of
+      Err err -> Err err
+      Ok content -> lookup-group-in (parse-group content) gname
+
+  -- | Look up a group by numeric GID string in an explicit group-format file path.
+  user-lookup-group-id-in-file :: forall r. using (io :: Io r) => Path -> String ->{IO r} Result UserError GroupInfo
+  user-lookup-group-id-in-file file-path gid =
+    let text-res = read-file-text file-path in
+    case text-res of
+      Err err -> Err err
+      Ok content -> lookup-group-id-in (parse-group content) gid
+
+  -- | Return deduplicated group IDs for `info` computed strictly from an explicit group-format file path.
+  user-group-ids-in-file :: forall r. using (io :: Io r) => Path -> UserInfo ->{IO r} Result UserError (List String)
+  user-group-ids-in-file file-path info =
+    let text-res = read-file-text file-path in
+    case text-res of
+      Err err -> Err err
+      Ok content -> Ok (user-group-ids-in info (parse-group content))

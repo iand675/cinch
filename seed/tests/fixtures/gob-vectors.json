@@ -1,0 +1,702 @@
+{
+  "vectors": [
+    {
+      "name": "bool_false",
+      "category": "bool",
+      "hex": "03020000",
+      "expected": false
+    },
+    {
+      "name": "bool_true",
+      "category": "bool",
+      "hex": "03020001",
+      "expected": true
+    },
+    {
+      "name": "int_0",
+      "category": "int",
+      "hex": "03040000",
+      "expected": "0"
+    },
+    {
+      "name": "int_1",
+      "category": "int",
+      "hex": "03040002",
+      "expected": "1"
+    },
+    {
+      "name": "int_neg1",
+      "category": "int",
+      "hex": "03040001",
+      "expected": "-1"
+    },
+    {
+      "name": "int_63",
+      "category": "int",
+      "hex": "0304007e",
+      "expected": "63"
+    },
+    {
+      "name": "int_64",
+      "category": "int",
+      "hex": "040400ff80",
+      "expected": "64"
+    },
+    {
+      "name": "int_neg64",
+      "category": "int",
+      "hex": "0304007f",
+      "expected": "-64"
+    },
+    {
+      "name": "int_neg65",
+      "category": "int",
+      "hex": "040400ff81",
+      "expected": "-65"
+    },
+    {
+      "name": "int_127",
+      "category": "int",
+      "hex": "040400fffe",
+      "expected": "127"
+    },
+    {
+      "name": "int_128",
+      "category": "int",
+      "hex": "050400fe0100",
+      "expected": "128"
+    },
+    {
+      "name": "int_neg129",
+      "category": "int",
+      "hex": "050400fe0101",
+      "expected": "-129"
+    },
+    {
+      "name": "int_32767",
+      "category": "int",
+      "hex": "050400fefffe",
+      "expected": "32767"
+    },
+    {
+      "name": "int_neg32768",
+      "category": "int",
+      "hex": "050400feffff",
+      "expected": "-32768"
+    },
+    {
+      "name": "int_million",
+      "category": "int",
+      "hex": "060400fd1e8480",
+      "expected": "1000000"
+    },
+    {
+      "name": "int_neg_million",
+      "category": "int",
+      "hex": "060400fd1e847f",
+      "expected": "-1000000"
+    },
+    {
+      "name": "int_max64",
+      "category": "int",
+      "hex": "0b0400f8fffffffffffffffe",
+      "expected": "9223372036854775807"
+    },
+    {
+      "name": "int_min64",
+      "category": "int",
+      "hex": "0b0400f8ffffffffffffffff",
+      "expected": "-9223372036854775808"
+    },
+    {
+      "name": "uint_0",
+      "category": "uint",
+      "hex": "03060000",
+      "expected": "0"
+    },
+    {
+      "name": "uint_1",
+      "category": "uint",
+      "hex": "03060001",
+      "expected": "1"
+    },
+    {
+      "name": "uint_127",
+      "category": "uint",
+      "hex": "0306007f",
+      "expected": "127"
+    },
+    {
+      "name": "uint_128",
+      "category": "uint",
+      "hex": "040600ff80",
+      "expected": "128"
+    },
+    {
+      "name": "uint_255",
+      "category": "uint",
+      "hex": "040600ffff",
+      "expected": "255"
+    },
+    {
+      "name": "uint_256",
+      "category": "uint",
+      "hex": "050600fe0100",
+      "expected": "256"
+    },
+    {
+      "name": "uint_65535",
+      "category": "uint",
+      "hex": "050600feffff",
+      "expected": "65535"
+    },
+    {
+      "name": "uint_65536",
+      "category": "uint",
+      "hex": "060600fd010000",
+      "expected": "65536"
+    },
+    {
+      "name": "uint_u32max",
+      "category": "uint",
+      "hex": "070600fcffffffff",
+      "expected": "4294967295"
+    },
+    {
+      "name": "uint_max64",
+      "category": "uint",
+      "hex": "0b0600f8ffffffffffffffff",
+      "expected": "18446744073709551615"
+    },
+    {
+      "name": "float_pos0",
+      "category": "float",
+      "hex": "03080000",
+      "expected": "0000000000000000"
+    },
+    {
+      "name": "float_neg0",
+      "category": "float",
+      "hex": "040800ff80",
+      "expected": "8000000000000000"
+    },
+    {
+      "name": "float_1",
+      "category": "float",
+      "hex": "050800fef03f",
+      "expected": "3ff0000000000000"
+    },
+    {
+      "name": "float_neg1",
+      "category": "float",
+      "hex": "050800fef0bf",
+      "expected": "bff0000000000000"
+    },
+    {
+      "name": "float_17",
+      "category": "float",
+      "hex": "050800fe3140",
+      "expected": "4031000000000000"
+    },
+    {
+      "name": "float_neg3_5",
+      "category": "float",
+      "hex": "050800fe0cc0",
+      "expected": "c00c000000000000"
+    },
+    {
+      "name": "float_pi",
+      "category": "float",
+      "hex": "0b0800f8182d4454fb210940",
+      "expected": "400921fb54442d18"
+    },
+    {
+      "name": "float_max",
+      "category": "float",
+      "hex": "0b0800f8ffffffffffffef7f",
+      "expected": "7fefffffffffffff"
+    },
+    {
+      "name": "float_subnormal",
+      "category": "float",
+      "hex": "0b0800f80100000000000000",
+      "expected": "0000000000000001"
+    },
+    {
+      "name": "float_pos_inf",
+      "category": "float",
+      "hex": "050800fef07f",
+      "expected": "7ff0000000000000"
+    },
+    {
+      "name": "float_neg_inf",
+      "category": "float",
+      "hex": "050800fef0ff",
+      "expected": "fff0000000000000"
+    },
+    {
+      "name": "float_nan",
+      "category": "float",
+      "hex": "0b0800f8010000000000f87f",
+      "expected": "7ff8000000000001"
+    },
+    {
+      "name": "string_empty",
+      "category": "string",
+      "hex": "030c0000",
+      "expected": ""
+    },
+    {
+      "name": "string_ascii",
+      "category": "string",
+      "hex": "0e0c000b68656c6c6f2c20676f6221",
+      "expected": "hello, gob!"
+    },
+    {
+      "name": "string_utf8",
+      "category": "string",
+      "hex": "120c000fe697a5e69cace8aa9ef09f9a80c3a9",
+      "expected": "日本語🚀é"
+    },
+    {
+      "name": "string_long",
+      "category": "string",
+      "hex": "ffac0c00ffa8676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d676f622d776972652d746573742d",
+      "expected": "gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-gob-wire-test-"
+    },
+    {
+      "name": "bytes_empty",
+      "category": "bytes",
+      "hex": "030a0000",
+      "expected": ""
+    },
+    {
+      "name": "bytes_single_zero",
+      "category": "bytes",
+      "hex": "040a000100",
+      "expected": "00"
+    },
+    {
+      "name": "bytes_mixed",
+      "category": "bytes",
+      "hex": "080a000500017f80ff",
+      "expected": "00017f80ff"
+    },
+    {
+      "name": "bytes_long",
+      "category": "bytes",
+      "hex": "ffcc0a00ffc80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd02274c7196bbe0052a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0",
+      "expected": "0d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd02274c7196bbe0052a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0"
+    },
+    {
+      "name": "complex_zero",
+      "category": "complex",
+      "hex": "040e000000",
+      "expected": [
+        "0000000000000000",
+        "0000000000000000"
+      ]
+    },
+    {
+      "name": "complex_1_2",
+      "category": "complex",
+      "hex": "060e00fef03f40",
+      "expected": [
+        "3ff0000000000000",
+        "4000000000000000"
+      ]
+    },
+    {
+      "name": "complex_neg",
+      "category": "complex",
+      "hex": "080e00fe0cc0fe1140",
+      "expected": [
+        "c00c000000000000",
+        "4011000000000000"
+      ]
+    },
+    {
+      "name": "complex_imag_only",
+      "category": "complex",
+      "hex": "060e0000fef8bf",
+      "expected": [
+        "0000000000000000",
+        "bff8000000000000"
+      ]
+    },
+    {
+      "name": "slice_int_empty",
+      "category": "slice_int",
+      "hex": "0b7f020102ff80000104000004ff800000",
+      "expected": []
+    },
+    {
+      "name": "slice_int_vals",
+      "category": "slice_int",
+      "hex": "0b7f020102ff80000104000010ff800006000201fffefe0101fd1e847e",
+      "expected": [
+        "0",
+        "1",
+        "-1",
+        "127",
+        "-129",
+        "999999"
+      ]
+    },
+    {
+      "name": "slice_str",
+      "category": "slice_str",
+      "hex": "0cff81020102ff8200010c000011ff8200040005616c706861046265746100",
+      "expected": [
+        "",
+        "alpha",
+        "beta",
+        ""
+      ]
+    },
+    {
+      "name": "slice_nested",
+      "category": "slice_nested",
+      "hex": "0dff83020102ff840001ff8000000b7f020102ff8000010400000bff84000300020204020005",
+      "expected": [
+        [],
+        [
+          "1",
+          "2"
+        ],
+        [
+          "0",
+          "-3"
+        ]
+      ]
+    },
+    {
+      "name": "array_int4",
+      "category": "array_int",
+      "hex": "0eff85010102ff860001040108000008ff8600040014273c",
+      "expected": [
+        "0",
+        "10",
+        "-20",
+        "30"
+      ]
+    },
+    {
+      "name": "array_byte4",
+      "category": "array_uint",
+      "hex": "0eff87010102ff88000106010800000aff8800040001ff80ffff",
+      "expected": [
+        "0",
+        "1",
+        "128",
+        "255"
+      ]
+    },
+    {
+      "name": "array_int0",
+      "category": "array_int",
+      "hex": "0cff89010102ff8a000104000004ff8a0000",
+      "expected": []
+    },
+    {
+      "name": "map_str_int_empty",
+      "category": "map_str_int",
+      "hex": "0eff8b040102ff8c00010c0104000004ff8c0000",
+      "expected": {}
+    },
+    {
+      "name": "map_str_int_one",
+      "category": "map_str_int",
+      "hex": "0eff8b040102ff8c00010c010400000aff8c0001046f6e6c7954",
+      "expected": {
+        "only": "42"
+      }
+    },
+    {
+      "name": "map_str_int_zero_val",
+      "category": "map_str_int",
+      "hex": "0eff8b040102ff8c00010c010400000aff8c0001047a65726f00",
+      "expected": {
+        "zero": "0"
+      }
+    },
+    {
+      "name": "map_str_int_multi",
+      "category": "map_str_int",
+      "hex": "0eff8b040102ff8c00010c010400000dff8c0003016102016203016300",
+      "expected": {
+        "a": "1",
+        "b": "-2",
+        "c": "0"
+      }
+    },
+    {
+      "name": "map_int_str",
+      "category": "map_int_str",
+      "hex": "0eff8d040102ff8e000104010c000014ff8e000300047a65726f140374656e09036e6567",
+      "expected": {
+        "-5": "neg",
+        "0": "zero",
+        "10": "ten"
+      }
+    },
+    {
+      "name": "struct_empty",
+      "category": "struct_empty",
+      "hex": "11ff8f03010105456d70747901ff9000000003ff9000",
+      "expected": {}
+    },
+    {
+      "name": "struct_point_zero",
+      "category": "struct_point",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000003ff9200",
+      "expected": {
+        "X": "0",
+        "Y": "0"
+      }
+    },
+    {
+      "name": "struct_point_both",
+      "category": "struct_point",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000007ff920114012700",
+      "expected": {
+        "X": "10",
+        "Y": "-20"
+      }
+    },
+    {
+      "name": "struct_point_omitted_first",
+      "category": "struct_point",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000006ff9202ffc600",
+      "expected": {
+        "X": "0",
+        "Y": "99"
+      }
+    },
+    {
+      "name": "struct_outer_nested",
+      "category": "struct_outer",
+      "hex": "3dff93030101054f7574657201ff9400010401055469746c65010c000105496e6e657201ff96000105436f756e740104000105457874726101ff9600000026ff9503010105496e6e657201ff960001020104436f646501040001054c6162656c010c00000015ff940104726f6f740100010a01010e01026f6b0000",
+      "expected": {
+        "Count": "5",
+        "Extra": {
+          "Code": "7",
+          "Label": "ok"
+        },
+        "Inner": {
+          "Code": "0",
+          "Label": ""
+        },
+        "Title": "root"
+      }
+    },
+    {
+      "name": "struct_person_full",
+      "category": "struct_person",
+      "hex": "58ff9703010106506572736f6e01ff9800010701044e616d65010c0001034167650104000106416374697665010200010553636f72650108000103546167010a00010653636f72657301ff800001044d65746101ff9a0000000b7f020102ff80000104000021ff99040101116d61705b737472696e675d737472696e6701ff9a00010c010c000025ff9801034164610148010101fda058400102dead0103140028010104726f6c6503656e6700",
+      "expected": {
+        "Active": true,
+        "Age": "36",
+        "Meta": {
+          "role": "eng"
+        },
+        "Name": "Ada",
+        "Score": "4058a00000000000",
+        "Scores": [
+          "10",
+          "0",
+          "20"
+        ],
+        "Tag": "dead"
+      }
+    },
+    {
+      "name": "struct_person_zero",
+      "category": "struct_person",
+      "hex": "58ff9703010106506572736f6e01ff9800010701044e616d65010c0001034167650104000106416374697665010200010553636f72650108000103546167010a00010653636f72657301ff800001044d65746101ff9a0000000b7f020102ff80000104000021ff99040101116d61705b737472696e675d737472696e6701ff9a00010c010c000003ff9800",
+      "expected": {
+        "Active": false,
+        "Age": "0",
+        "Meta": {},
+        "Name": "",
+        "Score": "0000000000000000",
+        "Scores": [],
+        "Tag": ""
+      }
+    },
+    {
+      "name": "struct_with_array",
+      "category": "struct_with_array",
+      "hex": "32ff9b0301010957697468417272617901ff9c000103010249640104000105466978656401ff9e0001044e6f7465010c00000018ff9d010101085b335d696e74363401ff9e0001040106000011ff9c010201030000000105616674657200",
+      "expected": {
+        "Fixed": [
+          "0",
+          "0",
+          "0"
+        ],
+        "Id": "1",
+        "Note": "after"
+      }
+    },
+    {
+      "name": "slice_of_structs",
+      "category": "slice_points",
+      "hex": "0dff9f020102ffa00001ff9200001fff9103010105506f696e7401ff9200010201015801040001015901040000000fffa000030102010400000105010800",
+      "expected": [
+        {
+          "X": "1",
+          "Y": "2"
+        },
+        {
+          "X": "0",
+          "Y": "0"
+        },
+        {
+          "X": "-3",
+          "Y": "4"
+        }
+      ]
+    },
+    {
+      "name": "struct_with_complex",
+      "category": "struct_with_complex",
+      "hex": "2fffa10301010b57697468436f6d706c657801ffa2000103010143010e0001055a65726f43010e0001015501060000000cffa201fef83ffe04c0022a00",
+      "expected": {
+        "C": [
+          "3ff8000000000000",
+          "c004000000000000"
+        ],
+        "U": "42",
+        "ZeroC": [
+          "0000000000000000",
+          "0000000000000000"
+        ]
+      }
+    },
+    {
+      "name": "stream_points_reuse",
+      "category": "stream_points",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000007ff92010201040005ff9202090006ff9201ffc800",
+      "expected": [
+        {
+          "X": "1",
+          "Y": "2"
+        },
+        {
+          "X": "0",
+          "Y": "-5"
+        },
+        {
+          "X": "100",
+          "Y": "0"
+        }
+      ]
+    },
+    {
+      "name": "stream_mixed_reuse",
+      "category": "stream_mixed",
+      "hex": "03040053080c000568656c6c6f1fff9103010105506f696e7401ff92000102010158010400010159010400000007ff9201060108000302000107ff92010a010c000b7f020102ff80000104000006ff8000020e1005ff80000112",
+      "expected": [
+        "-42",
+        "hello",
+        "3,4",
+        true,
+        "5,6",
+        "7,8",
+        "9"
+      ]
+    }
+  ],
+  "invalid": [
+    {
+      "name": "empty_input",
+      "hex": "",
+      "reason": "truncated"
+    },
+    {
+      "name": "truncated_len_header",
+      "hex": "fe01",
+      "reason": "truncated"
+    },
+    {
+      "name": "overflow_uint_header",
+      "hex": "f0010203040506070809",
+      "reason": "overflow"
+    },
+    {
+      "name": "truncated_payload",
+      "hex": "0a040002",
+      "reason": "truncated"
+    },
+    {
+      "name": "zero_length_message",
+      "hex": "00",
+      "reason": "malformed"
+    },
+    {
+      "name": "unknown_type_id_64",
+      "hex": "03ff8000",
+      "reason": "unknown_type"
+    },
+    {
+      "name": "unknown_type_id_0",
+      "hex": "020000",
+      "reason": "unknown_type"
+    },
+    {
+      "name": "reserved_type_def_below_64",
+      "hex": "0b2703010101580128000000",
+      "reason": "malformed"
+    },
+    {
+      "name": "type_def_without_value",
+      "hex": "1fff9103010105506f696e7401ff920001020101580104000101590104000000",
+      "reason": "truncated"
+    },
+    {
+      "name": "duplicate_type_def",
+      "hex": "1fff9103010105506f696e7401ff9200010201015801040001015901040000001fff9103010105506f696e7401ff92000102010158010400010159010400000007ff920102010400",
+      "reason": "malformed"
+    },
+    {
+      "name": "nonzero_singleton_delimiter",
+      "hex": "03040102",
+      "reason": "malformed"
+    },
+    {
+      "name": "trailing_bytes_in_frame",
+      "hex": "0404000299",
+      "reason": "malformed"
+    },
+    {
+      "name": "invalid_utf8_string",
+      "hex": "050c0002fffe",
+      "reason": "malformed"
+    },
+    {
+      "name": "truncated_string_body",
+      "hex": "040c000561",
+      "reason": "truncated"
+    },
+    {
+      "name": "cyclic_wire_type",
+      "hex": "0dff81020102ff820001ff82000004ff820000",
+      "reason": "depth_limit"
+    },
+    {
+      "name": "struct_field_oob",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000005ff92050200",
+      "reason": "malformed"
+    },
+    {
+      "name": "struct_missing_terminator",
+      "hex": "1fff9103010105506f696e7401ff92000102010158010400010159010400000004ff920102",
+      "reason": "truncated"
+    },
+    {
+      "name": "array_length_mismatch",
+      "hex": "0eff81010102ff820001040106000006ff8200020000",
+      "reason": "malformed"
+    }
+  ]
+}

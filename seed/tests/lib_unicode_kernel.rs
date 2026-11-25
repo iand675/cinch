@@ -132,28 +132,9 @@ fn unicode_kernel_declarations_have_canonical_documentation() {
     }
 }
 
-/// Actual classification-table scalar kernels compile for wasm, ARM and a big-endian object.
+/// Actual Unicode classification-table and scalar-kernel paths compile for wasm, ARM and a big-endian object.
 #[test]
 fn unicode_table_kernels_compile_for_foreign_targets() {
-    let source = include_str!("../prelude/Data/Unicode/Tables.cinch");
-    let mut kernels = String::from("-- | Actual private Unicode classification-table arithmetic.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n");
-    for name in [
-        "table-add",
-        "table-sub",
-        "table-and",
-        "table-shr",
-        "table-lt",
-        "table-le",
-    ] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str(
-            "\n  -- | Isolated actual checked arithmetic or caller-proved exact source load.\n",
-        );
-        kernels.push_str(&rest[..end]);
-    }
-    kernels.push_str(include_str!("fixtures/unicode-table-kernel-main.cinch.in"));
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -172,23 +153,53 @@ fn unicode_table_kernels_compile_for_foreign_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, source) in [
+            (
+                "Data.Bytes.Word",
+                include_str!("../prelude/Data/Bytes/Word.cinch"),
+            ),
+            (
+                "Data.Unicode.Tables",
+                include_str!("../prelude/Data/Unicode/Tables.cinch"),
+            ),
+            (
+                "Data.Unicode.Kernel",
+                include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+            ),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), source).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public Unicode table and kernel paths for foreign targets.\nmodule Main where\n  import Data.Bytes\n  import Data.Bytes.Word\n  import Data.Machine\n  import Data.Nat\n  import Data.Unicode.Tables\n  import Data.Unicode.Kernel\n\n  -- | Exercise public table lookup and scalar casing/folding paths across targets.\n  main :: Int\n  main =\n    let probe = bytes-new 4 in\n    if 4 <= bytes-len probe then\n      let cp = bytes-read-le32 probe 0 in\n      let cls = unicode-data-class cp in\n      let code = wrapping-u32-to-i32 cp in\n      let lowered = unicode-to-lower-code code in\n      let folded = unicode-simple-fold-code lowered in\n      if ne-u64 cls 0 || eq-i32 folded code then 0 else 1\n    else 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program = cinch::driver::check_sources_profile(
-                    &input,
-                    "unicode-table-kernels.cinch",
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
                     &profile,
-                )?;
-                cinch::codegen::emit_for(&profile, &program)
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(ir.contains("Data.Unicode.Tables.unicode-data-class") && ir.contains("load i32"));
+        if endian == "big" {
+            assert!(ir.contains("call i32 @llvm.bswap.i32"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

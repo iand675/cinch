@@ -4,7 +4,7 @@ Owned JSON documents and navigation tapes, raw number spellings, exact numeric v
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Json.Value</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json.Value/source/">View source</a><a href="/packages/search/?q=%2BText.Json.Value">Search module</a><a href="/reference-sources/Text.Json.Value.cinch" download="Text.Json.Value.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -22,7 +22,7 @@ and unmatched surrogate escapes while number spellings remain exact.
 # Types
 
 <article class="doc-entry" id="t-JsonDocument">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonDocument</strong></code><span class="doc-sig-links"><a href="#t-JsonDocument" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L661" title="View source at line 661">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonDocument</strong></code><span class="doc-sig-links"><a href="#t-JsonDocument" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L662" title="View source at line 662">Source</a></span></div>
 <div class="doc-body">
 
 An immutable document retaining one owned source snapshot and its navigation tape.
@@ -31,7 +31,7 @@ An immutable document retaining one owned source snapshot and its navigation tap
 </article>
 
 <article class="doc-entry" id="t-JsonError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonError</strong></code><span class="doc-sig-links"><a href="#t-JsonError" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L237" title="View source at line 237">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonError</strong></code><span class="doc-sig-links"><a href="#t-JsonError" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L238" title="View source at line 238">Source</a></span></div>
 <div class="doc-body">
 
 Structured JSON syntax, type, configuration and custom conversion diagnostics.
@@ -41,7 +41,7 @@ Structured JSON syntax, type, configuration and custom conversion diagnostics.
 </article>
 
 <article class="doc-entry" id="t-JsonKind">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonKind</strong></code><span class="doc-sig-links"><a href="#t-JsonKind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L588" title="View source at line 588">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonKind</strong></code><span class="doc-sig-links"><a href="#t-JsonKind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L589" title="View source at line 589">Source</a></span></div>
 <div class="doc-body">
 
 Public value categories, including an explicit invalid internal representation category.
@@ -51,7 +51,7 @@ Public value categories, including an explicit invalid internal representation c
 </article>
 
 <article class="doc-entry" id="t-JsonLexState">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexState</strong></code><span class="doc-sig-links"><a href="#t-JsonLexState" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L973" title="View source at line 973">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexState</strong></code><span class="doc-sig-links"><a href="#t-JsonLexState" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L954" title="View source at line 954">Source</a></span></div>
 <div class="doc-body">
 
 An immutable resumable lexer state; source bytes remain owned by its caller.
@@ -60,7 +60,7 @@ An immutable resumable lexer state; source bytes remain owned by its caller.
 </article>
 
 <article class="doc-entry" id="t-JsonLexStep">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexStep</strong></code><span class="doc-sig-links"><a href="#t-JsonLexStep" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L996" title="View source at line 996">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexStep</strong></code><span class="doc-sig-links"><a href="#t-JsonLexStep" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L977" title="View source at line 977">Source</a></span></div>
 <div class="doc-body">
 
 Incremental lexical progress distinguishes a complete token, clean EOF and a required continuation.
@@ -70,7 +70,7 @@ Incremental lexical progress distinguishes a complete token, clean EOF and a req
 </article>
 
 <article class="doc-entry" id="t-JsonLexTag">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexTag</strong></code><span class="doc-sig-links"><a href="#t-JsonLexTag" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L912" title="View source at line 912">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexTag</strong></code><span class="doc-sig-links"><a href="#t-JsonLexTag" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L893" title="View source at line 893">Source</a></span></div>
 <div class="doc-body">
 
 Lexical categories shared by immutable documents and incremental stream readers.
@@ -80,7 +80,7 @@ Lexical categories shared by immutable documents and incremental stream readers.
 </article>
 
 <article class="doc-entry" id="t-JsonLexeme">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexeme</strong></code><span class="doc-sig-links"><a href="#t-JsonLexeme" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L937" title="View source at line 937">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonLexeme</strong></code><span class="doc-sig-links"><a href="#t-JsonLexeme" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L918" title="View source at line 918">Source</a></span></div>
 <div class="doc-body">
 
 One lexical token's original byte interval.
@@ -89,7 +89,7 @@ One lexical token's original byte interval.
 </article>
 
 <article class="doc-entry" id="t-JsonMember">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonMember</strong></code><span class="doc-sig-links"><a href="#t-JsonMember" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L724" title="View source at line 724">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonMember</strong></code><span class="doc-sig-links"><a href="#t-JsonMember" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L725" title="View source at line 725">Source</a></span></div>
 <div class="doc-body">
 
 An object member retains its decoded name and source-backed value view.
@@ -98,7 +98,7 @@ An object member retains its decoded name and source-backed value view.
 </article>
 
 <article class="doc-entry" id="t-JsonNumber">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumber</strong></code><span class="doc-sig-links"><a href="#t-JsonNumber" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L527" title="View source at line 527">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumber</strong></code><span class="doc-sig-links"><a href="#t-JsonNumber" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L528" title="View source at line 528">Source</a></span></div>
 <div class="doc-body">
 
 An exact number spelling with checked, raw-scalar and owned-byte construction.
@@ -107,7 +107,7 @@ An exact number spelling with checked, raw-scalar and owned-byte construction.
 </article>
 
 <article class="doc-entry" id="t-JsonNumericError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericError</strong></code><span class="doc-sig-links"><a href="#t-JsonNumericError" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericError</strong></code><span class="doc-sig-links"><a href="#t-JsonNumericError" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L67" title="View source at line 67">Source</a></span></div>
 <div class="doc-body">
 
 Immutable original function, input bytes and numeric refusal reason.
@@ -116,7 +116,7 @@ Immutable original function, input bytes and numeric refusal reason.
 </article>
 
 <article class="doc-entry" id="t-JsonNumericErrorKind">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericErrorKind</strong></code><span class="doc-sig-links"><a href="#t-JsonNumericErrorKind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericErrorKind</strong></code><span class="doc-sig-links"><a href="#t-JsonNumericErrorKind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L60" title="View source at line 60">Source</a></span></div>
 <div class="doc-body">
 
 The independent syntax or representability reason for a numeric conversion refusal.
@@ -126,7 +126,7 @@ The independent syntax or representability reason for a numeric conversion refus
 </article>
 
 <article class="doc-entry" id="t-JsonNumericResult">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericResult</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JsonNumericResult" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonNumericResult</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JsonNumericResult" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L72" title="View source at line 72">Source</a></span></div>
 <div class="doc-body">
 
 A numeric value and its optional refusal, preserving saturated and infinite outcomes.
@@ -135,7 +135,7 @@ A numeric value and its optional refusal, preserving saturated and infinite outc
 </article>
 
 <article class="doc-entry" id="t-JsonRawMessage">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonRawMessage</strong></code><span class="doc-sig-links"><a href="#t-JsonRawMessage" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L565" title="View source at line 565">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonRawMessage</strong></code><span class="doc-sig-links"><a href="#t-JsonRawMessage" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L566" title="View source at line 566">Source</a></span></div>
 <div class="doc-body">
 
 An immutable raw JSON message; null and a non-null empty buffer are distinct.
@@ -144,7 +144,7 @@ An immutable raw JSON message; null and a non-null empty buffer are distinct.
 </article>
 
 <article class="doc-entry" id="t-JsonScanResult">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonScanResult</strong></code><span class="doc-sig-links"><a href="#t-JsonScanResult" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L671" title="View source at line 671">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonScanResult</strong></code><span class="doc-sig-links"><a href="#t-JsonScanResult" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L672" title="View source at line 672">Source</a></span></div>
 <div class="doc-body">
 
 An explicit partial scan retains a source-backed root and its optional first grammar refusal.
@@ -153,7 +153,7 @@ An explicit partial scan retains a source-backed root and its optional first gra
 </article>
 
 <article class="doc-entry" id="t-JsonSemanticInfo">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonSemanticInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonSemanticInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonSemanticInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonSemanticInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L132" title="View source at line 132">Source</a></span></div>
 <div class="doc-body">
 
 Owned operation context for a conversion that stops at the first semantic failure.
@@ -162,7 +162,7 @@ Owned operation context for a conversion that stops at the first semantic failur
 </article>
 
 <article class="doc-entry" id="t-JsonSyntacticInfo">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonSyntacticInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonSyntacticInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonSyntacticInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonSyntacticInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L82" title="View source at line 82">Source</a></span></div>
 <div class="doc-body">
 
 Exact zero-based syntax checkpoint and escaped pointer retained independently from diagnostic prose.
@@ -171,7 +171,7 @@ Exact zero-based syntax checkpoint and escaped pointer retained independently fr
 </article>
 
 <article class="doc-entry" id="t-JsonTypeInfo">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonTypeInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonTypeInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonTypeInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonTypeInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L99" title="View source at line 99">Source</a></span></div>
 <div class="doc-body">
 
 Immutable optional application identity, actual value, source position and record context for a type refusal.
@@ -180,7 +180,7 @@ Immutable optional application identity, actual value, source position and recor
 </article>
 
 <article class="doc-entry" id="t-JsonValue">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonValue</strong></code><span class="doc-sig-links"><a href="#t-JsonValue" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L666" title="View source at line 666">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonValue</strong></code><span class="doc-sig-links"><a href="#t-JsonValue" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L667" title="View source at line 667">Source</a></span></div>
 <div class="doc-body">
 
 An immutable value view retaining its document and selected node without copying the input.
@@ -189,7 +189,7 @@ An immutable value view retaining its document and selected node without copying
 </article>
 
 <article class="doc-entry" id="t-JsonWriteInfo">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonWriteInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonWriteInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L216" title="View source at line 216">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonWriteInfo</strong></code><span class="doc-sig-links"><a href="#t-JsonWriteInfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L217" title="View source at line 217">Source</a></span></div>
 <div class="doc-body">
 
 Owned bytes already emitted and the logical compact prefix before a failing next value.
@@ -200,7 +200,7 @@ Owned bytes already emitted and the logical compact prefix before a failing next
 # Values
 
 <article class="doc-entry" id="v-json-append-compact">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-compact</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-compact" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2424" title="View source at line 2424">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-compact</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-compact" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2400" title="View source at line 2400">Source</a></span></div>
 <div class="doc-body">
 
 Append compact validated JSON while retaining numeric spellings and original string escape bytes.
@@ -209,7 +209,7 @@ Append compact validated JSON while retaining numeric spellings and original str
 </article>
 
 <article class="doc-entry" id="v-json-append-html-escape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-html-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-html-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2276" title="View source at line 2276">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-html-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-html-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2252" title="View source at line 2252">Source</a></span></div>
 <div class="doc-body">
 
 Append escaped source bytes to an independent copy of an existing destination prefix.
@@ -218,7 +218,7 @@ Append escaped source bytes to an independent copy of an existing destination pr
 </article>
 
 <article class="doc-entry" id="v-json-append-indent">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-indent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-indent" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2432" title="View source at line 2432">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-indent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-indent" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2408" title="View source at line 2408">Source</a></span></div>
 <div class="doc-body">
 
 Append indented JSON, dropping leading whitespace and preserving original trailing whitespace.
@@ -227,7 +227,7 @@ Append indented JSON, dropping leading whitespace and preserving original traili
 </article>
 
 <article class="doc-entry" id="v-json-append-indent-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-indent-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-indent-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2441" title="View source at line 2441">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-append-indent-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-append-indent-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2417" title="View source at line 2417">Source</a></span></div>
 <div class="doc-body">
 
 Append indented JSON with arbitrary byte prefixes, preserving malformed bytes and embedded NUL.
@@ -236,7 +236,7 @@ Append indented JSON with arbitrary byte prefixes, preserving malformed bytes an
 </article>
 
 <article class="doc-entry" id="v-json-array-get">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-array-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1988" title="View source at line 1988">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-array-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1964" title="View source at line 1964">Source</a></span></div>
 <div class="doc-body">
 
 Read one direct array element by zero-based index, retaining its original document owner.
@@ -245,7 +245,7 @@ Read one direct array element by zero-based index, retaining its original docume
 </article>
 
 <article class="doc-entry" id="v-json-array-length">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-array-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1979" title="View source at line 1979">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-array-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1955" title="View source at line 1955">Source</a></span></div>
 <div class="doc-body">
 
 Read the element count without traversing nested values or copying the source.
@@ -254,7 +254,7 @@ Read the element count without traversing nested values or copying the source.
 </article>
 
 <article class="doc-entry" id="v-json-array-values">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a>)</code><span class="doc-sig-links"><a href="#v-json-array-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2005" title="View source at line 2005">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-array-values</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a>)</code><span class="doc-sig-links"><a href="#v-json-array-values" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1981" title="View source at line 1981">Source</a></span></div>
 <div class="doc-body">
 
 Collect array element views in source order without copying their payload bytes.
@@ -263,7 +263,7 @@ Collect array element views in source order without copying their payload bytes.
 </article>
 
 <article class="doc-entry" id="v-json-compact">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-compact</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-compact" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2428" title="View source at line 2428">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-compact</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-compact" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2404" title="View source at line 2404">Source</a></span></div>
 <div class="doc-body">
 
 Remove insignificant whitespace from one complete validated JSON value.
@@ -272,7 +272,7 @@ Remove insignificant whitespace from one complete validated JSON value.
 </article>
 
 <article class="doc-entry" id="v-json-document">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a></code><span class="doc-sig-links"><a href="#v-json-document" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1387" title="View source at line 1387">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a></code><span class="doc-sig-links"><a href="#v-json-document" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1373" title="View source at line 1373">Source</a></span></div>
 <div class="doc-body">
 
 Validate and snapshot one complete JSON document, preserving all original source spellings.
@@ -281,7 +281,7 @@ Validate and snapshot one complete JSON document, preserving all original source
 </article>
 
 <article class="doc-entry" id="v-json-document-input">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document-input</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-document-input" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L741" title="View source at line 741">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document-input</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-document-input" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L742" title="View source at line 742">Source</a></span></div>
 <div class="doc-body">
 
 Copy the complete original document bytes before exposing mutable storage.
@@ -290,7 +290,7 @@ Copy the complete original document bytes before exposing mutable storage.
 </article>
 
 <article class="doc-entry" id="v-json-document-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-document-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L737" title="View source at line 737">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-document-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonDocument" title="Text.Json.Value.JsonDocument">JsonDocument</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-document-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L738" title="View source at line 738">Source</a></span></div>
 <div class="doc-body">
 
 Obtain the validated root view without copying document storage.
@@ -299,7 +299,7 @@ Obtain the validated root view without copying document storage.
 </article>
 
 <article class="doc-entry" id="v-json-empty-number">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-empty-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-empty-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1673" title="View source at line 1673">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-empty-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-empty-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1664" title="View source at line 1664">Source</a></span></div>
 <div class="doc-body">
 
 An explicitly absent number spelling; typed marshaling represents this default as zero.
@@ -309,7 +309,7 @@ Checked integer and float conversions reject the empty spelling.
 </article>
 
 <article class="doc-entry" id="v-json-error-cause">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-cause</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-cause" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L370" title="View source at line 370">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-cause</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-cause" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L371" title="View source at line 371">Source</a></span></div>
 <div class="doc-body">
 
 Inspect a wrapped custom conversion or path diagnostic without flattening it.
@@ -318,7 +318,7 @@ Inspect a wrapped custom conversion or path diagnostic without flattening it.
 </article>
 
 <article class="doc-entry" id="v-json-error-invalid-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-invalid-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-error-invalid-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L445" title="View source at line 445">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-invalid-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-error-invalid-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L446" title="View source at line 446">Source</a></span></div>
 <div class="doc-body">
 
 Whether a value failure lacks a valid application value, after custom/path context is removed.
@@ -327,7 +327,7 @@ Whether a value failure lacks a valid application value, after custom/path conte
 </article>
 
 <article class="doc-entry" id="v-json-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L276" title="View source at line 276">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L277" title="View source at line 277">Source</a></span></div>
 <div class="doc-body">
 
 Render a diagnostic using JSON and application type names.
@@ -336,7 +336,7 @@ Render a diagnostic using JSON and application type names.
 </article>
 
 <article class="doc-entry" id="v-json-error-numeric">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-numeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-error-numeric" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L459" title="View source at line 459">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-numeric</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-error-numeric" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L460" title="View source at line 460">Source</a></span></div>
 <div class="doc-body">
 
 Recover numeric metadata through custom, path and typed-cause wrappers.
@@ -345,7 +345,7 @@ Recover numeric metadata through custom, path and typed-cause wrappers.
 </article>
 
 <article class="doc-entry" id="v-json-error-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L298" title="View source at line 298">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L299" title="View source at line 299">Source</a></span></div>
 <div class="doc-body">
 
 Original byte offset when one exists, otherwise zero.
@@ -354,7 +354,7 @@ Original byte offset when one exists, otherwise zero.
 </article>
 
 <article class="doc-entry" id="v-json-error-path">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L320" title="View source at line 320">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L321" title="View source at line 321">Source</a></span></div>
 <div class="doc-body">
 
 Application member/index path carried by a diagnostic.
@@ -363,7 +363,7 @@ Application member/index path carried by a diagnostic.
 </article>
 
 <article class="doc-entry" id="v-json-error-preserved-context">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-preserved-context</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-preserved-context" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L396" title="View source at line 396">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-preserved-context</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-preserved-context" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L397" title="View source at line 397">Source</a></span></div>
 <div class="doc-body">
 
 Recover an origin-protected cause at the public encoding boundary without altering its error family.
@@ -372,7 +372,7 @@ Recover an origin-protected cause at the public encoding boundary without alteri
 </article>
 
 <article class="doc-entry" id="v-json-error-record">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-record" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L441" title="View source at line 441">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-record" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L442" title="View source at line 442">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the root record name independently from the escaped field path.
@@ -381,7 +381,7 @@ Inspect the root record name independently from the escaped field path.
 </article>
 
 <article class="doc-entry" id="v-json-error-returned">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-returned</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-returned" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L400" title="View source at line 400">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-returned</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-error-returned" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L401" title="View source at line 401">Source</a></span></div>
 <div class="doc-body">
 
 Recover an original method-returned error through containing conversion wrappers.
@@ -390,7 +390,7 @@ Recover an original method-returned error through containing conversion wrappers
 </article>
 
 <article class="doc-entry" id="v-json-error-semantic">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-semantic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-semantic" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L474" title="View source at line 474">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-semantic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-semantic" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L475" title="View source at line 475">Source</a></span></div>
 <div class="doc-body">
 
 Recover semantic source context through containing custom, path and typed-cause adapters.
@@ -399,7 +399,7 @@ Recover semantic source context through containing custom, path and typed-cause 
 </article>
 
 <article class="doc-entry" id="v-json-error-syntactic">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-syntactic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-syntactic" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L427" title="View source at line 427">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-syntactic</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-syntactic" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L428" title="View source at line 428">Source</a></span></div>
 <div class="doc-body">
 
 Recover precise grammar context through transparent ownership and conversion adapters.
@@ -408,7 +408,7 @@ Recover precise grammar context through transparent ownership and conversion ada
 </article>
 
 <article class="doc-entry" id="v-json-error-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L336" title="View source at line 336">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L337" title="View source at line 337">Source</a></span></div>
 <div class="doc-body">
 
 Application type label associated with a conversion failure.
@@ -417,7 +417,7 @@ Application type label associated with a conversion failure.
 </article>
 
 <article class="doc-entry" id="v-json-error-type-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-type-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-type-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L414" title="View source at line 414">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-type-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-type-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L415" title="View source at line 415">Source</a></span></div>
 <div class="doc-body">
 
 Recover exact type metadata through ordinary path and conversion context without flattening its cause.
@@ -426,7 +426,7 @@ Recover exact type metadata through ordinary path and conversion context without
 </article>
 
 <article class="doc-entry" id="v-json-error-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L353" title="View source at line 353">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L354" title="View source at line 354">Source</a></span></div>
 <div class="doc-body">
 
 Actual value description associated with a conversion failure.
@@ -435,7 +435,7 @@ Actual value description associated with a conversion failure.
 </article>
 
 <article class="doc-entry" id="v-json-error-write-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-write-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-write-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L384" title="View source at line 384">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-write-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a></code><span class="doc-sig-links"><a href="#v-json-error-write-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L385" title="View source at line 385">Source</a></span></div>
 <div class="doc-body">
 
 Inspect output context attached by an encoding boundary without treating a returned callback cause as emitted output.
@@ -444,7 +444,7 @@ Inspect output context attached by an encoding boundary without treating a retur
 </article>
 
 <article class="doc-entry" id="v-json-error-written-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-written-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-error-written-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L388" title="View source at line 388">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-written-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-error-written-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L389" title="View source at line 389">Source</a></span></div>
 <div class="doc-body">
 
 Export independently owned partial output when an encoding boundary retained it.
@@ -453,7 +453,7 @@ Export independently owned partial output when an encoding boundary retained it.
 </article>
 
 <article class="doc-entry" id="v-json-html-escape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-html-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-html-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2282" title="View source at line 2282">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-html-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-html-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2258" title="View source at line 2258">Source</a></span></div>
 <div class="doc-body">
 
 Escape HTML-sensitive bytes and line separators without validating the source as JSON.
@@ -462,7 +462,7 @@ Escape HTML-sensitive bytes and line separators without validating the source as
 </article>
 
 <article class="doc-entry" id="v-json-indent">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2436" title="View source at line 2436">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2412" title="View source at line 2412">Source</a></span></div>
 <div class="doc-body">
 
 Indent one complete JSON value with arbitrary per-line prefix and indentation strings.
@@ -471,7 +471,7 @@ Indent one complete JSON value with arbitrary per-line prefix and indentation st
 </article>
 
 <article class="doc-entry" id="v-json-indent-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2445" title="View source at line 2445">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2421" title="View source at line 2421">Source</a></span></div>
 <div class="doc-body">
 
 Indent one complete value with byte-exact line-prefix and indentation fragments.
@@ -480,7 +480,7 @@ Indent one complete value with byte-exact line-prefix and indentation fragments.
 </article>
 
 <article class="doc-entry" id="v-json-indent-prefix">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2405" title="View source at line 2405">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-indent-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-indent-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2381" title="View source at line 2381">Source</a></span></div>
 <div class="doc-body">
 
 Format a lexically complete JSON prefix without requiring its containers or pending members to be complete.
@@ -491,7 +491,7 @@ and indentation; it does not accept a prefix as a complete JSON value.
 </article>
 
 <article class="doc-entry" id="v-json-lex-read">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexStep" title="Text.Json.Value.JsonLexStep">JsonLexStep</a></code><span class="doc-sig-links"><a href="#v-json-lex-read" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1120" title="View source at line 1120">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-read</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexStep" title="Text.Json.Value.JsonLexStep">JsonLexStep</a></code><span class="doc-sig-links"><a href="#v-json-lex-read" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1101" title="View source at line 1101">Source</a></span></div>
 <div class="doc-body">
 
 Scan at most one token from a checked owned buffer interval, resuming a partial prior token.
@@ -501,7 +501,7 @@ Base is the absolute position of buffer byte zero; returned cursors are local to
 </article>
 
 <article class="doc-entry" id="v-json-lex-read-positioned">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-read-positioned</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexStep" title="Text.Json.Value.JsonLexStep">JsonLexStep</a></code><span class="doc-sig-links"><a href="#v-json-lex-read-positioned" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1126" title="View source at line 1126">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-read-positioned</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexStep" title="Text.Json.Value.JsonLexStep">JsonLexStep</a></code><span class="doc-sig-links"><a href="#v-json-lex-read-positioned" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1107" title="View source at line 1107">Source</a></span></div>
 <div class="doc-body">
 
 Retain an exact lexical refusal checkpoint without changing successful token or continuation ownership.
@@ -510,7 +510,7 @@ Retain an exact lexical refusal checkpoint without changing successful token or 
 </article>
 
 <article class="doc-entry" id="v-json-lex-start">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a></code><span class="doc-sig-links"><a href="#v-json-lex-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L992" title="View source at line 992">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lex-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexState" title="Text.Json.Value.JsonLexState">JsonLexState</a></code><span class="doc-sig-links"><a href="#v-json-lex-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L973" title="View source at line 973">Source</a></span></div>
 <div class="doc-body">
 
 Begin scanning one token without assuming any source chunk is already available.
@@ -519,7 +519,7 @@ Begin scanning one token without assuming any source chunk is already available.
 </article>
 
 <article class="doc-entry" id="v-json-lexeme-end">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-end" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L946" title="View source at line 946">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-end" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L927" title="View source at line 927">Source</a></span></div>
 <div class="doc-body">
 
 Observe a lexical token's original exclusive end.
@@ -528,7 +528,7 @@ Observe a lexical token's original exclusive end.
 </article>
 
 <article class="doc-entry" id="v-json-lexeme-start">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L942" title="View source at line 942">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L923" title="View source at line 923">Source</a></span></div>
 <div class="doc-body">
 
 Observe a lexical token's original start.
@@ -537,7 +537,7 @@ Observe a lexical token's original start.
 </article>
 
 <article class="doc-entry" id="v-json-lexeme-tag">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-tag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexTag" title="Text.Json.Value.JsonLexTag">JsonLexTag</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-tag" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L950" title="View source at line 950">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-lexeme-tag</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexeme" title="Text.Json.Value.JsonLexeme">JsonLexeme</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonLexTag" title="Text.Json.Value.JsonLexTag">JsonLexTag</a></code><span class="doc-sig-links"><a href="#v-json-lexeme-tag" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L931" title="View source at line 931">Source</a></span></div>
 <div class="doc-body">
 
 Observe a lexical category without decoding its source bytes.
@@ -546,7 +546,7 @@ Observe a lexical category without decoding its source bytes.
 </article>
 
 <article class="doc-entry" id="v-json-member-key">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-member-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2463" title="View source at line 2463">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-key</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-member-key" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2439" title="View source at line 2439">Source</a></span></div>
 <div class="doc-body">
 
 Retain the exact original quoted member-name token as an immutable source-backed string view.
@@ -555,7 +555,7 @@ Retain the exact original quoted member-name token as an immutable source-backed
 </article>
 
 <article class="doc-entry" id="v-json-member-name">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-member-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L729" title="View source at line 729">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-member-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L730" title="View source at line 730">Source</a></span></div>
 <div class="doc-body">
 
 Observe a decoded object member name.
@@ -564,7 +564,7 @@ Observe a decoded object member name.
 </article>
 
 <article class="doc-entry" id="v-json-member-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-member-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L733" title="View source at line 733">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-member-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-member-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L734" title="View source at line 734">Source</a></span></div>
 <div class="doc-body">
 
 Observe the member value while retaining its source document.
@@ -573,7 +573,7 @@ Observe the member value while retaining its source document.
 </article>
 
 <article class="doc-entry" id="v-json-number">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1685" title="View source at line 1685">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1676" title="View source at line 1676">Source</a></span></div>
 <div class="doc-body">
 
 Validate a complete number spelling without accepting surrounding whitespace or another value.
@@ -582,7 +582,7 @@ Validate a complete number spelling without accepting surrounding whitespace or 
 </article>
 
 <article class="doc-entry" id="v-json-number-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-number-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L548" title="View source at line 548">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-number-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L549" title="View source at line 549">Source</a></span></div>
 <div class="doc-body">
 
 Export a fresh exact spelling independently of scalar text projection.
@@ -591,7 +591,7 @@ Export a fresh exact spelling independently of scalar text projection.
 </article>
 
 <article class="doc-entry" id="v-json-number-check">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-check</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-check" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1925" title="View source at line 1925">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-check</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-check" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1901" title="View source at line 1901">Source</a></span></div>
 <div class="doc-body">
 
 Validate the exact spelling of a raw number without accepting repaired or surrounding text.
@@ -600,7 +600,7 @@ Validate the exact spelling of a raw number without accepting repaired or surrou
 </article>
 
 <article class="doc-entry" id="v-json-number-float32">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-json-number-float32" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1940" title="View source at line 1940">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float32</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-json-number-float32" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1916" title="View source at line 1916">Source</a></span></div>
 <div class="doc-body">
 
 Round an exact number directly to finite binary32, rejecting empty spellings and overflow.
@@ -609,7 +609,7 @@ Round an exact number directly to finite binary32, rejecting empty spellings and
 </article>
 
 <article class="doc-entry" id="v-json-number-float64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-json-number-float64" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1932" title="View source at line 1932">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-json-number-float64" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1908" title="View source at line 1908">Source</a></span></div>
 <div class="doc-body">
 
 Convert an exact number to a finite binary float, naming overflow instead of returning infinity.
@@ -618,7 +618,7 @@ Convert an exact number to a finite binary float, naming overflow instead of ret
 </article>
 
 <article class="doc-entry" id="v-json-number-float64-result">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float64-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-json-number-float64-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1907" title="View source at line 1907">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-float64-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-json-number-float64-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1883" title="View source at line 1883">Source</a></span></div>
 <div class="doc-body">
 
 Convert arbitrary decimal, hexadecimal, separator and special spellings with exact original outcomes.
@@ -627,7 +627,7 @@ Convert arbitrary decimal, hexadecimal, separator and special spellings with exa
 </article>
 
 <article class="doc-entry" id="v-json-number-from-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L544" title="View source at line 544">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L545" title="View source at line 545">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot an arbitrary byte spelling, preserving malformed UTF-8 for conversion diagnostics.
@@ -636,7 +636,7 @@ Snapshot an arbitrary byte spelling, preserving malformed UTF-8 for conversion d
 </article>
 
 <article class="doc-entry" id="v-json-number-from-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-from-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-from-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L540" title="View source at line 540">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-from-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-number-from-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L541" title="View source at line 541">Source</a></span></div>
 <div class="doc-body">
 
 Preserve an arbitrary scalar spelling without treating its construction as numeric validation.
@@ -645,7 +645,7 @@ Preserve an arbitrary scalar spelling without treating its construction as numer
 </article>
 
 <article class="doc-entry" id="v-json-number-int64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-int64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-json-number-int64" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1948" title="View source at line 1948">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-int64</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-json-number-int64" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1924" title="View source at line 1924">Source</a></span></div>
 <div class="doc-body">
 
 Convert an integer-only exact spelling to a signed machine integer with explicit range checks.
@@ -654,7 +654,7 @@ Convert an integer-only exact spelling to a signed machine integer with explicit
 </article>
 
 <article class="doc-entry" id="v-json-number-int64-result">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-int64-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-json-number-int64-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1718" title="View source at line 1718">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-int64-result</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-json-number-int64-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1709" title="View source at line 1709">Source</a></span></div>
 <div class="doc-body">
 
 Convert arbitrary signed decimal spellings, returning saturated range outcomes and original metadata.
@@ -663,7 +663,7 @@ Convert arbitrary signed decimal spellings, returning saturated range outcomes a
 </article>
 
 <article class="doc-entry" id="v-json-number-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-number-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L536" title="View source at line 536">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-number-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-number-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L537" title="View source at line 537">Source</a></span></div>
 <div class="doc-body">
 
 Project the original spelling to scalar text; the byte view retains malformed UTF-8 exactly.
@@ -672,7 +672,7 @@ Project the original spelling to scalar text; the byte view retains malformed UT
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L519" title="View source at line 519">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L520" title="View source at line 520">Source</a></span></div>
 <div class="doc-body">
 
 Inspect an optional original numeric refusal without discarding its completed value.
@@ -681,7 +681,7 @@ Inspect an optional original numeric refusal without discarding its completed va
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L492" title="View source at line 492">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L493" title="View source at line 493">Source</a></span></div>
 <div class="doc-body">
 
 Export an independent copy of the original input, including malformed UTF-8.
@@ -690,7 +690,7 @@ Export an independent copy of the original input, including malformed UTF-8.
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-function">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-function</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-function" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L488" title="View source at line 488">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-function</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-function" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L489" title="View source at line 489">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original operation label associated with a numeric refusal.
@@ -699,7 +699,7 @@ Inspect the original operation label associated with a numeric refusal.
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericErrorKind" title="Text.Json.Value.JsonNumericErrorKind">JsonNumericErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1698" title="View source at line 1698">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericErrorKind" title="Text.Json.Value.JsonNumericErrorKind">JsonNumericErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1689" title="View source at line 1689">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot explicit operation, original bytes and refusal reason for an application error adapter.
@@ -708,7 +708,7 @@ Snapshot explicit operation, original bytes and refusal reason for an applicatio
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-input">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-input</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-input" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L496" title="View source at line 496">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-input</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-input" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L497" title="View source at line 497">Source</a></span></div>
 <div class="doc-body">
 
 Project the original input to scalar text, replacing malformed UTF-8 while its byte view stays exact.
@@ -717,7 +717,7 @@ Project the original input to scalar text, replacing malformed UTF-8 while its b
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-kind">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericErrorKind" title="Text.Json.Value.JsonNumericErrorKind">JsonNumericErrorKind</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L500" title="View source at line 500">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericErrorKind" title="Text.Json.Value.JsonNumericErrorKind">JsonNumericErrorKind</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L501" title="View source at line 501">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the exact syntax or range classification independently of its message.
@@ -726,7 +726,7 @@ Inspect the exact syntax or range classification independently of its message.
 </article>
 
 <article class="doc-entry" id="v-json-numeric-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L508" title="View source at line 508">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-numeric-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L509" title="View source at line 509">Source</a></span></div>
 <div class="doc-body">
 
 Render numeric metadata using the original operation and a scalar-safe quoted input.
@@ -735,7 +735,7 @@ Render numeric metadata using the original operation and a scalar-safe quoted in
 </article>
 
 <article class="doc-entry" id="v-json-numeric-is-range">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-is-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-numeric-is-range" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L504" title="View source at line 504">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-is-range</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-numeric-is-range" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L505" title="View source at line 505">Source</a></span></div>
 <div class="doc-body">
 
 Whether a numeric refusal reports representability rather than syntax.
@@ -744,7 +744,7 @@ Whether a numeric refusal reports representability rather than syntax.
 </article>
 
 <article class="doc-entry" id="v-json-numeric-result">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-result</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-json-numeric-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L523" title="View source at line 523">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-result</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericError" title="Text.Json.Value.JsonNumericError">JsonNumericError</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-json-numeric-result" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L524" title="View source at line 524">Source</a></span></div>
 <div class="doc-body">
 
 Select an ordinary success or refusal when the caller does not need a partial numeric value.
@@ -753,7 +753,7 @@ Select an ordinary success or refusal when the caller does not need a partial nu
 </article>
 
 <article class="doc-entry" id="v-json-numeric-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-value</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-json-numeric-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L515" title="View source at line 515">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-numeric-value</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumericResult" title="Text.Json.Value.JsonNumericResult">JsonNumericResult</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-json-numeric-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L516" title="View source at line 516">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the completed value even when conversion also reports an error.
@@ -762,7 +762,7 @@ Inspect the completed value even when conversion also reports an error.
 </article>
 
 <article class="doc-entry" id="v-json-object-lookup">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-object-lookup</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-object-lookup" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2041" title="View source at line 2041">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-object-lookup</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-object-lookup" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2017" title="View source at line 2017">Source</a></span></div>
 <div class="doc-body">
 
 Find the final exact decoded member name; later duplicates replace earlier matches.
@@ -771,7 +771,7 @@ Find the final exact decoded member name; later duplicates replace earlier match
 </article>
 
 <article class="doc-entry" id="v-json-object-members">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-object-members</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a>)</code><span class="doc-sig-links"><a href="#v-json-object-members" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2017" title="View source at line 2017">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-object-members</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonMember" title="Text.Json.Value.JsonMember">JsonMember</a>)</code><span class="doc-sig-links"><a href="#v-json-object-members" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1993" title="View source at line 1993">Source</a></span></div>
 <div class="doc-body">
 
 Read object members in original order, preserving repeated decoded names.
@@ -780,7 +780,7 @@ Read object members in original order, preserving repeated decoded names.
 </article>
 
 <article class="doc-entry" id="v-json-prefix-next-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-prefix-next-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-prefix-next-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2420" title="View source at line 2420">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-prefix-next-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-prefix-next-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2396" title="View source at line 2396">Source</a></span></div>
 <div class="doc-body">
 
 Count the logical byte position of a next value after a lexically complete prefix.
@@ -792,7 +792,7 @@ This is a diagnostic operation, not complete-document validation.
 </article>
 
 <article class="doc-entry" id="v-json-preserve-error-context">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-preserve-error-context</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-preserve-error-context" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L392" title="View source at line 392">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-preserve-error-context</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-preserve-error-context" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L393" title="View source at line 393">Source</a></span></div>
 <div class="doc-body">
 
 Retain application-owned context across automatic encoding container decoration.
@@ -801,7 +801,7 @@ Retain application-owned context across automatic encoding container decoration.
 </article>
 
 <article class="doc-entry" id="v-json-quote">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-quote" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2238" title="View source at line 2238">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-quote</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-quote" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2214" title="View source at line 2214">Source</a></span></div>
 <div class="doc-body">
 
 Encode an immutable scalar string with explicit HTML escaping policy.
@@ -810,7 +810,7 @@ Encode an immutable scalar string with explicit HTML escaping policy.
 </article>
 
 <article class="doc-entry" id="v-json-quote-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-quote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2231" title="View source at line 2231">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-quote-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-quote-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2207" title="View source at line 2207">Source</a></span></div>
 <div class="doc-body">
 
 Encode arbitrary byte-string contents as valid quoted JSON, replacing each malformed UTF-8 byte.
@@ -819,7 +819,7 @@ Encode arbitrary byte-string contents as valid quoted JSON, replacing each malfo
 </article>
 
 <article class="doc-entry" id="v-json-raw-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-raw-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L578" title="View source at line 578">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-raw-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L579" title="View source at line 579">Source</a></span></div>
 <div class="doc-body">
 
 Obtain an independent copy of raw storage, preserving the distinction between null and empty.
@@ -828,7 +828,7 @@ Obtain an independent copy of raw storage, preserving the distinction between nu
 </article>
 
 <article class="doc-entry" id="v-json-raw-from-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L574" title="View source at line 574">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-from-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-from-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L575" title="View source at line 575">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot an arbitrary raw message without changing whitespace or validating its syntax.
@@ -837,7 +837,7 @@ Snapshot an arbitrary raw message without changing whitespace or validating its 
 </article>
 
 <article class="doc-entry" id="v-json-raw-null">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-null</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-null" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L570" title="View source at line 570">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-null</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-null" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L571" title="View source at line 571">Source</a></span></div>
 <div class="doc-body">
 
 The absent raw message, which encodes as the JSON null literal.
@@ -846,7 +846,7 @@ The absent raw message, which encodes as the JSON null literal.
 </article>
 
 <article class="doc-entry" id="v-json-raw-replace">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-replace</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-replace" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L584" title="View source at line 584">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-raw-replace</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonRawMessage" title="Text.Json.Value.JsonRawMessage">JsonRawMessage</a></code><span class="doc-sig-links"><a href="#v-json-raw-replace" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L585" title="View source at line 585">Source</a></span></div>
 <div class="doc-body">
 
 Replace a raw message with a fresh snapshot while retained earlier messages stay independent.
@@ -855,7 +855,7 @@ Replace a raw message with a fresh snapshot while retained earlier messages stay
 </article>
 
 <article class="doc-entry" id="v-json-scan-document">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-document</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a></code><span class="doc-sig-links"><a href="#v-json-scan-document" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1397" title="View source at line 1397">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-document</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a></code><span class="doc-sig-links"><a href="#v-json-scan-document" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1383" title="View source at line 1383">Source</a></span></div>
 <div class="doc-body">
 
 Scan once while retaining explicit partial value state and the first original grammar refusal.
@@ -864,7 +864,7 @@ Scan once while retaining explicit partial value state and the first original gr
 </article>
 
 <article class="doc-entry" id="v-json-scan-error">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-scan-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L680" title="View source at line 680">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-scan-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L681" title="View source at line 681">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the first grammar refusal independently from completed child views.
@@ -873,7 +873,7 @@ Inspect the first grammar refusal independently from completed child views.
 </article>
 
 <article class="doc-entry" id="v-json-scan-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-scan-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L676" title="View source at line 676">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-scan-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonScanResult" title="Text.Json.Value.JsonScanResult">JsonScanResult</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a></code><span class="doc-sig-links"><a href="#v-json-scan-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L677" title="View source at line 677">Source</a></span></div>
 <div class="doc-body">
 
 Inspect a scan's retained root without implying that its source was a complete document.
@@ -882,7 +882,7 @@ Inspect a scan's retained root without implying that its source was a complete d
 </article>
 
 <article class="doc-entry" id="v-json-semantic-action">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-action</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-action" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-action</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-action" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L181" title="View source at line 181">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the conversion operation, such as marshal or unmarshal.
@@ -891,7 +891,7 @@ Inspect the conversion operation, such as marshal or unmarshal.
 </article>
 
 <article class="doc-entry" id="v-json-semantic-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-semantic-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-semantic-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L193" title="View source at line 193">Source</a></span></div>
 <div class="doc-body">
 
 Export an independent copy of the original complete source token.
@@ -900,7 +900,7 @@ Export an independent copy of the original complete source token.
 </article>
 
 <article class="doc-entry" id="v-json-semantic-field-path">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-field-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-field-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L208" title="View source at line 208">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-field-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-field-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L209" title="View source at line 209">Source</a></span></div>
 <div class="doc-body">
 
 Inspect conventional field context only when supplied independently from the precise semantic pointer.
@@ -909,7 +909,7 @@ Inspect conventional field context only when supplied independently from the pre
 </article>
 
 <article class="doc-entry" id="v-json-semantic-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L137" title="View source at line 137">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot exact source bytes while constructing explicit semantic conversion metadata.
@@ -918,7 +918,7 @@ Snapshot exact source bytes while constructing explicit semantic conversion meta
 </article>
 
 <article class="doc-entry" id="v-json-semantic-info-with-optional-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info-with-optional-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info-with-optional-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info-with-optional-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info-with-optional-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L157" title="View source at line 157">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot exact semantic bytes while preserving absence of an application type independently of an empty label.
@@ -927,7 +927,7 @@ Snapshot exact semantic bytes while preserving absence of an application type in
 </article>
 
 <article class="doc-entry" id="v-json-semantic-info-with-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info-with-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info-with-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-info-with-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-info-with-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L153" title="View source at line 153">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot source context and independently reported value bytes, retaining an explicit lexical kind byte.
@@ -938,7 +938,7 @@ zero for a number, and zero when the conversion does not identify a kind.
 </article>
 
 <article class="doc-entry" id="v-json-semantic-kind">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonKind" title="Text.Json.Value.JsonKind">JsonKind</a></code><span class="doc-sig-links"><a href="#v-json-semantic-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonKind" title="Text.Json.Value.JsonKind">JsonKind</a></code><span class="doc-sig-links"><a href="#v-json-semantic-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L165" title="View source at line 165">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the semantic source category while retaining exact lexical distinctions through the byte getter.
@@ -947,7 +947,7 @@ Inspect the semantic source category while retaining exact lexical distinctions 
 </article>
 
 <article class="doc-entry" id="v-json-semantic-kind-byte">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-kind-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-json-semantic-kind-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-kind-byte</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code><span class="doc-sig-links"><a href="#v-json-semantic-kind-byte" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L161" title="View source at line 161">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the exact lexical kind byte, preserving true, false and unspecified distinctions.
@@ -956,7 +956,7 @@ Inspect the exact lexical kind byte, preserving true, false and unspecified dist
 </article>
 
 <article class="doc-entry" id="v-json-semantic-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-semantic-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-semantic-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L185" title="View source at line 185">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original zero-based byte offset at which semantic conversion began.
@@ -965,7 +965,7 @@ Inspect the original zero-based byte offset at which semantic conversion began.
 </article>
 
 <article class="doc-entry" id="v-json-semantic-pointer">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L189" title="View source at line 189">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the escaped JSON pointer identifying the original source value.
@@ -974,7 +974,7 @@ Inspect the escaped JSON pointer identifying the original source value.
 </article>
 
 <article class="doc-entry" id="v-json-semantic-reported-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-reported-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-semantic-reported-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-reported-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-semantic-reported-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L173" title="View source at line 173">Source</a></span></div>
 <div class="doc-body">
 
 Export a fresh copy of the independently reported value, which may be empty despite retained original source bytes.
@@ -983,7 +983,7 @@ Export a fresh copy of the independently reported value, which may be empty desp
 </article>
 
 <article class="doc-entry" id="v-json-semantic-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L196" title="View source at line 196">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L197" title="View source at line 197">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the application type as text, using empty text when no identity was supplied.
@@ -992,7 +992,7 @@ Inspect the application type as text, using empty text when no identity was supp
 </article>
 
 <article class="doc-entry" id="v-json-semantic-type-option">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-type-option</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-type-option" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-type-option</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-semantic-type-option" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L201" title="View source at line 201">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the optional application identity without conflating absence and an explicitly empty label.
@@ -1001,7 +1001,7 @@ Inspect the optional application identity without conflating absence and an expl
 </article>
 
 <article class="doc-entry" id="v-json-semantic-with-field-path">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-field-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-field-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L212" title="View source at line 212">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-field-path</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-field-path" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L213" title="View source at line 213">Source</a></span></div>
 <div class="doc-body">
 
 Replace conventional field context while sharing immutable source, identity and reported-value owners.
@@ -1010,7 +1010,7 @@ Replace conventional field context while sharing immutable source, identity and 
 </article>
 
 <article class="doc-entry" id="v-json-semantic-with-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L233" title="View source at line 233">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L234" title="View source at line 234">Source</a></span></div>
 <div class="doc-body">
 
 Replace only the semantic byte offset while sharing immutable token and reported-value owners.
@@ -1019,7 +1019,7 @@ Replace only the semantic byte offset while sharing immutable token and reported
 </article>
 
 <article class="doc-entry" id="v-json-semantic-with-pointer">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L177" title="View source at line 177">Source</a></span></div>
 <div class="doc-body">
 
 Replace only the pointer while retaining immutable source, reported value and operation metadata.
@@ -1028,7 +1028,7 @@ Replace only the pointer while retaining immutable source, reported value and op
 </article>
 
 <article class="doc-entry" id="v-json-semantic-with-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-semantic-with-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSemanticInfo" title="Text.Json.Value.JsonSemanticInfo">JsonSemanticInfo</a></code><span class="doc-sig-links"><a href="#v-json-semantic-with-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L205" title="View source at line 205">Source</a></span></div>
 <div class="doc-body">
 
 Replace only optional application identity while retaining immutable source and reported-value owners.
@@ -1037,7 +1037,7 @@ Replace only optional application identity while retaining immutable source and 
 </article>
 
 <article class="doc-entry" id="v-json-syntactic-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L87" title="View source at line 87">Source</a></span></div>
 <div class="doc-body">
 
 Construct precise syntax context without replacing its original structured refusal.
@@ -1046,7 +1046,7 @@ Construct precise syntax context without replacing its original structured refus
 </article>
 
 <article class="doc-entry" id="v-json-syntactic-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L91" title="View source at line 91">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the exact byte checkpoint before the offending token or at incomplete input.
@@ -1055,7 +1055,7 @@ Inspect the exact byte checkpoint before the offending token or at incomplete in
 </article>
 
 <article class="doc-entry" id="v-json-syntactic-pointer">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L94" title="View source at line 94">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-syntactic-pointer</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonSyntacticInfo" title="Text.Json.Value.JsonSyntacticInfo">JsonSyntacticInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-syntactic-pointer" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L95" title="View source at line 95">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original escaped grammar pointer of a syntax refusal.
@@ -1064,7 +1064,7 @@ Inspect the original escaped grammar pointer of a syntax refusal.
 </article>
 
 <article class="doc-entry" id="v-json-type-error-field">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-field</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-field" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-field</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-field" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L124" title="View source at line 124">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original escaped application field path.
@@ -1073,7 +1073,7 @@ Inspect the original escaped application field path.
 </article>
 
 <article class="doc-entry" id="v-json-type-error-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-type-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-type-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L116" title="View source at line 116">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original byte offset reported by a type refusal.
@@ -1082,7 +1082,7 @@ Inspect the original byte offset reported by a type refusal.
 </article>
 
 <article class="doc-entry" id="v-json-type-error-record">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-record" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L119" title="View source at line 119">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-record</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-record" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L120" title="View source at line 120">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the independently named root application record.
@@ -1091,7 +1091,7 @@ Inspect the independently named root application record.
 </article>
 
 <article class="doc-entry" id="v-json-type-error-type">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-type</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-type" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L108" title="View source at line 108">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the optional application identity of a type refusal.
@@ -1100,7 +1100,7 @@ Inspect the optional application identity of a type refusal.
 </article>
 
 <article class="doc-entry" id="v-json-type-error-value">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-error-value</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-type-error-value" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L112" title="View source at line 112">Source</a></span></div>
 <div class="doc-body">
 
 Inspect the original source value description of a type refusal.
@@ -1109,7 +1109,7 @@ Inspect the original source value description of a type refusal.
 </article>
 
 <article class="doc-entry" id="v-json-type-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-type-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-type-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L104" title="View source at line 104">Source</a></span></div>
 <div class="doc-body">
 
 Construct explicit type metadata without conflating an absent identity and an empty application label.
@@ -1118,7 +1118,7 @@ Construct explicit type metadata without conflating an absent identity and an em
 </article>
 
 <article class="doc-entry" id="v-json-type-info-with-record-field">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-info-with-record-field</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-type-info-with-record-field" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-type-info-with-record-field</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonTypeInfo" title="Text.Json.Value.JsonTypeInfo">JsonTypeInfo</a></code><span class="doc-sig-links"><a href="#v-json-type-info-with-record-field" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L128" title="View source at line 128">Source</a></span></div>
 <div class="doc-body">
 
 Replace record and field context while sharing immutable identity and value metadata.
@@ -1127,7 +1127,7 @@ Replace record and field context while sharing immutable identity and value meta
 </article>
 
 <article class="doc-entry" id="v-json-valid">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-valid</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-valid" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1414" title="View source at line 1414">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-valid</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-valid" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1400" title="View source at line 1400">Source</a></span></div>
 <div class="doc-body">
 
 Validate JSON byte grammar without constructing a document or decoding scalar strings.
@@ -1136,7 +1136,7 @@ Validate JSON byte grammar without constructing a document or decoding scalar st
 </article>
 
 <article class="doc-entry" id="v-json-value-bool">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-value-bool" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L791" title="View source at line 791">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-bool</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-value-bool" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L792" title="View source at line 792">Source</a></span></div>
 <div class="doc-body">
 
 Read a boolean literal without treating other categories as false.
@@ -1145,7 +1145,7 @@ Read a boolean literal without treating other categories as false.
 </article>
 
 <article class="doc-entry" id="v-json-value-complete">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-complete</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-value-complete" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L684" title="View source at line 684">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-complete</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-value-complete" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L685" title="View source at line 685">Source</a></span></div>
 <div class="doc-body">
 
 Whether one selected value was completely recognized before its containing scan stopped.
@@ -1154,7 +1154,7 @@ Whether one selected value was completely recognized before its containing scan 
 </article>
 
 <article class="doc-entry" id="v-json-value-container-refusal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-container-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-container-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L716" title="View source at line 716">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-container-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-container-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L717" title="View source at line 717">Source</a></span></div>
 <div class="doc-body">
 
 Recover the refusal after traversing the selected incomplete container without reinterpreting skipped child values.
@@ -1163,7 +1163,7 @@ Recover the refusal after traversing the selected incomplete container without r
 </article>
 
 <article class="doc-entry" id="v-json-value-end">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-value-end" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L757" title="View source at line 757">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-end</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-value-end" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L758" title="View source at line 758">Source</a></span></div>
 <div class="doc-body">
 
 Observe the selected value's original exclusive source end.
@@ -1172,7 +1172,7 @@ Observe the selected value's original exclusive source end.
 </article>
 
 <article class="doc-entry" id="v-json-value-kind">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonKind" title="Text.Json.Value.JsonKind">JsonKind</a></code><span class="doc-sig-links"><a href="#v-json-value-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L761" title="View source at line 761">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-kind</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonKind" title="Text.Json.Value.JsonKind">JsonKind</a></code><span class="doc-sig-links"><a href="#v-json-value-kind" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L762" title="View source at line 762">Source</a></span></div>
 <div class="doc-body">
 
 Observe a value category without traversing or decoding its subtree.
@@ -1181,7 +1181,7 @@ Observe a value category without traversing or decoding its subtree.
 </article>
 
 <article class="doc-entry" id="v-json-value-number">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-value-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1677" title="View source at line 1677">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-value-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1668" title="View source at line 1668">Source</a></span></div>
 <div class="doc-body">
 
 Read a validated exact number from a source-backed scalar view.
@@ -1190,7 +1190,7 @@ Read a validated exact number from a source-backed scalar view.
 </article>
 
 <article class="doc-entry" id="v-json-value-refusal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L699" title="View source at line 699">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L700" title="View source at line 700">Source</a></span></div>
 <div class="doc-body">
 
 Recover a scan refusal only for an incomplete value, preserving completed sibling independence.
@@ -1199,7 +1199,7 @@ Recover a scan refusal only for an incomplete value, preserving completed siblin
 </article>
 
 <article class="doc-entry" id="v-json-value-source">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-source</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-value-source" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L783" title="View source at line 783">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-source</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-value-source" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L784" title="View source at line 784">Source</a></span></div>
 <div class="doc-body">
 
 Copy the selected value's retained source interval, preserving exact bytes without implying completeness.
@@ -1208,7 +1208,7 @@ Copy the selected value's retained source interval, preserving exact bytes witho
 </article>
 
 <article class="doc-entry" id="v-json-value-start">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-value-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L753" title="View source at line 753">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-start</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-value-start" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L754" title="View source at line 754">Source</a></span></div>
 <div class="doc-body">
 
 Observe the selected value's zero-based original source start.
@@ -1217,7 +1217,7 @@ Observe the selected value's zero-based original source start.
 </article>
 
 <article class="doc-entry" id="v-json-value-string">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-value-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2051" title="View source at line 2051">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-value-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L2027" title="View source at line 2027">Source</a></span></div>
 <div class="doc-body">
 
 Decode a string value without exposing mutable source storage.
@@ -1226,7 +1226,7 @@ Decode a string value without exposing mutable source storage.
 </article>
 
 <article class="doc-entry" id="v-json-value-structural-refusal">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-structural-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-structural-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L720" title="View source at line 720">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-structural-refusal</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonValue" title="Text.Json.Value.JsonValue">JsonValue</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonError" title="Text.Json.Value.JsonError">JsonError</a></code><span class="doc-sig-links"><a href="#v-json-value-structural-refusal" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L721" title="View source at line 721">Source</a></span></div>
 <div class="doc-body">
 
 Recover the refusal after traversing every retained container in a structural value tree.
@@ -1235,7 +1235,7 @@ Recover the refusal after traversing every retained container in a structural va
 </article>
 
 <article class="doc-entry" id="v-json-write-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a></code><span class="doc-sig-links"><a href="#v-json-write-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L221" title="View source at line 221">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a></code><span class="doc-sig-links"><a href="#v-json-write-info" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L222" title="View source at line 222">Source</a></span></div>
 <div class="doc-body">
 
 Snapshot written output and logical delimiter context independently from caller mutation.
@@ -1244,7 +1244,7 @@ Snapshot written output and logical delimiter context independently from caller 
 </article>
 
 <article class="doc-entry" id="v-json-write-logical-prefix">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-logical-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-write-logical-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-logical-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-write-logical-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L230" title="View source at line 230">Source</a></span></div>
 <div class="doc-body">
 
 Export the compact next-value context, including delimiters counted before they are emitted.
@@ -1253,7 +1253,7 @@ Export the compact next-value context, including delimiters counted before they 
 </article>
 
 <article class="doc-entry" id="v-json-write-written-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-written-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-write-written-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L225" title="View source at line 225">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-write-written-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonWriteInfo" title="Text.Json.Value.JsonWriteInfo">JsonWriteInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-json-write-written-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L226" title="View source at line 226">Source</a></span></div>
 <div class="doc-body">
 
 Export a fresh copy of the output emitted before an encoding refusal.
@@ -1262,7 +1262,7 @@ Export a fresh copy of the output emitted before an encoding refusal.
 </article>
 
 <article class="doc-entry" id="v-json-zero-number">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-zero-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-zero-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1668" title="View source at line 1668">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-zero-number</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Json.Value/#t-JsonNumber" title="Text.Json.Value.JsonNumber">JsonNumber</a></code><span class="doc-sig-links"><a href="#v-json-zero-number" title="Permalink">#</a><a href="/packages/stdlib/Text.Json.Value/source/#L1659" title="View source at line 1659">Source</a></span></div>
 <div class="doc-body">
 
 The invariant exact integer-zero number, usable as a total descriptor default.

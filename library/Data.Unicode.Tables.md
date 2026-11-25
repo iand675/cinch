@@ -23,7 +23,7 @@ pointer, mutable buffer or runtime full-table copy enters the public API.
 # Values
 
 <article class="doc-entry" id="v-unicode-data-ascii-fold">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-ascii-fold</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-ascii-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21497" title="View source at line 21497">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-ascii-fold</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-ascii-fold" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21476" title="View source at line 21476">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable ascii-fold entry; an out-of-range index returns zero.
@@ -32,7 +32,7 @@ Read one immutable ascii-fold entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-case-bounds">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-bounds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-bounds" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L20578" title="View source at line 20578">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-bounds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-bounds" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L20557" title="View source at line 20557">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable case-bounds entry; an out-of-range index returns zero.
@@ -41,7 +41,7 @@ Read one immutable case-bounds entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-case-count">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L39" title="View source at line 39">Source</a></span></div>
 <div class="doc-body">
 
 Number of complete preserved simple-case range records.
@@ -50,7 +50,7 @@ Number of complete preserved simple-case range records.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-case-deltas">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-deltas</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-deltas" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L20977" title="View source at line 20977">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-case-deltas</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-case-deltas" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L20956" title="View source at line 20956">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable case-deltas entry; an out-of-range index returns zero.
@@ -59,7 +59,7 @@ Read one immutable case-deltas entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-class">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L61" title="View source at line 61">Source</a></span></div>
 <div class="doc-body">
 
 Read one complete code-point class word without allocation; values beyond U+10FFFF return zero.
@@ -68,7 +68,7 @@ Read one complete code-point class word without allocation; values beyond U+10FF
 </article>
 
 <article class="doc-entry" id="v-unicode-data-class-directory">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-directory</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-directory" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-directory</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-directory" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L72" title="View source at line 72">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable class-directory entry; an out-of-range index returns zero.
@@ -77,7 +77,7 @@ Read one immutable class-directory entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-class-metadata">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-metadata</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-metadata" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L10508" title="View source at line 10508">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-metadata</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-metadata" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L10487" title="View source at line 10487">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable class-metadata entry; an out-of-range index returns zero.
@@ -86,7 +86,7 @@ Read one immutable class-metadata entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-class-runs">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-runs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-runs" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L5066" title="View source at line 5066">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-class-runs</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-class-runs" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L5045" title="View source at line 5045">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable class-runs entry; an out-of-range index returns zero.
@@ -95,7 +95,7 @@ Read one immutable class-runs entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-fold-count">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-fold-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-fold-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-fold-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-fold-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L43" title="View source at line 43">Source</a></span></div>
 <div class="doc-body">
 
 Number of exceptional simple-fold cycle edges.
@@ -104,7 +104,7 @@ Number of exceptional simple-fold cycle edges.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-fold-orbit">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-fold-orbit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-fold-orbit" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21376" title="View source at line 21376">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-fold-orbit</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-fold-orbit" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21355" title="View source at line 21355">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable fold-orbit entry; an out-of-range index returns zero.
@@ -113,7 +113,7 @@ Read one immutable fold-orbit entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-range-records">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-range-records</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-range-records" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L12308" title="View source at line 12308">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-range-records</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-range-records" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L12287" title="View source at line 12287">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable range-records entry; an out-of-range index returns zero.
@@ -122,7 +122,7 @@ Read one immutable range-records entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-table-count">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-count</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-count" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L47" title="View source at line 47">Source</a></span></div>
 <div class="doc-body">
 
 Number of distinct named immutable range tables.
@@ -131,7 +131,7 @@ Number of distinct named immutable range tables.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-table-descriptor">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-descriptor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-descriptor" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L11995" title="View source at line 11995">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-descriptor</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-descriptor" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L11974" title="View source at line 11974">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable table-descriptor entry; an out-of-range index returns zero.
@@ -140,7 +140,7 @@ Read one immutable table-descriptor entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-table-info">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-info" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L11682" title="View source at line 11682">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-table-info</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-table-info" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L11661" title="View source at line 11661">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable table-info entry; an out-of-range index returns zero.
@@ -149,7 +149,7 @@ Read one immutable table-info entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-turkic-bounds">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-turkic-bounds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-turkic-bounds" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21652" title="View source at line 21652">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-turkic-bounds</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-turkic-bounds" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21631" title="View source at line 21631">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable turkic-bounds entry; an out-of-range index returns zero.
@@ -158,7 +158,7 @@ Read one immutable turkic-bounds entry; an out-of-range index returns zero.
 </article>
 
 <article class="doc-entry" id="v-unicode-data-turkic-deltas">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-turkic-deltas</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-turkic-deltas" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21674" title="View source at line 21674">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-data-turkic-deltas</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-unicode-data-turkic-deltas" title="Permalink">#</a><a href="/packages/stdlib/Data.Unicode.Tables/source/#L21653" title="View source at line 21653">Source</a></span></div>
 <div class="doc-body">
 
 Read one immutable turkic-deltas entry; an out-of-range index returns zero.

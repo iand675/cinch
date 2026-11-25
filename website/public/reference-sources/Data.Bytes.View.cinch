@@ -5,13 +5,13 @@
 -- are never exposed; all reads, writes and range copies carry checked bounds.
 module Data.Bytes.View where
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Bytes.Utf8 as Utf8
   import Data.Bool
   import Data.Machine
   import Data.Nat
   import Data.Option
   import Data.Result
+  import Data.Wide
 
   export ByteView, ByteViewError, ByteViewReversedRange, ByteViewPastEnd, ByteViewShortDestination
   export bytes-view, bytes-view-range, byte-view-slice, byte-view-length, byte-view-is-empty
@@ -75,14 +75,14 @@ module Data.Bytes.View where
   byte-view-get :: ByteView -> Nat -> Option U8
   byte-view-get view at = case view of
     View raw start end -> if at < end - start then
-      let absolute = start + at in Some (wrapping-i64-to-u8 (nat-to-i64 (bytes-get raw absolute)))
+      let absolute = start + at in Some (bytes-get-u8 raw absolute)
       else None
 
   -- | Write one exact relative byte and report whether it fit; refusal leaves all aliases unchanged.
   byte-view-set :: ByteView -> Nat -> U8 -> Bool
   byte-view-set view at value = case view of
     View raw start end -> if at < end - start then
-      let absolute = start + at in let written = bytes-set raw absolute (u8-to-nat value) in True
+      let absolute = start + at in let written = bytes-set-u8 raw absolute value in True
       else False
 
   -- | Copy exactly the logical range into fresh mutable storage without retaining the source owner.
@@ -138,15 +138,15 @@ module Data.Bytes.View where
   prefix-entry :: Bytes -> Nat -> Nat
   prefix-entry table index = let at = index * 8 in
     if at + 8 <= bytes-len table then
-      let word = bytes-read-le64 table at in let value = wrapping-u64-to-i64 word in
+      let word = bytes-load-le64 table at in let value = wrapping-u64-to-i64 word in
       if 0 <= value then nat-from-i64 value else 0
     else 0
 
-  -- | Store one bounded failure entry with ordinary checked byte stores in little-endian order.
+  -- | Store one bounded failure entry with checked little-endian word stores.
   prefix-store :: Bytes -> Nat -> Nat -> Unit
   prefix-store table index value = let at = index * 8 in
     if at + 8 <= bytes-len table && value <= 9223372036854775807 then
-      bytes-write-le64 table at (wrapping-i64-to-u64 (nat-to-i64 value))
+      bytes-store-le64 table at (wrapping-i64-to-u64 (nat-to-i64 value))
     else ()
 
   -- | Follow already computed proper prefixes until the next needle byte can extend them.
@@ -187,408 +187,364 @@ module Data.Bytes.View where
     Pattern needle table -> let size = bytes-len needle in let out = bytes-new size in
       let copied = bytes-copy-range out needle 0 0 size in out
 
-  -- | Keep one backing owner alive until the complete private traversal has returned.
-  hold-input :: forall a. Bytes -> a -> a
-  hold-input owner value = case bytes-len owner of _ -> value
-
-  -- | Repeat one exact byte in every lane of a private packed word.
-  prim repeated-byte :: U8 -> U64 where
-    llvm {
-      %byte = zext i8 %0 to i64
-      %value = mul i64 %byte, 72340172838076673
-      ret i64 %value
-    }
-
-  -- | Advance a private bounded machine counter with wrapping machine addition.
-  prim offset-add :: I64 -> I64 -> I64 where
-    llvm {
-      %value = add i64 %0, %1
-      ret i64 %value
-    }
-
-  -- | Test a complete eight-byte interval using a loop-invariant ending limit.
-  -- Private callers supply nonnegative bounded offsets, so subtracting eight cannot overflow.
-  prim block-before :: I64 -> I64 -> Bool where
-    llvm {
-      %limit = sub i64 %1, 8
-      %yes = icmp sle i64 %0, %limit
-      %value = zext i1 %yes to i8
-      ret i8 %value
-    }
-
-  -- | Subtract private bounded machine offsets without an imported runtime call.
-  prim offset-sub :: I64 -> I64 -> I64 where
-    llvm {
-      %value = sub i64 %0, %1
-      ret i64 %value
-    }
-
-  -- | Compare private signed offsets directly inside ordinary loop branches.
-  prim offset-before :: I64 -> I64 -> Bool where
-    llvm {
-      %test = icmp slt i64 %0, %1
-      %value = zext i1 %test to i8
-      ret i8 %value
-    }
-
-  -- | Check a private remaining-length threshold without an imported object call.
-  prim offset-at-least :: I64 -> I64 -> Bool where
-    llvm {
-      %test = icmp sge i64 %0, %1
-      %value = zext i1 %test to i8
-      ret i8 %value
-    }
-
-  -- | Check whether a private signed suffix counter has available bytes.
-  prim offset-after :: I64 -> I64 -> Bool where
-    llvm {
-      %test = icmp sgt i64 %0, %1
-      %value = zext i1 %test to i8
-      ret i8 %value
-    }
-
-  -- | Compare exact packed or scalar byte values without imported call overhead.
-  prim word-equal :: U64 -> U64 -> Bool where
-    llvm {
-      %test = icmp eq i64 %0, %1
-      %value = zext i1 %test to i8
-      ret i8 %value
-    }
-
-  -- | Test whether a packed match mask has any exact marked lanes.
-  prim word-nonzero :: U64 -> Bool where
-    llvm {
-      %test = icmp ne i64 %0, 0
-      %value = zext i1 %test to i8
-      ret i8 %value
-    }
-
-  -- | Extract the repeated key byte for an exact scalar-fringe comparison.
-  prim word-byte :: U64 -> U64 where
-    llvm {
-      %value = and i64 %0, 255
-      ret i64 %value
-    }
-
-  -- | Load exactly eight proved available bytes in low-address-first numeric order.
-  prim load-word :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i64, ptr %at, align 1
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %word = load i64, ptr %at, align 1
-      %value = call i64 @llvm.bswap.i64(i64 %word)
-      ret i64 %value
-    } when endian big
-
-  -- | Load exactly one proved available scalar-fringe byte as a zero-extended word.
-  prim load-byte :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %byte = load i8, ptr %at, align 1
-      %value = zext i8 %byte to i64
-      ret i64 %value
-    }
-
-  -- | Mark exactly one high bit per matching byte, with no cross-lane borrow false positives.
-  -- Masked lane sums stay below 256, so their additions cannot carry into another byte.
-  prim matching-lanes :: U64 -> U64 -> U64 where
-    llvm {
-      %different = xor i64 %0, %1
-      %low = and i64 %different, 9187201950435737471
-      %sum = add i64 %low, 9187201950435737471
-      %nonzero = or i64 %sum, %different
-      %complement = xor i64 %nonzero, -1
-      %value = and i64 %complement, -9187201950435737472
-      ret i64 %value
-    }
-
-  -- | Return the first marked byte lane, or the defined eight-lane sentinel for an empty mask.
-  first-lane :: U64 -> I64
-  first-lane mask = let bits = u32-to-i64 (trailing-zeros-u64 mask) in wrapping-shr-i64 bits 3
-
-  -- | Return the last marked byte lane, or negative one for an empty mask.
-  last-lane :: U64 -> I64
-  last-lane mask = if word-equal mask 0 then -1 else
-    let bits = u32-to-i64 (leading-zeros-u64 mask) in let position = offset-sub 63 bits in
-    wrapping-shr-i64 position 3
-
-  -- | Sum one high-bit marker per byte without a general population-count expansion.
-  -- Shifted lanes are zero or one, so every horizontal byte sum stays below nine.
-  prim lane-count :: U64 -> I64 where
-    llvm {
-      %lanes = lshr i64 %0, 7
-      %sums = mul i64 %lanes, 72340172838076673
-      %value = lshr i64 %sums, 56
-      ret i64 %value
-    }
-
-  -- | Find a matching first byte before preparing complete packed-word scans.
-  index-forward :: I64 -> I64 -> I64 -> U64 -> I64
-  index-forward base at end repeated = if offset-before at end then
-    let value = load-byte base at in let byte = word-byte repeated in
-    if word-equal value byte then at else
-      let next = offset-add at 1 in index-forward-blocks base next end repeated
+  -- | Find a matching first byte before entering complete sixteen-byte SIMD scans.
+  index-forward :: Bytes -> I64 -> I64 -> U8 -> I64
+  index-forward bs at end byte =
+    if 0 <= at && at < end && end <= bytes-len-i64 bs then
+      if eq-u8 (bytes-get-u8-at bs at) byte then at
+      else index-forward-blocks bs (wrapping-add-i64 at 1) end byte
     else -1
 
-  -- | Find the first matching word or exact scalar fringe using unboxed bounded counters.
-  index-forward-blocks :: I64 -> I64 -> I64 -> U64 -> I64
-  index-forward-blocks base at end repeated =
-    let remaining = offset-sub end at in
-    if offset-at-least remaining 8 then
-      let word = load-word base at in let matches = matching-lanes word repeated in
-      if word-nonzero matches then let lane = first-lane matches in offset-add at lane
-      else let next = offset-add at 8 in index-forward-blocks base next end repeated
-    else index-forward-tail base at end (word-byte repeated)
+  -- | Find the first matching sixteen-byte SIMD block or fall through to the exact scalar fringe.
+  index-forward-blocks :: Bytes -> I64 -> I64 -> U8 -> I64
+  index-forward-blocks bs at end byte =
+    if 16 <= end && end <= bytes-len-i64 bs then
+      let ne = nat-from-i64 end in
+      if 16 <= ne then
+        let lim = ne - 16 in
+        if 0 <= at then
+          let ni = nat-from-i64 at in
+          if ni <= lim then
+            let chunk = bytes-load-u128 bs ni in
+            let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat byte)) in
+            if ne-u32 mask 0 then
+              wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))
+            else
+              index-forward-blocks bs (wrapping-add-i64 at 16) end byte
+          else index-forward-tail bs at end byte
+        else -1
+      else -1
+    else index-forward-tail bs at end byte
 
-  -- | Read only remaining scalar bytes after the complete forward words.
-  index-forward-tail :: I64 -> I64 -> I64 -> U64 -> I64
-  index-forward-tail base at end byte = if offset-before at end then
-    let value = load-byte base at in if word-equal value byte then at
-    else let next = offset-add at 1 in index-forward-tail base next end byte
+  -- | Read only remaining scalar bytes after complete sixteen-byte forward blocks.
+  index-forward-tail :: Bytes -> I64 -> I64 -> U8 -> I64
+  index-forward-tail bs at end byte =
+    if 0 <= at && at < end && end <= bytes-len-i64 bs then
+      if eq-u8 (bytes-get-u8-at bs at) byte then at
+      else index-forward-tail bs (wrapping-add-i64 at 1) end byte
     else -1
 
-  -- | Find a matching final byte before preparing complete packed suffix scans.
-  index-backward :: I64 -> I64 -> U64 -> I64
-  index-backward base end repeated = if offset-after end 0 then
-    let previous = offset-sub end 1 in let value = load-byte base previous in let byte = word-byte repeated in
-    if word-equal value byte then previous else index-backward-blocks base previous repeated
-    else -1
-
-  -- | Find the last matching byte by reading complete suffix words before their exact leading fringe.
-  index-backward-blocks :: I64 -> I64 -> U64 -> I64
-  index-backward-blocks base end repeated = if offset-at-least end 8 then
-    let start = offset-sub end 8 in let word = load-word base start in
-    let matches = matching-lanes word repeated in
-    if word-nonzero matches then let lane = last-lane matches in offset-add start lane
-    else index-backward-blocks base start repeated
-    else index-backward-tail base end (word-byte repeated)
-
-  -- | Read only the leading scalar fringe while searching backward.
-  index-backward-tail :: I64 -> I64 -> U64 -> I64
-  index-backward-tail base end byte = if offset-after end 0 then
-    let previous = offset-sub end 1 in let value = load-byte base previous in
-    if word-equal value byte then previous else index-backward-tail base previous byte
-    else -1
-
-  -- | Count matching complete-word lanes with a bounded machine accumulator.
-  count-forward :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
-  count-forward base at end repeated total =
-    let remaining = offset-sub end at in
-    if offset-at-least remaining 8 then
-      let word = load-word base at in let matches = matching-lanes word repeated in
-      let count = lane-count matches in let next-total = offset-add total count in
-      let next = offset-add at 8 in count-forward base next end repeated next-total
-    else count-tail base at end (word-byte repeated) total
-
-  -- | Count only available scalar-fringe bytes without a broad read past the end.
-  count-tail :: I64 -> I64 -> I64 -> U64 -> I64 -> I64
-  count-tail base at end byte total = if offset-before at end then
-    let value = load-byte base at in let next-total = if word-equal value byte then offset-add total 1 else total in
-    let next = offset-add at 1 in count-tail base next end byte next-total
-    else total
-
-
-  -- | Test a private matched-prefix counter without an imported conversion call.
-  prim offset-zero :: I64 -> Bool where
-    llvm {
-      %yes = icmp eq i64 %0, 0
-      %value = zext i1 %yes to i8
-      ret i8 %value
-    }
-
-  -- | Search complete suffix words without reading before the view's private starting bound.
-  last-byte-range :: I64 -> I64 -> I64 -> U64 -> I64
-  last-byte-range base begin end repeated = let left = offset-sub end begin in
-    if offset-at-least left 8 then
-      let start = offset-sub end 8 in let word = load-word base start in
-      let matches = matching-lanes word repeated in
-      if word-nonzero matches then let lane = last-lane matches in offset-add start lane
-      else last-byte-range base begin start repeated
-    else last-byte-tail base begin end (word-byte repeated)
+  -- | Search complete sixteen-byte suffix blocks without reading before the view's starting bound.
+  last-byte-range :: Bytes -> I64 -> I64 -> U8 -> I64
+  last-byte-range bs begin end byte =
+    if 0 <= begin && 16 <= end && end <= bytes-len-i64 bs && le-i64 begin (wrapping-sub-i64 end 16) then
+      let ne = nat-from-i64 end in
+      if 16 <= ne then
+        let start-nat = ne - 16 in
+        let start = wrapping-sub-i64 end 16 in
+        let chunk = bytes-load-u128 bs start-nat in
+        let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat byte)) in
+        if ne-u32 mask 0 then
+          let lane = wrapping-sub-i64 31 (u32-to-i64 (leading-zeros-u32 mask)) in
+          wrapping-add-i64 start lane
+        else
+          last-byte-range bs begin start byte
+      else -1
+    else last-byte-tail bs begin end byte
 
   -- | Search only the exact leading bytes remaining inside a bounded suffix scan.
-  last-byte-tail :: I64 -> I64 -> I64 -> U64 -> I64
-  last-byte-tail base begin end byte = if offset-after end begin then
-    let previous = offset-sub end 1 in let value = load-byte base previous in
-    if word-equal value byte then previous else last-byte-tail base begin previous byte
+  last-byte-tail :: Bytes -> I64 -> I64 -> U8 -> I64
+  last-byte-tail bs begin end byte =
+    if 0 <= begin && begin < end && end <= bytes-len-i64 bs then
+      let previous = wrapping-sub-i64 end 1 in
+      if 0 <= previous && previous < bytes-len-i64 bs then
+        if eq-u8 (bytes-get-u8-at bs previous) byte then previous
+        else last-byte-tail bs begin previous byte
+      else -1
     else -1
 
-  -- | Load one private, initialized failure entry; its value is below the matched prefix length.
-  prim failure-word :: I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i64, ptr %base, i64 %1
-      %value = load i64, ptr %at, align 1
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i64, ptr %base, i64 %1
-      %word = load i64, ptr %at, align 1
-      %value = call i64 @llvm.bswap.i64(i64 %word)
-      ret i64 %value
-    } when endian big
+  -- | Count matching lanes across complete sixteen-byte SIMD blocks with an unboxed accumulator.
+  count-forward :: Bytes -> I64 -> I64 -> U8 -> I64 -> I64
+  count-forward bs at end byte total =
+    if 16 <= end && end <= bytes-len-i64 bs then
+      let ne = nat-from-i64 end in
+      if 16 <= ne then
+        let lim = ne - 16 in
+        if 0 <= at then
+          let ni = nat-from-i64 at in
+          if ni <= lim then
+            let chunk = bytes-load-u128 bs ni in
+            let mask = simd-u8x16-movemask (simd-u8x16-cmpeq chunk (simd-u8x16-splat byte)) in
+            let hits = u32-to-i64 (count-ones-u32 mask) in
+            count-forward bs (wrapping-add-i64 at 16) end byte (wrapping-add-i64 total hits)
+          else count-tail bs at end byte total
+        else total
+      else total
+    else count-tail bs at end byte total
 
-  -- | Compare exactly eight proved available bytes from each private input without byte-order dependence.
-  prim same-eight :: I64 -> I64 -> I64 -> I64 -> Bool where
-    unsafe llvm {
-      %left = inttoptr i64 %0 to ptr
-      %right = inttoptr i64 %2 to ptr
-      %a = getelementptr i8, ptr %left, i64 %1
-      %b = getelementptr i8, ptr %right, i64 %3
-      %x = load i64, ptr %a, align 1
-      %y = load i64, ptr %b, align 1
-      %equal = icmp eq i64 %x, %y
-      %value = zext i1 %equal to i8
-      ret i8 %value
-    }
+  -- | Count only available scalar-fringe bytes without reading past the view end.
+  count-tail :: Bytes -> I64 -> I64 -> U8 -> I64 -> I64
+  count-tail bs at end byte total =
+    if 0 <= at && at < end && end <= bytes-len-i64 bs then
+      let next-total = if eq-u8 (bytes-get-u8-at bs at) byte then wrapping-add-i64 total 1 else total in
+      count-tail bs (wrapping-add-i64 at 1) end byte next-total
+    else total
 
-  -- | Broadcast the low byte of a private zero-extended scalar without imported conversions.
-  prim repeat-low-byte :: U64 -> U64 where
-    llvm {
-      %byte = and i64 %0, 255
-      %value = mul i64 %byte, 72340172838076673
-      ret i64 %value
-    }
+  -- | Load one initialized failure entry; its value is strictly below the matched prefix length.
+  failure-word :: Bytes -> I64 -> I64
+  failure-word table index =
+    let off = wrapping-shl-i64 index 3 in
+    let n = bytes-len-i64 table in
+    if 8 <= n && 0 <= off then
+      let nn = nat-from-i64 n in
+      if 8 <= nn then
+        let lim = nn - 8 in
+        let no = nat-from-i64 off in
+        if no <= lim then wrapping-u64-to-i64 (bytes-load-le64 table no) else 0
+      else 0
+    else 0
 
-  -- | Intersect exact endpoint lane markers without cross-byte carries.
-  prim intersect-lanes :: U64 -> U64 -> U64 where
-    llvm {
-      %value = and i64 %0, %1
-      ret i64 %value
-    }
+  -- | Compare sixteen checked bytes from two buffers using portable SIMD equality.
+  same-sixteen :: Bytes -> I64 -> Bytes -> I64 -> Bool
+  same-sixteen left a right b =
+    let nl = bytes-len-i64 left in
+    let nr = bytes-len-i64 right in
+    if 16 <= nl && 16 <= nr && 0 <= a && 0 <= b then
+      let nnl = nat-from-i64 nl in
+      let nnr = nat-from-i64 nr in
+      if 16 <= nnl && 16 <= nnr then
+        let na = nat-from-i64 a in
+        let nb = nat-from-i64 b in
+        if na <= nnl - 16 && nb <= nnr - 16 then
+          let x = bytes-load-u128 left na in
+          let y = bytes-load-u128 right nb in
+          eq-u32 (simd-u8x16-movemask (simd-u8x16-cmpeq x y)) 65535
+        else False
+      else False
+    else False
 
-  -- | Find a first-byte candidate through the fast scanner before preparing displaced endpoint blocks.
-  endpoint-first :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
-  endpoint-first base at limit delta first last =
-    let found = index-forward base at limit first in
-    if offset-before found 0 then -1 else
-      let final = offset-add found delta in let byte = load-byte base final in
-      let terminal = word-byte last in
-      if word-equal byte terminal then found else
-        let next = offset-add found 1 in endpoint-blocks base next limit delta first last
+  -- | Compare eight checked bytes from two buffers in little-endian word order.
+  same-eight :: Bytes -> I64 -> Bytes -> I64 -> Bool
+  same-eight left a right b =
+    let nl = bytes-len-i64 left in
+    let nr = bytes-len-i64 right in
+    if 8 <= nl && 8 <= nr && 0 <= a && 0 <= b then
+      let nnl = nat-from-i64 nl in
+      let nnr = nat-from-i64 nr in
+      if 8 <= nnl && 8 <= nnr then
+        let na = nat-from-i64 a in
+        let nb = nat-from-i64 b in
+        if na <= nnl - 8 && nb <= nnr - 8 then
+          eq-u64 (bytes-load-le64 left na) (bytes-load-le64 right nb)
+        else False
+      else False
+    else False
 
-  -- | Skip eight possible starts using exact first/final-byte lane intersections.
+  -- | Find a first-byte candidate through the fast SIMD scanner before displaced endpoint blocks.
+  endpoint-first :: Bytes -> I64 -> I64 -> I64 -> U8 -> U8 -> I64
+  endpoint-first bs at limit delta first-byte last-byte =
+    let found = index-forward bs at limit first-byte in
+    if lt-i64 found 0 then -1 else
+      let final = wrapping-add-i64 found delta in
+      if 0 <= final && final < bytes-len-i64 bs then
+        if eq-u8 (bytes-get-u8-at bs final) last-byte then found
+        else endpoint-blocks bs (wrapping-add-i64 found 1) limit delta first-byte last-byte
+      else -1
+
+  -- | Skip sixteen possible starts using exact first/final-byte SIMD lane intersections.
   -- The exclusive start limit includes the final-byte displacement, bounding both complete loads.
-  endpoint-blocks :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
-  endpoint-blocks base at limit delta first last = let left = offset-sub limit at in
-    if offset-at-least left 8 then
-      let a = load-word base at in let starts = matching-lanes a first in
-      if word-nonzero starts then
-        let final = offset-add at delta in let b = load-word base final in
-        let ends = matching-lanes b last in let matches = intersect-lanes starts ends in
-        if word-nonzero matches then let lane = first-lane matches in offset-add at lane else
-          let next = offset-add at 8 in endpoint-blocks base next limit delta first last
-      else let next = offset-add at 8 in endpoint-first base next limit delta first last
-    else let initial = word-byte first in let terminal = word-byte last in
-      endpoint-tail base at limit delta initial terminal
+  endpoint-blocks :: Bytes -> I64 -> I64 -> I64 -> U8 -> U8 -> I64
+  endpoint-blocks bs at limit delta first-byte last-byte =
+    let n = bytes-len-i64 bs in
+    if 16 <= limit && 16 <= n && limit <= n then
+      let nlim = nat-from-i64 limit in
+      let nn = nat-from-i64 n in
+      if 16 <= nlim && 16 <= nn then
+        if 0 <= at then
+          let na = nat-from-i64 at in
+          if na <= nlim - 16 then
+            let a = bytes-load-u128 bs na in
+            let starts = simd-u8x16-movemask (simd-u8x16-cmpeq a (simd-u8x16-splat first-byte)) in
+            if ne-u32 starts 0 then
+              let final = wrapping-add-i64 at delta in
+              if 0 <= final then
+                let nf = nat-from-i64 final in
+                if nf <= nn - 16 then
+                  let b = bytes-load-u128 bs nf in
+                  let ends = simd-u8x16-movemask (simd-u8x16-cmpeq b (simd-u8x16-splat last-byte)) in
+                  let matches = bit-and-u32 starts ends in
+                  if ne-u32 matches 0 then
+                    wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 matches))
+                  else
+                    endpoint-blocks bs (wrapping-add-i64 at 16) limit delta first-byte last-byte
+                else endpoint-tail bs at limit delta first-byte last-byte
+              else -1
+            else endpoint-first bs (wrapping-add-i64 at 16) limit delta first-byte last-byte
+          else endpoint-tail bs at limit delta first-byte last-byte
+        else -1
+      else endpoint-tail bs at limit delta first-byte last-byte
+    else endpoint-tail bs at limit delta first-byte last-byte
 
-  -- | Read only exact remaining candidate endpoints after complete packed blocks.
-  endpoint-tail :: I64 -> I64 -> I64 -> I64 -> U64 -> U64 -> I64
-  endpoint-tail base at limit delta first last = if offset-before at limit then
-    let a = load-byte base at in let final = offset-add at delta in let b = load-byte base final in
-    if word-equal a first && word-equal b last then at else
-      let next = offset-add at 1 in endpoint-tail base next limit delta first last
+  -- | Read only exact remaining candidate endpoints after complete SIMD blocks.
+  endpoint-tail :: Bytes -> I64 -> I64 -> I64 -> U8 -> U8 -> I64
+  endpoint-tail bs at limit delta first-byte last-byte =
+    if 0 <= at && at < limit && limit <= bytes-len-i64 bs then
+      let final = wrapping-add-i64 at delta in
+      if 0 <= final && final < bytes-len-i64 bs then
+        if eq-u8 (bytes-get-u8-at bs at) first-byte && eq-u8 (bytes-get-u8-at bs final) last-byte then at
+        else endpoint-tail bs (wrapping-add-i64 at 1) limit delta first-byte last-byte
+      else -1
     else -1
 
   -- | Filter only the initial start region, then retain the complete linear failure traversal.
   -- Endpoint misses cannot begin a full match; fallback never restarts verification at every candidate.
-  search-first-candidates :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64
-  search-first-candidates base begin end needle size table repeated =
-    if offset-at-least 1 size then index-forward base begin end repeated else
-      let delta = offset-sub size 1 in let terminal = load-byte needle delta in
-      let final = repeat-low-byte terminal in let limit = offset-sub end delta in
-      let candidate = endpoint-first base begin limit delta repeated final in
-      if offset-before candidate 0 then -1 else
-        let next = offset-add candidate 1 in search-first base next end needle size table repeated 1
-
-  -- | Extend a matched prefix or follow strictly smaller failure links for one current byte.
-  search-step :: I64 -> I64 -> I64 -> U64 -> I64
-  search-step needle table matched byte =
-    let expected = load-byte needle matched in
-    if word-equal expected byte then offset-add matched 1
-    else if offset-after matched 0 then
-      let previous = offset-sub matched 1 in let next = failure-word table previous in
-      search-step needle table next byte
-    else 0
-
-  -- | Find the first complete match with SWAR skipping and complete-word prefix comparisons.
-  search-first :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64
-  search-first base at end needle size table repeated matched =
-    if offset-zero matched then
-      let found = index-forward base at end repeated in
-      if offset-before found 0 then -1 else if offset-at-least 1 size then found else
-        let next = offset-add found 1 in search-first base next end needle size table repeated 1
-    else if offset-before at end then
-      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
-        let next = offset-add at 8 in let advanced = offset-add matched 8 in
-        if offset-at-least advanced size then offset-sub next size
-        else search-first base next end needle size table repeated advanced
-      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
-        let next = offset-add at 1 in
-        if offset-at-least advanced size then offset-sub next size
-        else search-first base next end needle size table repeated advanced
+  search-first-candidates :: Bytes -> I64 -> I64 -> Bytes -> Bytes -> I64
+  search-first-candidates bs begin end needle table =
+    let size = bytes-len-i64 needle in
+    if 0 < size then
+      let first-byte = bytes-get-u8-at needle 0 in
+      if le-i64 size 1 then index-forward bs begin end first-byte else
+        let delta = wrapping-sub-i64 size 1 in
+        if 0 <= delta && delta < size then
+          let last-byte = bytes-get-u8-at needle delta in
+          let limit = wrapping-sub-i64 end delta in
+          let candidate = endpoint-first bs begin limit delta first-byte last-byte in
+          if lt-i64 candidate 0 then -1 else
+            search-first bs (wrapping-add-i64 candidate 1) end needle table 1
+        else -1
     else -1
 
-  -- | Find the final complete match with complete-word prefix comparisons, retaining overlaps.
-  search-last :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64
-  search-last base at end needle size table repeated matched best =
-    if offset-zero matched then
-      let found = index-forward base at end repeated in
-      if offset-before found 0 then best else
-        let next = offset-add found 1 in search-last base next end needle size table repeated 1 best
-    else if offset-before at end then
-      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
-        let next = offset-add at 8 in let advanced = offset-add matched 8 in
-        if offset-at-least advanced size then
-          let found = offset-sub next size in let previous = offset-sub size 1 in
-          let fallback = failure-word table previous in
-          search-last base next end needle size table repeated fallback found
-        else search-last base next end needle size table repeated advanced best
-      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
-        let next = offset-add at 1 in
-        if offset-at-least advanced size then
-          let found = offset-sub next size in let previous = offset-sub size 1 in
-          let fallback = failure-word table previous in
-          search-last base next end needle size table repeated fallback found
-        else search-last base next end needle size table repeated advanced best
+  -- | Extend a matched prefix or follow strictly smaller failure links for one current byte.
+  search-step :: Bytes -> Bytes -> I64 -> U8 -> I64
+  search-step needle table matched byte =
+    if 0 <= matched && matched < bytes-len-i64 needle then
+      let expected = bytes-get-u8-at needle matched in
+      if eq-u8 expected byte then wrapping-add-i64 matched 1
+      else if gt-i64 matched 0 then
+        let next = failure-word table (wrapping-sub-i64 matched 1) in
+        search-step needle table next byte
+      else 0
+    else 0
+
+  -- | Find the first complete match with SIMD skipping and wide prefix comparisons.
+  search-first :: Bytes -> I64 -> I64 -> Bytes -> Bytes -> I64 -> I64
+  search-first bs at end needle table matched =
+    let size = bytes-len-i64 needle in
+    if eq-i64 matched 0 then
+      if 0 < size then
+        let found = index-forward bs at end (bytes-get-u8-at needle 0) in
+        if lt-i64 found 0 then -1 else if le-i64 size 1 then found else
+          search-first bs (wrapping-add-i64 found 1) end needle table 1
+      else -1
+    else if lt-i64 at end then
+      if ge-i64 (wrapping-sub-i64 size matched) 16 && ge-i64 (wrapping-sub-i64 end at) 16 && same-sixteen bs at needle matched then
+        let next = wrapping-add-i64 at 16 in let advanced = wrapping-add-i64 matched 16 in
+        if ge-i64 advanced size then wrapping-sub-i64 next size
+        else search-first bs next end needle table advanced
+      else if ge-i64 (wrapping-sub-i64 size matched) 8 && ge-i64 (wrapping-sub-i64 end at) 8 && same-eight bs at needle matched then
+        let next = wrapping-add-i64 at 8 in let advanced = wrapping-add-i64 matched 8 in
+        if ge-i64 advanced size then wrapping-sub-i64 next size
+        else search-first bs next end needle table advanced
+      else if 0 <= at && at < bytes-len-i64 bs then
+        let byte = bytes-get-u8-at bs at in
+        let advanced = search-step needle table matched byte in
+        let next = wrapping-add-i64 at 1 in
+        if ge-i64 advanced size then wrapping-sub-i64 next size
+        else search-first bs next end needle table advanced
+      else -1
+    else -1
+
+  -- | Find the final complete match with wide prefix comparisons, retaining overlaps.
+  search-last :: Bytes -> I64 -> I64 -> Bytes -> Bytes -> I64 -> I64 -> I64
+  search-last bs at end needle table matched best =
+    let size = bytes-len-i64 needle in
+    if eq-i64 matched 0 then
+      if 0 < size then
+        let found = index-forward bs at end (bytes-get-u8-at needle 0) in
+        if lt-i64 found 0 then best else
+          search-last bs (wrapping-add-i64 found 1) end needle table 1 best
+      else best
+    else if lt-i64 at end then
+      if ge-i64 (wrapping-sub-i64 size matched) 16 && ge-i64 (wrapping-sub-i64 end at) 16 && same-sixteen bs at needle matched then
+        let next = wrapping-add-i64 at 16 in let advanced = wrapping-add-i64 matched 16 in
+        if ge-i64 advanced size then
+          let found = wrapping-sub-i64 next size in
+          let fallback = failure-word table (wrapping-sub-i64 size 1) in
+          search-last bs next end needle table fallback found
+        else search-last bs next end needle table advanced best
+      else if ge-i64 (wrapping-sub-i64 size matched) 8 && ge-i64 (wrapping-sub-i64 end at) 8 && same-eight bs at needle matched then
+        let next = wrapping-add-i64 at 8 in let advanced = wrapping-add-i64 matched 8 in
+        if ge-i64 advanced size then
+          let found = wrapping-sub-i64 next size in
+          let fallback = failure-word table (wrapping-sub-i64 size 1) in
+          search-last bs next end needle table fallback found
+        else search-last bs next end needle table advanced best
+      else if 0 <= at && at < bytes-len-i64 bs then
+        let byte = bytes-get-u8-at bs at in
+        let advanced = search-step needle table matched byte in
+        let next = wrapping-add-i64 at 1 in
+        if ge-i64 advanced size then
+          let found = wrapping-sub-i64 next size in
+          let fallback = failure-word table (wrapping-sub-i64 size 1) in
+          search-last bs next end needle table fallback found
+        else search-last bs next end needle table advanced best
+      else best
     else best
 
-  -- | Compare complete words and exact fringes for a fixed private needle interval.
-  search-equal :: I64 -> I64 -> I64 -> I64 -> I64 -> Bool
-  search-equal base at needle pos size = let left = offset-sub size pos in
-    if offset-at-least left 8 then
-      if same-eight base at needle pos then
-        let next = offset-add at 8 in let following = offset-add pos 8 in search-equal base next needle following size
-      else False
-    else if offset-before pos size then
-      let a = load-byte base at in let b = load-byte needle pos in
-      if word-equal a b then
-        let next = offset-add at 1 in let following = offset-add pos 1 in search-equal base next needle following size
+  -- | Compare sixteen-byte SIMD blocks across two fixed buffer intervals before falling to the tail.
+  search-equal :: Bytes -> I64 -> Bytes -> I64 -> I64 -> Bool
+  search-equal left at right pos end =
+    let nl = bytes-len-i64 left in
+    if 16 <= end && end <= bytes-len-i64 right && 16 <= nl then
+      let ne = nat-from-i64 end in
+      let nnl = nat-from-i64 nl in
+      if 16 <= ne && 16 <= nnl then
+        if 0 <= pos && 0 <= at then
+          let np = nat-from-i64 pos in
+          let na = nat-from-i64 at in
+          if np <= ne - 16 && na <= nnl - 16 then
+            let x = bytes-load-u128 left na in
+            let y = bytes-load-u128 right np in
+            if eq-u32 (simd-u8x16-movemask (simd-u8x16-cmpeq x y)) 65535 then
+              search-equal left (wrapping-add-i64 at 16) right (wrapping-add-i64 pos 16) end
+            else False
+          else search-equal-eight left at right pos end
+        else False
+      else search-equal-tail left at right pos end
+    else search-equal-eight left at right pos end
+
+  -- | Compare one optional eight-byte word before examining the final scalar bytes.
+  search-equal-eight :: Bytes -> I64 -> Bytes -> I64 -> I64 -> Bool
+  search-equal-eight left at right pos end =
+    let nl = bytes-len-i64 left in
+    if 8 <= end && end <= bytes-len-i64 right && 8 <= nl && 0 <= pos && 0 <= at then
+      let ne = nat-from-i64 end in
+      let nnl = nat-from-i64 nl in
+      if 8 <= ne && 8 <= nnl then
+        let np = nat-from-i64 pos in
+        let na = nat-from-i64 at in
+        if np <= ne - 8 && na <= nnl - 8 then
+          if eq-u64 (bytes-load-le64 left na) (bytes-load-le64 right np) then
+            search-equal-tail left (wrapping-add-i64 at 8) right (wrapping-add-i64 pos 8) end
+          else False
+        else search-equal-tail left at right pos end
+      else search-equal-tail left at right pos end
+    else search-equal-tail left at right pos end
+
+  -- | Compare exact remaining scalar bytes across two bounded buffer intervals.
+  search-equal-tail :: Bytes -> I64 -> Bytes -> I64 -> I64 -> Bool
+  search-equal-tail left at right pos end =
+    if 0 <= pos && pos < end && end <= bytes-len-i64 right then
+      if 0 <= at && at < bytes-len-i64 left then
+        if eq-u8 (bytes-get-u8-at left at) (bytes-get-u8-at right pos) then
+          search-equal-tail left (wrapping-add-i64 at 1) right (wrapping-add-i64 pos 1) end
+        else False
       else False
     else True
 
   -- | Convert a private absolute match sentinel into an exact relative view offset.
   relative-match :: I64 -> I64 -> Option Nat
   relative-match absolute start = if absolute >= start then
-    let offset = offset-sub absolute start in if 0 <= offset then Some (nat-from-i64 offset) else None
+    let offset = wrapping-sub-i64 absolute start in if 0 <= offset then Some (nat-from-i64 offset) else None
     else None
 
   -- | Find the first exact byte relative to the checked view, or None when it is absent.
-  -- Every byte value is compared directly, including malformed UTF8 bytes; current aliases remain observable.
+  -- Every byte value is compared directly, including malformed UTF-8 bytes; current aliases remain observable.
   byte-view-index-byte :: ByteView -> U8 -> Option Nat
   byte-view-index-byte view value = case view of
     View raw start end -> if start == end then None else
       let begin = nat-to-i64 start in let finish = nat-to-i64 end in
-      let repeated = repeated-byte value in let base = bytes-data raw in
-      let found = hold-input raw (index-forward base begin finish repeated) in
+      let found = index-forward raw begin finish value in
       relative-match found begin
 
   -- | Find the first compiled needle match relative to the view; an empty needle matches zero.
@@ -598,9 +554,7 @@ module Data.Bytes.View where
       Pattern needle table -> let size = bytes-len needle in
         if size == 0 then Some 0 else if size > end - start then None else
           let begin = nat-to-i64 start in let finish = nat-to-i64 end in
-          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
-          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
-          let found = hold-input raw (hold-input needle (hold-input table (search-first-candidates (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated))) in
+          let found = search-first-candidates raw begin finish needle table in
           relative-match found begin
 
   -- | Find the final compiled match, including overlaps; an empty needle matches the view end.
@@ -610,22 +564,24 @@ module Data.Bytes.View where
       Pattern needle table -> let size = bytes-len needle in
         if size == 0 then Some (end - start) else if size > end - start then None
         else if byte-view-has-suffix-pattern view pattern then let at = end - start - size in Some at
-        else let begin = nat-to-i64 start in let finish = nat-to-i64 end in
-          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
-          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
-          let found = hold-input raw (hold-input needle (hold-input table (if size == 1 then last-byte-range (bytes-data raw) begin finish repeated else search-last (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0 (-1)))) in
+        else
+          let begin = nat-to-i64 start in let finish = nat-to-i64 end in
+          let found = (if size == 1 then
+            last-byte-range raw begin finish (bytes-get-u8 needle 0)
+          else
+            search-last raw begin finish needle table 0 (-1)) in
           relative-match found begin
 
   -- | Test whether a compiled needle occurs, including the empty needle in an empty view.
   byte-view-contains-pattern :: ByteView -> BytePattern -> Bool
   byte-view-contains-pattern view pattern = case byte-view-index-pattern view pattern of None -> False; Some at -> True
 
-  -- | Test an exact compiled prefix using complete-word comparisons and checked view lengths.
+  -- | Test an exact compiled prefix using SIMD block comparisons and checked view lengths.
   byte-view-has-prefix-pattern :: ByteView -> BytePattern -> Bool
   byte-view-has-prefix-pattern view pattern = case view of
     View raw start end -> case pattern of
       Pattern needle table -> if bytes-len needle <= end - start then
-        hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 start) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+        search-equal raw (nat-to-i64 start) needle 0 (nat-to-i64 (bytes-len needle))
         else False
 
   -- | Test an exact compiled suffix without copying or scanning the unrelated prefix.
@@ -634,7 +590,7 @@ module Data.Bytes.View where
     View raw start end -> case pattern of
       Pattern needle table -> if bytes-len needle <= end - start then
         let begin = end - bytes-len needle in
-        hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 begin) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+        search-equal raw (nat-to-i64 begin) needle 0 (nat-to-i64 (bytes-len needle))
         else False
 
   -- | Split around an already found bounded match into two owner-retaining mutable aliases.
@@ -669,24 +625,35 @@ module Data.Bytes.View where
       let kept = size - width in Some (byte-view-take kept view)
     else None
 
-  -- | Count nonoverlapping complete matches with SWAR skipping and complete-word prefix comparisons.
-  search-count :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> U64 -> I64 -> I64 -> I64
-  search-count base at end needle size table repeated matched count =
-    if offset-zero matched then
-      let found = index-forward base at end repeated in
-      if offset-before found 0 then count else
-        let next = offset-add found 1 in search-count base next end needle size table repeated 1 count
-    else if offset-before at end then
-      if block-before matched size && (let left = offset-sub end at in offset-at-least left 8) && same-eight base at needle matched then
-        let next = offset-add at 8 in let advanced = offset-add matched 8 in
-        if offset-at-least advanced size then
-          let total = offset-add count 1 in search-count base next end needle size table repeated 0 total
-        else search-count base next end needle size table repeated advanced count
-      else let byte = load-byte base at in let advanced = search-step needle table matched byte in
-        let next = offset-add at 1 in
-        if offset-at-least advanced size then
-          let total = offset-add count 1 in search-count base next end needle size table repeated 0 total
-        else search-count base next end needle size table repeated advanced count
+  -- | Count nonoverlapping complete matches with SIMD skipping and wide prefix comparisons.
+  search-count :: Bytes -> I64 -> I64 -> Bytes -> Bytes -> I64 -> I64 -> I64
+  search-count bs at end needle table matched count =
+    let size = bytes-len-i64 needle in
+    if eq-i64 matched 0 then
+      if 0 < size then
+        let found = index-forward bs at end (bytes-get-u8-at needle 0) in
+        if lt-i64 found 0 then count else
+          search-count bs (wrapping-add-i64 found 1) end needle table 1 count
+      else count
+    else if lt-i64 at end then
+      if ge-i64 (wrapping-sub-i64 size matched) 16 && ge-i64 (wrapping-sub-i64 end at) 16 && same-sixteen bs at needle matched then
+        let next = wrapping-add-i64 at 16 in let advanced = wrapping-add-i64 matched 16 in
+        if ge-i64 advanced size then
+          search-count bs next end needle table 0 (wrapping-add-i64 count 1)
+        else search-count bs next end needle table advanced count
+      else if ge-i64 (wrapping-sub-i64 size matched) 8 && ge-i64 (wrapping-sub-i64 end at) 8 && same-eight bs at needle matched then
+        let next = wrapping-add-i64 at 8 in let advanced = wrapping-add-i64 matched 8 in
+        if ge-i64 advanced size then
+          search-count bs next end needle table 0 (wrapping-add-i64 count 1)
+        else search-count bs next end needle table advanced count
+      else if 0 <= at && at < bytes-len-i64 bs then
+        let byte = bytes-get-u8-at bs at in
+        let advanced = search-step needle table matched byte in
+        let next = wrapping-add-i64 at 1 in
+        if ge-i64 advanced size then
+          search-count bs next end needle table 0 (wrapping-add-i64 count 1)
+        else search-count bs next end needle table advanced count
+      else count
     else count
 
   -- | Count nonoverlapping compiled matches; an empty pattern counts bounded decoded scalars plus one.
@@ -698,56 +665,84 @@ module Data.Bytes.View where
         if size == 0 then case Utf8.utf8-count-between raw start end of Some count -> count + 1; None -> 0
         else if size > end - start then 0 else
           let begin = nat-to-i64 start in let finish = nat-to-i64 end in
-          let first-byte = bytes-get needle 0 in let machine-byte = nat-to-i64 first-byte in
-          let byte = wrapping-i64-to-u8 machine-byte in let repeated = repeated-byte byte in
-          let count = hold-input raw (hold-input needle (hold-input table (if size == 1 then count-forward (bytes-data raw) begin finish repeated 0 else search-count (bytes-data raw) begin finish (bytes-data needle) (nat-to-i64 size) (bytes-data table) repeated 0 0))) in
+          let count = (if size == 1 then
+            count-forward raw begin finish (bytes-get-u8 needle 0) 0
+          else
+            search-count raw begin finish needle table 0 0) in
           if 0 <= count then nat-from-i64 count else 0
 
-  -- | Compare two exact view ranges using complete words and scalar fringes, preserving shared mutations.
+  -- | Compare two exact view ranges using SIMD blocks and scalar fringes, preserving shared mutations.
   byte-view-equal :: ByteView -> ByteView -> Bool
   byte-view-equal a b = case a of
     View left first last -> case b of
       View right begin end -> if last - first == end - begin then
-        hold-input left (hold-input right (search-equal (bytes-data left) (nat-to-i64 first) (bytes-data right) (nat-to-i64 begin) (nat-to-i64 end)))
+        search-equal left (nat-to-i64 first) right (nat-to-i64 begin) (nat-to-i64 end)
         else False
 
-  -- | Find the first unequal private byte relative to two bounded intervals, or their complete common length.
-  compare-prefix :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
-  compare-prefix a begin b start at size = let remaining = offset-sub size at in
-    if offset-at-least remaining 8 then
-      let left = offset-add begin at in let right = offset-add start at in
-      let x = load-word a left in let y = load-word b right in
-      if word-equal x y then let next = offset-add at 8 in compare-prefix a begin b start next size
+  -- | Find the first unequal byte relative to two bounded intervals using 16-byte SIMD, or their common length.
+  compare-prefix :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64 -> I64
+  compare-prefix a begin b start at size =
+    let na = bytes-len-i64 a in
+    let nb = bytes-len-i64 b in
+    if 16 <= size && 16 <= na && 16 <= nb then
+      let ns = nat-from-i64 size in
+      let nna = nat-from-i64 na in
+      let nnb = nat-from-i64 nb in
+      if 16 <= ns && 16 <= nna && 16 <= nnb && 0 <= at then
+        let nat-at = nat-from-i64 at in
+        if nat-at <= ns - 16 then
+          let left = wrapping-add-i64 begin at in
+          let right = wrapping-add-i64 start at in
+          if 0 <= left && 0 <= right then
+            let nleft = nat-from-i64 left in
+            let nright = nat-from-i64 right in
+            if nleft <= nna - 16 && nright <= nnb - 16 then
+              let x = bytes-load-u128 a nleft in
+              let y = bytes-load-u128 b nright in
+              let mask = simd-u8x16-movemask (simd-u8x16-cmpeq x y) in
+              if eq-u32 mask 65535 then
+                compare-prefix a begin b start (wrapping-add-i64 at 16) size
+              else
+                let diff = bit-xor-u32 mask 65535 in
+                wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 diff))
+            else compare-prefix-tail a begin b start at size
+          else compare-prefix-tail a begin b start at size
+        else compare-prefix-tail a begin b start at size
       else compare-prefix-tail a begin b start at size
     else compare-prefix-tail a begin b start at size
 
   -- | Compare only available bytes until the first mismatch or the bounded common end.
-  compare-prefix-tail :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
-  compare-prefix-tail a begin b start at size = if offset-before at size then
-    let left = offset-add begin at in let right = offset-add start at in
-    let x = load-byte a left in let y = load-byte b right in
-    if word-equal x y then let next = offset-add at 1 in compare-prefix-tail a begin b start next size else at
+  compare-prefix-tail :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64 -> I64
+  compare-prefix-tail a begin b start at size =
+    if 0 <= at && at < size then
+      let left = wrapping-add-i64 begin at in
+      let right = wrapping-add-i64 start at in
+      if 0 <= left && left < bytes-len-i64 a && 0 <= right && right < bytes-len-i64 b then
+        if eq-u8 (bytes-get-u8-at a left) (bytes-get-u8-at b right) then
+          compare-prefix-tail a begin b start (wrapping-add-i64 at 1) size
+        else at
+      else size
     else size
-
-  -- | Normalize the order of two known unequal zero-extended byte values.
-  prim byte-order :: U64 -> U64 -> I64 where
-    llvm {
-      %less = icmp ult i64 %0, %1
-      %value = select i1 %less, i64 -1, i64 1
-      ret i64 %value
-    }
 
   -- | Compare raw view bytes lexicographically, returning exactly negative one, zero or one.
   byte-view-compare :: ByteView -> ByteView -> I64
   byte-view-compare a b = case a of
     View left first last -> case b of
-      View right begin end -> let size-a = last - first in let size-b = end - begin in
+      View right begin end ->
+        let size-a = last - first in
+        let size-b = end - begin in
         let common = ((if size-a < size-b then size-a else size-b) :: Nat) in
         if common <= 9223372036854775807 then
-          let at = hold-input left (hold-input right (compare-prefix (bytes-data left) (nat-to-i64 first) (bytes-data right) (nat-to-i64 begin) 0 (nat-to-i64 common))) in
-          if at < nat-to-i64 common then
-            let x = hold-input left (load-byte (bytes-data left) (offset-add (nat-to-i64 first) at)) in
-            let y = hold-input right (load-byte (bytes-data right) (offset-add (nat-to-i64 begin) at)) in byte-order x y
+          let lim = nat-to-i64 common in
+          let f0 = nat-to-i64 first in
+          let b0 = nat-to-i64 begin in
+          let at = compare-prefix left f0 right b0 0 lim in
+          if lt-i64 at lim then
+            let lx = wrapping-add-i64 f0 at in
+            let rx = wrapping-add-i64 b0 at in
+            if 0 <= lx && lx < bytes-len-i64 left && 0 <= rx && rx < bytes-len-i64 right then
+              if lt-u8 (bytes-get-u8-at left lx) (bytes-get-u8-at right rx) then -1 else 1
+            else 0
           else if size-a < size-b then -1 else if size-a > size-b then 1 else 0
         else 0
 
@@ -767,11 +762,11 @@ module Data.Bytes.View where
   byte-view-count :: ByteView -> Bytes -> Nat
   byte-view-count view needle = byte-view-count-pattern view (bytes-compile-pattern needle)
 
-  -- | Test an exact raw prefix with complete-word comparisons and no snapshots or pattern allocation.
+  -- | Test an exact raw prefix with SIMD block comparisons and no snapshots or pattern allocation.
   byte-view-has-prefix :: ByteView -> Bytes -> Bool
   byte-view-has-prefix view needle = case view of
     View raw start end -> if bytes-len needle <= end - start then
-      hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 start) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+      search-equal raw (nat-to-i64 start) needle 0 (nat-to-i64 (bytes-len needle))
       else False
 
   -- | Test an exact raw suffix with no snapshots, pattern allocation or unrelated prefix scan.
@@ -779,7 +774,7 @@ module Data.Bytes.View where
   byte-view-has-suffix view needle = case view of
     View raw start end -> if bytes-len needle <= end - start then
       let begin = end - bytes-len needle in
-      hold-input raw (hold-input needle (search-equal (bytes-data raw) (nat-to-i64 begin) (bytes-data needle) 0 (nat-to-i64 (bytes-len needle))))
+      search-equal raw (nat-to-i64 begin) needle 0 (nat-to-i64 (bytes-len needle))
       else False
 
   -- | Cut at the first raw match into aliases that retain the complete original owner.
@@ -842,59 +837,55 @@ module Data.Bytes.View where
   bytes-cut-suffix :: Bytes -> Bytes -> Option ByteView
   bytes-cut-suffix input needle = byte-view-cut-suffix (bytes-view input) needle
 
-  -- | Test sixteen available bytes for one ASCII whitespace class without endian-dependent lane numbering.
-  -- Every lane must be ASCII and match the requested class; no byte beyond the proved block is loaded.
-  prim ascii-space-sixteen :: I64 -> I64 -> Bool -> Bool where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %bytes = load <16 x i8>, ptr %at, align 1
-      %delta = sub <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %controls = icmp ule <16 x i8> %delta, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
-      %spaces = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %whitespace = or <16 x i1> %controls, %spaces
-      %nonspace = xor <16 x i1> %whitespace, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
-      %wanted = icmp ne i8 %2, 0
-      %selected = select i1 %wanted, <16 x i1> %whitespace, <16 x i1> %nonspace
-      %ascii = icmp ult <16 x i8> %bytes, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
-      %matching = and <16 x i1> %selected, %ascii
-      %mask = bitcast <16 x i1> %matching to i16
-      %all = icmp eq i16 %mask, -1
-      %result = zext i1 %all to i8
-      ret i8 %result
-    }
+  -- | Produce a 16-bit lane mask marking every lane that is ASCII and matches the requested whitespace class.
+  ascii-space-mask :: U128 -> Bool -> U32
+  ascii-space-mask chunk spaces =
+    let delta = simd-u8x16-sub chunk (simd-u8x16-splat 9) in
+    let controls = simd-u8x16-cmplt delta (simd-u8x16-splat 5) in
+    let blanks = simd-u8x16-cmpeq chunk (simd-u8x16-splat 32) in
+    let whitespace = bit-or-u128 controls blanks in
+    let matching = (if spaces then whitespace
+      else bit-and-u128 (bit-not-u128 whitespace) (simd-u8x16-cmplt chunk (simd-u8x16-splat 128))) in
+    simd-u8x16-movemask matching
 
-  -- | Classify one zero-extended byte as ASCII whitespace or ASCII non-whitespace.
-  prim ascii-space-byte :: U64 -> Bool -> Bool where
-    llvm {
-      %delta = sub i64 %0, 9
-      %controls = icmp ule i64 %delta, 4
-      %space = icmp eq i64 %0, 32
-      %whitespace = or i1 %controls, %space
-      %wanted = icmp ne i8 %1, 0
-      %class = icmp eq i1 %whitespace, %wanted
-      %ascii = icmp ult i64 %0, 128
-      %yes = and i1 %class, %ascii
-      %result = zext i1 %yes to i8
-      ret i8 %result
-    }
+  -- | Classify one byte as ASCII whitespace or ASCII non-whitespace.
+  ascii-space-byte :: U8 -> Bool -> Bool
+  ascii-space-byte byte spaces =
+    let delta = wrapping-sub-u8 byte 9 in
+    let whitespace = le-u8 delta 4 || eq-u8 byte 32 in
+    let ascii = lt-u8 byte 128 in
+    if spaces then whitespace else (if whitespace then False else ascii)
 
   -- | Find the first opposite-class or non-ASCII byte in an exact scalar fringe.
-  ascii-space-tail :: I64 -> I64 -> I64 -> Bool -> I64
-  ascii-space-tail base at end spaces = if offset-before at end then
-    let byte = load-byte base at in if ascii-space-byte byte spaces then
-      let next = offset-add at 1 in ascii-space-tail base next end spaces
-    else at
+  ascii-space-tail :: Bytes -> I64 -> I64 -> Bool -> I64
+  ascii-space-tail bs at end spaces =
+    if 0 <= at && at < end && end <= bytes-len-i64 bs then
+      if ascii-space-byte (bytes-get-u8-at bs at) spaces then
+        ascii-space-tail bs (wrapping-add-i64 at 1) end spaces
+      else at
     else at
 
-  -- | Skip complete matching SIMD blocks, then examine only the bounded mismatch or final fringe.
-  ascii-space-blocks :: I64 -> I64 -> I64 -> Bool -> I64
-  ascii-space-blocks base at end spaces = let left = offset-sub end at in
-    if offset-at-least left 16 then
-      if ascii-space-sixteen base at spaces then
-        let next = offset-add at 16 in ascii-space-blocks base next end spaces
-      else ascii-space-tail base at end spaces
-    else ascii-space-tail base at end spaces
+  -- | Skip complete matching 16-byte SIMD blocks, finding any in-block mismatch directly via bitmask.
+  ascii-space-blocks :: Bytes -> I64 -> I64 -> Bool -> I64
+  ascii-space-blocks bs at end spaces =
+    if 16 <= end && end <= bytes-len-i64 bs then
+      let ne = nat-from-i64 end in
+      if 16 <= ne then
+        let lim = ne - 16 in
+        if 0 <= at then
+          let ni = nat-from-i64 at in
+          if ni <= lim then
+            let chunk = bytes-load-u128 bs ni in
+            let mask = ascii-space-mask chunk spaces in
+            if eq-u32 mask 65535 then
+              ascii-space-blocks bs (wrapping-add-i64 at 16) end spaces
+            else
+              let miss = bit-xor-u32 mask 65535 in
+              wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 miss))
+          else ascii-space-tail bs at end spaces
+        else at
+      else ascii-space-tail bs at end spaces
+    else ascii-space-tail bs at end spaces
 
   -- | End a maximal ASCII whitespace or non-whitespace run from a relative position.
   -- True selects exactly TAB through CR and SPACE; False selects other ASCII bytes.
@@ -903,6 +894,8 @@ module Data.Bytes.View where
   byte-view-ascii-space-run-end :: ByteView -> Nat -> Bool -> Option Nat
   byte-view-ascii-space-run-end view position spaces = case view of
     View raw start end -> if position > end - start then None else
-      let absolute = start + position in let begin = nat-to-i64 absolute in let finish = nat-to-i64 end in
-      let base = bytes-data raw in let found = hold-input raw (ascii-space-blocks base begin finish spaces) in
+      let absolute = start + position in
+      let begin = nat-to-i64 absolute in
+      let finish = nat-to-i64 end in
+      let found = ascii-space-blocks raw begin finish spaces in
       let origin = nat-to-i64 start in relative-match found origin

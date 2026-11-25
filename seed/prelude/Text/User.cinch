@@ -1,0 +1,551 @@
+-- | Pure parsers and lookup functions for Unix user and group account databases.
+-- Supports colon-delimited passwd and group files as well as Linux process status
+-- identity records (`/proc/self/status`). All parsers are total, skip blank lines
+-- and comments, tolerate CRLF line endings, and return structured values or named
+-- `UserError` diagnostics without performing I/O.
+module Text.User where
+
+  import Algebra.Arithmetic
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+
+  export UserInfo, user-uid, user-gid, user-username, user-name, user-home-dir, user-shell
+  export GroupInfo, group-gid, group-name, group-members
+  export UserError, UnknownUserError, UnknownUserIdError, UnknownGroupError, UnknownGroupIdError, UserIoError, user-error-message
+  export ProcIdentity, proc-real-uid, proc-effective-uid, proc-real-gid, proc-effective-gid, proc-supplementary-gids
+  export parse-passwd, parse-group, parse-proc-status
+  export lookup-user-in, lookup-user-id-in, lookup-group-in, lookup-group-id-in, user-group-ids-in
+
+  -- ---------------------------------------------------------------------------
+  -- Data types and accessors.
+  -- ---------------------------------------------------------------------------
+
+  -- | A Unix user account record parsed from an account database entry.
+  data UserInfo where
+    -- | Construct a user account record with uid, gid, username, primary display name, home directory, and login shell.
+    UserInfo :: String -> String -> String -> String -> String -> String -> UserInfo
+
+  -- | Numeric user identifier string (for example, `"1000"`).
+  user-uid :: UserInfo -> String
+  user-uid info = case info of
+    UserInfo uid _ _ _ _ _ -> uid
+
+  -- | Primary group identifier string for the user.
+  user-gid :: UserInfo -> String
+  user-gid info = case info of
+    UserInfo _ gid _ _ _ _ -> gid
+
+  -- | Login username for the user.
+  user-username :: UserInfo -> String
+  user-username info = case info of
+    UserInfo _ _ username _ _ _ -> username
+
+  -- | Primary display name extracted from the GECOS field before the first comma.
+  user-name :: UserInfo -> String
+  user-name info = case info of
+    UserInfo _ _ _ full-name _ _ -> full-name
+
+  -- | Absolute path to the user's home directory.
+  user-home-dir :: UserInfo -> String
+  user-home-dir info = case info of
+    UserInfo _ _ _ _ home _ -> home
+
+  -- | Configured login shell path for the user, or empty when omitted.
+  user-shell :: UserInfo -> String
+  user-shell info = case info of
+    UserInfo _ _ _ _ _ login-shell -> login-shell
+
+  -- | Structural equality for user account records.
+  implicit instance Eq_UserInfo :: Eq UserInfo where
+    (==) a b =
+      user-uid a == user-uid b
+        && user-gid a == user-gid b
+        && user-username a == user-username b
+        && user-name a == user-name b
+        && user-home-dir a == user-home-dir b
+        && user-shell a == user-shell b
+    (/=) a b = not (a == b)
+
+  -- | A Unix group account record parsed from a group database entry.
+  data GroupInfo where
+    -- | Construct a group record with gid, group name, and member usernames.
+    GroupInfo :: String -> String -> List String -> GroupInfo
+
+  -- | Numeric group identifier string.
+  group-gid :: GroupInfo -> String
+  group-gid info = case info of
+    GroupInfo gid _ _ -> gid
+
+  -- | Group name.
+  group-name :: GroupInfo -> String
+  group-name info = case info of
+    GroupInfo _ gname _ -> gname
+
+  -- | Explicit supplementary member usernames listed in the group entry.
+  group-members :: GroupInfo -> List String
+  group-members info = case info of
+    GroupInfo _ _ members -> members
+
+  -- | Compare two string lists element by element for structural equality.
+  eq-string-list :: List String -> List String -> Bool
+  eq-string-list xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons _ _ -> False
+    Cons x xr -> case ys of
+      Nil -> False
+      Cons y yr -> if x == y then eq-string-list xr yr else False
+
+  -- | Structural equality for group account records.
+  implicit instance Eq_GroupInfo :: Eq GroupInfo where
+    (==) a b =
+      group-gid a == group-gid b
+        && group-name a == group-name b
+        && eq-string-list (group-members a) (group-members b)
+    (/=) a b = not (a == b)
+
+  -- | Structured errors returned by user and group lookup operations.
+  data UserError where
+    -- | No user account exists with the requested username.
+    UnknownUserError :: String -> UserError
+    -- | No user account exists with the requested numeric user ID.
+    UnknownUserIdError :: String -> UserError
+    -- | No group exists with the requested group name.
+    UnknownGroupError :: String -> UserError
+    -- | No group exists with the requested numeric group ID.
+    UnknownGroupIdError :: String -> UserError
+    -- | An underlying filesystem or process lookup error occurred.
+    UserIoError :: String -> UserError
+
+  -- | Format a `UserError` as a human-readable diagnostic message.
+  user-error-message :: UserError -> String
+  user-error-message err = case err of
+    UnknownUserError uname -> string-concat "user: unknown user " uname
+    UnknownUserIdError uid -> string-concat "user: unknown userid " uid
+    UnknownGroupError gname -> string-concat "group: unknown group " gname
+    UnknownGroupIdError gid -> string-concat "group: unknown groupid " gid
+    UserIoError detail -> string-concat "user: " detail
+
+  -- | Structural equality for user lookup errors.
+  implicit instance Eq_UserError :: Eq UserError where
+    (==) a b = case a of
+      UnknownUserError x -> case b of
+        UnknownUserError y -> x == y
+        _ -> False
+      UnknownUserIdError x -> case b of
+        UnknownUserIdError y -> x == y
+        _ -> False
+      UnknownGroupError x -> case b of
+        UnknownGroupError y -> x == y
+        _ -> False
+      UnknownGroupIdError x -> case b of
+        UnknownGroupIdError y -> x == y
+        _ -> False
+      UserIoError x -> case b of
+        UserIoError y -> x == y
+        _ -> False
+    (/=) a b = not (a == b)
+
+  -- | Process credential identifiers parsed from `/proc/self/status`.
+  data ProcIdentity where
+    -- | Construct a process identity with real uid, effective uid, real gid, effective gid, and supplementary gids.
+    ProcIdentity :: String -> String -> String -> String -> List String -> ProcIdentity
+
+  -- | Real user ID of the process.
+  proc-real-uid :: ProcIdentity -> String
+  proc-real-uid ident = case ident of
+    ProcIdentity ruid _ _ _ _ -> ruid
+
+  -- | Effective user ID of the process.
+  proc-effective-uid :: ProcIdentity -> String
+  proc-effective-uid ident = case ident of
+    ProcIdentity _ euid _ _ _ -> euid
+
+  -- | Real group ID of the process.
+  proc-real-gid :: ProcIdentity -> String
+  proc-real-gid ident = case ident of
+    ProcIdentity _ _ rgid _ _ -> rgid
+
+  -- | Effective group ID of the process.
+  proc-effective-gid :: ProcIdentity -> String
+  proc-effective-gid ident = case ident of
+    ProcIdentity _ _ _ egid _ -> egid
+
+  -- | Supplementary group IDs reported for the process.
+  proc-supplementary-gids :: ProcIdentity -> List String
+  proc-supplementary-gids ident = case ident of
+    ProcIdentity _ _ _ _ gids -> gids
+
+  -- | Structural equality for process identity records.
+  implicit instance Eq_ProcIdentity :: Eq ProcIdentity where
+    (==) a b =
+      proc-real-uid a == proc-real-uid b
+        && proc-effective-uid a == proc-effective-uid b
+        && proc-real-gid a == proc-real-gid b
+        && proc-effective-gid a == proc-effective-gid b
+        && eq-string-list (proc-supplementary-gids a) (proc-supplementary-gids b)
+    (/=) a b = not (a == b)
+
+  -- ---------------------------------------------------------------------------
+  -- Byte scanning and slicing helpers.
+  -- ---------------------------------------------------------------------------
+
+  -- | Copy a checked half-open byte slice `[start, end)` into a fresh buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes buf start end =
+    if start <= end && end <= bytes-len buf then
+      let count = end - start in
+      let out = bytes-new count in
+      let copied = (
+        if count <= bytes-len out && start + count <= bytes-len buf then
+          bytes-copy-range out buf 0 start count
+        else ()
+      ) in
+      out
+    else bytes-new 0
+
+  -- | Decode a checked UTF-8 byte slice `[start, end)` from a valid UTF-8 backing into a `String`.
+  slice-string :: Bytes -> Nat -> Nat -> String
+  slice-string buf start end = case string-from-bytes (slice-bytes buf start end) of
+    Some text -> text
+    None -> empty-string
+
+  -- | Trim trailing carriage return (`\r`) bytes from the end of a line range `[start, end)`.
+  trim-cr-end :: Bytes -> Nat -> Nat -> Nat
+  trim-cr-end buf start end =
+    if end > start && end <= bytes-len buf then
+      let prev = end - 1 in
+      if bytes-get buf prev == 13 then trim-cr-end buf start prev else end
+    else end
+
+  -- | Test whether an ASCII byte is horizontal whitespace (space or tab).
+  is-hspace :: Nat -> Bool
+  is-hspace b = b == 32 || b == 9
+
+  -- | Advance `pos` past leading ASCII spaces and tabs within `[pos, end)`.
+  skip-hspace :: Bytes -> Nat -> Nat -> Nat
+  skip-hspace buf pos end =
+    if pos < end && pos < bytes-len buf then
+      if is-hspace (bytes-get buf pos) then skip-hspace buf (pos + 1) end else pos
+    else pos
+
+  -- | Return true when `[start, end)` is empty, horizontal whitespace only, or starts with `#`.
+  is-ignored-line :: Bytes -> Nat -> Nat -> Bool
+  is-ignored-line buf start end =
+    let first = skip-hspace buf start end in
+    if first >= end then True
+    else if first < bytes-len buf then bytes-get buf first == 35
+    else True
+
+  -- | Find the first occurrence of byte `needle` in `[pos, end)`, returning `None` if absent.
+  find-byte :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  find-byte buf needle pos end =
+    if pos < end && pos < bytes-len buf then
+      if bytes-get buf pos == needle then Some pos
+      else find-byte buf needle (pos + 1) end
+    else None
+
+  -- | Split byte range `[start, end)` on an ASCII delimiter byte, preserving empty fields.
+  split-on-byte :: Bytes -> Nat -> Nat -> Nat -> List String
+  split-on-byte buf delim start end = reverse (split-on-byte-acc buf delim start start end Nil)
+
+  -- | Accumulator loop for splitting a byte slice on a single ASCII delimiter byte.
+  split-on-byte-acc :: Bytes -> Nat -> Nat -> Nat -> Nat -> List String -> List String
+  split-on-byte-acc buf delim seg-start pos end acc =
+    if pos < end && pos < bytes-len buf then
+      if bytes-get buf pos == delim then
+        let field = slice-string buf seg-start pos in
+        split-on-byte-acc buf delim (pos + 1) (pos + 1) end (Cons field acc)
+      else split-on-byte-acc buf delim seg-start (pos + 1) end acc
+    else
+      let last-field = slice-string buf seg-start end in
+      Cons last-field acc
+
+  -- | Extract non-empty tokens separated by ASCII spaces or tabs from `[start, end)`.
+  split-hspace-tokens :: Bytes -> Nat -> Nat -> List String
+  split-hspace-tokens buf start end = reverse (split-hspace-acc buf start end Nil)
+
+  -- | Scan past a run of non-whitespace bytes starting at `pos` within `[pos, end)`.
+  scan-token-end :: Bytes -> Nat -> Nat -> Nat
+  scan-token-end buf pos end =
+    if pos < end && pos < bytes-len buf then
+      if is-hspace (bytes-get buf pos) then pos
+      else scan-token-end buf (pos + 1) end
+    else pos
+
+  -- | Accumulator loop for extracting horizontal-whitespace-delimited tokens.
+  split-hspace-acc :: Bytes -> Nat -> Nat -> List String -> List String
+  split-hspace-acc buf pos end acc =
+    let tok-start = skip-hspace buf pos end in
+    if tok-start >= end then acc
+    else
+      let tok-end = scan-token-end buf tok-start end in
+      let token = slice-string buf tok-start tok-end in
+      split-hspace-acc buf tok-end end (Cons token acc)
+
+  -- | Test whether byte range `[start, end)` starts with the exact ASCII prefix `prefix`.
+  range-starts-with :: Bytes -> Nat -> Nat -> Bytes -> Bool
+  range-starts-with buf start end prefix =
+    let plen = bytes-len prefix in
+    if start + plen <= end && start + plen <= bytes-len buf then
+      range-prefix-eq buf start prefix 0 plen
+    else False
+
+  -- | Compare `plen` bytes between `buf` at `start` and `prefix` at `0`.
+  range-prefix-eq :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  range-prefix-eq buf start prefix idx plen =
+    if idx >= plen then True
+    else if start + idx < bytes-len buf && idx < bytes-len prefix then
+      if bytes-get buf (start + idx) == bytes-get prefix idx then
+        range-prefix-eq buf start prefix (idx + 1) plen
+      else False
+    else False
+
+  -- | Extract the primary display name before the first comma in a GECOS field.
+  gecos-primary-name :: String -> String
+  gecos-primary-name gecos =
+    let raw = string-to-bytes gecos in
+    let total = bytes-len raw in
+    case find-byte raw 44 0 total of
+      None -> gecos
+      Some comma-pos -> slice-string raw 0 comma-pos
+
+  -- | Remove empty strings from a list while preserving element order.
+  filter-nonempty :: List String -> List String
+  filter-nonempty xs = reverse (filter-nonempty-acc xs Nil)
+
+  -- | Accumulator helper for filtering out empty strings.
+  filter-nonempty-acc :: List String -> List String -> List String
+  filter-nonempty-acc xs acc = case xs of
+    Nil -> acc
+    Cons s rest ->
+      if string-byte-length s == 0 then filter-nonempty-acc rest acc
+      else filter-nonempty-acc rest (Cons s acc)
+
+  -- ---------------------------------------------------------------------------
+  -- Passwd parser.
+  -- ---------------------------------------------------------------------------
+
+  -- | Parse colon-delimited Unix `/etc/passwd` content into a list of `UserInfo` records.
+  -- Skips blank lines, `#` comments, and malformed lines with fewer than 6 fields,
+  -- strips trailing `\r`, and extracts the primary GECOS name before the first comma.
+  parse-passwd :: String -> List UserInfo
+  parse-passwd content =
+    let raw = string-to-bytes content in
+    let total = bytes-len raw in
+    if total == 0 then Nil
+    else reverse (parse-passwd-lines raw 0 total Nil)
+
+  -- | Scan newline-delimited lines of a passwd byte buffer and accumulate valid entries.
+  parse-passwd-lines :: Bytes -> Nat -> Nat -> List UserInfo -> List UserInfo
+  parse-passwd-lines buf pos total acc =
+    if pos >= total then acc
+    else
+      let line-end = (
+        case find-byte buf 10 pos total of
+          None -> total
+          Some nl -> nl
+      ) in
+      let next-pos = if line-end < total then line-end + 1 else total in
+      let clean-end = trim-cr-end buf pos line-end in
+      let next-acc = (
+        case parse-passwd-line buf pos clean-end of
+          None -> acc
+          Some entry -> Cons entry acc
+      ) in
+      parse-passwd-lines buf next-pos total next-acc
+
+  -- | Parse a single passwd line `[start, end)` into `Some UserInfo` or `None` if skipped/malformed.
+  parse-passwd-line :: Bytes -> Nat -> Nat -> Option UserInfo
+  parse-passwd-line buf start end =
+    if is-ignored-line buf start end then None
+    else
+      let fields = split-on-byte buf 58 start end in
+      case fields of
+        Cons uname (Cons _ (Cons uid (Cons gid (Cons gecos (Cons home rest))))) ->
+          if string-byte-length uname == 0 || string-byte-length uid == 0 || string-byte-length gid == 0 then None
+          else
+            let login-shell = (
+              case rest of
+                Nil -> empty-string
+                Cons sh _ -> sh
+            ) in
+            Some (UserInfo uid gid uname (gecos-primary-name gecos) home login-shell)
+        _ -> None
+
+  -- ---------------------------------------------------------------------------
+  -- Group parser.
+  -- ---------------------------------------------------------------------------
+
+  -- | Parse colon-delimited Unix `/etc/group` content into a list of `GroupInfo` records.
+  -- Skips blank lines, `#` comments, and malformed lines with fewer than 3 fields,
+  -- strips trailing `\r`, and splits the comma-delimited member list.
+  parse-group :: String -> List GroupInfo
+  parse-group content =
+    let raw = string-to-bytes content in
+    let total = bytes-len raw in
+    if total == 0 then Nil
+    else reverse (parse-group-lines raw 0 total Nil)
+
+  -- | Scan newline-delimited lines of a group byte buffer and accumulate valid entries.
+  parse-group-lines :: Bytes -> Nat -> Nat -> List GroupInfo -> List GroupInfo
+  parse-group-lines buf pos total acc =
+    if pos >= total then acc
+    else
+      let line-end = (
+        case find-byte buf 10 pos total of
+          None -> total
+          Some nl -> nl
+      ) in
+      let next-pos = if line-end < total then line-end + 1 else total in
+      let clean-end = trim-cr-end buf pos line-end in
+      let next-acc = (
+        case parse-group-line buf pos clean-end of
+          None -> acc
+          Some entry -> Cons entry acc
+      ) in
+      parse-group-lines buf next-pos total next-acc
+
+  -- | Parse a single group line `[start, end)` into `Some GroupInfo` or `None` if skipped/malformed.
+  parse-group-line :: Bytes -> Nat -> Nat -> Option GroupInfo
+  parse-group-line buf start end =
+    if is-ignored-line buf start end then None
+    else
+      let fields = split-on-byte buf 58 start end in
+      case fields of
+        Cons gname (Cons _ (Cons gid rest)) ->
+          if string-byte-length gname == 0 || string-byte-length gid == 0 then None
+          else
+            let members = (
+              case rest of
+                Nil -> Nil
+                Cons member-text _ ->
+                  let mbytes = string-to-bytes member-text in
+                  filter-nonempty (split-on-byte mbytes 44 0 (bytes-len mbytes))
+            ) in
+            Some (GroupInfo gid gname members)
+        _ -> None
+
+  -- ---------------------------------------------------------------------------
+  -- Linux /proc/self/status parser.
+  -- ---------------------------------------------------------------------------
+
+  -- | Parse Linux `/proc/self/status` text for `Uid:`, `Gid:`, and `Groups:` lines.
+  -- Returns `None` if either `Uid:` or `Gid:` is absent or carries no numeric tokens.
+  parse-proc-status :: String -> Option ProcIdentity
+  parse-proc-status content =
+    let raw = string-to-bytes content in
+    let total = bytes-len raw in
+    let uid-prefix = string-to-bytes "Uid:" in
+    let gid-prefix = string-to-bytes "Gid:" in
+    let grp-prefix = string-to-bytes "Groups:" in
+    parse-proc-lines raw 0 total uid-prefix gid-prefix grp-prefix None None Nil
+
+  -- | Extract real and effective ID tokens from a whitespace-separated token list.
+  parse-id-pair :: List String -> Option (String, String)
+  parse-id-pair tokens = case tokens of
+    Cons real (Cons eff _) -> Some (real, eff)
+    Cons real Nil -> Some (real, real)
+    Nil -> None
+
+  -- | Walk `/proc/self/status` lines, capturing `Uid:`, `Gid:`, and `Groups:` fields.
+  parse-proc-lines :: Bytes -> Nat -> Nat -> Bytes -> Bytes -> Bytes -> Option (String, String) -> Option (String, String) -> List String -> Option ProcIdentity
+  parse-proc-lines buf pos total uid-pre gid-pre grp-pre uid-opt gid-opt supp =
+    if pos >= total then
+      case uid-opt of
+        None -> None
+        Some uid-pair -> case uid-pair of
+          (ruid, euid) -> case gid-opt of
+            None -> None
+            Some gid-pair -> case gid-pair of
+              (rgid, egid) -> Some (ProcIdentity ruid euid rgid egid supp)
+    else
+      let line-end = (
+        case find-byte buf 10 pos total of
+          None -> total
+          Some nl -> nl
+      ) in
+      let next-pos = if line-end < total then line-end + 1 else total in
+      let clean-end = trim-cr-end buf pos line-end in
+      if range-starts-with buf pos clean-end uid-pre then
+        let tokens = split-hspace-tokens buf (pos + bytes-len uid-pre) clean-end in
+        parse-proc-lines buf next-pos total uid-pre gid-pre grp-pre (parse-id-pair tokens) gid-opt supp
+      else if range-starts-with buf pos clean-end gid-pre then
+        let tokens = split-hspace-tokens buf (pos + bytes-len gid-pre) clean-end in
+        parse-proc-lines buf next-pos total uid-pre gid-pre grp-pre uid-opt (parse-id-pair tokens) supp
+      else if range-starts-with buf pos clean-end grp-pre then
+        let tokens = split-hspace-tokens buf (pos + bytes-len grp-pre) clean-end in
+        parse-proc-lines buf next-pos total uid-pre gid-pre grp-pre uid-opt gid-opt tokens
+      else
+        parse-proc-lines buf next-pos total uid-pre gid-pre grp-pre uid-opt gid-opt supp
+
+  -- ---------------------------------------------------------------------------
+  -- Pure lookups.
+  -- ---------------------------------------------------------------------------
+
+  -- | Look up a user by exact username within a parsed list of `UserInfo` records.
+  lookup-user-in :: List UserInfo -> String -> Result UserError UserInfo
+  lookup-user-in users uname = case users of
+    Nil -> Err (UnknownUserError uname)
+    Cons entry rest ->
+      if user-username entry == uname then Ok entry
+      else lookup-user-in rest uname
+
+  -- | Look up a user by exact numeric UID string within a parsed list of `UserInfo` records.
+  lookup-user-id-in :: List UserInfo -> String -> Result UserError UserInfo
+  lookup-user-id-in users uid = case users of
+    Nil -> Err (UnknownUserIdError uid)
+    Cons entry rest ->
+      if user-uid entry == uid then Ok entry
+      else lookup-user-id-in rest uid
+
+  -- | Look up a group by exact group name within a parsed list of `GroupInfo` records.
+  lookup-group-in :: List GroupInfo -> String -> Result UserError GroupInfo
+  lookup-group-in groups gname = case groups of
+    Nil -> Err (UnknownGroupError gname)
+    Cons entry rest ->
+      if group-name entry == gname then Ok entry
+      else lookup-group-in rest gname
+
+  -- | Look up a group by exact numeric GID string within a parsed list of `GroupInfo` records.
+  lookup-group-id-in :: List GroupInfo -> String -> Result UserError GroupInfo
+  lookup-group-id-in groups gid = case groups of
+    Nil -> Err (UnknownGroupIdError gid)
+    Cons entry rest ->
+      if group-gid entry == gid then Ok entry
+      else lookup-group-id-in rest gid
+
+  -- | Return true if `needle` appears in the string list.
+  contains-string :: String -> List String -> Bool
+  contains-string needle xs = case xs of
+    Nil -> False
+    Cons item rest ->
+      if item == needle then True
+      else contains-string needle rest
+
+  -- | Compute the deduplicated list of group IDs for a user against a parsed group table.
+  -- The list begins with the user's primary GID (when non-empty), followed by each group
+  -- GID whose explicit member list includes the user's username.
+  user-group-ids-in :: UserInfo -> List GroupInfo -> List String
+  user-group-ids-in info groups =
+    let primary = user-gid info in
+    let initial = if string-byte-length primary > 0 then Cons primary Nil else Nil in
+    reverse (collect-user-gids (user-username info) groups initial)
+
+  -- | Accumulate deduplicated group IDs (in reverse order) for groups listing `uname`.
+  collect-user-gids :: String -> List GroupInfo -> List String -> List String
+  collect-user-gids uname groups acc = case groups of
+    Nil -> acc
+    Cons grp rest ->
+      if contains-string uname (group-members grp) then
+        let gid = group-gid grp in
+        let next-acc = if string-byte-length gid > 0 && not (contains-string gid acc) then Cons gid acc else acc in
+        collect-user-gids uname rest next-acc
+      else collect-user-gids uname rest acc

@@ -2,10 +2,9 @@
 -- Updates accept finished checksums: updating the checksum of a prefix with a
 -- suffix equals checksumming their concatenation. Start Adler-32 at 1 and CRCs
 -- at 0. Polynomial arguments use reflected representations. Text.Adler32 supplies
--- the portable SIMD accumulator; CRCs consume native eight-byte blocks.
--- CRC-32C uses an ISA instruction after CPU feature detection on x86. AArch64
--- profiles with ArmCrc32 accelerate both IEEE and Castagnoli. Other cases use portable
--- inline LLVM shift registers. These checksums do not authenticate messages.
+-- the portable parallel accumulator; IEEE and Castagnoli CRC-32 use slicing-by-four
+-- static lookup tables, Koopman uses a static lookup table, and arbitrary
+-- polynomials use an unrolled shift register. These checksums do not authenticate messages.
 module Text.Checksum where
 
   import Text.Adler32 as Adler
@@ -58,27 +57,134 @@ module Text.Checksum where
   -- | Continue a finished CRC-32 with another chunk. Arguments are reflected polynomial, previous checksum, and bytes; initial/final complementing is internal.
   crc32-update :: U32 -> U32 -> Bytes -> U32
   crc32-update poly previous b =
-    if eq-u32 poly crc32-castagnoli && bytes-len b >= 8 && ne-u32 (crc32c-available 0) 0 then
-      bit-not-u32 (crc32c-from b 0 (bit-not-u32 previous))
-    else if eq-u32 poly crc32-ieee && bytes-len b >= 8 && ne-u32 (crc32-ieee-available 0) 0 then
-      bit-not-u32 (crc32-ieee-from b 0 (bit-not-u32 previous))
-    else bit-not-u32 (crc32-from poly b 0 (bit-not-u32 previous))
+    let seed = bit-not-u32 previous in
+    if eq-u32 poly crc32-ieee then
+      bit-not-u32 (crc32-ieee-blocks b 0 seed)
+    else if eq-u32 poly crc32-castagnoli then
+      bit-not-u32 (crc32-cast-blocks b 0 seed)
+    else if eq-u32 poly crc32-koopman then
+      bit-not-u32 (crc32-koop-tail b 0 seed)
+    else
+      bit-not-u32 (crc32-blocks poly b 0 seed)
 
-  -- | Consume complete eight-byte native shift-register blocks and then scalar bytes, without reading past the buffer.
-  crc32-from :: U32 -> Bytes -> Nat -> U32 -> U32
-  crc32-from poly b i acc =
-    if i + 8 <= bytes-len b then crc32-from poly b (i + 8) (crc32-word acc (bytes-read-le64 b i) poly)
-    else if i < bytes-len b then
-      let v = wrapping-i64-to-u32 (nat-to-i64 (bytes-get b i)) in
-      crc32-from poly b (i + 1) (crc32-bits poly (bit-xor-u32 acc v) 8)
+  -- | Consume four bytes per iteration using static IEEE slicing-by-four tables.
+  crc32-ieee-blocks :: Bytes -> I64 -> U32 -> U32
+  crc32-ieee-blocks b pos acc =
+    let n = bytes-len-i64 b in
+    if 4 <= n then
+      let nn = nat-from-i64 n in
+      let lim = nn - 4 in
+      if 0 <= pos && pos <= wrapping-sub-i64 n 4 && nat-from-i64 pos <= lim then
+        let w = bit-xor-u32 acc (bytes-load-le32-at b pos) in
+        let b0 = wrapping-u32-to-u8 w in
+        let b1 = wrapping-u32-to-u8 (wrapping-shr-u32 w 8) in
+        let b2 = wrapping-u32-to-u8 (wrapping-shr-u32 w 16) in
+        let b3 = wrapping-u32-to-u8 (wrapping-shr-u32 w 24) in
+        let next = bit-xor-u32 (bit-xor-u32 (ieee-t3 b0) (ieee-t2 b1)) (bit-xor-u32 (ieee-t1 b2) (ieee-t0 b3)) in
+        crc32-ieee-blocks b (wrapping-add-i64 pos 4) next
+      else crc32-ieee-tail b pos acc
+    else crc32-ieee-tail b pos acc
+
+  -- | Finish remaining bytes with the static IEEE CRC-32 byte table.
+  crc32-ieee-tail :: Bytes -> I64 -> U32 -> U32
+  crc32-ieee-tail b pos acc =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let idx = bit-xor-u8 (wrapping-u32-to-u8 acc) (bytes-get-u8-at b pos) in
+      crc32-ieee-tail b (wrapping-add-i64 pos 1) (bit-xor-u32 (ieee-t0 idx) (wrapping-shr-u32 acc 8))
     else acc
 
-  -- | Advance one scalar byte through eight reflected polynomial steps.
-  crc32-bits :: U32 -> U32 -> Nat -> U32
-  crc32-bits poly acc n =
-    if n == 0 then acc
-    else if eq-u32 (bit-and-u32 acc 1) 1 then crc32-bits poly (bit-xor-u32 (wrapping-shr-u32 acc 1) poly) (n - 1)
-    else crc32-bits poly (wrapping-shr-u32 acc 1) (n - 1)
+  -- | Consume four bytes per iteration using static Castagnoli slicing-by-four tables.
+  crc32-cast-blocks :: Bytes -> I64 -> U32 -> U32
+  crc32-cast-blocks b pos acc =
+    let n = bytes-len-i64 b in
+    if 4 <= n then
+      let nn = nat-from-i64 n in
+      let lim = nn - 4 in
+      if 0 <= pos && pos <= wrapping-sub-i64 n 4 && nat-from-i64 pos <= lim then
+        let w = bit-xor-u32 acc (bytes-load-le32-at b pos) in
+        let b0 = wrapping-u32-to-u8 w in
+        let b1 = wrapping-u32-to-u8 (wrapping-shr-u32 w 8) in
+        let b2 = wrapping-u32-to-u8 (wrapping-shr-u32 w 16) in
+        let b3 = wrapping-u32-to-u8 (wrapping-shr-u32 w 24) in
+        let next = bit-xor-u32 (bit-xor-u32 (cast-t3 b0) (cast-t2 b1)) (bit-xor-u32 (cast-t1 b2) (cast-t0 b3)) in
+        crc32-cast-blocks b (wrapping-add-i64 pos 4) next
+      else crc32-cast-tail b pos acc
+    else crc32-cast-tail b pos acc
+
+  -- | Finish remaining bytes with the static Castagnoli CRC-32C byte table.
+  crc32-cast-tail :: Bytes -> I64 -> U32 -> U32
+  crc32-cast-tail b pos acc =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let idx = bit-xor-u8 (wrapping-u32-to-u8 acc) (bytes-get-u8-at b pos) in
+      crc32-cast-tail b (wrapping-add-i64 pos 1) (bit-xor-u32 (cast-t0 idx) (wrapping-shr-u32 acc 8))
+    else acc
+
+  -- | Compute Koopman CRC-32 with a static lookup table over unboxed I64 indices.
+  crc32-koop-tail :: Bytes -> I64 -> U32 -> U32
+  crc32-koop-tail b pos acc =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let idx = bit-xor-u8 (wrapping-u32-to-u8 acc) (bytes-get-u8-at b pos) in
+      crc32-koop-tail b (wrapping-add-i64 pos 1) (bit-xor-u32 (koop-t0 idx) (wrapping-shr-u32 acc 8))
+    else acc
+
+  -- | Consume complete eight-byte shift-register blocks without per-iteration Nat boxing.
+  crc32-blocks :: U32 -> Bytes -> I64 -> U32 -> U32
+  crc32-blocks poly b pos acc =
+    let n = bytes-len-i64 b in
+    if 8 <= n then
+      let nn = nat-from-i64 n in
+      let lim = nn - 8 in
+      if 0 <= pos && pos <= wrapping-sub-i64 n 8 && nat-from-i64 pos <= lim then
+        let w = bytes-load-le64-at b pos in
+        crc32-blocks poly b (wrapping-add-i64 pos 8) (crc32-word acc w poly)
+      else crc32-tail poly b pos acc
+    else crc32-tail poly b pos acc
+
+  -- | Finish remaining bytes after the final complete eight-byte shift-register block.
+  crc32-tail :: U32 -> Bytes -> I64 -> U32 -> U32
+  crc32-tail poly b pos acc =
+    if 0 <= pos && pos < bytes-len-i64 b then
+      let v = u8-to-u32 (bytes-get-u8-at b pos) in
+      crc32-tail poly b (wrapping-add-i64 pos 1) (crc32-byte32 (bit-xor-u32 acc v) poly)
+    else acc
+
+  -- | Advance a reflected 32-bit CRC register by one bit using branchless masking.
+  crc32-bit32 :: U32 -> U32 -> U32
+  crc32-bit32 acc poly =
+    let mask = wrapping-sub-u32 0 (bit-and-u32 acc 1) in
+    bit-xor-u32 (wrapping-shr-u32 acc 1) (bit-and-u32 poly mask)
+
+  -- | Advance a reflected 32-bit CRC register by eight bits.
+  crc32-byte32 :: U32 -> U32 -> U32
+  crc32-byte32 acc poly =
+    let a1 = crc32-bit32 acc poly in let a2 = crc32-bit32 a1 poly in
+    let a3 = crc32-bit32 a2 poly in let a4 = crc32-bit32 a3 poly in
+    let a5 = crc32-bit32 a4 poly in let a6 = crc32-bit32 a5 poly in
+    let a7 = crc32-bit32 a6 poly in crc32-bit32 a7 poly
+
+  -- | Advance a reflected CRC-32 register inside a 64-bit word by one bit.
+  crc32-bit64 :: U64 -> U64 -> U64
+  crc32-bit64 acc poly =
+    let mask = wrapping-sub-u64 0 (bit-and-u64 acc 1) in
+    bit-xor-u64 (wrapping-shr-u64 acc 1) (bit-and-u64 poly mask)
+
+  -- | Advance a reflected CRC-32 register inside a 64-bit word by eight bits.
+  crc32-byte64 :: U64 -> U64 -> U64
+  crc32-byte64 acc poly =
+    let a1 = crc32-bit64 acc poly in let a2 = crc32-bit64 a1 poly in
+    let a3 = crc32-bit64 a2 poly in let a4 = crc32-bit64 a3 poly in
+    let a5 = crc32-bit64 a4 poly in let a6 = crc32-bit64 a5 poly in
+    let a7 = crc32-bit64 a6 poly in crc32-bit64 a7 poly
+
+  -- | Advance a reflected CRC through eight packed bytes using an unrolled shift register.
+  crc32-word :: U32 -> U64 -> U32 -> U32
+  crc32-word seed word poly =
+    let p = u32-to-u64 poly in
+    let a1 = crc32-byte64 (bit-xor-u64 (u32-to-u64 seed) word) p in
+    let a2 = crc32-byte64 a1 p in let a3 = crc32-byte64 a2 p in
+    let a4 = crc32-byte64 a3 p in let a5 = crc32-byte64 a4 p in
+    let a6 = crc32-byte64 a5 p in let a7 = crc32-byte64 a6 p in
+    wrapping-u64-to-u32 (crc32-byte64 a7 p)
 
   -- | The reflected ISO CRC-64 polynomial, 0xD800000000000000.
   crc64-iso :: U64
@@ -97,1046 +203,218 @@ module Text.Checksum where
   crc64-update :: U64 -> U64 -> Bytes -> U64
   crc64-update poly previous input = Crc.crc64-update poly previous input
 
-  -- | Advance a reflected CRC through eight packed bytes using a native shift register.
-  prim crc32-word :: U32 -> U64 -> U32 -> U32 where
-    llvm {
-      %seed = zext i32 %0 to i64
-      %poly = zext i32 %2 to i64
-      %start = xor i64 %seed, %1
-      %bit0 = and i64 %start, 1
-      %set0 = icmp ne i64 %bit0, 0
-      %shift0 = lshr i64 %start, 1
-      %mask0 = select i1 %set0, i64 %poly, i64 0
-      %r0 = xor i64 %shift0, %mask0
-      %bit1 = and i64 %r0, 1
-      %set1 = icmp ne i64 %bit1, 0
-      %shift1 = lshr i64 %r0, 1
-      %mask1 = select i1 %set1, i64 %poly, i64 0
-      %r1 = xor i64 %shift1, %mask1
-      %bit2 = and i64 %r1, 1
-      %set2 = icmp ne i64 %bit2, 0
-      %shift2 = lshr i64 %r1, 1
-      %mask2 = select i1 %set2, i64 %poly, i64 0
-      %r2 = xor i64 %shift2, %mask2
-      %bit3 = and i64 %r2, 1
-      %set3 = icmp ne i64 %bit3, 0
-      %shift3 = lshr i64 %r2, 1
-      %mask3 = select i1 %set3, i64 %poly, i64 0
-      %r3 = xor i64 %shift3, %mask3
-      %bit4 = and i64 %r3, 1
-      %set4 = icmp ne i64 %bit4, 0
-      %shift4 = lshr i64 %r3, 1
-      %mask4 = select i1 %set4, i64 %poly, i64 0
-      %r4 = xor i64 %shift4, %mask4
-      %bit5 = and i64 %r4, 1
-      %set5 = icmp ne i64 %bit5, 0
-      %shift5 = lshr i64 %r4, 1
-      %mask5 = select i1 %set5, i64 %poly, i64 0
-      %r5 = xor i64 %shift5, %mask5
-      %bit6 = and i64 %r5, 1
-      %set6 = icmp ne i64 %bit6, 0
-      %shift6 = lshr i64 %r5, 1
-      %mask6 = select i1 %set6, i64 %poly, i64 0
-      %r6 = xor i64 %shift6, %mask6
-      %bit7 = and i64 %r6, 1
-      %set7 = icmp ne i64 %bit7, 0
-      %shift7 = lshr i64 %r6, 1
-      %mask7 = select i1 %set7, i64 %poly, i64 0
-      %r7 = xor i64 %shift7, %mask7
-      %bit8 = and i64 %r7, 1
-      %set8 = icmp ne i64 %bit8, 0
-      %shift8 = lshr i64 %r7, 1
-      %mask8 = select i1 %set8, i64 %poly, i64 0
-      %r8 = xor i64 %shift8, %mask8
-      %bit9 = and i64 %r8, 1
-      %set9 = icmp ne i64 %bit9, 0
-      %shift9 = lshr i64 %r8, 1
-      %mask9 = select i1 %set9, i64 %poly, i64 0
-      %r9 = xor i64 %shift9, %mask9
-      %bit10 = and i64 %r9, 1
-      %set10 = icmp ne i64 %bit10, 0
-      %shift10 = lshr i64 %r9, 1
-      %mask10 = select i1 %set10, i64 %poly, i64 0
-      %r10 = xor i64 %shift10, %mask10
-      %bit11 = and i64 %r10, 1
-      %set11 = icmp ne i64 %bit11, 0
-      %shift11 = lshr i64 %r10, 1
-      %mask11 = select i1 %set11, i64 %poly, i64 0
-      %r11 = xor i64 %shift11, %mask11
-      %bit12 = and i64 %r11, 1
-      %set12 = icmp ne i64 %bit12, 0
-      %shift12 = lshr i64 %r11, 1
-      %mask12 = select i1 %set12, i64 %poly, i64 0
-      %r12 = xor i64 %shift12, %mask12
-      %bit13 = and i64 %r12, 1
-      %set13 = icmp ne i64 %bit13, 0
-      %shift13 = lshr i64 %r12, 1
-      %mask13 = select i1 %set13, i64 %poly, i64 0
-      %r13 = xor i64 %shift13, %mask13
-      %bit14 = and i64 %r13, 1
-      %set14 = icmp ne i64 %bit14, 0
-      %shift14 = lshr i64 %r13, 1
-      %mask14 = select i1 %set14, i64 %poly, i64 0
-      %r14 = xor i64 %shift14, %mask14
-      %bit15 = and i64 %r14, 1
-      %set15 = icmp ne i64 %bit15, 0
-      %shift15 = lshr i64 %r14, 1
-      %mask15 = select i1 %set15, i64 %poly, i64 0
-      %r15 = xor i64 %shift15, %mask15
-      %bit16 = and i64 %r15, 1
-      %set16 = icmp ne i64 %bit16, 0
-      %shift16 = lshr i64 %r15, 1
-      %mask16 = select i1 %set16, i64 %poly, i64 0
-      %r16 = xor i64 %shift16, %mask16
-      %bit17 = and i64 %r16, 1
-      %set17 = icmp ne i64 %bit17, 0
-      %shift17 = lshr i64 %r16, 1
-      %mask17 = select i1 %set17, i64 %poly, i64 0
-      %r17 = xor i64 %shift17, %mask17
-      %bit18 = and i64 %r17, 1
-      %set18 = icmp ne i64 %bit18, 0
-      %shift18 = lshr i64 %r17, 1
-      %mask18 = select i1 %set18, i64 %poly, i64 0
-      %r18 = xor i64 %shift18, %mask18
-      %bit19 = and i64 %r18, 1
-      %set19 = icmp ne i64 %bit19, 0
-      %shift19 = lshr i64 %r18, 1
-      %mask19 = select i1 %set19, i64 %poly, i64 0
-      %r19 = xor i64 %shift19, %mask19
-      %bit20 = and i64 %r19, 1
-      %set20 = icmp ne i64 %bit20, 0
-      %shift20 = lshr i64 %r19, 1
-      %mask20 = select i1 %set20, i64 %poly, i64 0
-      %r20 = xor i64 %shift20, %mask20
-      %bit21 = and i64 %r20, 1
-      %set21 = icmp ne i64 %bit21, 0
-      %shift21 = lshr i64 %r20, 1
-      %mask21 = select i1 %set21, i64 %poly, i64 0
-      %r21 = xor i64 %shift21, %mask21
-      %bit22 = and i64 %r21, 1
-      %set22 = icmp ne i64 %bit22, 0
-      %shift22 = lshr i64 %r21, 1
-      %mask22 = select i1 %set22, i64 %poly, i64 0
-      %r22 = xor i64 %shift22, %mask22
-      %bit23 = and i64 %r22, 1
-      %set23 = icmp ne i64 %bit23, 0
-      %shift23 = lshr i64 %r22, 1
-      %mask23 = select i1 %set23, i64 %poly, i64 0
-      %r23 = xor i64 %shift23, %mask23
-      %bit24 = and i64 %r23, 1
-      %set24 = icmp ne i64 %bit24, 0
-      %shift24 = lshr i64 %r23, 1
-      %mask24 = select i1 %set24, i64 %poly, i64 0
-      %r24 = xor i64 %shift24, %mask24
-      %bit25 = and i64 %r24, 1
-      %set25 = icmp ne i64 %bit25, 0
-      %shift25 = lshr i64 %r24, 1
-      %mask25 = select i1 %set25, i64 %poly, i64 0
-      %r25 = xor i64 %shift25, %mask25
-      %bit26 = and i64 %r25, 1
-      %set26 = icmp ne i64 %bit26, 0
-      %shift26 = lshr i64 %r25, 1
-      %mask26 = select i1 %set26, i64 %poly, i64 0
-      %r26 = xor i64 %shift26, %mask26
-      %bit27 = and i64 %r26, 1
-      %set27 = icmp ne i64 %bit27, 0
-      %shift27 = lshr i64 %r26, 1
-      %mask27 = select i1 %set27, i64 %poly, i64 0
-      %r27 = xor i64 %shift27, %mask27
-      %bit28 = and i64 %r27, 1
-      %set28 = icmp ne i64 %bit28, 0
-      %shift28 = lshr i64 %r27, 1
-      %mask28 = select i1 %set28, i64 %poly, i64 0
-      %r28 = xor i64 %shift28, %mask28
-      %bit29 = and i64 %r28, 1
-      %set29 = icmp ne i64 %bit29, 0
-      %shift29 = lshr i64 %r28, 1
-      %mask29 = select i1 %set29, i64 %poly, i64 0
-      %r29 = xor i64 %shift29, %mask29
-      %bit30 = and i64 %r29, 1
-      %set30 = icmp ne i64 %bit30, 0
-      %shift30 = lshr i64 %r29, 1
-      %mask30 = select i1 %set30, i64 %poly, i64 0
-      %r30 = xor i64 %shift30, %mask30
-      %bit31 = and i64 %r30, 1
-      %set31 = icmp ne i64 %bit31, 0
-      %shift31 = lshr i64 %r30, 1
-      %mask31 = select i1 %set31, i64 %poly, i64 0
-      %r31 = xor i64 %shift31, %mask31
-      %bit32 = and i64 %r31, 1
-      %set32 = icmp ne i64 %bit32, 0
-      %shift32 = lshr i64 %r31, 1
-      %mask32 = select i1 %set32, i64 %poly, i64 0
-      %r32 = xor i64 %shift32, %mask32
-      %bit33 = and i64 %r32, 1
-      %set33 = icmp ne i64 %bit33, 0
-      %shift33 = lshr i64 %r32, 1
-      %mask33 = select i1 %set33, i64 %poly, i64 0
-      %r33 = xor i64 %shift33, %mask33
-      %bit34 = and i64 %r33, 1
-      %set34 = icmp ne i64 %bit34, 0
-      %shift34 = lshr i64 %r33, 1
-      %mask34 = select i1 %set34, i64 %poly, i64 0
-      %r34 = xor i64 %shift34, %mask34
-      %bit35 = and i64 %r34, 1
-      %set35 = icmp ne i64 %bit35, 0
-      %shift35 = lshr i64 %r34, 1
-      %mask35 = select i1 %set35, i64 %poly, i64 0
-      %r35 = xor i64 %shift35, %mask35
-      %bit36 = and i64 %r35, 1
-      %set36 = icmp ne i64 %bit36, 0
-      %shift36 = lshr i64 %r35, 1
-      %mask36 = select i1 %set36, i64 %poly, i64 0
-      %r36 = xor i64 %shift36, %mask36
-      %bit37 = and i64 %r36, 1
-      %set37 = icmp ne i64 %bit37, 0
-      %shift37 = lshr i64 %r36, 1
-      %mask37 = select i1 %set37, i64 %poly, i64 0
-      %r37 = xor i64 %shift37, %mask37
-      %bit38 = and i64 %r37, 1
-      %set38 = icmp ne i64 %bit38, 0
-      %shift38 = lshr i64 %r37, 1
-      %mask38 = select i1 %set38, i64 %poly, i64 0
-      %r38 = xor i64 %shift38, %mask38
-      %bit39 = and i64 %r38, 1
-      %set39 = icmp ne i64 %bit39, 0
-      %shift39 = lshr i64 %r38, 1
-      %mask39 = select i1 %set39, i64 %poly, i64 0
-      %r39 = xor i64 %shift39, %mask39
-      %bit40 = and i64 %r39, 1
-      %set40 = icmp ne i64 %bit40, 0
-      %shift40 = lshr i64 %r39, 1
-      %mask40 = select i1 %set40, i64 %poly, i64 0
-      %r40 = xor i64 %shift40, %mask40
-      %bit41 = and i64 %r40, 1
-      %set41 = icmp ne i64 %bit41, 0
-      %shift41 = lshr i64 %r40, 1
-      %mask41 = select i1 %set41, i64 %poly, i64 0
-      %r41 = xor i64 %shift41, %mask41
-      %bit42 = and i64 %r41, 1
-      %set42 = icmp ne i64 %bit42, 0
-      %shift42 = lshr i64 %r41, 1
-      %mask42 = select i1 %set42, i64 %poly, i64 0
-      %r42 = xor i64 %shift42, %mask42
-      %bit43 = and i64 %r42, 1
-      %set43 = icmp ne i64 %bit43, 0
-      %shift43 = lshr i64 %r42, 1
-      %mask43 = select i1 %set43, i64 %poly, i64 0
-      %r43 = xor i64 %shift43, %mask43
-      %bit44 = and i64 %r43, 1
-      %set44 = icmp ne i64 %bit44, 0
-      %shift44 = lshr i64 %r43, 1
-      %mask44 = select i1 %set44, i64 %poly, i64 0
-      %r44 = xor i64 %shift44, %mask44
-      %bit45 = and i64 %r44, 1
-      %set45 = icmp ne i64 %bit45, 0
-      %shift45 = lshr i64 %r44, 1
-      %mask45 = select i1 %set45, i64 %poly, i64 0
-      %r45 = xor i64 %shift45, %mask45
-      %bit46 = and i64 %r45, 1
-      %set46 = icmp ne i64 %bit46, 0
-      %shift46 = lshr i64 %r45, 1
-      %mask46 = select i1 %set46, i64 %poly, i64 0
-      %r46 = xor i64 %shift46, %mask46
-      %bit47 = and i64 %r46, 1
-      %set47 = icmp ne i64 %bit47, 0
-      %shift47 = lshr i64 %r46, 1
-      %mask47 = select i1 %set47, i64 %poly, i64 0
-      %r47 = xor i64 %shift47, %mask47
-      %bit48 = and i64 %r47, 1
-      %set48 = icmp ne i64 %bit48, 0
-      %shift48 = lshr i64 %r47, 1
-      %mask48 = select i1 %set48, i64 %poly, i64 0
-      %r48 = xor i64 %shift48, %mask48
-      %bit49 = and i64 %r48, 1
-      %set49 = icmp ne i64 %bit49, 0
-      %shift49 = lshr i64 %r48, 1
-      %mask49 = select i1 %set49, i64 %poly, i64 0
-      %r49 = xor i64 %shift49, %mask49
-      %bit50 = and i64 %r49, 1
-      %set50 = icmp ne i64 %bit50, 0
-      %shift50 = lshr i64 %r49, 1
-      %mask50 = select i1 %set50, i64 %poly, i64 0
-      %r50 = xor i64 %shift50, %mask50
-      %bit51 = and i64 %r50, 1
-      %set51 = icmp ne i64 %bit51, 0
-      %shift51 = lshr i64 %r50, 1
-      %mask51 = select i1 %set51, i64 %poly, i64 0
-      %r51 = xor i64 %shift51, %mask51
-      %bit52 = and i64 %r51, 1
-      %set52 = icmp ne i64 %bit52, 0
-      %shift52 = lshr i64 %r51, 1
-      %mask52 = select i1 %set52, i64 %poly, i64 0
-      %r52 = xor i64 %shift52, %mask52
-      %bit53 = and i64 %r52, 1
-      %set53 = icmp ne i64 %bit53, 0
-      %shift53 = lshr i64 %r52, 1
-      %mask53 = select i1 %set53, i64 %poly, i64 0
-      %r53 = xor i64 %shift53, %mask53
-      %bit54 = and i64 %r53, 1
-      %set54 = icmp ne i64 %bit54, 0
-      %shift54 = lshr i64 %r53, 1
-      %mask54 = select i1 %set54, i64 %poly, i64 0
-      %r54 = xor i64 %shift54, %mask54
-      %bit55 = and i64 %r54, 1
-      %set55 = icmp ne i64 %bit55, 0
-      %shift55 = lshr i64 %r54, 1
-      %mask55 = select i1 %set55, i64 %poly, i64 0
-      %r55 = xor i64 %shift55, %mask55
-      %bit56 = and i64 %r55, 1
-      %set56 = icmp ne i64 %bit56, 0
-      %shift56 = lshr i64 %r55, 1
-      %mask56 = select i1 %set56, i64 %poly, i64 0
-      %r56 = xor i64 %shift56, %mask56
-      %bit57 = and i64 %r56, 1
-      %set57 = icmp ne i64 %bit57, 0
-      %shift57 = lshr i64 %r56, 1
-      %mask57 = select i1 %set57, i64 %poly, i64 0
-      %r57 = xor i64 %shift57, %mask57
-      %bit58 = and i64 %r57, 1
-      %set58 = icmp ne i64 %bit58, 0
-      %shift58 = lshr i64 %r57, 1
-      %mask58 = select i1 %set58, i64 %poly, i64 0
-      %r58 = xor i64 %shift58, %mask58
-      %bit59 = and i64 %r58, 1
-      %set59 = icmp ne i64 %bit59, 0
-      %shift59 = lshr i64 %r58, 1
-      %mask59 = select i1 %set59, i64 %poly, i64 0
-      %r59 = xor i64 %shift59, %mask59
-      %bit60 = and i64 %r59, 1
-      %set60 = icmp ne i64 %bit60, 0
-      %shift60 = lshr i64 %r59, 1
-      %mask60 = select i1 %set60, i64 %poly, i64 0
-      %r60 = xor i64 %shift60, %mask60
-      %bit61 = and i64 %r60, 1
-      %set61 = icmp ne i64 %bit61, 0
-      %shift61 = lshr i64 %r60, 1
-      %mask61 = select i1 %set61, i64 %poly, i64 0
-      %r61 = xor i64 %shift61, %mask61
-      %bit62 = and i64 %r61, 1
-      %set62 = icmp ne i64 %bit62, 0
-      %shift62 = lshr i64 %r61, 1
-      %mask62 = select i1 %set62, i64 %poly, i64 0
-      %r62 = xor i64 %shift62, %mask62
-      %bit63 = and i64 %r62, 1
-      %set63 = icmp ne i64 %bit63, 0
-      %shift63 = lshr i64 %r62, 1
-      %mask63 = select i1 %set63, i64 %poly, i64 0
-      %r63 = xor i64 %shift63, %mask63
-      %out = trunc i64 %r63 to i32
-      ret i32 %out
-    }
+  -- | Static IEEE CRC-32 slice 0 table (128-entry GF(2) half-table).
+  ieee-t0 :: U8 -> U32
+  ieee-t0 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0x77073096; 2 -> 0xEE0E612C; 3 -> 0x990951BA; 4 -> 0x076DC419; 5 -> 0x706AF48F; 6 -> 0xE963A535; 7 -> 0x9E6495A3
+        8 -> 0x0EDB8832; 9 -> 0x79DCB8A4; 10 -> 0xE0D5E91E; 11 -> 0x97D2D988; 12 -> 0x09B64C2B; 13 -> 0x7EB17CBD; 14 -> 0xE7B82D07; 15 -> 0x90BF1D91
+        16 -> 0x1DB71064; 17 -> 0x6AB020F2; 18 -> 0xF3B97148; 19 -> 0x84BE41DE; 20 -> 0x1ADAD47D; 21 -> 0x6DDDE4EB; 22 -> 0xF4D4B551; 23 -> 0x83D385C7
+        24 -> 0x136C9856; 25 -> 0x646BA8C0; 26 -> 0xFD62F97A; 27 -> 0x8A65C9EC; 28 -> 0x14015C4F; 29 -> 0x63066CD9; 30 -> 0xFA0F3D63; 31 -> 0x8D080DF5
+        32 -> 0x3B6E20C8; 33 -> 0x4C69105E; 34 -> 0xD56041E4; 35 -> 0xA2677172; 36 -> 0x3C03E4D1; 37 -> 0x4B04D447; 38 -> 0xD20D85FD; 39 -> 0xA50AB56B
+        40 -> 0x35B5A8FA; 41 -> 0x42B2986C; 42 -> 0xDBBBC9D6; 43 -> 0xACBCF940; 44 -> 0x32D86CE3; 45 -> 0x45DF5C75; 46 -> 0xDCD60DCF; 47 -> 0xABD13D59
+        48 -> 0x26D930AC; 49 -> 0x51DE003A; 50 -> 0xC8D75180; 51 -> 0xBFD06116; 52 -> 0x21B4F4B5; 53 -> 0x56B3C423; 54 -> 0xCFBA9599; 55 -> 0xB8BDA50F
+        56 -> 0x2802B89E; 57 -> 0x5F058808; 58 -> 0xC60CD9B2; 59 -> 0xB10BE924; 60 -> 0x2F6F7C87; 61 -> 0x58684C11; 62 -> 0xC1611DAB; 63 -> 0xB6662D3D
+        64 -> 0x76DC4190; 65 -> 0x01DB7106; 66 -> 0x98D220BC; 67 -> 0xEFD5102A; 68 -> 0x71B18589; 69 -> 0x06B6B51F; 70 -> 0x9FBFE4A5; 71 -> 0xE8B8D433
+        72 -> 0x7807C9A2; 73 -> 0x0F00F934; 74 -> 0x9609A88E; 75 -> 0xE10E9818; 76 -> 0x7F6A0DBB; 77 -> 0x086D3D2D; 78 -> 0x91646C97; 79 -> 0xE6635C01
+        80 -> 0x6B6B51F4; 81 -> 0x1C6C6162; 82 -> 0x856530D8; 83 -> 0xF262004E; 84 -> 0x6C0695ED; 85 -> 0x1B01A57B; 86 -> 0x8208F4C1; 87 -> 0xF50FC457
+        88 -> 0x65B0D9C6; 89 -> 0x12B7E950; 90 -> 0x8BBEB8EA; 91 -> 0xFCB9887C; 92 -> 0x62DD1DDF; 93 -> 0x15DA2D49; 94 -> 0x8CD37CF3; 95 -> 0xFBD44C65
+        96 -> 0x4DB26158; 97 -> 0x3AB551CE; 98 -> 0xA3BC0074; 99 -> 0xD4BB30E2; 100 -> 0x4ADFA541; 101 -> 0x3DD895D7; 102 -> 0xA4D1C46D; 103 -> 0xD3D6F4FB
+        104 -> 0x4369E96A; 105 -> 0x346ED9FC; 106 -> 0xAD678846; 107 -> 0xDA60B8D0; 108 -> 0x44042D73; 109 -> 0x33031DE5; 110 -> 0xAA0A4C5F; 111 -> 0xDD0D7CC9
+        112 -> 0x5005713C; 113 -> 0x270241AA; 114 -> 0xBE0B1010; 115 -> 0xC90C2086; 116 -> 0x5768B525; 117 -> 0x206F85B3; 118 -> 0xB966D409; 119 -> 0xCE61E49F
+        120 -> 0x5EDEF90E; 121 -> 0x29D9C998; 122 -> 0xB0D09822; 123 -> 0xC7D7A8B4; 124 -> 0x59B33D17; 125 -> 0x2EB40D81; 126 -> 0xB7BD5C3B; _ -> 0xC0BA6CAD
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0xEDB88320 else base
 
-  -- | Detect the x86 CRC instruction before entering its block loop. Other
-  -- architectures use the portable kernel unless their profile explicitly
-  -- guarantees ArmCrc32. CPUID is feature discovery, not an unconditional ISA
-  -- assumption; the result is independent of the bytes being checksummed.
-  prim crc32c-available :: U32 -> U32 where
-    unsafe llvm {
-      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
-      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
-      %bit = and i32 %ecx, 1048576
-      ret i32 %bit
-    } when arch x86_64
-    llvm {
-      ret i32 1
-    } when arch aarch64 when Available ArmCrc32
-    llvm {
-      ret i32 0
-    }
+  -- | Static IEEE CRC-32 slice 1 table (128-entry GF(2) half-table).
+  ieee-t1 :: U8 -> U32
+  ieee-t1 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0x191B3141; 2 -> 0x32366282; 3 -> 0x2B2D53C3; 4 -> 0x646CC504; 5 -> 0x7D77F445; 6 -> 0x565AA786; 7 -> 0x4F4196C7
+        8 -> 0xC8D98A08; 9 -> 0xD1C2BB49; 10 -> 0xFAEFE88A; 11 -> 0xE3F4D9CB; 12 -> 0xACB54F0C; 13 -> 0xB5AE7E4D; 14 -> 0x9E832D8E; 15 -> 0x87981CCF
+        16 -> 0x4AC21251; 17 -> 0x53D92310; 18 -> 0x78F470D3; 19 -> 0x61EF4192; 20 -> 0x2EAED755; 21 -> 0x37B5E614; 22 -> 0x1C98B5D7; 23 -> 0x05838496
+        24 -> 0x821B9859; 25 -> 0x9B00A918; 26 -> 0xB02DFADB; 27 -> 0xA936CB9A; 28 -> 0xE6775D5D; 29 -> 0xFF6C6C1C; 30 -> 0xD4413FDF; 31 -> 0xCD5A0E9E
+        32 -> 0x958424A2; 33 -> 0x8C9F15E3; 34 -> 0xA7B24620; 35 -> 0xBEA97761; 36 -> 0xF1E8E1A6; 37 -> 0xE8F3D0E7; 38 -> 0xC3DE8324; 39 -> 0xDAC5B265
+        40 -> 0x5D5DAEAA; 41 -> 0x44469FEB; 42 -> 0x6F6BCC28; 43 -> 0x7670FD69; 44 -> 0x39316BAE; 45 -> 0x202A5AEF; 46 -> 0x0B07092C; 47 -> 0x121C386D
+        48 -> 0xDF4636F3; 49 -> 0xC65D07B2; 50 -> 0xED705471; 51 -> 0xF46B6530; 52 -> 0xBB2AF3F7; 53 -> 0xA231C2B6; 54 -> 0x891C9175; 55 -> 0x9007A034
+        56 -> 0x179FBCFB; 57 -> 0x0E848DBA; 58 -> 0x25A9DE79; 59 -> 0x3CB2EF38; 60 -> 0x73F379FF; 61 -> 0x6AE848BE; 62 -> 0x41C51B7D; 63 -> 0x58DE2A3C
+        64 -> 0xF0794F05; 65 -> 0xE9627E44; 66 -> 0xC24F2D87; 67 -> 0xDB541CC6; 68 -> 0x94158A01; 69 -> 0x8D0EBB40; 70 -> 0xA623E883; 71 -> 0xBF38D9C2
+        72 -> 0x38A0C50D; 73 -> 0x21BBF44C; 74 -> 0x0A96A78F; 75 -> 0x138D96CE; 76 -> 0x5CCC0009; 77 -> 0x45D73148; 78 -> 0x6EFA628B; 79 -> 0x77E153CA
+        80 -> 0xBABB5D54; 81 -> 0xA3A06C15; 82 -> 0x888D3FD6; 83 -> 0x91960E97; 84 -> 0xDED79850; 85 -> 0xC7CCA911; 86 -> 0xECE1FAD2; 87 -> 0xF5FACB93
+        88 -> 0x7262D75C; 89 -> 0x6B79E61D; 90 -> 0x4054B5DE; 91 -> 0x594F849F; 92 -> 0x160E1258; 93 -> 0x0F152319; 94 -> 0x243870DA; 95 -> 0x3D23419B
+        96 -> 0x65FD6BA7; 97 -> 0x7CE65AE6; 98 -> 0x57CB0925; 99 -> 0x4ED03864; 100 -> 0x0191AEA3; 101 -> 0x188A9FE2; 102 -> 0x33A7CC21; 103 -> 0x2ABCFD60
+        104 -> 0xAD24E1AF; 105 -> 0xB43FD0EE; 106 -> 0x9F12832D; 107 -> 0x8609B26C; 108 -> 0xC94824AB; 109 -> 0xD05315EA; 110 -> 0xFB7E4629; 111 -> 0xE2657768
+        112 -> 0x2F3F79F6; 113 -> 0x362448B7; 114 -> 0x1D091B74; 115 -> 0x04122A35; 116 -> 0x4B53BCF2; 117 -> 0x52488DB3; 118 -> 0x7965DE70; 119 -> 0x607EEF31
+        120 -> 0xE7E6F3FE; 121 -> 0xFEFDC2BF; 122 -> 0xD5D0917C; 123 -> 0xCCCBA03D; 124 -> 0x838A36FA; 125 -> 0x9A9107BB; 126 -> 0xB1BC5478; _ -> 0xA8A76539
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0x3B83984B else base
 
-  -- | Advance CRC-32C by eight bytes with an ISA instruction only after its
-  -- availability check. The baseline body preserves semantics on other targets.
-  prim crc32c-word :: U32 -> U64 -> U32 where
-    unsafe llvm {
-      %seed = zext i32 %0 to i64
-      %crc = call i64 asm "crc32q $2, $0", "=r,0,r,~{cc}"(i64 %seed, i64 %1)
-      %out = trunc i64 %crc to i32
-      ret i32 %out
-    } when arch x86_64
-    unsafe llvm {
-      %crc = call i32 asm ".arch_extension crc\0Acrc32cx ${0:w}, ${1:w}, $2", "=r,r,r"(i32 %0, i64 %1)
-      ret i32 %crc
-    } when arch aarch64 when Available ArmCrc32
-    llvm {
-      %seed = zext i32 %0 to i64
-      %start = xor i64 %seed, %1
-      %bit0 = and i64 %start, 1
-      %set0 = icmp ne i64 %bit0, 0
-      %shift0 = lshr i64 %start, 1
-      %mask0 = select i1 %set0, i64 2197175160, i64 0
-      %r0 = xor i64 %shift0, %mask0
-      %bit1 = and i64 %r0, 1
-      %set1 = icmp ne i64 %bit1, 0
-      %shift1 = lshr i64 %r0, 1
-      %mask1 = select i1 %set1, i64 2197175160, i64 0
-      %r1 = xor i64 %shift1, %mask1
-      %bit2 = and i64 %r1, 1
-      %set2 = icmp ne i64 %bit2, 0
-      %shift2 = lshr i64 %r1, 1
-      %mask2 = select i1 %set2, i64 2197175160, i64 0
-      %r2 = xor i64 %shift2, %mask2
-      %bit3 = and i64 %r2, 1
-      %set3 = icmp ne i64 %bit3, 0
-      %shift3 = lshr i64 %r2, 1
-      %mask3 = select i1 %set3, i64 2197175160, i64 0
-      %r3 = xor i64 %shift3, %mask3
-      %bit4 = and i64 %r3, 1
-      %set4 = icmp ne i64 %bit4, 0
-      %shift4 = lshr i64 %r3, 1
-      %mask4 = select i1 %set4, i64 2197175160, i64 0
-      %r4 = xor i64 %shift4, %mask4
-      %bit5 = and i64 %r4, 1
-      %set5 = icmp ne i64 %bit5, 0
-      %shift5 = lshr i64 %r4, 1
-      %mask5 = select i1 %set5, i64 2197175160, i64 0
-      %r5 = xor i64 %shift5, %mask5
-      %bit6 = and i64 %r5, 1
-      %set6 = icmp ne i64 %bit6, 0
-      %shift6 = lshr i64 %r5, 1
-      %mask6 = select i1 %set6, i64 2197175160, i64 0
-      %r6 = xor i64 %shift6, %mask6
-      %bit7 = and i64 %r6, 1
-      %set7 = icmp ne i64 %bit7, 0
-      %shift7 = lshr i64 %r6, 1
-      %mask7 = select i1 %set7, i64 2197175160, i64 0
-      %r7 = xor i64 %shift7, %mask7
-      %bit8 = and i64 %r7, 1
-      %set8 = icmp ne i64 %bit8, 0
-      %shift8 = lshr i64 %r7, 1
-      %mask8 = select i1 %set8, i64 2197175160, i64 0
-      %r8 = xor i64 %shift8, %mask8
-      %bit9 = and i64 %r8, 1
-      %set9 = icmp ne i64 %bit9, 0
-      %shift9 = lshr i64 %r8, 1
-      %mask9 = select i1 %set9, i64 2197175160, i64 0
-      %r9 = xor i64 %shift9, %mask9
-      %bit10 = and i64 %r9, 1
-      %set10 = icmp ne i64 %bit10, 0
-      %shift10 = lshr i64 %r9, 1
-      %mask10 = select i1 %set10, i64 2197175160, i64 0
-      %r10 = xor i64 %shift10, %mask10
-      %bit11 = and i64 %r10, 1
-      %set11 = icmp ne i64 %bit11, 0
-      %shift11 = lshr i64 %r10, 1
-      %mask11 = select i1 %set11, i64 2197175160, i64 0
-      %r11 = xor i64 %shift11, %mask11
-      %bit12 = and i64 %r11, 1
-      %set12 = icmp ne i64 %bit12, 0
-      %shift12 = lshr i64 %r11, 1
-      %mask12 = select i1 %set12, i64 2197175160, i64 0
-      %r12 = xor i64 %shift12, %mask12
-      %bit13 = and i64 %r12, 1
-      %set13 = icmp ne i64 %bit13, 0
-      %shift13 = lshr i64 %r12, 1
-      %mask13 = select i1 %set13, i64 2197175160, i64 0
-      %r13 = xor i64 %shift13, %mask13
-      %bit14 = and i64 %r13, 1
-      %set14 = icmp ne i64 %bit14, 0
-      %shift14 = lshr i64 %r13, 1
-      %mask14 = select i1 %set14, i64 2197175160, i64 0
-      %r14 = xor i64 %shift14, %mask14
-      %bit15 = and i64 %r14, 1
-      %set15 = icmp ne i64 %bit15, 0
-      %shift15 = lshr i64 %r14, 1
-      %mask15 = select i1 %set15, i64 2197175160, i64 0
-      %r15 = xor i64 %shift15, %mask15
-      %bit16 = and i64 %r15, 1
-      %set16 = icmp ne i64 %bit16, 0
-      %shift16 = lshr i64 %r15, 1
-      %mask16 = select i1 %set16, i64 2197175160, i64 0
-      %r16 = xor i64 %shift16, %mask16
-      %bit17 = and i64 %r16, 1
-      %set17 = icmp ne i64 %bit17, 0
-      %shift17 = lshr i64 %r16, 1
-      %mask17 = select i1 %set17, i64 2197175160, i64 0
-      %r17 = xor i64 %shift17, %mask17
-      %bit18 = and i64 %r17, 1
-      %set18 = icmp ne i64 %bit18, 0
-      %shift18 = lshr i64 %r17, 1
-      %mask18 = select i1 %set18, i64 2197175160, i64 0
-      %r18 = xor i64 %shift18, %mask18
-      %bit19 = and i64 %r18, 1
-      %set19 = icmp ne i64 %bit19, 0
-      %shift19 = lshr i64 %r18, 1
-      %mask19 = select i1 %set19, i64 2197175160, i64 0
-      %r19 = xor i64 %shift19, %mask19
-      %bit20 = and i64 %r19, 1
-      %set20 = icmp ne i64 %bit20, 0
-      %shift20 = lshr i64 %r19, 1
-      %mask20 = select i1 %set20, i64 2197175160, i64 0
-      %r20 = xor i64 %shift20, %mask20
-      %bit21 = and i64 %r20, 1
-      %set21 = icmp ne i64 %bit21, 0
-      %shift21 = lshr i64 %r20, 1
-      %mask21 = select i1 %set21, i64 2197175160, i64 0
-      %r21 = xor i64 %shift21, %mask21
-      %bit22 = and i64 %r21, 1
-      %set22 = icmp ne i64 %bit22, 0
-      %shift22 = lshr i64 %r21, 1
-      %mask22 = select i1 %set22, i64 2197175160, i64 0
-      %r22 = xor i64 %shift22, %mask22
-      %bit23 = and i64 %r22, 1
-      %set23 = icmp ne i64 %bit23, 0
-      %shift23 = lshr i64 %r22, 1
-      %mask23 = select i1 %set23, i64 2197175160, i64 0
-      %r23 = xor i64 %shift23, %mask23
-      %bit24 = and i64 %r23, 1
-      %set24 = icmp ne i64 %bit24, 0
-      %shift24 = lshr i64 %r23, 1
-      %mask24 = select i1 %set24, i64 2197175160, i64 0
-      %r24 = xor i64 %shift24, %mask24
-      %bit25 = and i64 %r24, 1
-      %set25 = icmp ne i64 %bit25, 0
-      %shift25 = lshr i64 %r24, 1
-      %mask25 = select i1 %set25, i64 2197175160, i64 0
-      %r25 = xor i64 %shift25, %mask25
-      %bit26 = and i64 %r25, 1
-      %set26 = icmp ne i64 %bit26, 0
-      %shift26 = lshr i64 %r25, 1
-      %mask26 = select i1 %set26, i64 2197175160, i64 0
-      %r26 = xor i64 %shift26, %mask26
-      %bit27 = and i64 %r26, 1
-      %set27 = icmp ne i64 %bit27, 0
-      %shift27 = lshr i64 %r26, 1
-      %mask27 = select i1 %set27, i64 2197175160, i64 0
-      %r27 = xor i64 %shift27, %mask27
-      %bit28 = and i64 %r27, 1
-      %set28 = icmp ne i64 %bit28, 0
-      %shift28 = lshr i64 %r27, 1
-      %mask28 = select i1 %set28, i64 2197175160, i64 0
-      %r28 = xor i64 %shift28, %mask28
-      %bit29 = and i64 %r28, 1
-      %set29 = icmp ne i64 %bit29, 0
-      %shift29 = lshr i64 %r28, 1
-      %mask29 = select i1 %set29, i64 2197175160, i64 0
-      %r29 = xor i64 %shift29, %mask29
-      %bit30 = and i64 %r29, 1
-      %set30 = icmp ne i64 %bit30, 0
-      %shift30 = lshr i64 %r29, 1
-      %mask30 = select i1 %set30, i64 2197175160, i64 0
-      %r30 = xor i64 %shift30, %mask30
-      %bit31 = and i64 %r30, 1
-      %set31 = icmp ne i64 %bit31, 0
-      %shift31 = lshr i64 %r30, 1
-      %mask31 = select i1 %set31, i64 2197175160, i64 0
-      %r31 = xor i64 %shift31, %mask31
-      %bit32 = and i64 %r31, 1
-      %set32 = icmp ne i64 %bit32, 0
-      %shift32 = lshr i64 %r31, 1
-      %mask32 = select i1 %set32, i64 2197175160, i64 0
-      %r32 = xor i64 %shift32, %mask32
-      %bit33 = and i64 %r32, 1
-      %set33 = icmp ne i64 %bit33, 0
-      %shift33 = lshr i64 %r32, 1
-      %mask33 = select i1 %set33, i64 2197175160, i64 0
-      %r33 = xor i64 %shift33, %mask33
-      %bit34 = and i64 %r33, 1
-      %set34 = icmp ne i64 %bit34, 0
-      %shift34 = lshr i64 %r33, 1
-      %mask34 = select i1 %set34, i64 2197175160, i64 0
-      %r34 = xor i64 %shift34, %mask34
-      %bit35 = and i64 %r34, 1
-      %set35 = icmp ne i64 %bit35, 0
-      %shift35 = lshr i64 %r34, 1
-      %mask35 = select i1 %set35, i64 2197175160, i64 0
-      %r35 = xor i64 %shift35, %mask35
-      %bit36 = and i64 %r35, 1
-      %set36 = icmp ne i64 %bit36, 0
-      %shift36 = lshr i64 %r35, 1
-      %mask36 = select i1 %set36, i64 2197175160, i64 0
-      %r36 = xor i64 %shift36, %mask36
-      %bit37 = and i64 %r36, 1
-      %set37 = icmp ne i64 %bit37, 0
-      %shift37 = lshr i64 %r36, 1
-      %mask37 = select i1 %set37, i64 2197175160, i64 0
-      %r37 = xor i64 %shift37, %mask37
-      %bit38 = and i64 %r37, 1
-      %set38 = icmp ne i64 %bit38, 0
-      %shift38 = lshr i64 %r37, 1
-      %mask38 = select i1 %set38, i64 2197175160, i64 0
-      %r38 = xor i64 %shift38, %mask38
-      %bit39 = and i64 %r38, 1
-      %set39 = icmp ne i64 %bit39, 0
-      %shift39 = lshr i64 %r38, 1
-      %mask39 = select i1 %set39, i64 2197175160, i64 0
-      %r39 = xor i64 %shift39, %mask39
-      %bit40 = and i64 %r39, 1
-      %set40 = icmp ne i64 %bit40, 0
-      %shift40 = lshr i64 %r39, 1
-      %mask40 = select i1 %set40, i64 2197175160, i64 0
-      %r40 = xor i64 %shift40, %mask40
-      %bit41 = and i64 %r40, 1
-      %set41 = icmp ne i64 %bit41, 0
-      %shift41 = lshr i64 %r40, 1
-      %mask41 = select i1 %set41, i64 2197175160, i64 0
-      %r41 = xor i64 %shift41, %mask41
-      %bit42 = and i64 %r41, 1
-      %set42 = icmp ne i64 %bit42, 0
-      %shift42 = lshr i64 %r41, 1
-      %mask42 = select i1 %set42, i64 2197175160, i64 0
-      %r42 = xor i64 %shift42, %mask42
-      %bit43 = and i64 %r42, 1
-      %set43 = icmp ne i64 %bit43, 0
-      %shift43 = lshr i64 %r42, 1
-      %mask43 = select i1 %set43, i64 2197175160, i64 0
-      %r43 = xor i64 %shift43, %mask43
-      %bit44 = and i64 %r43, 1
-      %set44 = icmp ne i64 %bit44, 0
-      %shift44 = lshr i64 %r43, 1
-      %mask44 = select i1 %set44, i64 2197175160, i64 0
-      %r44 = xor i64 %shift44, %mask44
-      %bit45 = and i64 %r44, 1
-      %set45 = icmp ne i64 %bit45, 0
-      %shift45 = lshr i64 %r44, 1
-      %mask45 = select i1 %set45, i64 2197175160, i64 0
-      %r45 = xor i64 %shift45, %mask45
-      %bit46 = and i64 %r45, 1
-      %set46 = icmp ne i64 %bit46, 0
-      %shift46 = lshr i64 %r45, 1
-      %mask46 = select i1 %set46, i64 2197175160, i64 0
-      %r46 = xor i64 %shift46, %mask46
-      %bit47 = and i64 %r46, 1
-      %set47 = icmp ne i64 %bit47, 0
-      %shift47 = lshr i64 %r46, 1
-      %mask47 = select i1 %set47, i64 2197175160, i64 0
-      %r47 = xor i64 %shift47, %mask47
-      %bit48 = and i64 %r47, 1
-      %set48 = icmp ne i64 %bit48, 0
-      %shift48 = lshr i64 %r47, 1
-      %mask48 = select i1 %set48, i64 2197175160, i64 0
-      %r48 = xor i64 %shift48, %mask48
-      %bit49 = and i64 %r48, 1
-      %set49 = icmp ne i64 %bit49, 0
-      %shift49 = lshr i64 %r48, 1
-      %mask49 = select i1 %set49, i64 2197175160, i64 0
-      %r49 = xor i64 %shift49, %mask49
-      %bit50 = and i64 %r49, 1
-      %set50 = icmp ne i64 %bit50, 0
-      %shift50 = lshr i64 %r49, 1
-      %mask50 = select i1 %set50, i64 2197175160, i64 0
-      %r50 = xor i64 %shift50, %mask50
-      %bit51 = and i64 %r50, 1
-      %set51 = icmp ne i64 %bit51, 0
-      %shift51 = lshr i64 %r50, 1
-      %mask51 = select i1 %set51, i64 2197175160, i64 0
-      %r51 = xor i64 %shift51, %mask51
-      %bit52 = and i64 %r51, 1
-      %set52 = icmp ne i64 %bit52, 0
-      %shift52 = lshr i64 %r51, 1
-      %mask52 = select i1 %set52, i64 2197175160, i64 0
-      %r52 = xor i64 %shift52, %mask52
-      %bit53 = and i64 %r52, 1
-      %set53 = icmp ne i64 %bit53, 0
-      %shift53 = lshr i64 %r52, 1
-      %mask53 = select i1 %set53, i64 2197175160, i64 0
-      %r53 = xor i64 %shift53, %mask53
-      %bit54 = and i64 %r53, 1
-      %set54 = icmp ne i64 %bit54, 0
-      %shift54 = lshr i64 %r53, 1
-      %mask54 = select i1 %set54, i64 2197175160, i64 0
-      %r54 = xor i64 %shift54, %mask54
-      %bit55 = and i64 %r54, 1
-      %set55 = icmp ne i64 %bit55, 0
-      %shift55 = lshr i64 %r54, 1
-      %mask55 = select i1 %set55, i64 2197175160, i64 0
-      %r55 = xor i64 %shift55, %mask55
-      %bit56 = and i64 %r55, 1
-      %set56 = icmp ne i64 %bit56, 0
-      %shift56 = lshr i64 %r55, 1
-      %mask56 = select i1 %set56, i64 2197175160, i64 0
-      %r56 = xor i64 %shift56, %mask56
-      %bit57 = and i64 %r56, 1
-      %set57 = icmp ne i64 %bit57, 0
-      %shift57 = lshr i64 %r56, 1
-      %mask57 = select i1 %set57, i64 2197175160, i64 0
-      %r57 = xor i64 %shift57, %mask57
-      %bit58 = and i64 %r57, 1
-      %set58 = icmp ne i64 %bit58, 0
-      %shift58 = lshr i64 %r57, 1
-      %mask58 = select i1 %set58, i64 2197175160, i64 0
-      %r58 = xor i64 %shift58, %mask58
-      %bit59 = and i64 %r58, 1
-      %set59 = icmp ne i64 %bit59, 0
-      %shift59 = lshr i64 %r58, 1
-      %mask59 = select i1 %set59, i64 2197175160, i64 0
-      %r59 = xor i64 %shift59, %mask59
-      %bit60 = and i64 %r59, 1
-      %set60 = icmp ne i64 %bit60, 0
-      %shift60 = lshr i64 %r59, 1
-      %mask60 = select i1 %set60, i64 2197175160, i64 0
-      %r60 = xor i64 %shift60, %mask60
-      %bit61 = and i64 %r60, 1
-      %set61 = icmp ne i64 %bit61, 0
-      %shift61 = lshr i64 %r60, 1
-      %mask61 = select i1 %set61, i64 2197175160, i64 0
-      %r61 = xor i64 %shift61, %mask61
-      %bit62 = and i64 %r61, 1
-      %set62 = icmp ne i64 %bit62, 0
-      %shift62 = lshr i64 %r61, 1
-      %mask62 = select i1 %set62, i64 2197175160, i64 0
-      %r62 = xor i64 %shift62, %mask62
-      %bit63 = and i64 %r62, 1
-      %set63 = icmp ne i64 %bit63, 0
-      %shift63 = lshr i64 %r62, 1
-      %mask63 = select i1 %set63, i64 2197175160, i64 0
-      %r63 = xor i64 %shift63, %mask63
-      %out = trunc i64 %r63 to i32
-      ret i32 %out
-    }
+  -- | Static IEEE CRC-32 slice 2 table (128-entry GF(2) half-table).
+  ieee-t2 :: U8 -> U32
+  ieee-t2 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0x01C26A37; 2 -> 0x0384D46E; 3 -> 0x0246BE59; 4 -> 0x0709A8DC; 5 -> 0x06CBC2EB; 6 -> 0x048D7CB2; 7 -> 0x054F1685
+        8 -> 0x0E1351B8; 9 -> 0x0FD13B8F; 10 -> 0x0D9785D6; 11 -> 0x0C55EFE1; 12 -> 0x091AF964; 13 -> 0x08D89353; 14 -> 0x0A9E2D0A; 15 -> 0x0B5C473D
+        16 -> 0x1C26A370; 17 -> 0x1DE4C947; 18 -> 0x1FA2771E; 19 -> 0x1E601D29; 20 -> 0x1B2F0BAC; 21 -> 0x1AED619B; 22 -> 0x18ABDFC2; 23 -> 0x1969B5F5
+        24 -> 0x1235F2C8; 25 -> 0x13F798FF; 26 -> 0x11B126A6; 27 -> 0x10734C91; 28 -> 0x153C5A14; 29 -> 0x14FE3023; 30 -> 0x16B88E7A; 31 -> 0x177AE44D
+        32 -> 0x384D46E0; 33 -> 0x398F2CD7; 34 -> 0x3BC9928E; 35 -> 0x3A0BF8B9; 36 -> 0x3F44EE3C; 37 -> 0x3E86840B; 38 -> 0x3CC03A52; 39 -> 0x3D025065
+        40 -> 0x365E1758; 41 -> 0x379C7D6F; 42 -> 0x35DAC336; 43 -> 0x3418A901; 44 -> 0x3157BF84; 45 -> 0x3095D5B3; 46 -> 0x32D36BEA; 47 -> 0x331101DD
+        48 -> 0x246BE590; 49 -> 0x25A98FA7; 50 -> 0x27EF31FE; 51 -> 0x262D5BC9; 52 -> 0x23624D4C; 53 -> 0x22A0277B; 54 -> 0x20E69922; 55 -> 0x2124F315
+        56 -> 0x2A78B428; 57 -> 0x2BBADE1F; 58 -> 0x29FC6046; 59 -> 0x283E0A71; 60 -> 0x2D711CF4; 61 -> 0x2CB376C3; 62 -> 0x2EF5C89A; 63 -> 0x2F37A2AD
+        64 -> 0x709A8DC0; 65 -> 0x7158E7F7; 66 -> 0x731E59AE; 67 -> 0x72DC3399; 68 -> 0x7793251C; 69 -> 0x76514F2B; 70 -> 0x7417F172; 71 -> 0x75D59B45
+        72 -> 0x7E89DC78; 73 -> 0x7F4BB64F; 74 -> 0x7D0D0816; 75 -> 0x7CCF6221; 76 -> 0x798074A4; 77 -> 0x78421E93; 78 -> 0x7A04A0CA; 79 -> 0x7BC6CAFD
+        80 -> 0x6CBC2EB0; 81 -> 0x6D7E4487; 82 -> 0x6F38FADE; 83 -> 0x6EFA90E9; 84 -> 0x6BB5866C; 85 -> 0x6A77EC5B; 86 -> 0x68315202; 87 -> 0x69F33835
+        88 -> 0x62AF7F08; 89 -> 0x636D153F; 90 -> 0x612BAB66; 91 -> 0x60E9C151; 92 -> 0x65A6D7D4; 93 -> 0x6464BDE3; 94 -> 0x662203BA; 95 -> 0x67E0698D
+        96 -> 0x48D7CB20; 97 -> 0x4915A117; 98 -> 0x4B531F4E; 99 -> 0x4A917579; 100 -> 0x4FDE63FC; 101 -> 0x4E1C09CB; 102 -> 0x4C5AB792; 103 -> 0x4D98DDA5
+        104 -> 0x46C49A98; 105 -> 0x4706F0AF; 106 -> 0x45404EF6; 107 -> 0x448224C1; 108 -> 0x41CD3244; 109 -> 0x400F5873; 110 -> 0x4249E62A; 111 -> 0x438B8C1D
+        112 -> 0x54F16850; 113 -> 0x55330267; 114 -> 0x5775BC3E; 115 -> 0x56B7D609; 116 -> 0x53F8C08C; 117 -> 0x523AAABB; 118 -> 0x507C14E2; 119 -> 0x51BE7ED5
+        120 -> 0x5AE239E8; 121 -> 0x5B2053DF; 122 -> 0x5966ED86; 123 -> 0x58A487B1; 124 -> 0x5DEB9134; 125 -> 0x5C29FB03; 126 -> 0x5E6F455A; _ -> 0x5FAD2F6D
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0xE1351B80 else base
 
-  -- | Consume hardware CRC-32C blocks, then use the same scalar tail as the
-  -- portable path. The buffer remains owned by Cinch throughout every read.
-  crc32c-from :: Bytes -> Nat -> U32 -> U32
-  crc32c-from b i acc =
-    if i + 8 <= bytes-len b then crc32c-from b (i + 8) (crc32c-word acc (bytes-read-le64 b i))
-    else crc32-from crc32-castagnoli b i acc
+  -- | Static IEEE CRC-32 slice 3 table (128-entry GF(2) half-table).
+  ieee-t3 :: U8 -> U32
+  ieee-t3 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0xB8BC6765; 2 -> 0xAA09C88B; 3 -> 0x12B5AFEE; 4 -> 0x8F629757; 5 -> 0x37DEF032; 6 -> 0x256B5FDC; 7 -> 0x9DD738B9
+        8 -> 0xC5B428EF; 9 -> 0x7D084F8A; 10 -> 0x6FBDE064; 11 -> 0xD7018701; 12 -> 0x4AD6BFB8; 13 -> 0xF26AD8DD; 14 -> 0xE0DF7733; 15 -> 0x58631056
+        16 -> 0x5019579F; 17 -> 0xE8A530FA; 18 -> 0xFA109F14; 19 -> 0x42ACF871; 20 -> 0xDF7BC0C8; 21 -> 0x67C7A7AD; 22 -> 0x75720843; 23 -> 0xCDCE6F26
+        24 -> 0x95AD7F70; 25 -> 0x2D111815; 26 -> 0x3FA4B7FB; 27 -> 0x8718D09E; 28 -> 0x1ACFE827; 29 -> 0xA2738F42; 30 -> 0xB0C620AC; 31 -> 0x087A47C9
+        32 -> 0xA032AF3E; 33 -> 0x188EC85B; 34 -> 0x0A3B67B5; 35 -> 0xB28700D0; 36 -> 0x2F503869; 37 -> 0x97EC5F0C; 38 -> 0x8559F0E2; 39 -> 0x3DE59787
+        40 -> 0x658687D1; 41 -> 0xDD3AE0B4; 42 -> 0xCF8F4F5A; 43 -> 0x7733283F; 44 -> 0xEAE41086; 45 -> 0x525877E3; 46 -> 0x40EDD80D; 47 -> 0xF851BF68
+        48 -> 0xF02BF8A1; 49 -> 0x48979FC4; 50 -> 0x5A22302A; 51 -> 0xE29E574F; 52 -> 0x7F496FF6; 53 -> 0xC7F50893; 54 -> 0xD540A77D; 55 -> 0x6DFCC018
+        56 -> 0x359FD04E; 57 -> 0x8D23B72B; 58 -> 0x9F9618C5; 59 -> 0x272A7FA0; 60 -> 0xBAFD4719; 61 -> 0x0241207C; 62 -> 0x10F48F92; 63 -> 0xA848E8F7
+        64 -> 0x9B14583D; 65 -> 0x23A83F58; 66 -> 0x311D90B6; 67 -> 0x89A1F7D3; 68 -> 0x1476CF6A; 69 -> 0xACCAA80F; 70 -> 0xBE7F07E1; 71 -> 0x06C36084
+        72 -> 0x5EA070D2; 73 -> 0xE61C17B7; 74 -> 0xF4A9B859; 75 -> 0x4C15DF3C; 76 -> 0xD1C2E785; 77 -> 0x697E80E0; 78 -> 0x7BCB2F0E; 79 -> 0xC377486B
+        80 -> 0xCB0D0FA2; 81 -> 0x73B168C7; 82 -> 0x6104C729; 83 -> 0xD9B8A04C; 84 -> 0x446F98F5; 85 -> 0xFCD3FF90; 86 -> 0xEE66507E; 87 -> 0x56DA371B
+        88 -> 0x0EB9274D; 89 -> 0xB6054028; 90 -> 0xA4B0EFC6; 91 -> 0x1C0C88A3; 92 -> 0x81DBB01A; 93 -> 0x3967D77F; 94 -> 0x2BD27891; 95 -> 0x936E1FF4
+        96 -> 0x3B26F703; 97 -> 0x839A9066; 98 -> 0x912F3F88; 99 -> 0x299358ED; 100 -> 0xB4446054; 101 -> 0x0CF80731; 102 -> 0x1E4DA8DF; 103 -> 0xA6F1CFBA
+        104 -> 0xFE92DFEC; 105 -> 0x462EB889; 106 -> 0x549B1767; 107 -> 0xEC277002; 108 -> 0x71F048BB; 109 -> 0xC94C2FDE; 110 -> 0xDBF98030; 111 -> 0x6345E755
+        112 -> 0x6B3FA09C; 113 -> 0xD383C7F9; 114 -> 0xC1366817; 115 -> 0x798A0F72; 116 -> 0xE45D37CB; 117 -> 0x5CE150AE; 118 -> 0x4E54FF40; 119 -> 0xF6E89825
+        120 -> 0xAE8B8873; 121 -> 0x1637EF16; 122 -> 0x048240F8; 123 -> 0xBC3E279D; 124 -> 0x21E91F24; 125 -> 0x99557841; 126 -> 0x8BE0D7AF; _ -> 0x335CB0CA
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0xED59B63B else base
 
-  -- | Test whether the selected target guarantees the AArch64 IEEE CRC instruction.
-  prim crc32-ieee-available :: U32 -> U32 where
-    llvm {
-      ret i32 1
-    } when arch aarch64 when Available ArmCrc32
-    llvm {
-      ret i32 0
-    }
+  -- | Static Castagnoli CRC-32C slice 0 table (128-entry GF(2) half-table).
+  cast-t0 :: U8 -> U32
+  cast-t0 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0xF26B8303; 2 -> 0xE13B70F7; 3 -> 0x1350F3F4; 4 -> 0xC79A971F; 5 -> 0x35F1141C; 6 -> 0x26A1E7E8; 7 -> 0xD4CA64EB
+        8 -> 0x8AD958CF; 9 -> 0x78B2DBCC; 10 -> 0x6BE22838; 11 -> 0x9989AB3B; 12 -> 0x4D43CFD0; 13 -> 0xBF284CD3; 14 -> 0xAC78BF27; 15 -> 0x5E133C24
+        16 -> 0x105EC76F; 17 -> 0xE235446C; 18 -> 0xF165B798; 19 -> 0x030E349B; 20 -> 0xD7C45070; 21 -> 0x25AFD373; 22 -> 0x36FF2087; 23 -> 0xC494A384
+        24 -> 0x9A879FA0; 25 -> 0x68EC1CA3; 26 -> 0x7BBCEF57; 27 -> 0x89D76C54; 28 -> 0x5D1D08BF; 29 -> 0xAF768BBC; 30 -> 0xBC267848; 31 -> 0x4E4DFB4B
+        32 -> 0x20BD8EDE; 33 -> 0xD2D60DDD; 34 -> 0xC186FE29; 35 -> 0x33ED7D2A; 36 -> 0xE72719C1; 37 -> 0x154C9AC2; 38 -> 0x061C6936; 39 -> 0xF477EA35
+        40 -> 0xAA64D611; 41 -> 0x580F5512; 42 -> 0x4B5FA6E6; 43 -> 0xB93425E5; 44 -> 0x6DFE410E; 45 -> 0x9F95C20D; 46 -> 0x8CC531F9; 47 -> 0x7EAEB2FA
+        48 -> 0x30E349B1; 49 -> 0xC288CAB2; 50 -> 0xD1D83946; 51 -> 0x23B3BA45; 52 -> 0xF779DEAE; 53 -> 0x05125DAD; 54 -> 0x1642AE59; 55 -> 0xE4292D5A
+        56 -> 0xBA3A117E; 57 -> 0x4851927D; 58 -> 0x5B016189; 59 -> 0xA96AE28A; 60 -> 0x7DA08661; 61 -> 0x8FCB0562; 62 -> 0x9C9BF696; 63 -> 0x6EF07595
+        64 -> 0x417B1DBC; 65 -> 0xB3109EBF; 66 -> 0xA0406D4B; 67 -> 0x522BEE48; 68 -> 0x86E18AA3; 69 -> 0x748A09A0; 70 -> 0x67DAFA54; 71 -> 0x95B17957
+        72 -> 0xCBA24573; 73 -> 0x39C9C670; 74 -> 0x2A993584; 75 -> 0xD8F2B687; 76 -> 0x0C38D26C; 77 -> 0xFE53516F; 78 -> 0xED03A29B; 79 -> 0x1F682198
+        80 -> 0x5125DAD3; 81 -> 0xA34E59D0; 82 -> 0xB01EAA24; 83 -> 0x42752927; 84 -> 0x96BF4DCC; 85 -> 0x64D4CECF; 86 -> 0x77843D3B; 87 -> 0x85EFBE38
+        88 -> 0xDBFC821C; 89 -> 0x2997011F; 90 -> 0x3AC7F2EB; 91 -> 0xC8AC71E8; 92 -> 0x1C661503; 93 -> 0xEE0D9600; 94 -> 0xFD5D65F4; 95 -> 0x0F36E6F7
+        96 -> 0x61C69362; 97 -> 0x93AD1061; 98 -> 0x80FDE395; 99 -> 0x72966096; 100 -> 0xA65C047D; 101 -> 0x5437877E; 102 -> 0x4767748A; 103 -> 0xB50CF789
+        104 -> 0xEB1FCBAD; 105 -> 0x197448AE; 106 -> 0x0A24BB5A; 107 -> 0xF84F3859; 108 -> 0x2C855CB2; 109 -> 0xDEEEDFB1; 110 -> 0xCDBE2C45; 111 -> 0x3FD5AF46
+        112 -> 0x7198540D; 113 -> 0x83F3D70E; 114 -> 0x90A324FA; 115 -> 0x62C8A7F9; 116 -> 0xB602C312; 117 -> 0x44694011; 118 -> 0x5739B3E5; 119 -> 0xA55230E6
+        120 -> 0xFB410CC2; 121 -> 0x092A8FC1; 122 -> 0x1A7A7C35; 123 -> 0xE811FF36; 124 -> 0x3CDB9BDD; 125 -> 0xCEB018DE; 126 -> 0xDDE0EB2A; _ -> 0x2F8B6829
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0x82F63B78 else base
 
-  -- | Advance IEEE CRC-32 with the AArch64 CRC extension when guaranteed by
-  -- the target profile. Other targets retain the same reflected polynomial.
-  prim crc32-ieee-word :: U32 -> U64 -> U32 where
-    unsafe llvm {
-      %crc = call i32 asm ".arch_extension crc\0Acrc32x ${0:w}, ${1:w}, $2", "=r,r,r"(i32 %0, i64 %1)
-      ret i32 %crc
-    } when arch aarch64 when Available ArmCrc32
-    llvm {
-      %seed = zext i32 %0 to i64
-      %start = xor i64 %seed, %1
-      %bit0 = and i64 %start, 1
-      %set0 = icmp ne i64 %bit0, 0
-      %shift0 = lshr i64 %start, 1
-      %mask0 = select i1 %set0, i64 3988292384, i64 0
-      %r0 = xor i64 %shift0, %mask0
-      %bit1 = and i64 %r0, 1
-      %set1 = icmp ne i64 %bit1, 0
-      %shift1 = lshr i64 %r0, 1
-      %mask1 = select i1 %set1, i64 3988292384, i64 0
-      %r1 = xor i64 %shift1, %mask1
-      %bit2 = and i64 %r1, 1
-      %set2 = icmp ne i64 %bit2, 0
-      %shift2 = lshr i64 %r1, 1
-      %mask2 = select i1 %set2, i64 3988292384, i64 0
-      %r2 = xor i64 %shift2, %mask2
-      %bit3 = and i64 %r2, 1
-      %set3 = icmp ne i64 %bit3, 0
-      %shift3 = lshr i64 %r2, 1
-      %mask3 = select i1 %set3, i64 3988292384, i64 0
-      %r3 = xor i64 %shift3, %mask3
-      %bit4 = and i64 %r3, 1
-      %set4 = icmp ne i64 %bit4, 0
-      %shift4 = lshr i64 %r3, 1
-      %mask4 = select i1 %set4, i64 3988292384, i64 0
-      %r4 = xor i64 %shift4, %mask4
-      %bit5 = and i64 %r4, 1
-      %set5 = icmp ne i64 %bit5, 0
-      %shift5 = lshr i64 %r4, 1
-      %mask5 = select i1 %set5, i64 3988292384, i64 0
-      %r5 = xor i64 %shift5, %mask5
-      %bit6 = and i64 %r5, 1
-      %set6 = icmp ne i64 %bit6, 0
-      %shift6 = lshr i64 %r5, 1
-      %mask6 = select i1 %set6, i64 3988292384, i64 0
-      %r6 = xor i64 %shift6, %mask6
-      %bit7 = and i64 %r6, 1
-      %set7 = icmp ne i64 %bit7, 0
-      %shift7 = lshr i64 %r6, 1
-      %mask7 = select i1 %set7, i64 3988292384, i64 0
-      %r7 = xor i64 %shift7, %mask7
-      %bit8 = and i64 %r7, 1
-      %set8 = icmp ne i64 %bit8, 0
-      %shift8 = lshr i64 %r7, 1
-      %mask8 = select i1 %set8, i64 3988292384, i64 0
-      %r8 = xor i64 %shift8, %mask8
-      %bit9 = and i64 %r8, 1
-      %set9 = icmp ne i64 %bit9, 0
-      %shift9 = lshr i64 %r8, 1
-      %mask9 = select i1 %set9, i64 3988292384, i64 0
-      %r9 = xor i64 %shift9, %mask9
-      %bit10 = and i64 %r9, 1
-      %set10 = icmp ne i64 %bit10, 0
-      %shift10 = lshr i64 %r9, 1
-      %mask10 = select i1 %set10, i64 3988292384, i64 0
-      %r10 = xor i64 %shift10, %mask10
-      %bit11 = and i64 %r10, 1
-      %set11 = icmp ne i64 %bit11, 0
-      %shift11 = lshr i64 %r10, 1
-      %mask11 = select i1 %set11, i64 3988292384, i64 0
-      %r11 = xor i64 %shift11, %mask11
-      %bit12 = and i64 %r11, 1
-      %set12 = icmp ne i64 %bit12, 0
-      %shift12 = lshr i64 %r11, 1
-      %mask12 = select i1 %set12, i64 3988292384, i64 0
-      %r12 = xor i64 %shift12, %mask12
-      %bit13 = and i64 %r12, 1
-      %set13 = icmp ne i64 %bit13, 0
-      %shift13 = lshr i64 %r12, 1
-      %mask13 = select i1 %set13, i64 3988292384, i64 0
-      %r13 = xor i64 %shift13, %mask13
-      %bit14 = and i64 %r13, 1
-      %set14 = icmp ne i64 %bit14, 0
-      %shift14 = lshr i64 %r13, 1
-      %mask14 = select i1 %set14, i64 3988292384, i64 0
-      %r14 = xor i64 %shift14, %mask14
-      %bit15 = and i64 %r14, 1
-      %set15 = icmp ne i64 %bit15, 0
-      %shift15 = lshr i64 %r14, 1
-      %mask15 = select i1 %set15, i64 3988292384, i64 0
-      %r15 = xor i64 %shift15, %mask15
-      %bit16 = and i64 %r15, 1
-      %set16 = icmp ne i64 %bit16, 0
-      %shift16 = lshr i64 %r15, 1
-      %mask16 = select i1 %set16, i64 3988292384, i64 0
-      %r16 = xor i64 %shift16, %mask16
-      %bit17 = and i64 %r16, 1
-      %set17 = icmp ne i64 %bit17, 0
-      %shift17 = lshr i64 %r16, 1
-      %mask17 = select i1 %set17, i64 3988292384, i64 0
-      %r17 = xor i64 %shift17, %mask17
-      %bit18 = and i64 %r17, 1
-      %set18 = icmp ne i64 %bit18, 0
-      %shift18 = lshr i64 %r17, 1
-      %mask18 = select i1 %set18, i64 3988292384, i64 0
-      %r18 = xor i64 %shift18, %mask18
-      %bit19 = and i64 %r18, 1
-      %set19 = icmp ne i64 %bit19, 0
-      %shift19 = lshr i64 %r18, 1
-      %mask19 = select i1 %set19, i64 3988292384, i64 0
-      %r19 = xor i64 %shift19, %mask19
-      %bit20 = and i64 %r19, 1
-      %set20 = icmp ne i64 %bit20, 0
-      %shift20 = lshr i64 %r19, 1
-      %mask20 = select i1 %set20, i64 3988292384, i64 0
-      %r20 = xor i64 %shift20, %mask20
-      %bit21 = and i64 %r20, 1
-      %set21 = icmp ne i64 %bit21, 0
-      %shift21 = lshr i64 %r20, 1
-      %mask21 = select i1 %set21, i64 3988292384, i64 0
-      %r21 = xor i64 %shift21, %mask21
-      %bit22 = and i64 %r21, 1
-      %set22 = icmp ne i64 %bit22, 0
-      %shift22 = lshr i64 %r21, 1
-      %mask22 = select i1 %set22, i64 3988292384, i64 0
-      %r22 = xor i64 %shift22, %mask22
-      %bit23 = and i64 %r22, 1
-      %set23 = icmp ne i64 %bit23, 0
-      %shift23 = lshr i64 %r22, 1
-      %mask23 = select i1 %set23, i64 3988292384, i64 0
-      %r23 = xor i64 %shift23, %mask23
-      %bit24 = and i64 %r23, 1
-      %set24 = icmp ne i64 %bit24, 0
-      %shift24 = lshr i64 %r23, 1
-      %mask24 = select i1 %set24, i64 3988292384, i64 0
-      %r24 = xor i64 %shift24, %mask24
-      %bit25 = and i64 %r24, 1
-      %set25 = icmp ne i64 %bit25, 0
-      %shift25 = lshr i64 %r24, 1
-      %mask25 = select i1 %set25, i64 3988292384, i64 0
-      %r25 = xor i64 %shift25, %mask25
-      %bit26 = and i64 %r25, 1
-      %set26 = icmp ne i64 %bit26, 0
-      %shift26 = lshr i64 %r25, 1
-      %mask26 = select i1 %set26, i64 3988292384, i64 0
-      %r26 = xor i64 %shift26, %mask26
-      %bit27 = and i64 %r26, 1
-      %set27 = icmp ne i64 %bit27, 0
-      %shift27 = lshr i64 %r26, 1
-      %mask27 = select i1 %set27, i64 3988292384, i64 0
-      %r27 = xor i64 %shift27, %mask27
-      %bit28 = and i64 %r27, 1
-      %set28 = icmp ne i64 %bit28, 0
-      %shift28 = lshr i64 %r27, 1
-      %mask28 = select i1 %set28, i64 3988292384, i64 0
-      %r28 = xor i64 %shift28, %mask28
-      %bit29 = and i64 %r28, 1
-      %set29 = icmp ne i64 %bit29, 0
-      %shift29 = lshr i64 %r28, 1
-      %mask29 = select i1 %set29, i64 3988292384, i64 0
-      %r29 = xor i64 %shift29, %mask29
-      %bit30 = and i64 %r29, 1
-      %set30 = icmp ne i64 %bit30, 0
-      %shift30 = lshr i64 %r29, 1
-      %mask30 = select i1 %set30, i64 3988292384, i64 0
-      %r30 = xor i64 %shift30, %mask30
-      %bit31 = and i64 %r30, 1
-      %set31 = icmp ne i64 %bit31, 0
-      %shift31 = lshr i64 %r30, 1
-      %mask31 = select i1 %set31, i64 3988292384, i64 0
-      %r31 = xor i64 %shift31, %mask31
-      %bit32 = and i64 %r31, 1
-      %set32 = icmp ne i64 %bit32, 0
-      %shift32 = lshr i64 %r31, 1
-      %mask32 = select i1 %set32, i64 3988292384, i64 0
-      %r32 = xor i64 %shift32, %mask32
-      %bit33 = and i64 %r32, 1
-      %set33 = icmp ne i64 %bit33, 0
-      %shift33 = lshr i64 %r32, 1
-      %mask33 = select i1 %set33, i64 3988292384, i64 0
-      %r33 = xor i64 %shift33, %mask33
-      %bit34 = and i64 %r33, 1
-      %set34 = icmp ne i64 %bit34, 0
-      %shift34 = lshr i64 %r33, 1
-      %mask34 = select i1 %set34, i64 3988292384, i64 0
-      %r34 = xor i64 %shift34, %mask34
-      %bit35 = and i64 %r34, 1
-      %set35 = icmp ne i64 %bit35, 0
-      %shift35 = lshr i64 %r34, 1
-      %mask35 = select i1 %set35, i64 3988292384, i64 0
-      %r35 = xor i64 %shift35, %mask35
-      %bit36 = and i64 %r35, 1
-      %set36 = icmp ne i64 %bit36, 0
-      %shift36 = lshr i64 %r35, 1
-      %mask36 = select i1 %set36, i64 3988292384, i64 0
-      %r36 = xor i64 %shift36, %mask36
-      %bit37 = and i64 %r36, 1
-      %set37 = icmp ne i64 %bit37, 0
-      %shift37 = lshr i64 %r36, 1
-      %mask37 = select i1 %set37, i64 3988292384, i64 0
-      %r37 = xor i64 %shift37, %mask37
-      %bit38 = and i64 %r37, 1
-      %set38 = icmp ne i64 %bit38, 0
-      %shift38 = lshr i64 %r37, 1
-      %mask38 = select i1 %set38, i64 3988292384, i64 0
-      %r38 = xor i64 %shift38, %mask38
-      %bit39 = and i64 %r38, 1
-      %set39 = icmp ne i64 %bit39, 0
-      %shift39 = lshr i64 %r38, 1
-      %mask39 = select i1 %set39, i64 3988292384, i64 0
-      %r39 = xor i64 %shift39, %mask39
-      %bit40 = and i64 %r39, 1
-      %set40 = icmp ne i64 %bit40, 0
-      %shift40 = lshr i64 %r39, 1
-      %mask40 = select i1 %set40, i64 3988292384, i64 0
-      %r40 = xor i64 %shift40, %mask40
-      %bit41 = and i64 %r40, 1
-      %set41 = icmp ne i64 %bit41, 0
-      %shift41 = lshr i64 %r40, 1
-      %mask41 = select i1 %set41, i64 3988292384, i64 0
-      %r41 = xor i64 %shift41, %mask41
-      %bit42 = and i64 %r41, 1
-      %set42 = icmp ne i64 %bit42, 0
-      %shift42 = lshr i64 %r41, 1
-      %mask42 = select i1 %set42, i64 3988292384, i64 0
-      %r42 = xor i64 %shift42, %mask42
-      %bit43 = and i64 %r42, 1
-      %set43 = icmp ne i64 %bit43, 0
-      %shift43 = lshr i64 %r42, 1
-      %mask43 = select i1 %set43, i64 3988292384, i64 0
-      %r43 = xor i64 %shift43, %mask43
-      %bit44 = and i64 %r43, 1
-      %set44 = icmp ne i64 %bit44, 0
-      %shift44 = lshr i64 %r43, 1
-      %mask44 = select i1 %set44, i64 3988292384, i64 0
-      %r44 = xor i64 %shift44, %mask44
-      %bit45 = and i64 %r44, 1
-      %set45 = icmp ne i64 %bit45, 0
-      %shift45 = lshr i64 %r44, 1
-      %mask45 = select i1 %set45, i64 3988292384, i64 0
-      %r45 = xor i64 %shift45, %mask45
-      %bit46 = and i64 %r45, 1
-      %set46 = icmp ne i64 %bit46, 0
-      %shift46 = lshr i64 %r45, 1
-      %mask46 = select i1 %set46, i64 3988292384, i64 0
-      %r46 = xor i64 %shift46, %mask46
-      %bit47 = and i64 %r46, 1
-      %set47 = icmp ne i64 %bit47, 0
-      %shift47 = lshr i64 %r46, 1
-      %mask47 = select i1 %set47, i64 3988292384, i64 0
-      %r47 = xor i64 %shift47, %mask47
-      %bit48 = and i64 %r47, 1
-      %set48 = icmp ne i64 %bit48, 0
-      %shift48 = lshr i64 %r47, 1
-      %mask48 = select i1 %set48, i64 3988292384, i64 0
-      %r48 = xor i64 %shift48, %mask48
-      %bit49 = and i64 %r48, 1
-      %set49 = icmp ne i64 %bit49, 0
-      %shift49 = lshr i64 %r48, 1
-      %mask49 = select i1 %set49, i64 3988292384, i64 0
-      %r49 = xor i64 %shift49, %mask49
-      %bit50 = and i64 %r49, 1
-      %set50 = icmp ne i64 %bit50, 0
-      %shift50 = lshr i64 %r49, 1
-      %mask50 = select i1 %set50, i64 3988292384, i64 0
-      %r50 = xor i64 %shift50, %mask50
-      %bit51 = and i64 %r50, 1
-      %set51 = icmp ne i64 %bit51, 0
-      %shift51 = lshr i64 %r50, 1
-      %mask51 = select i1 %set51, i64 3988292384, i64 0
-      %r51 = xor i64 %shift51, %mask51
-      %bit52 = and i64 %r51, 1
-      %set52 = icmp ne i64 %bit52, 0
-      %shift52 = lshr i64 %r51, 1
-      %mask52 = select i1 %set52, i64 3988292384, i64 0
-      %r52 = xor i64 %shift52, %mask52
-      %bit53 = and i64 %r52, 1
-      %set53 = icmp ne i64 %bit53, 0
-      %shift53 = lshr i64 %r52, 1
-      %mask53 = select i1 %set53, i64 3988292384, i64 0
-      %r53 = xor i64 %shift53, %mask53
-      %bit54 = and i64 %r53, 1
-      %set54 = icmp ne i64 %bit54, 0
-      %shift54 = lshr i64 %r53, 1
-      %mask54 = select i1 %set54, i64 3988292384, i64 0
-      %r54 = xor i64 %shift54, %mask54
-      %bit55 = and i64 %r54, 1
-      %set55 = icmp ne i64 %bit55, 0
-      %shift55 = lshr i64 %r54, 1
-      %mask55 = select i1 %set55, i64 3988292384, i64 0
-      %r55 = xor i64 %shift55, %mask55
-      %bit56 = and i64 %r55, 1
-      %set56 = icmp ne i64 %bit56, 0
-      %shift56 = lshr i64 %r55, 1
-      %mask56 = select i1 %set56, i64 3988292384, i64 0
-      %r56 = xor i64 %shift56, %mask56
-      %bit57 = and i64 %r56, 1
-      %set57 = icmp ne i64 %bit57, 0
-      %shift57 = lshr i64 %r56, 1
-      %mask57 = select i1 %set57, i64 3988292384, i64 0
-      %r57 = xor i64 %shift57, %mask57
-      %bit58 = and i64 %r57, 1
-      %set58 = icmp ne i64 %bit58, 0
-      %shift58 = lshr i64 %r57, 1
-      %mask58 = select i1 %set58, i64 3988292384, i64 0
-      %r58 = xor i64 %shift58, %mask58
-      %bit59 = and i64 %r58, 1
-      %set59 = icmp ne i64 %bit59, 0
-      %shift59 = lshr i64 %r58, 1
-      %mask59 = select i1 %set59, i64 3988292384, i64 0
-      %r59 = xor i64 %shift59, %mask59
-      %bit60 = and i64 %r59, 1
-      %set60 = icmp ne i64 %bit60, 0
-      %shift60 = lshr i64 %r59, 1
-      %mask60 = select i1 %set60, i64 3988292384, i64 0
-      %r60 = xor i64 %shift60, %mask60
-      %bit61 = and i64 %r60, 1
-      %set61 = icmp ne i64 %bit61, 0
-      %shift61 = lshr i64 %r60, 1
-      %mask61 = select i1 %set61, i64 3988292384, i64 0
-      %r61 = xor i64 %shift61, %mask61
-      %bit62 = and i64 %r61, 1
-      %set62 = icmp ne i64 %bit62, 0
-      %shift62 = lshr i64 %r61, 1
-      %mask62 = select i1 %set62, i64 3988292384, i64 0
-      %r62 = xor i64 %shift62, %mask62
-      %bit63 = and i64 %r62, 1
-      %set63 = icmp ne i64 %bit63, 0
-      %shift63 = lshr i64 %r62, 1
-      %mask63 = select i1 %set63, i64 3988292384, i64 0
-      %r63 = xor i64 %shift63, %mask63
-      %out = trunc i64 %r63 to i32
-      ret i32 %out
-    }
+  -- | Static Castagnoli CRC-32C slice 1 table (128-entry GF(2) half-table).
+  cast-t1 :: U8 -> U32
+  cast-t1 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0x13A29877; 2 -> 0x274530EE; 3 -> 0x34E7A899; 4 -> 0x4E8A61DC; 5 -> 0x5D28F9AB; 6 -> 0x69CF5132; 7 -> 0x7A6DC945
+        8 -> 0x9D14C3B8; 9 -> 0x8EB65BCF; 10 -> 0xBA51F356; 11 -> 0xA9F36B21; 12 -> 0xD39EA264; 13 -> 0xC03C3A13; 14 -> 0xF4DB928A; 15 -> 0xE7790AFD
+        16 -> 0x3FC5F181; 17 -> 0x2C6769F6; 18 -> 0x1880C16F; 19 -> 0x0B225918; 20 -> 0x714F905D; 21 -> 0x62ED082A; 22 -> 0x560AA0B3; 23 -> 0x45A838C4
+        24 -> 0xA2D13239; 25 -> 0xB173AA4E; 26 -> 0x859402D7; 27 -> 0x96369AA0; 28 -> 0xEC5B53E5; 29 -> 0xFFF9CB92; 30 -> 0xCB1E630B; 31 -> 0xD8BCFB7C
+        32 -> 0x7F8BE302; 33 -> 0x6C297B75; 34 -> 0x58CED3EC; 35 -> 0x4B6C4B9B; 36 -> 0x310182DE; 37 -> 0x22A31AA9; 38 -> 0x1644B230; 39 -> 0x05E62A47
+        40 -> 0xE29F20BA; 41 -> 0xF13DB8CD; 42 -> 0xC5DA1054; 43 -> 0xD6788823; 44 -> 0xAC154166; 45 -> 0xBFB7D911; 46 -> 0x8B507188; 47 -> 0x98F2E9FF
+        48 -> 0x404E1283; 49 -> 0x53EC8AF4; 50 -> 0x670B226D; 51 -> 0x74A9BA1A; 52 -> 0x0EC4735F; 53 -> 0x1D66EB28; 54 -> 0x298143B1; 55 -> 0x3A23DBC6
+        56 -> 0xDD5AD13B; 57 -> 0xCEF8494C; 58 -> 0xFA1FE1D5; 59 -> 0xE9BD79A2; 60 -> 0x93D0B0E7; 61 -> 0x80722890; 62 -> 0xB4958009; 63 -> 0xA737187E
+        64 -> 0xFF17C604; 65 -> 0xECB55E73; 66 -> 0xD852F6EA; 67 -> 0xCBF06E9D; 68 -> 0xB19DA7D8; 69 -> 0xA23F3FAF; 70 -> 0x96D89736; 71 -> 0x857A0F41
+        72 -> 0x620305BC; 73 -> 0x71A19DCB; 74 -> 0x45463552; 75 -> 0x56E4AD25; 76 -> 0x2C896460; 77 -> 0x3F2BFC17; 78 -> 0x0BCC548E; 79 -> 0x186ECCF9
+        80 -> 0xC0D23785; 81 -> 0xD370AFF2; 82 -> 0xE797076B; 83 -> 0xF4359F1C; 84 -> 0x8E585659; 85 -> 0x9DFACE2E; 86 -> 0xA91D66B7; 87 -> 0xBABFFEC0
+        88 -> 0x5DC6F43D; 89 -> 0x4E646C4A; 90 -> 0x7A83C4D3; 91 -> 0x69215CA4; 92 -> 0x134C95E1; 93 -> 0x00EE0D96; 94 -> 0x3409A50F; 95 -> 0x27AB3D78
+        96 -> 0x809C2506; 97 -> 0x933EBD71; 98 -> 0xA7D915E8; 99 -> 0xB47B8D9F; 100 -> 0xCE1644DA; 101 -> 0xDDB4DCAD; 102 -> 0xE9537434; 103 -> 0xFAF1EC43
+        104 -> 0x1D88E6BE; 105 -> 0x0E2A7EC9; 106 -> 0x3ACDD650; 107 -> 0x296F4E27; 108 -> 0x53028762; 109 -> 0x40A01F15; 110 -> 0x7447B78C; 111 -> 0x67E52FFB
+        112 -> 0xBF59D487; 113 -> 0xACFB4CF0; 114 -> 0x981CE469; 115 -> 0x8BBE7C1E; 116 -> 0xF1D3B55B; 117 -> 0xE2712D2C; 118 -> 0xD69685B5; 119 -> 0xC5341DC2
+        120 -> 0x224D173F; 121 -> 0x31EF8F48; 122 -> 0x050827D1; 123 -> 0x16AABFA6; 124 -> 0x6CC776E3; 125 -> 0x7F65EE94; 126 -> 0x4B82460D; _ -> 0x5820DE7A
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0xFBC3FAF9 else base
 
-  -- | Consume hardware IEEE CRC blocks and finish with the exact scalar tail.
-  crc32-ieee-from :: Bytes -> Nat -> U32 -> U32
-  crc32-ieee-from b i acc =
-    if i + 8 <= bytes-len b then crc32-ieee-from b (i + 8) (crc32-ieee-word acc (bytes-read-le64 b i))
-    else crc32-from crc32-ieee b i acc
+  -- | Static Castagnoli CRC-32C slice 2 table (128-entry GF(2) half-table).
+  cast-t2 :: U8 -> U32
+  cast-t2 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0xA541927E; 2 -> 0x4F6F520D; 3 -> 0xEA2EC073; 4 -> 0x9EDEA41A; 5 -> 0x3B9F3664; 6 -> 0xD1B1F617; 7 -> 0x74F06469
+        8 -> 0x38513EC5; 9 -> 0x9D10ACBB; 10 -> 0x773E6CC8; 11 -> 0xD27FFEB6; 12 -> 0xA68F9ADF; 13 -> 0x03CE08A1; 14 -> 0xE9E0C8D2; 15 -> 0x4CA15AAC
+        16 -> 0x70A27D8A; 17 -> 0xD5E3EFF4; 18 -> 0x3FCD2F87; 19 -> 0x9A8CBDF9; 20 -> 0xEE7CD990; 21 -> 0x4B3D4BEE; 22 -> 0xA1138B9D; 23 -> 0x045219E3
+        24 -> 0x48F3434F; 25 -> 0xEDB2D131; 26 -> 0x079C1142; 27 -> 0xA2DD833C; 28 -> 0xD62DE755; 29 -> 0x736C752B; 30 -> 0x9942B558; 31 -> 0x3C032726
+        32 -> 0xE144FB14; 33 -> 0x4405696A; 34 -> 0xAE2BA919; 35 -> 0x0B6A3B67; 36 -> 0x7F9A5F0E; 37 -> 0xDADBCD70; 38 -> 0x30F50D03; 39 -> 0x95B49F7D
+        40 -> 0xD915C5D1; 41 -> 0x7C5457AF; 42 -> 0x967A97DC; 43 -> 0x333B05A2; 44 -> 0x47CB61CB; 45 -> 0xE28AF3B5; 46 -> 0x08A433C6; 47 -> 0xADE5A1B8
+        48 -> 0x91E6869E; 49 -> 0x34A714E0; 50 -> 0xDE89D493; 51 -> 0x7BC846ED; 52 -> 0x0F382284; 53 -> 0xAA79B0FA; 54 -> 0x40577089; 55 -> 0xE516E2F7
+        56 -> 0xA9B7B85B; 57 -> 0x0CF62A25; 58 -> 0xE6D8EA56; 59 -> 0x43997828; 60 -> 0x37691C41; 61 -> 0x92288E3F; 62 -> 0x78064E4C; 63 -> 0xDD47DC32
+        64 -> 0xC76580D9; 65 -> 0x622412A7; 66 -> 0x880AD2D4; 67 -> 0x2D4B40AA; 68 -> 0x59BB24C3; 69 -> 0xFCFAB6BD; 70 -> 0x16D476CE; 71 -> 0xB395E4B0
+        72 -> 0xFF34BE1C; 73 -> 0x5A752C62; 74 -> 0xB05BEC11; 75 -> 0x151A7E6F; 76 -> 0x61EA1A06; 77 -> 0xC4AB8878; 78 -> 0x2E85480B; 79 -> 0x8BC4DA75
+        80 -> 0xB7C7FD53; 81 -> 0x12866F2D; 82 -> 0xF8A8AF5E; 83 -> 0x5DE93D20; 84 -> 0x29195949; 85 -> 0x8C58CB37; 86 -> 0x66760B44; 87 -> 0xC337993A
+        88 -> 0x8F96C396; 89 -> 0x2AD751E8; 90 -> 0xC0F9919B; 91 -> 0x65B803E5; 92 -> 0x1148678C; 93 -> 0xB409F5F2; 94 -> 0x5E273581; 95 -> 0xFB66A7FF
+        96 -> 0x26217BCD; 97 -> 0x8360E9B3; 98 -> 0x694E29C0; 99 -> 0xCC0FBBBE; 100 -> 0xB8FFDFD7; 101 -> 0x1DBE4DA9; 102 -> 0xF7908DDA; 103 -> 0x52D11FA4
+        104 -> 0x1E704508; 105 -> 0xBB31D776; 106 -> 0x511F1705; 107 -> 0xF45E857B; 108 -> 0x80AEE112; 109 -> 0x25EF736C; 110 -> 0xCFC1B31F; 111 -> 0x6A802161
+        112 -> 0x56830647; 113 -> 0xF3C29439; 114 -> 0x19EC544A; 115 -> 0xBCADC634; 116 -> 0xC85DA25D; 117 -> 0x6D1C3023; 118 -> 0x8732F050; 119 -> 0x2273622E
+        120 -> 0x6ED23882; 121 -> 0xCB93AAFC; 122 -> 0x21BD6A8F; 123 -> 0x84FCF8F1; 124 -> 0xF00C9C98; 125 -> 0x554D0EE6; 126 -> 0xBF63CE95; _ -> 0x1A225CEB
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0x8B277743 else base
+
+  -- | Static Castagnoli CRC-32C slice 3 table (128-entry GF(2) half-table).
+  cast-t3 :: U8 -> U32
+  cast-t3 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0xDD45AAB8; 2 -> 0xBF672381; 3 -> 0x62228939; 4 -> 0x7B2231F3; 5 -> 0xA6679B4B; 6 -> 0xC4451272; 7 -> 0x1900B8CA
+        8 -> 0xF64463E6; 9 -> 0x2B01C95E; 10 -> 0x49234067; 11 -> 0x9466EADF; 12 -> 0x8D665215; 13 -> 0x5023F8AD; 14 -> 0x32017194; 15 -> 0xEF44DB2C
+        16 -> 0xE964B13D; 17 -> 0x34211B85; 18 -> 0x560392BC; 19 -> 0x8B463804; 20 -> 0x924680CE; 21 -> 0x4F032A76; 22 -> 0x2D21A34F; 23 -> 0xF06409F7
+        24 -> 0x1F20D2DB; 25 -> 0xC2657863; 26 -> 0xA047F15A; 27 -> 0x7D025BE2; 28 -> 0x6402E328; 29 -> 0xB9474990; 30 -> 0xDB65C0A9; 31 -> 0x06206A11
+        32 -> 0xD725148B; 33 -> 0x0A60BE33; 34 -> 0x6842370A; 35 -> 0xB5079DB2; 36 -> 0xAC072578; 37 -> 0x71428FC0; 38 -> 0x136006F9; 39 -> 0xCE25AC41
+        40 -> 0x2161776D; 41 -> 0xFC24DDD5; 42 -> 0x9E0654EC; 43 -> 0x4343FE54; 44 -> 0x5A43469E; 45 -> 0x8706EC26; 46 -> 0xE524651F; 47 -> 0x3861CFA7
+        48 -> 0x3E41A5B6; 49 -> 0xE3040F0E; 50 -> 0x81268637; 51 -> 0x5C632C8F; 52 -> 0x45639445; 53 -> 0x98263EFD; 54 -> 0xFA04B7C4; 55 -> 0x27411D7C
+        56 -> 0xC805C650; 57 -> 0x15406CE8; 58 -> 0x7762E5D1; 59 -> 0xAA274F69; 60 -> 0xB327F7A3; 61 -> 0x6E625D1B; 62 -> 0x0C40D422; 63 -> 0xD1057E9A
+        64 -> 0xABA65FE7; 65 -> 0x76E3F55F; 66 -> 0x14C17C66; 67 -> 0xC984D6DE; 68 -> 0xD0846E14; 69 -> 0x0DC1C4AC; 70 -> 0x6FE34D95; 71 -> 0xB2A6E72D
+        72 -> 0x5DE23C01; 73 -> 0x80A796B9; 74 -> 0xE2851F80; 75 -> 0x3FC0B538; 76 -> 0x26C00DF2; 77 -> 0xFB85A74A; 78 -> 0x99A72E73; 79 -> 0x44E284CB
+        80 -> 0x42C2EEDA; 81 -> 0x9F874462; 82 -> 0xFDA5CD5B; 83 -> 0x20E067E3; 84 -> 0x39E0DF29; 85 -> 0xE4A57591; 86 -> 0x8687FCA8; 87 -> 0x5BC25610
+        88 -> 0xB4868D3C; 89 -> 0x69C32784; 90 -> 0x0BE1AEBD; 91 -> 0xD6A40405; 92 -> 0xCFA4BCCF; 93 -> 0x12E11677; 94 -> 0x70C39F4E; 95 -> 0xAD8635F6
+        96 -> 0x7C834B6C; 97 -> 0xA1C6E1D4; 98 -> 0xC3E468ED; 99 -> 0x1EA1C255; 100 -> 0x07A17A9F; 101 -> 0xDAE4D027; 102 -> 0xB8C6591E; 103 -> 0x6583F3A6
+        104 -> 0x8AC7288A; 105 -> 0x57828232; 106 -> 0x35A00B0B; 107 -> 0xE8E5A1B3; 108 -> 0xF1E51979; 109 -> 0x2CA0B3C1; 110 -> 0x4E823AF8; 111 -> 0x93C79040
+        112 -> 0x95E7FA51; 113 -> 0x48A250E9; 114 -> 0x2A80D9D0; 115 -> 0xF7C57368; 116 -> 0xEEC5CBA2; 117 -> 0x3380611A; 118 -> 0x51A2E823; 119 -> 0x8CE7429B
+        120 -> 0x63A399B7; 121 -> 0xBEE6330F; 122 -> 0xDCC4BA36; 123 -> 0x0181108E; 124 -> 0x1881A844; 125 -> 0xC5C402FC; 126 -> 0xA7E68BC5; _ -> 0x7AA3217D
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0x52A0C93F else base
+
+  -- | Static Koopman CRC-32 byte table (128-entry GF(2) half-table).
+  koop-t0 :: U8 -> U32
+  koop-t0 b =
+    let base = (
+      case bit-and-u8 b 127 of
+        0 -> 0x00000000; 1 -> 0x9695C4CA; 2 -> 0xFB4839C9; 3 -> 0x6DDDFD03; 4 -> 0x20F3C3CF; 5 -> 0xB6660705; 6 -> 0xDBBBFA06; 7 -> 0x4D2E3ECC
+        8 -> 0x41E7879E; 9 -> 0xD7724354; 10 -> 0xBAAFBE57; 11 -> 0x2C3A7A9D; 12 -> 0x61144451; 13 -> 0xF781809B; 14 -> 0x9A5C7D98; 15 -> 0x0CC9B952
+        16 -> 0x83CF0F3C; 17 -> 0x155ACBF6; 18 -> 0x788736F5; 19 -> 0xEE12F23F; 20 -> 0xA33CCCF3; 21 -> 0x35A90839; 22 -> 0x5874F53A; 23 -> 0xCEE131F0
+        24 -> 0xC22888A2; 25 -> 0x54BD4C68; 26 -> 0x3960B16B; 27 -> 0xAFF575A1; 28 -> 0xE2DB4B6D; 29 -> 0x744E8FA7; 30 -> 0x199372A4; 31 -> 0x8F06B66E
+        32 -> 0xD1FDAE25; 33 -> 0x47686AEF; 34 -> 0x2AB597EC; 35 -> 0xBC205326; 36 -> 0xF10E6DEA; 37 -> 0x679BA920; 38 -> 0x0A465423; 39 -> 0x9CD390E9
+        40 -> 0x901A29BB; 41 -> 0x068FED71; 42 -> 0x6B521072; 43 -> 0xFDC7D4B8; 44 -> 0xB0E9EA74; 45 -> 0x267C2EBE; 46 -> 0x4BA1D3BD; 47 -> 0xDD341777
+        48 -> 0x5232A119; 49 -> 0xC4A765D3; 50 -> 0xA97A98D0; 51 -> 0x3FEF5C1A; 52 -> 0x72C162D6; 53 -> 0xE454A61C; 54 -> 0x89895B1F; 55 -> 0x1F1C9FD5
+        56 -> 0x13D52687; 57 -> 0x8540E24D; 58 -> 0xE89D1F4E; 59 -> 0x7E08DB84; 60 -> 0x3326E548; 61 -> 0xA5B32182; 62 -> 0xC86EDC81; 63 -> 0x5EFB184B
+        64 -> 0x7598EC17; 65 -> 0xE30D28DD; 66 -> 0x8ED0D5DE; 67 -> 0x18451114; 68 -> 0x556B2FD8; 69 -> 0xC3FEEB12; 70 -> 0xAE231611; 71 -> 0x38B6D2DB
+        72 -> 0x347F6B89; 73 -> 0xA2EAAF43; 74 -> 0xCF375240; 75 -> 0x59A2968A; 76 -> 0x148CA846; 77 -> 0x82196C8C; 78 -> 0xEFC4918F; 79 -> 0x79515545
+        80 -> 0xF657E32B; 81 -> 0x60C227E1; 82 -> 0x0D1FDAE2; 83 -> 0x9B8A1E28; 84 -> 0xD6A420E4; 85 -> 0x4031E42E; 86 -> 0x2DEC192D; 87 -> 0xBB79DDE7
+        88 -> 0xB7B064B5; 89 -> 0x2125A07F; 90 -> 0x4CF85D7C; 91 -> 0xDA6D99B6; 92 -> 0x9743A77A; 93 -> 0x01D663B0; 94 -> 0x6C0B9EB3; 95 -> 0xFA9E5A79
+        96 -> 0xA4654232; 97 -> 0x32F086F8; 98 -> 0x5F2D7BFB; 99 -> 0xC9B8BF31; 100 -> 0x849681FD; 101 -> 0x12034537; 102 -> 0x7FDEB834; 103 -> 0xE94B7CFE
+        104 -> 0xE582C5AC; 105 -> 0x73170166; 106 -> 0x1ECAFC65; 107 -> 0x885F38AF; 108 -> 0xC5710663; 109 -> 0x53E4C2A9; 110 -> 0x3E393FAA; 111 -> 0xA8ACFB60
+        112 -> 0x27AA4D0E; 113 -> 0xB13F89C4; 114 -> 0xDCE274C7; 115 -> 0x4A77B00D; 116 -> 0x07598EC1; 117 -> 0x91CC4A0B; 118 -> 0xFC11B708; 119 -> 0x6A8473C2
+        120 -> 0x664DCA90; 121 -> 0xF0D80E5A; 122 -> 0x9D05F359; 123 -> 0x0B903793; 124 -> 0x46BE095F; 125 -> 0xD02BCD95; 126 -> 0xBDF63096; _ -> 0x2B63F45C
+    ) in
+    if ge-u8 b 128 then bit-xor-u32 base 0xEB31D82E else base

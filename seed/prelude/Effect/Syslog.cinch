@@ -1,0 +1,590 @@
+-- | RFC 3164 and RFC 5424 syslog formatting, UDP and TCP network writers, custom sink capture,
+-- and a structured bridge from Effect.Log records.
+--
+-- Facilities, severities, and priority values follow RFC 5424 section 6.2.1. Pure formatters sanitize
+-- embedded carriage returns, line feeds, and NUL bytes to prevent framing corruption or log injection.
+-- Network transports operate explicitly under the Io r capability without ambient global writers.
+module Effect.Syslog where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock (clock-wall-ns)
+  import Effect.Log (LogLevel, Debug, Info, Warn, Error, log-record)
+  import Effect.Net (NetError, NetNotFound, NetPermissionDenied, NetInvalidArgument, NetIoError, Socket, net-connect, net-write, net-close, net-udp-send)
+  import Relation.Eq (Eq, (==), (/=))
+  import Text.Builder (Builder, builder-new, builder-add-string, builder-add-bytes, builder-run)
+  import Text.Json (canonical-json)
+  import Text.Show (nat-to-string)
+
+  export SyslogSeverity, LogEmerg, LogAlert, LogCrit, LogErr, LogWarning, LogNotice, LogInfo, LogDebug
+  export syslog-severity-code
+  export SyslogFacility, LogKern, LogUser, LogMail, LogDaemon, LogAuth, LogSyslog, LogLpr, LogNews
+  export LogUucp, LogCron, LogAuthpriv, LogFtp
+  export LogLocal0, LogLocal1, LogLocal2, LogLocal3, LogLocal4, LogLocal5, LogLocal6, LogLocal7
+  export syslog-facility-code
+  export SyslogPriority, syslog-priority, syslog-priority-code, syslog-parse-priority
+  export SyslogFormat, SyslogRfc3164, SyslogRfc5424
+  export SyslogError, SyslogNetError, SyslogClosed, SyslogInvalidPriority, syslog-error-message
+  export syslog-sanitize, syslog-timestamp-rfc3164, syslog-timestamp-rfc5424
+  export syslog-format-rfc3164, syslog-format-rfc5424
+  export SyslogWriter, syslog-dial-udp, syslog-dial-tcp, syslog-with-sink
+  export syslog-with-format, syslog-with-hostname, syslog-with-pid, syslog-with-msgid
+  export syslog-write, syslog-close
+  export syslog-emerg, syslog-alert, syslog-crit, syslog-err, syslog-warning, syslog-notice, syslog-info, syslog-debug
+  export syslog-level-from-log, syslog-emit-log-record
+
+  -- ---------------------------------------------------------------------
+  -- RFC 5424 section 6.2.1 severities, facilities, and priority values.
+  -- ---------------------------------------------------------------------
+
+  -- | Syslog message severity levels ordered from emergency (0) through debug (7).
+  data SyslogSeverity where
+    -- | System is unusable (code 0).
+    LogEmerg :: SyslogSeverity
+    -- | Action must be taken immediately (code 1).
+    LogAlert :: SyslogSeverity
+    -- | Critical conditions (code 2).
+    LogCrit :: SyslogSeverity
+    -- | Error conditions (code 3).
+    LogErr :: SyslogSeverity
+    -- | Warning conditions (code 4).
+    LogWarning :: SyslogSeverity
+    -- | Normal but significant condition (code 5).
+    LogNotice :: SyslogSeverity
+    -- | Informational messages (code 6).
+    LogInfo :: SyslogSeverity
+    -- | Debug-level messages (code 7).
+    LogDebug :: SyslogSeverity
+
+  -- | Return the RFC 5424 numeric code (0..7) for a syslog severity.
+  syslog-severity-code :: SyslogSeverity -> Nat
+  syslog-severity-code sev = case sev of
+    LogEmerg -> 0
+    LogAlert -> 1
+    LogCrit -> 2
+    LogErr -> 3
+    LogWarning -> 4
+    LogNotice -> 5
+    LogInfo -> 6
+    LogDebug -> 7
+
+  -- | Structural equality for syslog severities.
+  implicit instance Eq_SyslogSeverity :: Eq SyslogSeverity where
+    (==) a b = syslog-severity-code a == syslog-severity-code b
+    (/=) a b = not (a == b)
+
+  -- | Syslog message facility values shifted by 3 bits (multiples of 8) per RFC 5424.
+  data SyslogFacility where
+    -- | Kernel messages (code 0).
+    LogKern :: SyslogFacility
+    -- | User-level messages (code 8).
+    LogUser :: SyslogFacility
+    -- | Mail system (code 16).
+    LogMail :: SyslogFacility
+    -- | System daemons (code 24).
+    LogDaemon :: SyslogFacility
+    -- | Security and authorization messages (code 32).
+    LogAuth :: SyslogFacility
+    -- | Messages generated internally by syslogd (code 40).
+    LogSyslog :: SyslogFacility
+    -- | Line printer subsystem (code 48).
+    LogLpr :: SyslogFacility
+    -- | Network news subsystem (code 56).
+    LogNews :: SyslogFacility
+    -- | UUCP subsystem (code 64).
+    LogUucp :: SyslogFacility
+    -- | Clock daemon (code 72).
+    LogCron :: SyslogFacility
+    -- | Private security and authorization messages (code 80).
+    LogAuthpriv :: SyslogFacility
+    -- | FTP daemon (code 88).
+    LogFtp :: SyslogFacility
+    -- | Local use facility 0 (code 128).
+    LogLocal0 :: SyslogFacility
+    -- | Local use facility 1 (code 136).
+    LogLocal1 :: SyslogFacility
+    -- | Local use facility 2 (code 144).
+    LogLocal2 :: SyslogFacility
+    -- | Local use facility 3 (code 152).
+    LogLocal3 :: SyslogFacility
+    -- | Local use facility 4 (code 160).
+    LogLocal4 :: SyslogFacility
+    -- | Local use facility 5 (code 168).
+    LogLocal5 :: SyslogFacility
+    -- | Local use facility 6 (code 176).
+    LogLocal6 :: SyslogFacility
+    -- | Local use facility 7 (code 184).
+    LogLocal7 :: SyslogFacility
+
+  -- | Return the shifted RFC 5424 facility code (multiple of 8 in 0..184).
+  syslog-facility-code :: SyslogFacility -> Nat
+  syslog-facility-code fac = case fac of
+    LogKern -> 0
+    LogUser -> 8
+    LogMail -> 16
+    LogDaemon -> 24
+    LogAuth -> 32
+    LogSyslog -> 40
+    LogLpr -> 48
+    LogNews -> 56
+    LogUucp -> 64
+    LogCron -> 72
+    LogAuthpriv -> 80
+    LogFtp -> 88
+    LogLocal0 -> 128
+    LogLocal1 -> 136
+    LogLocal2 -> 144
+    LogLocal3 -> 152
+    LogLocal4 -> 160
+    LogLocal5 -> 168
+    LogLocal6 -> 176
+    LogLocal7 -> 184
+
+  -- | Structural equality for syslog facilities.
+  implicit instance Eq_SyslogFacility :: Eq SyslogFacility where
+    (==) a b = syslog-facility-code a == syslog-facility-code b
+    (/=) a b = not (a == b)
+
+  -- | Combined syslog facility and severity priority value.
+  data SyslogPriority where
+    -- | Pair a facility and a severity into one priority value.
+    SyslogPriority :: SyslogFacility -> SyslogSeverity -> SyslogPriority
+
+  -- | Compute the RFC 5424 numeric priority value (facility code + severity code, in 0..191).
+  syslog-priority :: SyslogFacility -> SyslogSeverity -> Nat
+  syslog-priority fac sev = syslog-facility-code fac + syslog-severity-code sev
+
+  -- | Compute the numeric priority code of a SyslogPriority value.
+  syslog-priority-code :: SyslogPriority -> Nat
+  syslog-priority-code pri = case pri of
+    SyslogPriority fac sev -> syslog-priority fac sev
+
+  -- | Decode a numeric severity code (0..7) into a SyslogSeverity.
+  decode-severity :: Nat -> Option SyslogSeverity
+  decode-severity code =
+    if code == 0 then Some LogEmerg
+    else if code == 1 then Some LogAlert
+    else if code == 2 then Some LogCrit
+    else if code == 3 then Some LogErr
+    else if code == 4 then Some LogWarning
+    else if code == 5 then Some LogNotice
+    else if code == 6 then Some LogInfo
+    else if code == 7 then Some LogDebug
+    else None
+
+  -- | Decode a shifted facility code (0..184) into a SyslogFacility.
+  decode-facility :: Nat -> Option SyslogFacility
+  decode-facility code =
+    if code == 0 then Some LogKern
+    else if code == 8 then Some LogUser
+    else if code == 16 then Some LogMail
+    else if code == 24 then Some LogDaemon
+    else if code == 32 then Some LogAuth
+    else if code == 40 then Some LogSyslog
+    else if code == 48 then Some LogLpr
+    else if code == 56 then Some LogNews
+    else if code == 64 then Some LogUucp
+    else if code == 72 then Some LogCron
+    else if code == 80 then Some LogAuthpriv
+    else if code == 88 then Some LogFtp
+    else if code == 128 then Some LogLocal0
+    else if code == 136 then Some LogLocal1
+    else if code == 144 then Some LogLocal2
+    else if code == 152 then Some LogLocal3
+    else if code == 160 then Some LogLocal4
+    else if code == 168 then Some LogLocal5
+    else if code == 176 then Some LogLocal6
+    else if code == 184 then Some LogLocal7
+    else None
+
+  -- | Decode a numeric RFC 5424 priority value (0..191) into its facility and severity.
+  syslog-parse-priority :: Nat -> Result SyslogError (SyslogFacility, SyslogSeverity)
+  syslog-parse-priority raw =
+    if raw > 191 then Err SyslogInvalidPriority
+    else
+      let sev-code = nat-rem raw 8 in
+      let fac-code = nat-div raw 8 * 8 in
+      case decode-facility fac-code of
+        None -> Err SyslogInvalidPriority
+        Some fac -> (case decode-severity sev-code of
+          None -> Err SyslogInvalidPriority
+          Some sev -> Ok (fac, sev))
+
+  -- ---------------------------------------------------------------------
+  -- Wire format selection and errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Syslog wire framing dialect selected for a writer.
+  data SyslogFormat where
+    -- | Traditional BSD syslog framing (RFC 3164).
+    SyslogRfc3164 :: SyslogFormat
+    -- | Structured modern syslog framing (RFC 5424).
+    SyslogRfc5424 :: SyslogFormat
+
+  -- | Named errors reported by syslog transport and validation operations.
+  data SyslogError where
+    -- | An underlying Effect.Net socket or datagram call failed.
+    SyslogNetError :: NetError -> SyslogError
+    -- | A write or close was attempted on an already-closed syslog writer.
+    SyslogClosed :: SyslogError
+    -- | A numeric priority fell outside the supported facility and severity table.
+    SyslogInvalidPriority :: SyslogError
+
+  -- | Render a readable diagnostic message for a syslog error.
+  syslog-error-message :: SyslogError -> String
+  syslog-error-message err = case err of
+    SyslogNetError ne -> render-net-error ne
+    SyslogClosed -> "syslog: writer is closed"
+    SyslogInvalidPriority -> "syslog: invalid priority value"
+
+  -- | Render an underlying Effect.Net error for syslog diagnostics.
+  render-net-error :: NetError -> String
+  render-net-error ne = case ne of
+    NetNotFound -> "syslog: network endpoint not found"
+    NetPermissionDenied -> "syslog: network permission denied"
+    NetInvalidArgument -> "syslog: invalid network argument"
+    NetIoError -> "syslog: network I/O error"
+
+  -- ---------------------------------------------------------------------
+  -- Sanitization and pure UTC timestamp formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Append one single byte to a text Builder.
+  builder-add-byte :: InRange 0 255 Nat -> Builder -> Builder
+  builder-add-byte b acc =
+    let buf = bytes-new 1 in
+    let u = bytes-set buf 0 b in
+    builder-add-bytes buf acc
+
+  -- | Copy a checked byte range [start, end) into a fresh buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes buf start end =
+    if start <= end && end <= bytes-len buf then
+      let len = end - start in
+      let out = bytes-new len in
+      let u = if len <= bytes-len out && start + len <= bytes-len buf then bytes-copy-range out buf 0 start len else () in
+      out
+    else bytes-new 0
+
+  -- | Compute the byte length after trimming trailing CR and LF bytes.
+  trimmed-end :: Bytes -> Nat -> Nat
+  trimmed-end buf n =
+    if n > 0 && n <= bytes-len buf then
+      let b = bytes-get buf (n - 1) in
+      if b == 10 || b == 13 then trimmed-end buf (n - 1) else n
+    else n
+
+  -- | Walk bytes in [i, stop), flushing clean spans and replacing CR/LF/NUL with a single space.
+  sanitize-loop :: Bytes -> Nat -> Nat -> Nat -> Builder -> Builder
+  sanitize-loop buf start i stop acc =
+    if i >= stop || i >= bytes-len buf then
+      if start < i then builder-add-bytes (slice-bytes buf start i) acc else acc
+    else
+      let b = bytes-get buf i in
+      if b == 13 then
+        let flushed = if start < i then builder-add-bytes (slice-bytes buf start i) acc else acc in
+        let spaced = builder-add-byte 32 flushed in
+        let next-i = (if i + 1 < stop && i + 1 < bytes-len buf && bytes-get buf (i + 1) == 10 then i + 2 else i + 1) in
+        sanitize-loop buf next-i next-i stop spaced
+      else if b == 10 || b == 0 then
+        let flushed = if start < i then builder-add-bytes (slice-bytes buf start i) acc else acc in
+        let spaced = builder-add-byte 32 flushed in
+        sanitize-loop buf (i + 1) (i + 1) stop spaced
+      else
+        sanitize-loop buf start (i + 1) stop acc
+
+  -- | Sanitize a syslog message by stripping trailing CR/LF and replacing embedded CR, LF, and NUL bytes with spaces.
+  syslog-sanitize :: String -> String
+  syslog-sanitize msg =
+    let raw = string-to-bytes msg in
+    let stop = trimmed-end raw (bytes-len raw) in
+    builder-run (sanitize-loop raw 0 0 stop builder-new)
+
+  -- | Sanitize a single RFC 5424 header token by replacing control characters and spaces with hyphens.
+  sanitize-token-loop :: Bytes -> Nat -> Nat -> Builder -> Builder
+  sanitize-token-loop buf i stop acc =
+    if i >= stop || i >= bytes-len buf then acc
+    else
+      let b = bytes-get buf i in
+      let out-b = if b <= 32 || b == 127 then (45 :: InRange 0 255 Nat) else b in
+      sanitize-token-loop buf (i + 1) stop (builder-add-byte out-b acc)
+
+  -- | Format a single header token, defaulting empty strings to the RFC 5424 NILVALUE hyphen.
+  nil-or-token :: String -> String
+  nil-or-token s =
+    if s == "" then "-"
+    else
+      let raw = string-to-bytes s in
+      let cleaned = builder-run (sanitize-token-loop raw 0 (bytes-len raw) builder-new) in
+      if cleaned == "" then "-" else cleaned
+
+  -- | Format a non-negative integer zero-padded to two digits.
+  pad2 :: Nat -> String
+  pad2 n =
+    if n < 10 then string-concat "0" (nat-to-string n)
+    else nat-to-string n
+
+  -- | Format a non-negative integer space-padded to two characters for RFC 3164 day fields.
+  space-pad2 :: Nat -> String
+  space-pad2 n =
+    if n < 10 then string-concat " " (nat-to-string n)
+    else nat-to-string n
+
+  -- | Format a non-negative year zero-padded to four digits.
+  pad4 :: Nat -> String
+  pad4 n =
+    if n < 10 then string-concat "000" (nat-to-string n)
+    else if n < 100 then string-concat "00" (nat-to-string n)
+    else if n < 1000 then string-concat "0" (nat-to-string n)
+    else nat-to-string n
+
+  -- | Return the three-letter English month abbreviation required by RFC 3164 section 4.1.2.
+  month-abbrev :: Nat -> String
+  month-abbrev m =
+    if m == 1 then "Jan"
+    else if m == 2 then "Feb"
+    else if m == 3 then "Mar"
+    else if m == 4 then "Apr"
+    else if m == 5 then "May"
+    else if m == 6 then "Jun"
+    else if m == 7 then "Jul"
+    else if m == 8 then "Aug"
+    else if m == 9 then "Sep"
+    else if m == 10 then "Oct"
+    else if m == 11 then "Nov"
+    else "Dec"
+
+  -- | Decompose Unix epoch nanoseconds into UTC (year, month, day, hour, minute, second).
+  utc-parts-from-ns :: Nat -> (Nat, Nat, Nat, Nat, Nat, Nat)
+  utc-parts-from-ns ns =
+    let secs = nat-div ns 1000000000 in
+    let days = nat-div secs 86400 in
+    let rem-secs = nat-rem secs 86400 in
+    let hour = nat-div rem-secs 3600 in
+    let minute = nat-div (nat-rem rem-secs 3600) 60 in
+    let second = nat-rem rem-secs 60 in
+    let z = days + 719468 in
+    let era = nat-div z 146097 in
+    let doe = if era * 146097 <= z then z - era * 146097 else 0 in
+    let doe-adj = doe + nat-div doe 36524 in
+    let doe-sub = nat-div doe 1460 + nat-div doe 146096 in
+    let yoe = nat-div (if doe-sub <= doe-adj then doe-adj - doe-sub else 0) 365 in
+    let y = yoe + era * 400 in
+    let yoe-days-base = 365 * yoe + nat-div yoe 4 in
+    let yoe-days = if nat-div yoe 100 <= yoe-days-base then yoe-days-base - nat-div yoe 100 else 0 in
+    let doy = if yoe-days <= doe then doe - yoe-days else 0 in
+    let mp = nat-div (5 * doy + 2) 153 in
+    let mp-days = nat-div (153 * mp + 2) 5 in
+    let day = (if mp-days <= doy then doy - mp-days else 0) + 1 in
+    let month = if mp < 10 then mp + 3 else if 9 <= mp then mp - 9 else 1 in
+    let year = if month <= 2 then y + 1 else y in
+    (year, month, day, hour, minute, second)
+
+  -- | Format Unix epoch nanoseconds as an RFC 3164 UTC timestamp (`Mmm dd hh:mm:ss`).
+  syslog-timestamp-rfc3164 :: Nat -> String
+  syslog-timestamp-rfc3164 ns = case utc-parts-from-ns ns of
+    (year, month, day, hour, minute, second) ->
+      string-concat-all [month-abbrev month, " ", space-pad2 day, " ", pad2 hour, ":", pad2 minute, ":", pad2 second]
+
+  -- | Format Unix epoch nanoseconds as an RFC 5424 UTC timestamp (`YYYY-MM-DDTHH:MM:SSZ`).
+  syslog-timestamp-rfc5424 :: Nat -> String
+  syslog-timestamp-rfc5424 ns = case utc-parts-from-ns ns of
+    (year, month, day, hour, minute, second) ->
+      string-concat-all [pad4 year, "-", pad2 month, "-", pad2 day, "T", pad2 hour, ":", pad2 minute, ":", pad2 second, "Z"]
+
+  -- ---------------------------------------------------------------------
+  -- Pure RFC 3164 and RFC 5424 message formatters.
+  -- ---------------------------------------------------------------------
+
+  -- | Format a syslog line according to RFC 3164 (`<PRI>TIMESTAMP HOST TAG[PID]: MSG`),
+  -- omitting `[PID]` when pid is 0 and sanitizing embedded CR/LF bytes.
+  syslog-format-rfc3164 :: SyslogFacility -> SyslogSeverity -> String -> String -> String -> Nat -> String -> String
+  syslog-format-rfc3164 fac sev timestamp host tag pid msg =
+    let pri = nat-to-string (syslog-priority fac sev) in
+    let clean-ts = syslog-sanitize timestamp in
+    let clean-host = nil-or-token host in
+    let clean-tag = nil-or-token tag in
+    let clean-msg = syslog-sanitize msg in
+    let tag-part = if pid == 0 then clean-tag else string-concat-all [clean-tag, "[", nat-to-string pid, "]"] in
+    string-concat-all ["<", pri, ">", clean-ts, " ", clean-host, " ", tag-part, ": ", clean-msg]
+
+  -- | Format a syslog line according to RFC 5424 (`<PRI>1 TIMESTAMP HOST APP PROCID MSGID - MSG`),
+  -- substituting `-` for empty header tokens and sanitizing embedded CR/LF bytes.
+  syslog-format-rfc5424 :: SyslogFacility -> SyslogSeverity -> String -> String -> String -> String -> String -> String -> String
+  syslog-format-rfc5424 fac sev timestamp host app procid msgid msg =
+    let pri = nat-to-string (syslog-priority fac sev) in
+    let ts = nil-or-token timestamp in
+    let h = nil-or-token host in
+    let a = nil-or-token app in
+    let p = nil-or-token procid in
+    let m = nil-or-token msgid in
+    let clean-msg = syslog-sanitize msg in
+    if clean-msg == "" then
+      string-concat-all ["<", pri, ">1 ", ts, " ", h, " ", a, " ", p, " ", m, " -"]
+    else
+      string-concat-all ["<", pri, ">1 ", ts, " ", h, " ", a, " ", p, " ", m, " - ", clean-msg]
+
+  -- ---------------------------------------------------------------------
+  -- Transports and SyslogWriter.
+  -- ---------------------------------------------------------------------
+
+  -- | Underlying delivery transport for a SyslogWriter in region r.
+  data SyslogTransport (r :: Region) where
+    -- | Stateless UDP datagram delivery to a destination host and port.
+    TransportUdp :: String -> Nat -> SyslogTransport r
+    -- | Newline-framed TCP stream delivery over a connected Effect.Net socket.
+    TransportTcp :: Socket -> SyslogTransport r
+    -- | Custom effectful sink callback receiving each formatted syslog line.
+    TransportSink :: (String ->{IO r} Result SyslogError Unit) -> SyslogTransport r
+    -- | Explicitly closed transport that rejects all further writes.
+    TransportClosed :: SyslogTransport r
+
+  -- | A configured syslog writer carrying facility, dialect, header metadata, and transport.
+  data SyslogWriter (r :: Region) where
+    -- | Fields: facility, format, hostname, app tag, process ID, RFC 5424 message ID, transport.
+    MkSyslogWriter :: SyslogFacility -> SyslogFormat -> String -> String -> Nat -> String -> SyslogTransport r -> SyslogWriter r
+
+  -- | Create a UDP syslog writer sending one datagram per message to `(host, port)`.
+  syslog-dial-udp :: forall (r :: Region). using (io :: Io r) => String -> Nat -> SyslogFacility -> String ->{IO r} Result SyslogError (SyslogWriter r)
+  syslog-dial-udp host port fac tag =
+    if host == "" || port == 0 || port > 65535 then
+      Err (SyslogNetError NetInvalidArgument)
+    else
+      Ok (MkSyslogWriter fac SyslogRfc3164 "localhost" tag 0 "-" (TransportUdp host port))
+
+  -- | Open a TCP connection to `(host, port)` and return a newline-framed syslog writer.
+  syslog-dial-tcp :: forall (r :: Region). using (io :: Io r) => String -> Nat -> SyslogFacility -> String ->{IO r} Result SyslogError (SyslogWriter r)
+  syslog-dial-tcp host port fac tag =
+    if host == "" || port == 0 || port > 65535 then
+      Err (SyslogNetError NetInvalidArgument)
+    else case net-connect host port of
+      Err ne -> Err (SyslogNetError ne)
+      Ok sock -> Ok (MkSyslogWriter fac SyslogRfc3164 "localhost" tag 0 "-" (TransportTcp sock))
+
+  -- | Create a syslog writer backed by a custom sink callback for capture or testing.
+  syslog-with-sink :: forall (r :: Region). SyslogFacility -> String -> SyslogFormat -> (String ->{IO r} Result SyslogError Unit) -> SyslogWriter r
+  syslog-with-sink fac tag fmt sink =
+    MkSyslogWriter fac fmt "localhost" tag 0 "-" (TransportSink sink)
+
+  -- | Select the wire format (RFC 3164 or RFC 5424) used by a syslog writer.
+  syslog-with-format :: forall (r :: Region). SyslogFormat -> SyslogWriter r -> SyslogWriter r
+  syslog-with-format fmt w = case w of
+    MkSyslogWriter fac _ host tag pid msgid tr -> MkSyslogWriter fac fmt host tag pid msgid tr
+
+  -- | Override the hostname emitted in syslog headers by a writer.
+  syslog-with-hostname :: forall (r :: Region). String -> SyslogWriter r -> SyslogWriter r
+  syslog-with-hostname host w = case w of
+    MkSyslogWriter fac fmt _ tag pid msgid tr -> MkSyslogWriter fac fmt host tag pid msgid tr
+
+  -- | Override the process ID emitted in syslog headers by a writer (0 omits PID).
+  syslog-with-pid :: forall (r :: Region). Nat -> SyslogWriter r -> SyslogWriter r
+  syslog-with-pid pid w = case w of
+    MkSyslogWriter fac fmt host tag _ msgid tr -> MkSyslogWriter fac fmt host tag pid msgid tr
+
+  -- | Override the RFC 5424 MSGID field emitted by a writer.
+  syslog-with-msgid :: forall (r :: Region). String -> SyslogWriter r -> SyslogWriter r
+  syslog-with-msgid msgid w = case w of
+    MkSyslogWriter fac fmt host tag pid _ tr -> MkSyslogWriter fac fmt host tag pid msgid tr
+
+  -- | Format a message using a writer's configuration and a wall-clock nanosecond timestamp.
+  format-for-writer :: forall (r :: Region). SyslogWriter r -> SyslogSeverity -> Nat -> String -> String
+  format-for-writer w sev now-ns msg = case w of
+    MkSyslogWriter fac fmt host tag pid msgid _ -> case fmt of
+      SyslogRfc3164 ->
+        syslog-format-rfc3164 fac sev (syslog-timestamp-rfc3164 now-ns) host tag pid msg
+      SyslogRfc5424 ->
+        let proc-str = if pid == 0 then "-" else nat-to-string pid in
+        syslog-format-rfc5424 fac sev (syslog-timestamp-rfc5424 now-ns) host tag proc-str msgid msg
+
+  -- | Format and deliver a message at the given severity through a syslog writer.
+  syslog-write :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> SyslogSeverity -> String ->{IO r} Result SyslogError Unit
+  syslog-write w sev msg =
+    let now-ns = clock-wall-ns () in
+    let line = format-for-writer w sev now-ns msg in
+    case w of
+      MkSyslogWriter _ _ _ _ _ _ tr -> case tr of
+        TransportClosed -> Err SyslogClosed
+        TransportUdp host port -> (case net-udp-send host port (string-to-bytes line) of
+          Err ne -> Err (SyslogNetError ne)
+          Ok _ -> Ok ())
+        TransportTcp sock ->
+          let wire = string-to-bytes (string-concat line "\n") in
+          (case net-write sock wire of
+            Err NetInvalidArgument -> Err SyslogClosed
+            Err ne -> Err (SyslogNetError ne)
+            Ok _ -> Ok ())
+        TransportSink sink -> sink line
+
+  -- | Close the underlying transport of a syslog writer (closing the TCP socket when applicable).
+  syslog-close :: forall (r :: Region). using (io :: Io r) => SyslogWriter r ->{IO r} Result SyslogError Unit
+  syslog-close w = case w of
+    MkSyslogWriter _ _ _ _ _ _ tr -> case tr of
+      TransportClosed -> Err SyslogClosed
+      TransportUdp _ _ -> Ok ()
+      TransportSink _ -> Ok ()
+      TransportTcp sock -> (case net-close sock of
+        Err NetInvalidArgument -> Err SyslogClosed
+        Err ne -> Err (SyslogNetError ne)
+        Ok _ -> Ok ())
+
+  -- ---------------------------------------------------------------------
+  -- Severity convenience helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Emit an emergency-severity (LogEmerg) syslog message.
+  syslog-emerg :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-emerg w msg = syslog-write w LogEmerg msg
+
+  -- | Emit an alert-severity (LogAlert) syslog message.
+  syslog-alert :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-alert w msg = syslog-write w LogAlert msg
+
+  -- | Emit a critical-severity (LogCrit) syslog message.
+  syslog-crit :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-crit w msg = syslog-write w LogCrit msg
+
+  -- | Emit an error-severity (LogErr) syslog message.
+  syslog-err :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-err w msg = syslog-write w LogErr msg
+
+  -- | Emit a warning-severity (LogWarning) syslog message.
+  syslog-warning :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-warning w msg = syslog-write w LogWarning msg
+
+  -- | Emit a notice-severity (LogNotice) syslog message.
+  syslog-notice :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-notice w msg = syslog-write w LogNotice msg
+
+  -- | Emit an informational-severity (LogInfo) syslog message.
+  syslog-info :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-info w msg = syslog-write w LogInfo msg
+
+  -- | Emit a debug-severity (LogDebug) syslog message.
+  syslog-debug :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> String ->{IO r} Result SyslogError Unit
+  syslog-debug w msg = syslog-write w LogDebug msg
+
+  -- ---------------------------------------------------------------------
+  -- Effect.Log bridge.
+  -- ---------------------------------------------------------------------
+
+  -- | Map an Effect.Log LogLevel to its corresponding RFC 5424 SyslogSeverity.
+  syslog-level-from-log :: LogLevel -> SyslogSeverity
+  syslog-level-from-log lvl = case lvl of
+    Debug -> LogDebug
+    Info -> LogInfo
+    Warn -> LogWarning
+    Error -> LogErr
+
+  -- | Emit a structured Effect.Log record as canonical JSON over a syslog writer at the mapped severity.
+  syslog-emit-log-record :: forall (r :: Region). using (io :: Io r) => SyslogWriter r -> LogLevel -> String -> Json ->{IO r} Result SyslogError Unit
+  syslog-emit-log-record w lvl msg payload =
+    let sev = syslog-level-from-log lvl in
+    let body = canonical-json (log-record lvl msg payload) in
+    syslog-write w sev body

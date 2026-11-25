@@ -160,7 +160,7 @@ the payloads stay inside the family.
 <div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">List</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-List" title="Permalink">#</a><a href="/packages/stdlib/Data.Core/source/#L26" title="View source at line 26">Source</a></span></div>
 <div class="doc-body">
 <div class="doc-children"><h4>Constructors</h4><ul><li id="k-Nil"><code><strong class="tok-constructor">Nil</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li id="k-Cons"><code><strong class="tok-constructor">Cons</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li></ul></div>
-<details class="doc-instances"><summary>Instances (9)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li></ul></details>
+<details class="doc-instances"><summary>Instances (11)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li></ul></details>
 </div>
 </article>
 
@@ -213,7 +213,7 @@ predicate at compile time.
 <div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Option</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Option" title="Permalink">#</a><a href="/packages/stdlib/Data.Core/source/#L30" title="View source at line 30">Source</a></span></div>
 <div class="doc-body">
 <div class="doc-children"><h4>Constructors</h4><ul><li id="k-None"><code><strong class="tok-constructor">None</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li id="k-Some"><code><strong class="tok-constructor">Some</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li></ul></div>
-<details class="doc-instances"><summary>Instances (8)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li></ul></details>
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Option/#instances">Data.Option</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li></ul></details>
 </div>
 </article>
 
@@ -294,7 +294,7 @@ The vector step form (modules section 6): `Done`, `Skip(state)` and
 </article>
 
 <article class="doc-entry" id="t-String">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code><span class="doc-sig-links"><a href="#t-String" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">String</strong></code><span class="doc-sig-links"><a href="#t-String" title="Permalink">#</a><a href="/packages/stdlib/Data.String/source/#L72" title="View source at line 72">Source</a></span></div>
 <div class="doc-body">
 
 The representation constructor: module-private (the immutability
@@ -302,7 +302,7 @@ contract: no API hands out a string's backing). A `StrBuf` wraps a
 buffer that is either fresh (`bytes-new` filled here) or a copy,
 never one a caller retains.
 
-<details class="doc-instances"><summary>Instances (8)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#c-MapHashable" title="Data.MapHash.MapHashable">MapHashable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Test.Quick/#c-Arbitrary" title="Effect.Test.Quick.Arbitrary">Arbitrary</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Test.Quick/#instances">Effect.Test.Quick</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Show/#instances">Text.Show</a></span></li></ul></details>
 </div>
 </article>
 
@@ -380,7 +380,7 @@ a `using` binder with a provider head selects another. `pure` and
 <div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Eq</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Eq" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L15" title="View source at line 15">Source</a></span></div>
 <div class="doc-body">
 <div class="doc-children"><h4>Methods</h4><ul><li id="m-Eq-op-3d3d"><div class="doc-method-row"><code><strong class="tok-variable">==</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Eq-op-3d3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L16">Source</a></span></div></li><li id="m-Eq-op-2f3d"><div class="doc-method-row"><code><strong class="tok-variable">/=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Eq-op-2f3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Eq/source/#L17">Source</a></span></div></li></ul></div>
-<details class="doc-instances"><summary>Instances (40)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned/#instances">Data.Time.Zoned</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Mime/#instances">Text.Mime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Yaml/#instances">Text.Yaml</a></span></li></ul></details>
+<details class="doc-instances"><summary>Instances (62)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Complex/#instances">Data.Complex</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.MapHash/#t-MapSeed" title="Data.MapHash.MapSeed">MapSeed</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.MapHash/#instances">Data.MapHash</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Addr" title="Data.NetIp.Addr">Addr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-AddrPort" title="Data.NetIp.AddrPort">AddrPort</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-NetIpError" title="Data.NetIp.NetIpError">NetIpError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Prefix" title="Data.NetIp.Prefix">Prefix</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlColumnType" title="Data.Sql.SqlColumnType">SqlColumnType</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlError" title="Data.Sql.SqlError">SqlError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlExecResult" title="Data.Sql.SqlExecResult">SqlExecResult</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlIsolation" title="Data.Sql.SqlIsolation">SqlIsolation</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlNamedArg" title="Data.Sql.SqlNamedArg">SqlNamedArg</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlRow" title="Data.Sql.SqlRow">SqlRow</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlTxOptions" title="Data.Sql.SqlTxOptions">SqlTxOptions</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sql/#t-SqlValue" title="Data.Sql.SqlValue">SqlValue</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sql/#instances">Data.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Zoned/#instances">Data.Time.Zoned</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Expvar/#t-ExpvarError" title="Effect.Expvar.ExpvarError">ExpvarError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Expvar/#instances">Effect.Expvar</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sql/#t-SqlDbStats" title="Effect.Sql.SqlDbStats">SqlDbStats</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Sql/#instances">Effect.Sql</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Syslog/#t-SyslogFacility" title="Effect.Syslog.SyslogFacility">SyslogFacility</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Syslog/#instances">Effect.Syslog</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Syslog/#t-SyslogSeverity" title="Effect.Syslog.SyslogSeverity">SyslogSeverity</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Effect.Syslog/#instances">Effect.Syslog</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Mime/#instances">Text.Mime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Strconv/#t-StrconvError" title="Text.Strconv.StrconvError">StrconvError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Strconv/#instances">Text.Strconv</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-GroupInfo" title="Text.User.GroupInfo">GroupInfo</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-ProcIdentity" title="Text.User.ProcIdentity">ProcIdentity</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-UserError" title="Text.User.UserError">UserError</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.User/#t-UserInfo" title="Text.User.UserInfo">UserInfo</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.User/#instances">Text.User</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Yaml/#instances">Text.Yaml</a></span></li></ul></details>
 </div>
 </article>
 
@@ -435,7 +435,7 @@ they default to `List` and `Map`. Instances opt in per container.
 <div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Ord</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Ord" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L25" title="View source at line 25">Source</a></span></div>
 <div class="doc-body">
 <div class="doc-children"><h4>Methods</h4><ul><li id="m-Ord-op-3c"><div class="doc-method-row"><code><strong class="tok-variable">&lt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3c" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L26">Source</a></span></div></li><li id="m-Ord-op-3c3d"><div class="doc-method-row"><code><strong class="tok-variable">&lt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3c3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L27">Source</a></span></div></li><li id="m-Ord-op-3e"><div class="doc-method-row"><code><strong class="tok-variable">&gt;</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3e" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L28">Source</a></span></div></li><li id="m-Ord-op-3e3d"><div class="doc-method-row"><code><strong class="tok-variable">&gt;=</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Ord-op-3e3d" title="Permalink">#</a><a href="/packages/stdlib/Relation.Ord/source/#L29">Source</a></span></div></li></ul></div>
-<details class="doc-instances"><summary>Instances (35)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li></ul></details>
+<details class="doc-instances"><summary>Instances (38)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Date/#instances">Data.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.IpAddr/#instances">Data.IpAddr</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Addr" title="Data.NetIp.Addr">Addr</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-AddrPort" title="Data.NetIp.AddrPort">AddrPort</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.NetIp/#t-Prefix" title="Data.NetIp.Prefix">Prefix</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.NetIp/#instances">Data.NetIp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time/#instances">Data.Time</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Date/#instances">Data.Time.Date</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Duration/#instances">Data.Time.Duration</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Monotonic/#instances">Data.Time.Monotonic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Offset/#instances">Data.Time.Offset</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.TimeOfDay/#instances">Data.Time.TimeOfDay</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Data.Wide/#instances">Data.Wide</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Relation.Ord/#instances">Relation.Ord</a></span></li></ul></details>
 </div>
 </article>
 
@@ -518,45 +518,45 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `and` | `Bool -> Bool -> Bool` | [Data.Bool](Data.Bool.md#v-and) |
 | `apply-n-times` | `forall a. Nat -> (a -> a) -> a -> a` | [Function.Combinators](Function.Combinators.md#v-apply-n-times) |
 | `apply-to` | `forall a b. a -> (a -> b) -> b` | [Function.Combinators](Function.Combinators.md#v-apply-to) |
-| `bit-and-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-bit-and-i16) |
-| `bit-and-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-bit-and-i32) |
-| `bit-and-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-bit-and-i64) |
-| `bit-and-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-bit-and-i8) |
+| `bit-and-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-and-i16) |
+| `bit-and-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-and-i32) |
+| `bit-and-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-and-i64) |
+| `bit-and-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-and-i8) |
 | `bit-and-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-and-isize) |
-| `bit-and-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-bit-and-u16) |
-| `bit-and-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-bit-and-u32) |
-| `bit-and-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-bit-and-u64) |
-| `bit-and-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-bit-and-u8) |
+| `bit-and-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-and-u16) |
+| `bit-and-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-and-u32) |
+| `bit-and-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-and-u64) |
+| `bit-and-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-and-u8) |
 | `bit-and-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-and-usize) |
-| `bit-not-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-bit-not-i16) |
-| `bit-not-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-bit-not-i32) |
-| `bit-not-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-bit-not-i64) |
-| `bit-not-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-bit-not-i8) |
+| `bit-not-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-not-i16) |
+| `bit-not-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-not-i32) |
+| `bit-not-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-not-i64) |
+| `bit-not-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-not-i8) |
 | `bit-not-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-not-isize) |
-| `bit-not-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-bit-not-u16) |
-| `bit-not-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-bit-not-u32) |
-| `bit-not-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-bit-not-u64) |
-| `bit-not-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-bit-not-u8) |
+| `bit-not-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-not-u16) |
+| `bit-not-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-not-u32) |
+| `bit-not-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-not-u64) |
+| `bit-not-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-not-u8) |
 | `bit-not-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-not-usize) |
-| `bit-or-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-bit-or-i16) |
-| `bit-or-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-bit-or-i32) |
-| `bit-or-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-bit-or-i64) |
-| `bit-or-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-bit-or-i8) |
+| `bit-or-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-or-i16) |
+| `bit-or-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-or-i32) |
+| `bit-or-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-or-i64) |
+| `bit-or-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-or-i8) |
 | `bit-or-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-or-isize) |
-| `bit-or-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-bit-or-u16) |
-| `bit-or-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-bit-or-u32) |
-| `bit-or-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-bit-or-u64) |
-| `bit-or-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-bit-or-u8) |
+| `bit-or-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-or-u16) |
+| `bit-or-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-or-u32) |
+| `bit-or-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-or-u64) |
+| `bit-or-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-or-u8) |
 | `bit-or-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-or-usize) |
-| `bit-xor-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-bit-xor-i16) |
-| `bit-xor-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-bit-xor-i32) |
-| `bit-xor-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-bit-xor-i64) |
-| `bit-xor-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-bit-xor-i8) |
+| `bit-xor-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i16) |
+| `bit-xor-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i32) |
+| `bit-xor-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i64) |
+| `bit-xor-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-bit-xor-i8) |
 | `bit-xor-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-bit-xor-isize) |
-| `bit-xor-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-bit-xor-u16) |
-| `bit-xor-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-bit-xor-u32) |
-| `bit-xor-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-bit-xor-u64) |
-| `bit-xor-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-bit-xor-u8) |
+| `bit-xor-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u16) |
+| `bit-xor-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u32) |
+| `bit-xor-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u64) |
+| `bit-xor-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-bit-xor-u8) |
 | `bit-xor-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-bit-xor-usize) |
 | `bool` | `forall a. a -> a -> Bool -> a` | [Data.Bool](Data.Bool.md#v-bool) |
 | `both` | `forall a b c. (a -> b) -> (a -> c) -> a -> (b, c)` | [Function.Combinators](Function.Combinators.md#v-both) |
@@ -567,14 +567,33 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `bytes-from-list` | `List (InRange 0 255 Nat) -> Bytes` | [Data.Bytes](Data.Bytes.md#v-bytes-from-list) |
 | `bytes-from-u8s` | `List U8 -> Bytes` | [Data.Bytes](Data.Bytes.md#v-bytes-from-u8s) |
 | `bytes-get` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> InRange 0 255 Nat` | [Data.Bytes](Data.Bytes.md#v-bytes-get) |
+| `bytes-get-u8` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U8` | [Data.Bytes](Data.Bytes.md#v-bytes-get-u8) |
+| `bytes-get-u8-at` | `(0 <= arg1, arg1 < (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U8` | [Data.Bytes](Data.Bytes.md#v-bytes-get-u8-at) |
 | `bytes-len` | `Bytes -> InRange 0 9223372036854775807 Nat` | [Data.Bytes](Data.Bytes.md#v-bytes-len) |
+| `bytes-len-i64` | `((b :: Bytes) -> (refined ((0 <= cinch-result && cinch-result == (b.bytesLen b))) I64))` | [Data.Bytes](Data.Bytes.md#v-bytes-len-i64) |
+| `bytes-load-le32` | `arg1 + 4 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U32` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le32) |
+| `bytes-load-le32-at` | `(0 <= arg1, arg1 + 4 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U32` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le32-at) |
+| `bytes-load-le64` | `arg1 + 8 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U64` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le64) |
+| `bytes-load-le64-at` | `(0 <= arg1, arg1 + 8 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U64` | [Data.Bytes](Data.Bytes.md#v-bytes-load-le64-at) |
+| `bytes-load-u128` | `arg1 + 16 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> U128` | [Data.Bytes](Data.Bytes.md#v-bytes-load-u128) |
+| `bytes-load-u128-at` | `(0 <= arg1, arg1 + 16 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> U128` | [Data.Bytes](Data.Bytes.md#v-bytes-load-u128-at) |
 | `bytes-new` | `((n :: Nat) -> (refined ((b.bytesLen cinch-result) == n) Bytes))` | [Data.Bytes](Data.Bytes.md#v-bytes-new) |
 | `bytes-set` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: InRange 0 255 Nat) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set) |
+| `bytes-set-u8` | `arg1 < (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U8) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set-u8) |
+| `bytes-set-u8-at` | `(0 <= arg1, arg1 < (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U8) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-set-u8-at) |
+| `bytes-store-le32` | `arg1 + 4 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U32) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le32) |
+| `bytes-store-le32-at` | `(0 <= arg1, arg1 + 4 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U32) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le32-at) |
+| `bytes-store-le64` | `arg1 + 8 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U64) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le64) |
+| `bytes-store-le64-at` | `(0 <= arg1, arg1 + 8 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U64) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-le64-at) |
+| `bytes-store-u128` | `arg1 + 16 <= (bytes-len arg0) => (arg0 :: Bytes) -> (arg1 :: Nat) -> (arg2 :: U128) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-u128) |
+| `bytes-store-u128-at` | `(0 <= arg1, arg1 + 16 <= (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: I64) -> (arg2 :: U128) -> Unit` | [Data.Bytes](Data.Bytes.md#v-bytes-store-u128-at) |
 | `cat-options` | `forall a. List (Option a) -> List a` | [Data.Option](Data.Option.md#v-cat-options) |
+| `ceil-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-ceil-f32) |
+| `ceil-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-ceil-f64) |
 | `char-code` | `Char -> InRange 0 1114111 Nat` | [Data.Char](Data.Char.md#v-char-code) |
 | `char-from-code` | `Nat -> Option Char` | [Data.Char](Data.Char.md#v-char-from-code) |
 | `char-string` | `Char -> String` | [Text.Show](Text.Show.md#v-char-string) |
-| `char-to-u32` | `(c :: Char) -> refined (0 <= cinch-result && cinch-result <= 1114111 && cinch-result == c) U32` | [Data.Char](Data.Char.md#v-char-to-u32) |
+| `char-to-u32` | `(a0 :: Char) -> refined (0 <= r && r <= 1114111 && r == a0) U32` | [Data.Char](Data.Char.md#v-char-to-u32) |
 | `checked-add-i16` | `I16 -> I16 -> Option I16` | [Data.Machine](Data.Machine.md#v-checked-add-i16) |
 | `checked-add-i32` | `I32 -> I32 -> Option I32` | [Data.Machine](Data.Machine.md#v-checked-add-i32) |
 | `checked-add-i64` | `I64 -> I64 -> Option I64` | [Data.Machine](Data.Machine.md#v-checked-add-i64) |
@@ -786,15 +805,17 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `compose` | `forall a b c. (b -> c) -> (a -> b) -> a -> c` | [Function.Combinators](Function.Combinators.md#v-compose) |
 | `const` | `forall a b. a -> b -> a` | [Function.Combinators](Function.Combinators.md#v-const) |
 | `copy-bytes-into` | `(arg2 + arg4 <= (bytes-len arg0), arg3 + arg4 <= (bytes-len arg1)) => (arg0 :: Bytes) -> (arg1 :: Bytes) -> (arg2 :: Nat) -> (arg3 :: Nat) -> (arg4 :: Nat) -> Unit` | [Data.String](Data.String.md#v-copy-bytes-into) |
-| `count-ones-i16` | `I16 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-i16) |
-| `count-ones-i32` | `I32 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-i32) |
-| `count-ones-i64` | `I64 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-i64) |
-| `count-ones-i8` | `I8 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-i8) |
+| `copysign-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-copysign-f32) |
+| `copysign-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-copysign-f64) |
+| `count-ones-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i16) |
+| `count-ones-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i32) |
+| `count-ones-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i64) |
+| `count-ones-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-i8) |
 | `count-ones-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-isize) |
-| `count-ones-u16` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-u16) |
-| `count-ones-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-u32) |
-| `count-ones-u64` | `U64 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-u64) |
-| `count-ones-u8` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-u8) |
+| `count-ones-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u16) |
+| `count-ones-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u32) |
+| `count-ones-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u64) |
+| `count-ones-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-count-ones-u8) |
 | `count-ones-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-count-ones-usize) |
 | `curry` | `forall a b c. ((a, b) -> c) -> a -> b -> c` | [Function.Combinators](Function.Combinators.md#v-curry) |
 | `cycle` | `forall a. Nat -> List a -> List a` | [Data.List](Data.List.md#v-cycle) |
@@ -802,6 +823,11 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `digit-value` | `Char -> Option Nat` | [Data.Char](Data.Char.md#v-digit-value) |
 | `div-f32` | `F32 -> F32 -> F32` | [Data.Machine](Data.Machine.md#v-div-f32) |
 | `div-f64` | `F64 -> F64 -> F64` | [Data.Machine](Data.Machine.md#v-div-f64) |
+| `div-u16` | `arg1 /= 0 => (arg0 :: U16) -> (arg1 :: U16) -> U16` | [Data.Machine](Data.Machine.md#v-div-u16) |
+| `div-u32` | `arg1 /= 0 => (arg0 :: U32) -> (arg1 :: U32) -> U32` | [Data.Machine](Data.Machine.md#v-div-u32) |
+| `div-u64` | `arg1 /= 0 => (arg0 :: U64) -> (arg1 :: U64) -> U64` | [Data.Machine](Data.Machine.md#v-div-u64) |
+| `div-u8` | `arg1 /= 0 => (arg0 :: U8) -> (arg1 :: U8) -> U8` | [Data.Machine](Data.Machine.md#v-div-u8) |
+| `div-usize` | `arg1 /= 0 => (arg0 :: Usize) -> (arg1 :: Usize) -> Usize` | [Data.Machine](Data.Machine.md#v-div-usize) |
 | `drop` | `forall a. Nat -> List a -> List a` | [Data.List](Data.List.md#v-drop) |
 | `either` | `forall e a b. (e -> b) -> (a -> b) -> Result e a -> b` | [Data.Result](Data.Result.md#v-either) |
 | `elem-index` | `forall a. using (eq :: Eq a) => a -> List a -> Option Nat` | [Data.List](Data.List.md#v-elem-index) |
@@ -809,22 +835,26 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `enum-from-then-to` | `forall a. using (e :: Enum a) => a -> a -> a -> List a` | [Data.Enum](Data.Enum.md#v-enum-from-then-to) |
 | `enum-from-to` | `forall a. using (e :: Enum a) => a -> a -> List a` | [Data.Enum](Data.Enum.md#v-enum-from-to) |
 | `eq-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-eq-char) |
-| `eq-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-i16) |
-| `eq-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-i32) |
-| `eq-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-i64) |
-| `eq-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-i8) |
+| `eq-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i16) |
+| `eq-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i32) |
+| `eq-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i64) |
+| `eq-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-i8) |
 | `eq-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-eq-isize) |
-| `eq-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-u16) |
-| `eq-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-u32) |
-| `eq-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-u64) |
-| `eq-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-eq-u8) |
+| `eq-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u16) |
+| `eq-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u32) |
+| `eq-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u64) |
+| `eq-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-eq-u8) |
 | `eq-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-eq-usize) |
 | `errors` | `forall e a. List (Result e a) -> List e` | [Data.Result](Data.Result.md#v-errors) |
+| `f32-bits` | `F32 -> U32` | [Data.Machine](Data.Machine.md#v-f32-bits) |
+| `f32-from-bits` | `U32 -> F32` | [Data.Machine](Data.Machine.md#v-f32-from-bits) |
 | `f32-to-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-f32-to-f32) |
-| `f32-to-f64` | `F32 -> F64` | [Data.Machine](Data.Machine.md#v-f32-to-f64) |
+| `f32-to-f64` | `F32 -> F64` | [Prim.Machine](Prim.Machine.md#v-f32-to-f64) |
+| `f64-bits` | `F64 -> U64` | [Data.Machine](Data.Machine.md#v-f64-bits) |
+| `f64-from-bits` | `U64 -> F64` | [Data.Machine](Data.Machine.md#v-f64-from-bits) |
 | `f64-from-decimal` | `Bytes -> F64` | [Data.Machine](Data.Machine.md#v-f64-from-decimal) |
 | `f64-to-decimal` | `F64 -> Bytes` | [Data.Machine](Data.Machine.md#v-f64-to-decimal) |
-| `f64-to-f32` | `F64 -> F32` | [Data.Machine](Data.Machine.md#v-f64-to-f32) |
+| `f64-to-f32` | `F64 -> F32` | [Prim.Machine](Prim.Machine.md#v-f64-to-f32) |
 | `f64-to-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-f64-to-f64) |
 | `feq-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-feq-f32) |
 | `feq-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-feq-f64) |
@@ -838,6 +868,8 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `fle-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fle-f32) |
 | `fle-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-fle-f64) |
 | `flip` | `forall a b c. (a -> b -> c) -> b -> a -> c` | [Function.Combinators](Function.Combinators.md#v-flip) |
+| `floor-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-floor-f32) |
+| `floor-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-floor-f64) |
 | `flt-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-flt-f32) |
 | `flt-f64` | `F64 -> F64 -> Bool` | [Data.Machine](Data.Machine.md#v-flt-f64) |
 | `fne-f32` | `F32 -> F32 -> Bool` | [Data.Machine](Data.Machine.md#v-fne-f32) |
@@ -849,53 +881,53 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `from-result` | `forall e a. a -> Result e a -> a` | [Data.Result](Data.Result.md#v-from-result) |
 | `fst` | `forall a b. (a, b) -> a` | [Function.Combinators](Function.Combinators.md#v-fst) |
 | `ge-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-ge-char) |
-| `ge-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-i16) |
-| `ge-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-i32) |
-| `ge-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-i64) |
-| `ge-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-i8) |
+| `ge-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i16) |
+| `ge-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i32) |
+| `ge-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i64) |
+| `ge-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-i8) |
 | `ge-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-ge-isize) |
-| `ge-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-u16) |
-| `ge-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-u32) |
-| `ge-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-u64) |
-| `ge-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-ge-u8) |
+| `ge-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u16) |
+| `ge-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u32) |
+| `ge-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u64) |
+| `ge-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ge-u8) |
 | `ge-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-ge-usize) |
 | `group-by` | `forall a. (a -> a -> Bool) -> List a -> List (List a)` | [Data.List](Data.List.md#v-group-by) |
 | `gt-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-gt-char) |
-| `gt-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-i16) |
-| `gt-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-i32) |
-| `gt-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-i64) |
-| `gt-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-i8) |
+| `gt-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i16) |
+| `gt-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i32) |
+| `gt-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i64) |
+| `gt-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-i8) |
 | `gt-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-gt-isize) |
-| `gt-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-u16) |
-| `gt-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-u32) |
-| `gt-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-u64) |
-| `gt-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-gt-u8) |
+| `gt-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u16) |
+| `gt-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u32) |
+| `gt-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u64) |
+| `gt-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-gt-u8) |
 | `gt-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-gt-usize) |
 | `head` | `forall a. List a -> Option a` | [Data.List](Data.List.md#v-head) |
 | `hex-digit-value` | `Char -> Option Nat` | [Data.Char](Data.Char.md#v-hex-digit-value) |
-| `i16-to-f32` | `I16 -> F32` | [Data.Machine](Data.Machine.md#v-i16-to-f32) |
-| `i16-to-f64` | `I16 -> F64` | [Data.Machine](Data.Machine.md#v-i16-to-f64) |
+| `i16-to-f32` | `I16 -> F32` | [Prim.Machine](Prim.Machine.md#v-i16-to-f32) |
+| `i16-to-f64` | `I16 -> F64` | [Prim.Machine](Prim.Machine.md#v-i16-to-f64) |
 | `i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-i16-to-i16) |
-| `i16-to-i32` | `(x :: I16) -> refined (- 32768 <= cinch-result && cinch-result <= 32767 && cinch-result == x) I32` | [Data.Machine](Data.Machine.md#v-i16-to-i32) |
-| `i16-to-i64` | `(x :: I16) -> refined (- 32768 <= cinch-result && cinch-result <= 32767 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-i16-to-i64) |
-| `i16-to-isize` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-i16-to-isize) |
-| `i32-to-f32` | `I32 -> F32` | [Data.Machine](Data.Machine.md#v-i32-to-f32) |
-| `i32-to-f64` | `I32 -> F64` | [Data.Machine](Data.Machine.md#v-i32-to-f64) |
+| `i16-to-i32` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-i16-to-i32) |
+| `i16-to-i64` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i16-to-i64) |
+| `i16-to-isize` | `(a0 :: I16) -> refined (- 32768 <= r && r <= 32767 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i16-to-isize) |
+| `i32-to-f32` | `I32 -> F32` | [Prim.Machine](Prim.Machine.md#v-i32-to-f32) |
+| `i32-to-f64` | `I32 -> F64` | [Prim.Machine](Prim.Machine.md#v-i32-to-f64) |
 | `i32-to-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-i32-to-i32) |
-| `i32-to-i64` | `(x :: I32) -> refined (- 2147483648 <= cinch-result && cinch-result <= 2147483647 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-i32-to-i64) |
-| `i32-to-isize` | `(a0 :: I32) -> refined (- 2147483648 <= r && r <= 2147483647 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-i32-to-isize) |
+| `i32-to-i64` | `(a0 :: I32) -> refined (- 2147483648 <= r && r <= 2147483647 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i32-to-i64) |
+| `i32-to-isize` | `(a0 :: I32) -> refined (- 2147483648 <= r && r <= 2147483647 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i32-to-isize) |
 | `i64-le-byte` | `I64 -> U32 -> InRange 0 255 Nat` | [Data.Machine](Data.Machine.md#v-i64-le-byte) |
-| `i64-to-f32` | `I64 -> F32` | [Data.Machine](Data.Machine.md#v-i64-to-f32) |
-| `i64-to-f64` | `I64 -> F64` | [Data.Machine](Data.Machine.md#v-i64-to-f64) |
+| `i64-to-f32` | `I64 -> F32` | [Prim.Machine](Prim.Machine.md#v-i64-to-f32) |
+| `i64-to-f64` | `I64 -> F64` | [Prim.Machine](Prim.Machine.md#v-i64-to-f64) |
 | `i64-to-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-i64-to-i64) |
-| `i64-to-isize` | `(a0 :: I64) -> refined (r == a0) Isize` | [Data.Machine](Data.Machine.md#v-i64-to-isize) |
-| `i8-to-f32` | `I8 -> F32` | [Data.Machine](Data.Machine.md#v-i8-to-f32) |
-| `i8-to-f64` | `I8 -> F64` | [Data.Machine](Data.Machine.md#v-i8-to-f64) |
-| `i8-to-i16` | `(x :: I8) -> refined (- 128 <= cinch-result && cinch-result <= 127 && cinch-result == x) I16` | [Data.Machine](Data.Machine.md#v-i8-to-i16) |
-| `i8-to-i32` | `(x :: I8) -> refined (- 128 <= cinch-result && cinch-result <= 127 && cinch-result == x) I32` | [Data.Machine](Data.Machine.md#v-i8-to-i32) |
-| `i8-to-i64` | `(x :: I8) -> refined (- 128 <= cinch-result && cinch-result <= 127 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-i8-to-i64) |
+| `i64-to-isize` | `(a0 :: I64) -> refined (r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i64-to-isize) |
+| `i8-to-f32` | `I8 -> F32` | [Prim.Machine](Prim.Machine.md#v-i8-to-f32) |
+| `i8-to-f64` | `I8 -> F64` | [Prim.Machine](Prim.Machine.md#v-i8-to-f64) |
+| `i8-to-i16` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I16` | [Prim.Machine](Prim.Machine.md#v-i8-to-i16) |
+| `i8-to-i32` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-i8-to-i32) |
+| `i8-to-i64` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-i8-to-i64) |
 | `i8-to-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-i8-to-i8) |
-| `i8-to-isize` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-i8-to-isize) |
+| `i8-to-isize` | `(a0 :: I8) -> refined (- 128 <= r && r <= 127 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-i8-to-isize) |
 | `identity` | `forall a. a -> a` | [Function.Combinators](Function.Combinators.md#v-identity) |
 | `init` | `forall a. List a -> Option (List a)` | [Data.List](Data.List.md#v-init) |
 | `int-add` | `Int -> Int -> Int` | [Data.Int](Data.Int.md#v-int-add) |
@@ -934,45 +966,45 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `is-some` | `forall a. Option a -> Bool` | [Data.Option](Data.Option.md#v-is-some) |
 | `isize-to-f32` | `Isize -> F32` | [Data.Machine](Data.Machine.md#v-isize-to-f32) |
 | `isize-to-f64` | `Isize -> F64` | [Data.Machine](Data.Machine.md#v-isize-to-f64) |
-| `isize-to-i64` | `(a0 :: Isize) -> refined (r == a0) I64` | [Data.Machine](Data.Machine.md#v-isize-to-i64) |
+| `isize-to-i64` | `(a0 :: Isize) -> refined (r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-isize-to-i64) |
 | `isize-to-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-isize-to-isize) |
 | `iterate` | `forall a. Nat -> (a -> a) -> a -> List a` | [Data.List](Data.List.md#v-iterate) |
 | `last` | `forall a. List a -> Option a` | [Data.List](Data.List.md#v-last) |
 | `le-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-le-char) |
-| `le-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-le-i16) |
-| `le-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-le-i32) |
-| `le-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-le-i64) |
-| `le-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-le-i8) |
+| `le-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i16) |
+| `le-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i32) |
+| `le-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i64) |
+| `le-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-i8) |
 | `le-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-le-isize) |
-| `le-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-le-u16) |
-| `le-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-le-u32) |
-| `le-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-le-u64) |
-| `le-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-le-u8) |
+| `le-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u16) |
+| `le-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u32) |
+| `le-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u64) |
+| `le-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-le-u8) |
 | `le-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-le-usize) |
-| `leading-zeros-i16` | `I16 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-i16) |
-| `leading-zeros-i32` | `I32 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-i32) |
-| `leading-zeros-i64` | `I64 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-i64) |
-| `leading-zeros-i8` | `I8 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-i8) |
+| `leading-zeros-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i16) |
+| `leading-zeros-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i32) |
+| `leading-zeros-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i64) |
+| `leading-zeros-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-i8) |
 | `leading-zeros-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-isize) |
-| `leading-zeros-u16` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-u16) |
-| `leading-zeros-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-u32) |
-| `leading-zeros-u64` | `U64 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-u64) |
-| `leading-zeros-u8` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-u8) |
+| `leading-zeros-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u16) |
+| `leading-zeros-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u32) |
+| `leading-zeros-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u64) |
+| `leading-zeros-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-leading-zeros-u8) |
 | `leading-zeros-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-leading-zeros-usize) |
 | `length` | `forall a. List a -> Int` | [Data.List](Data.List.md#v-length) |
 | `list-length` | `forall a. List a -> Nat` | [Data.List](Data.List.md#v-list-length) |
 | `list-to-option` | `forall a. List a -> Option a` | [Data.Option](Data.Option.md#v-list-to-option) |
 | `lookup` | `forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v` | [Data.List](Data.List.md#v-lookup) |
 | `lt-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-lt-char) |
-| `lt-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-i16) |
-| `lt-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-i32) |
-| `lt-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-i64) |
-| `lt-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-i8) |
+| `lt-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i16) |
+| `lt-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i32) |
+| `lt-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i64) |
+| `lt-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-i8) |
 | `lt-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-lt-isize) |
-| `lt-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-u16) |
-| `lt-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-u32) |
-| `lt-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-u64) |
-| `lt-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-lt-u8) |
+| `lt-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u16) |
+| `lt-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u32) |
+| `lt-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u64) |
+| `lt-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-lt-u8) |
 | `lt-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-lt-usize) |
 | `map` | `forall a b. (a -> b) -> List a -> List b` | [Data.List](Data.List.md#v-map) |
 | `map-delete` | `forall k v. using (ord :: Ord k) => k -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-delete) |
@@ -993,7 +1025,7 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `map-union` | `forall k v. using (ord :: Ord k) => Map k v -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-union) |
 | `map-union-with` | `forall k v. using (ord :: Ord k) => (v -> v -> v) -> Map k v -> Map k v -> Map k v` | [Data.Map](Data.Map.md#v-map-union-with) |
 | `map-values` | `forall k v. Map k v -> List v` | [Data.Map](Data.Map.md#v-map-values) |
-| `mask-i64` | `I64 -> (m :: InRange 0 9223372036854775807 I64) -> refined (0 <= cinch-result && cinch-result <= m) I64` | [Data.Machine](Data.Machine.md#v-mask-i64) |
+| `mask-i64` | `I64 -> (a1 :: InRange 0 9223372036854775807 I64) -> refined (0 <= r && r <= a1) I64` | [Prim.Machine](Prim.Machine.md#v-mask-i64) |
 | `max-bound-i16` | `refined (cinch-result == 32767) I16` | [Data.Machine](Data.Machine.md#v-max-bound-i16) |
 | `max-bound-i32` | `refined (cinch-result == 2147483647) I32` | [Data.Machine](Data.Machine.md#v-max-bound-i32) |
 | `max-bound-i64` | `refined (cinch-result == 9223372036854775807) I64` | [Data.Machine](Data.Machine.md#v-max-bound-i64) |
@@ -1035,15 +1067,15 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `nat-to-int` | `(n :: Nat) -> refined (cinch-result == n) Int` | [Data.Nat](Data.Nat.md#v-nat-to-int) |
 | `nat-to-string` | `Nat -> String` | [Text.Show](Text.Show.md#v-nat-to-string) |
 | `ne-char` | `Char -> Char -> Bool` | [Data.Char](Data.Char.md#v-ne-char) |
-| `ne-i16` | `I16 -> I16 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-i16) |
-| `ne-i32` | `I32 -> I32 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-i32) |
-| `ne-i64` | `I64 -> I64 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-i64) |
-| `ne-i8` | `I8 -> I8 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-i8) |
+| `ne-i16` | `I16 -> I16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i16) |
+| `ne-i32` | `I32 -> I32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i32) |
+| `ne-i64` | `I64 -> I64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i64) |
+| `ne-i8` | `I8 -> I8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-i8) |
 | `ne-isize` | `Isize -> Isize -> Bool` | [Data.Machine](Data.Machine.md#v-ne-isize) |
-| `ne-u16` | `U16 -> U16 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-u16) |
-| `ne-u32` | `U32 -> U32 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-u32) |
-| `ne-u64` | `U64 -> U64 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-u64) |
-| `ne-u8` | `U8 -> U8 -> Bool` | [Data.Machine](Data.Machine.md#v-ne-u8) |
+| `ne-u16` | `U16 -> U16 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u16) |
+| `ne-u32` | `U32 -> U32 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u32) |
+| `ne-u64` | `U64 -> U64 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u64) |
+| `ne-u8` | `U8 -> U8 -> Bool` | [Prim.Machine](Prim.Machine.md#v-ne-u8) |
 | `ne-usize` | `Usize -> Usize -> Bool` | [Data.Machine](Data.Machine.md#v-ne-usize) |
 | `neg-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-neg-f32) |
 | `neg-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-neg-f64) |
@@ -1071,49 +1103,58 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `prod-take` | `forall s a. Nat -> Producer s a -> Producer (TakeSt s) a` | [Data.Producer](Data.Producer.md#v-prod-take) |
 | `prod-take-step` | `forall s a. (s -> Step s a) -> TakeSt s -> Step (TakeSt s) a` | [Data.Producer](Data.Producer.md#v-prod-take-step) |
 | `read-config-bytes` | `forall (r :: Region). using (io :: Io r) => Path ->{IO r} Result ConfigError Bytes` | [Effect.Io](Effect.Io.md#v-read-config-bytes) |
+| `rem-u16` | `arg1 /= 0 => (arg0 :: U16) -> (arg1 :: U16) -> U16` | [Data.Machine](Data.Machine.md#v-rem-u16) |
+| `rem-u32` | `arg1 /= 0 => (arg0 :: U32) -> (arg1 :: U32) -> U32` | [Data.Machine](Data.Machine.md#v-rem-u32) |
+| `rem-u64` | `arg1 /= 0 => (arg0 :: U64) -> (arg1 :: U64) -> U64` | [Data.Machine](Data.Machine.md#v-rem-u64) |
+| `rem-u8` | `arg1 /= 0 => (arg0 :: U8) -> (arg1 :: U8) -> U8` | [Data.Machine](Data.Machine.md#v-rem-u8) |
+| `rem-usize` | `arg1 /= 0 => (arg0 :: Usize) -> (arg1 :: Usize) -> Usize` | [Data.Machine](Data.Machine.md#v-rem-usize) |
 | `replicate` | `forall a. Nat -> a -> List a` | [Data.List](Data.List.md#v-replicate) |
 | `result-to-option` | `forall e a. Result e a -> Option a` | [Data.Result](Data.Result.md#v-result-to-option) |
 | `results` | `forall e a. List (Result e a) -> List a` | [Data.Result](Data.Result.md#v-results) |
 | `reverse` | `forall a. List a -> List a` | [Data.List](Data.List.md#v-reverse) |
-| `reverse-bits-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-reverse-bits-i16) |
-| `reverse-bits-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-reverse-bits-i32) |
-| `reverse-bits-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-reverse-bits-i64) |
-| `reverse-bits-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-reverse-bits-i8) |
+| `reverse-bits-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i16) |
+| `reverse-bits-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i32) |
+| `reverse-bits-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i64) |
+| `reverse-bits-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-i8) |
 | `reverse-bits-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-reverse-bits-isize) |
-| `reverse-bits-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-reverse-bits-u16) |
-| `reverse-bits-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-reverse-bits-u32) |
-| `reverse-bits-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-reverse-bits-u64) |
-| `reverse-bits-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-reverse-bits-u8) |
+| `reverse-bits-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u16) |
+| `reverse-bits-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u32) |
+| `reverse-bits-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u64) |
+| `reverse-bits-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-reverse-bits-u8) |
 | `reverse-bits-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-reverse-bits-usize) |
-| `rotate-left-i16` | `I16 -> U32 -> I16` | [Data.Machine](Data.Machine.md#v-rotate-left-i16) |
-| `rotate-left-i32` | `I32 -> U32 -> I32` | [Data.Machine](Data.Machine.md#v-rotate-left-i32) |
-| `rotate-left-i64` | `I64 -> U32 -> I64` | [Data.Machine](Data.Machine.md#v-rotate-left-i64) |
-| `rotate-left-i8` | `I8 -> U32 -> I8` | [Data.Machine](Data.Machine.md#v-rotate-left-i8) |
+| `rotate-left-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i16) |
+| `rotate-left-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i32) |
+| `rotate-left-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i64) |
+| `rotate-left-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-rotate-left-i8) |
 | `rotate-left-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-rotate-left-isize) |
-| `rotate-left-u16` | `U16 -> U32 -> U16` | [Data.Machine](Data.Machine.md#v-rotate-left-u16) |
-| `rotate-left-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-rotate-left-u32) |
-| `rotate-left-u64` | `U64 -> U32 -> U64` | [Data.Machine](Data.Machine.md#v-rotate-left-u64) |
-| `rotate-left-u8` | `U8 -> U32 -> U8` | [Data.Machine](Data.Machine.md#v-rotate-left-u8) |
+| `rotate-left-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u16) |
+| `rotate-left-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u32) |
+| `rotate-left-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u64) |
+| `rotate-left-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-rotate-left-u8) |
 | `rotate-left-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-rotate-left-usize) |
-| `rotate-right-i16` | `I16 -> U32 -> I16` | [Data.Machine](Data.Machine.md#v-rotate-right-i16) |
-| `rotate-right-i32` | `I32 -> U32 -> I32` | [Data.Machine](Data.Machine.md#v-rotate-right-i32) |
-| `rotate-right-i64` | `I64 -> U32 -> I64` | [Data.Machine](Data.Machine.md#v-rotate-right-i64) |
-| `rotate-right-i8` | `I8 -> U32 -> I8` | [Data.Machine](Data.Machine.md#v-rotate-right-i8) |
+| `rotate-right-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i16) |
+| `rotate-right-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i32) |
+| `rotate-right-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i64) |
+| `rotate-right-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-rotate-right-i8) |
 | `rotate-right-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-rotate-right-isize) |
-| `rotate-right-u16` | `U16 -> U32 -> U16` | [Data.Machine](Data.Machine.md#v-rotate-right-u16) |
-| `rotate-right-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-rotate-right-u32) |
-| `rotate-right-u64` | `U64 -> U32 -> U64` | [Data.Machine](Data.Machine.md#v-rotate-right-u64) |
-| `rotate-right-u8` | `U8 -> U32 -> U8` | [Data.Machine](Data.Machine.md#v-rotate-right-u8) |
+| `rotate-right-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u16) |
+| `rotate-right-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u32) |
+| `rotate-right-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u64) |
+| `rotate-right-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-rotate-right-u8) |
 | `rotate-right-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-rotate-right-usize) |
-| `saturating-add-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-add-i16) |
-| `saturating-add-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-add-i32) |
-| `saturating-add-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-add-i64) |
-| `saturating-add-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-add-i8) |
+| `round-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-round-f32) |
+| `round-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-round-f64) |
+| `round-to-even-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-round-to-even-f32) |
+| `round-to-even-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-round-to-even-f64) |
+| `saturating-add-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i16) |
+| `saturating-add-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i32) |
+| `saturating-add-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i64) |
+| `saturating-add-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-add-i8) |
 | `saturating-add-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-add-isize) |
-| `saturating-add-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-add-u16) |
-| `saturating-add-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-add-u32) |
-| `saturating-add-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-add-u64) |
-| `saturating-add-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-add-u8) |
+| `saturating-add-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u16) |
+| `saturating-add-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u32) |
+| `saturating-add-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u64) |
+| `saturating-add-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-add-u8) |
 | `saturating-add-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-add-usize) |
 | `saturating-f32-to-i16` | `F32 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i16) |
 | `saturating-f32-to-i32` | `F32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-i32) |
@@ -1125,15 +1166,15 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `saturating-f32-to-u64` | `F32 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u64) |
 | `saturating-f32-to-u8` | `F32 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-u8) |
 | `saturating-f32-to-usize` | `F32 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-f32-to-usize) |
-| `saturating-f64-to-i16` | `F64 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-i16) |
-| `saturating-f64-to-i32` | `F64 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-i32) |
-| `saturating-f64-to-i64` | `F64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-i64) |
-| `saturating-f64-to-i8` | `F64 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-i8) |
+| `saturating-f64-to-i16` | `F64 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i16) |
+| `saturating-f64-to-i32` | `F64 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i32) |
+| `saturating-f64-to-i64` | `F64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i64) |
+| `saturating-f64-to-i8` | `F64 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-i8) |
 | `saturating-f64-to-isize` | `F64 -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-isize) |
-| `saturating-f64-to-u16` | `F64 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-u16) |
-| `saturating-f64-to-u32` | `F64 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-u32) |
-| `saturating-f64-to-u64` | `F64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-u64) |
-| `saturating-f64-to-u8` | `F64 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-u8) |
+| `saturating-f64-to-u16` | `F64 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u16) |
+| `saturating-f64-to-u32` | `F64 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u32) |
+| `saturating-f64-to-u64` | `F64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u64) |
+| `saturating-f64-to-u8` | `F64 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-f64-to-u8) |
 | `saturating-f64-to-usize` | `F64 -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-f64-to-usize) |
 | `saturating-i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i16) |
 | `saturating-i16-to-i32` | `I16 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-i16-to-i32) |
@@ -1185,15 +1226,15 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `saturating-isize-to-u64` | `Isize -> U64` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u64) |
 | `saturating-isize-to-u8` | `Isize -> U8` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-u8) |
 | `saturating-isize-to-usize` | `Isize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-isize-to-usize) |
-| `saturating-mul-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-mul-i16) |
-| `saturating-mul-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-mul-i32) |
-| `saturating-mul-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-mul-i64) |
-| `saturating-mul-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-mul-i8) |
+| `saturating-mul-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i16) |
+| `saturating-mul-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i32) |
+| `saturating-mul-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i64) |
+| `saturating-mul-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-i8) |
 | `saturating-mul-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-mul-isize) |
-| `saturating-mul-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-mul-u16) |
-| `saturating-mul-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-mul-u32) |
-| `saturating-mul-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-mul-u64) |
-| `saturating-mul-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-mul-u8) |
+| `saturating-mul-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u16) |
+| `saturating-mul-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u32) |
+| `saturating-mul-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u64) |
+| `saturating-mul-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-mul-u8) |
 | `saturating-mul-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-mul-usize) |
 | `saturating-neg-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-neg-i16) |
 | `saturating-neg-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-neg-i32) |
@@ -1206,15 +1247,15 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `saturating-neg-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-neg-u8) |
 | `saturating-neg-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-neg-usize) |
 | `saturating-sub` | `Nat -> Nat -> Nat` | [Data.Nat](Data.Nat.md#v-saturating-sub) |
-| `saturating-sub-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-sub-i16) |
-| `saturating-sub-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-sub-i32) |
-| `saturating-sub-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-saturating-sub-i64) |
-| `saturating-sub-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-saturating-sub-i8) |
+| `saturating-sub-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i16) |
+| `saturating-sub-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i32) |
+| `saturating-sub-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i64) |
+| `saturating-sub-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-i8) |
 | `saturating-sub-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-saturating-sub-isize) |
-| `saturating-sub-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-saturating-sub-u16) |
-| `saturating-sub-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-saturating-sub-u32) |
-| `saturating-sub-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-saturating-sub-u64) |
-| `saturating-sub-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-saturating-sub-u8) |
+| `saturating-sub-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u16) |
+| `saturating-sub-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u32) |
+| `saturating-sub-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u64) |
+| `saturating-sub-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-saturating-sub-u8) |
 | `saturating-sub-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-saturating-sub-usize) |
 | `saturating-u16-to-i16` | `U16 -> I16` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i16) |
 | `saturating-u16-to-i32` | `U16 -> I32` | [Data.Machine](Data.Machine.md#v-saturating-u16-to-i32) |
@@ -1302,14 +1343,14 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `subsequences` | `forall a. List a -> List (List a)` | [Data.List](Data.List.md#v-subsequences) |
 | `sum-list` | `forall a. using (add :: Add a) => a -> List a -> a` | [Data.List](Data.List.md#v-sum-list) |
 | `swap` | `forall a b. (a, b) -> (b, a)` | [Function.Combinators](Function.Combinators.md#v-swap) |
-| `swap-bytes-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-swap-bytes-i16) |
-| `swap-bytes-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-swap-bytes-i32) |
-| `swap-bytes-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-swap-bytes-i64) |
+| `swap-bytes-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i16) |
+| `swap-bytes-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i32) |
+| `swap-bytes-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-i64) |
 | `swap-bytes-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-swap-bytes-i8) |
 | `swap-bytes-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-swap-bytes-isize) |
-| `swap-bytes-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-swap-bytes-u16) |
-| `swap-bytes-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-swap-bytes-u32) |
-| `swap-bytes-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-swap-bytes-u64) |
+| `swap-bytes-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u16) |
+| `swap-bytes-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u32) |
+| `swap-bytes-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-swap-bytes-u64) |
 | `swap-bytes-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-swap-bytes-u8) |
 | `swap-bytes-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-swap-bytes-usize) |
 | `sym-name` | `Sym -> String` | [Data.Sym](Data.Sym.md#v-sym-name) |
@@ -1319,59 +1360,61 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `to-upper-ascii` | `Char -> Char` | [Data.Char](Data.Char.md#v-to-upper-ascii) |
 | `total-order-f32` | `F32 -> F32 -> Ordering` | [Data.Machine](Data.Machine.md#v-total-order-f32) |
 | `total-order-f64` | `F64 -> F64 -> Ordering` | [Data.Machine](Data.Machine.md#v-total-order-f64) |
-| `trailing-zeros-i16` | `I16 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-i16) |
-| `trailing-zeros-i32` | `I32 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-i32) |
-| `trailing-zeros-i64` | `I64 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-i64) |
-| `trailing-zeros-i8` | `I8 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-i8) |
+| `trailing-zeros-i16` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i16) |
+| `trailing-zeros-i32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i32) |
+| `trailing-zeros-i64` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i64) |
+| `trailing-zeros-i8` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-i8) |
 | `trailing-zeros-isize` | `Isize -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-isize) |
-| `trailing-zeros-u16` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-u16) |
-| `trailing-zeros-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-u32) |
-| `trailing-zeros-u64` | `U64 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-u64) |
-| `trailing-zeros-u8` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-u8) |
+| `trailing-zeros-u16` | `U16 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u16) |
+| `trailing-zeros-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u32) |
+| `trailing-zeros-u64` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u64) |
+| `trailing-zeros-u8` | `U8 -> U32` | [Prim.Machine](Prim.Machine.md#v-trailing-zeros-u8) |
 | `trailing-zeros-usize` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-trailing-zeros-usize) |
 | `transpose` | `forall a. List (List a) -> List (List a)` | [Data.List](Data.List.md#v-transpose) |
-| `u16-to-f32` | `U16 -> F32` | [Data.Machine](Data.Machine.md#v-u16-to-f32) |
-| `u16-to-f64` | `U16 -> F64` | [Data.Machine](Data.Machine.md#v-u16-to-f64) |
-| `u16-to-i32` | `(x :: U16) -> refined (0 <= cinch-result && cinch-result <= 65535 && cinch-result == x) I32` | [Data.Machine](Data.Machine.md#v-u16-to-i32) |
-| `u16-to-i64` | `(x :: U16) -> refined (0 <= cinch-result && cinch-result <= 65535 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-u16-to-i64) |
-| `u16-to-isize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-u16-to-isize) |
+| `trunc-f32` | `F32 -> F32` | [Data.Machine](Data.Machine.md#v-trunc-f32) |
+| `trunc-f64` | `F64 -> F64` | [Data.Machine](Data.Machine.md#v-trunc-f64) |
+| `u16-to-f32` | `U16 -> F32` | [Prim.Machine](Prim.Machine.md#v-u16-to-f32) |
+| `u16-to-f64` | `U16 -> F64` | [Prim.Machine](Prim.Machine.md#v-u16-to-f64) |
+| `u16-to-i32` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-u16-to-i32) |
+| `u16-to-i64` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u16-to-i64) |
+| `u16-to-isize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u16-to-isize) |
 | `u16-to-nat` | `U16 -> InRange 0 65535 Nat` | [Data.Machine](Data.Machine.md#v-u16-to-nat) |
 | `u16-to-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-u16-to-u16) |
-| `u16-to-u32` | `(x :: U16) -> refined (0 <= cinch-result && cinch-result <= 65535 && cinch-result == x) U32` | [Data.Machine](Data.Machine.md#v-u16-to-u32) |
-| `u16-to-u64` | `(x :: U16) -> refined (0 <= cinch-result && cinch-result <= 65535 && cinch-result == x) U64` | [Data.Machine](Data.Machine.md#v-u16-to-u64) |
-| `u16-to-usize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Usize` | [Data.Machine](Data.Machine.md#v-u16-to-usize) |
+| `u16-to-u32` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) U32` | [Prim.Machine](Prim.Machine.md#v-u16-to-u32) |
+| `u16-to-u64` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u16-to-u64) |
+| `u16-to-usize` | `(a0 :: U16) -> refined (0 <= r && r <= 65535 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u16-to-usize) |
 | `u32-to-char` | `U32 -> Option Char` | [Data.Char](Data.Char.md#v-u32-to-char) |
-| `u32-to-f32` | `U32 -> F32` | [Data.Machine](Data.Machine.md#v-u32-to-f32) |
-| `u32-to-f64` | `U32 -> F64` | [Data.Machine](Data.Machine.md#v-u32-to-f64) |
-| `u32-to-i64` | `(x :: U32) -> refined (0 <= cinch-result && cinch-result <= 4294967295 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-u32-to-i64) |
-| `u32-to-isize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-u32-to-isize) |
+| `u32-to-f32` | `U32 -> F32` | [Prim.Machine](Prim.Machine.md#v-u32-to-f32) |
+| `u32-to-f64` | `U32 -> F64` | [Prim.Machine](Prim.Machine.md#v-u32-to-f64) |
+| `u32-to-i64` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u32-to-i64) |
+| `u32-to-isize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u32-to-isize) |
 | `u32-to-nat` | `U32 -> InRange 0 4294967295 Nat` | [Data.Machine](Data.Machine.md#v-u32-to-nat) |
 | `u32-to-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-u32-to-u32) |
-| `u32-to-u64` | `(x :: U32) -> refined (0 <= cinch-result && cinch-result <= 4294967295 && cinch-result == x) U64` | [Data.Machine](Data.Machine.md#v-u32-to-u64) |
-| `u32-to-usize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Usize` | [Data.Machine](Data.Machine.md#v-u32-to-usize) |
-| `u64-to-f32` | `U64 -> F32` | [Data.Machine](Data.Machine.md#v-u64-to-f32) |
-| `u64-to-f64` | `U64 -> F64` | [Data.Machine](Data.Machine.md#v-u64-to-f64) |
+| `u32-to-u64` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u32-to-u64) |
+| `u32-to-usize` | `(a0 :: U32) -> refined (0 <= r && r <= 4294967295 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u32-to-usize) |
+| `u64-to-f32` | `U64 -> F32` | [Prim.Machine](Prim.Machine.md#v-u64-to-f32) |
+| `u64-to-f64` | `U64 -> F64` | [Prim.Machine](Prim.Machine.md#v-u64-to-f64) |
 | `u64-to-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-u64-to-u64) |
-| `u64-to-usize` | `(a0 :: U64) -> refined (r == a0) Usize` | [Data.Machine](Data.Machine.md#v-u64-to-usize) |
-| `u8-to-f32` | `U8 -> F32` | [Data.Machine](Data.Machine.md#v-u8-to-f32) |
-| `u8-to-f64` | `U8 -> F64` | [Data.Machine](Data.Machine.md#v-u8-to-f64) |
-| `u8-to-i16` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) I16` | [Data.Machine](Data.Machine.md#v-u8-to-i16) |
-| `u8-to-i32` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) I32` | [Data.Machine](Data.Machine.md#v-u8-to-i32) |
-| `u8-to-i64` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) I64` | [Data.Machine](Data.Machine.md#v-u8-to-i64) |
-| `u8-to-isize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Isize` | [Data.Machine](Data.Machine.md#v-u8-to-isize) |
+| `u64-to-usize` | `(a0 :: U64) -> refined (r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u64-to-usize) |
+| `u8-to-f32` | `U8 -> F32` | [Prim.Machine](Prim.Machine.md#v-u8-to-f32) |
+| `u8-to-f64` | `U8 -> F64` | [Prim.Machine](Prim.Machine.md#v-u8-to-f64) |
+| `u8-to-i16` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I16` | [Prim.Machine](Prim.Machine.md#v-u8-to-i16) |
+| `u8-to-i32` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I32` | [Prim.Machine](Prim.Machine.md#v-u8-to-i32) |
+| `u8-to-i64` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) I64` | [Prim.Machine](Prim.Machine.md#v-u8-to-i64) |
+| `u8-to-isize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Isize` | [Prim.Machine](Prim.Machine.md#v-u8-to-isize) |
 | `u8-to-nat` | `U8 -> InRange 0 255 Nat` | [Data.Machine](Data.Machine.md#v-u8-to-nat) |
-| `u8-to-u16` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) U16` | [Data.Machine](Data.Machine.md#v-u8-to-u16) |
-| `u8-to-u32` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) U32` | [Data.Machine](Data.Machine.md#v-u8-to-u32) |
-| `u8-to-u64` | `(x :: U8) -> refined (0 <= cinch-result && cinch-result <= 255 && cinch-result == x) U64` | [Data.Machine](Data.Machine.md#v-u8-to-u64) |
+| `u8-to-u16` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U16` | [Prim.Machine](Prim.Machine.md#v-u8-to-u16) |
+| `u8-to-u32` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U32` | [Prim.Machine](Prim.Machine.md#v-u8-to-u32) |
+| `u8-to-u64` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-u8-to-u64) |
 | `u8-to-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-u8-to-u8) |
-| `u8-to-usize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Usize` | [Data.Machine](Data.Machine.md#v-u8-to-usize) |
+| `u8-to-usize` | `(a0 :: U8) -> refined (0 <= r && r <= 255 && r == a0) Usize` | [Prim.Machine](Prim.Machine.md#v-u8-to-usize) |
 | `uncurry` | `forall a b c. (a -> b -> c) -> (a, b) -> c` | [Function.Combinators](Function.Combinators.md#v-uncurry) |
 | `unfold` | `forall a b. (b -> Option (a, b)) -> b -> List a` | [Data.List](Data.List.md#v-unfold) |
 | `unpack` | `String -> List Char` | [Data.String](Data.String.md#v-unpack) |
 | `unzip` | `forall a b. List (a, b) -> (List a, List b)` | [Data.List](Data.List.md#v-unzip) |
 | `usize-to-f32` | `Usize -> F32` | [Data.Machine](Data.Machine.md#v-usize-to-f32) |
 | `usize-to-f64` | `Usize -> F64` | [Data.Machine](Data.Machine.md#v-usize-to-f64) |
-| `usize-to-u64` | `(a0 :: Usize) -> refined (r == a0) U64` | [Data.Machine](Data.Machine.md#v-usize-to-u64) |
+| `usize-to-u64` | `(a0 :: Usize) -> refined (r == a0) U64` | [Prim.Machine](Prim.Machine.md#v-usize-to-u64) |
 | `usize-to-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-usize-to-usize) |
 | `utf8-at` | `Bytes -> Nat -> Option (Char, Nat)` | [Data.String](Data.String.md#v-utf8-at) |
 | `utf8-char` | `Nat -> Nat -> Option (Char, Nat)` | [Data.String](Data.String.md#v-utf8-char) |
@@ -1383,58 +1426,58 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `utf8-valid-from` | `Bytes -> Nat -> Bool` | [Data.String](Data.String.md#v-utf8-valid-from) |
 | `utf8-width` | `Nat -> Nat` | [Data.String](Data.String.md#v-utf8-width) |
 | `vec-stream` | `forall a (n :: Nat) region. Ref region Vec n a -> Producer (Ref region Vec n a) a` | [Data.Producer](Data.Producer.md#v-vec-stream) |
-| `wrapping-add-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-add-i16) |
-| `wrapping-add-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-add-i32) |
-| `wrapping-add-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-add-i64) |
-| `wrapping-add-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-add-i8) |
+| `wrapping-add-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i16) |
+| `wrapping-add-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i32) |
+| `wrapping-add-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i64) |
+| `wrapping-add-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-i8) |
 | `wrapping-add-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-add-isize) |
-| `wrapping-add-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-add-u16) |
-| `wrapping-add-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-add-u32) |
-| `wrapping-add-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-add-u64) |
-| `wrapping-add-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-add-u8) |
+| `wrapping-add-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u16) |
+| `wrapping-add-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u32) |
+| `wrapping-add-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u64) |
+| `wrapping-add-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-add-u8) |
 | `wrapping-add-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-add-usize) |
 | `wrapping-i16-to-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i16) |
 | `wrapping-i16-to-i32` | `I16 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i32) |
 | `wrapping-i16-to-i64` | `I16 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i64) |
-| `wrapping-i16-to-i8` | `I16 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-i8) |
+| `wrapping-i16-to-i8` | `I16 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-i8) |
 | `wrapping-i16-to-isize` | `I16 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-isize) |
-| `wrapping-i16-to-u16` | `I16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-u16) |
-| `wrapping-i16-to-u32` | `I16 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-u32) |
-| `wrapping-i16-to-u64` | `I16 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-u64) |
-| `wrapping-i16-to-u8` | `I16 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-u8) |
+| `wrapping-i16-to-u16` | `I16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u16) |
+| `wrapping-i16-to-u32` | `I16 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u32) |
+| `wrapping-i16-to-u64` | `I16 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u64) |
+| `wrapping-i16-to-u8` | `I16 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i16-to-u8) |
 | `wrapping-i16-to-usize` | `I16 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i16-to-usize) |
-| `wrapping-i32-to-i16` | `I32 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i16) |
+| `wrapping-i32-to-i16` | `I32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-i16) |
 | `wrapping-i32-to-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i32) |
 | `wrapping-i32-to-i64` | `I32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i64) |
-| `wrapping-i32-to-i8` | `I32 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-i8) |
+| `wrapping-i32-to-i8` | `I32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-i8) |
 | `wrapping-i32-to-isize` | `I32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-isize) |
-| `wrapping-i32-to-u16` | `I32 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-u16) |
-| `wrapping-i32-to-u32` | `I32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-u32) |
-| `wrapping-i32-to-u64` | `I32 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-u64) |
-| `wrapping-i32-to-u8` | `I32 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-u8) |
+| `wrapping-i32-to-u16` | `I32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u16) |
+| `wrapping-i32-to-u32` | `I32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u32) |
+| `wrapping-i32-to-u64` | `I32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u64) |
+| `wrapping-i32-to-u8` | `I32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i32-to-u8) |
 | `wrapping-i32-to-usize` | `I32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i32-to-usize) |
-| `wrapping-i64-to-i16` | `I64 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-i16) |
-| `wrapping-i64-to-i32` | `I64 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-i32) |
+| `wrapping-i64-to-i16` | `I64 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i16) |
+| `wrapping-i64-to-i32` | `I64 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i32) |
 | `wrapping-i64-to-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-i64) |
-| `wrapping-i64-to-i8` | `I64 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-i8) |
-| `wrapping-i64-to-isize` | `I64 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-isize) |
-| `wrapping-i64-to-u16` | `I64 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-u16) |
-| `wrapping-i64-to-u32` | `I64 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-u32) |
-| `wrapping-i64-to-u64` | `I64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-u64) |
-| `wrapping-i64-to-u8` | `I64 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-u8) |
+| `wrapping-i64-to-i8` | `I64 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-i8) |
+| `wrapping-i64-to-isize` | `I64 -> Isize` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-isize) |
+| `wrapping-i64-to-u16` | `I64 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u16) |
+| `wrapping-i64-to-u32` | `I64 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u32) |
+| `wrapping-i64-to-u64` | `I64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u64) |
+| `wrapping-i64-to-u8` | `I64 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i64-to-u8) |
 | `wrapping-i64-to-usize` | `I64 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i64-to-usize) |
 | `wrapping-i8-to-i16` | `I8 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i16) |
 | `wrapping-i8-to-i32` | `I8 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i32) |
 | `wrapping-i8-to-i64` | `I8 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i64) |
 | `wrapping-i8-to-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-i8) |
 | `wrapping-i8-to-isize` | `I8 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-isize) |
-| `wrapping-i8-to-u16` | `I8 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-u16) |
-| `wrapping-i8-to-u32` | `I8 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-u32) |
-| `wrapping-i8-to-u64` | `I8 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-u64) |
-| `wrapping-i8-to-u8` | `I8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-u8) |
+| `wrapping-i8-to-u16` | `I8 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u16) |
+| `wrapping-i8-to-u32` | `I8 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u32) |
+| `wrapping-i8-to-u64` | `I8 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u64) |
+| `wrapping-i8-to-u8` | `I8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-i8-to-u8) |
 | `wrapping-i8-to-usize` | `I8 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-i8-to-usize) |
 | `wrapping-isize-to-i16` | `Isize -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i16) |
-| `wrapping-isize-to-i32` | `Isize -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i32) |
+| `wrapping-isize-to-i32` | `Isize -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-isize-to-i32) |
 | `wrapping-isize-to-i64` | `Isize -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i64) |
 | `wrapping-isize-to-i8` | `Isize -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-i8) |
 | `wrapping-isize-to-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-isize) |
@@ -1443,90 +1486,90 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `wrapping-isize-to-u64` | `Isize -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u64) |
 | `wrapping-isize-to-u8` | `Isize -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-u8) |
 | `wrapping-isize-to-usize` | `Isize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-isize-to-usize) |
-| `wrapping-mul-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-mul-i16) |
-| `wrapping-mul-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-mul-i32) |
-| `wrapping-mul-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-mul-i64) |
-| `wrapping-mul-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-mul-i8) |
+| `wrapping-mul-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i16) |
+| `wrapping-mul-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i32) |
+| `wrapping-mul-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i64) |
+| `wrapping-mul-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-i8) |
 | `wrapping-mul-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-mul-isize) |
-| `wrapping-mul-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-mul-u16) |
-| `wrapping-mul-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-mul-u32) |
-| `wrapping-mul-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-mul-u64) |
-| `wrapping-mul-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-mul-u8) |
+| `wrapping-mul-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u16) |
+| `wrapping-mul-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u32) |
+| `wrapping-mul-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u64) |
+| `wrapping-mul-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-mul-u8) |
 | `wrapping-mul-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-mul-usize) |
-| `wrapping-neg-i16` | `I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-neg-i16) |
-| `wrapping-neg-i32` | `I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-neg-i32) |
-| `wrapping-neg-i64` | `I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-neg-i64) |
-| `wrapping-neg-i8` | `I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-neg-i8) |
+| `wrapping-neg-i16` | `I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i16) |
+| `wrapping-neg-i32` | `I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i32) |
+| `wrapping-neg-i64` | `I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i64) |
+| `wrapping-neg-i8` | `I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-i8) |
 | `wrapping-neg-isize` | `Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-neg-isize) |
-| `wrapping-neg-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-neg-u16) |
-| `wrapping-neg-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-neg-u32) |
-| `wrapping-neg-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-neg-u64) |
-| `wrapping-neg-u8` | `U8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-neg-u8) |
+| `wrapping-neg-u16` | `U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u16) |
+| `wrapping-neg-u32` | `U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u32) |
+| `wrapping-neg-u64` | `U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u64) |
+| `wrapping-neg-u8` | `U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-neg-u8) |
 | `wrapping-neg-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-neg-usize) |
-| `wrapping-shl-i16` | `I16 -> U32 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-shl-i16) |
-| `wrapping-shl-i32` | `I32 -> U32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-shl-i32) |
-| `wrapping-shl-i64` | `I64 -> U32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-shl-i64) |
-| `wrapping-shl-i8` | `I8 -> U32 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-shl-i8) |
+| `wrapping-shl-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i16) |
+| `wrapping-shl-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i32) |
+| `wrapping-shl-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i64) |
+| `wrapping-shl-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-i8) |
 | `wrapping-shl-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-shl-isize) |
-| `wrapping-shl-u16` | `U16 -> U32 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-shl-u16) |
-| `wrapping-shl-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-shl-u32) |
-| `wrapping-shl-u64` | `U64 -> U32 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-shl-u64) |
-| `wrapping-shl-u8` | `U8 -> U32 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-shl-u8) |
+| `wrapping-shl-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u16) |
+| `wrapping-shl-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u32) |
+| `wrapping-shl-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u64) |
+| `wrapping-shl-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shl-u8) |
 | `wrapping-shl-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-shl-usize) |
-| `wrapping-shr-i16` | `I16 -> U32 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-shr-i16) |
-| `wrapping-shr-i32` | `I32 -> U32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-shr-i32) |
-| `wrapping-shr-i64` | `I64 -> U32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-shr-i64) |
-| `wrapping-shr-i8` | `I8 -> U32 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-shr-i8) |
+| `wrapping-shr-i16` | `I16 -> U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i16) |
+| `wrapping-shr-i32` | `I32 -> U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i32) |
+| `wrapping-shr-i64` | `I64 -> U32 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i64) |
+| `wrapping-shr-i8` | `I8 -> U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-i8) |
 | `wrapping-shr-isize` | `Isize -> U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-shr-isize) |
-| `wrapping-shr-u16` | `U16 -> U32 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-shr-u16) |
-| `wrapping-shr-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-shr-u32) |
-| `wrapping-shr-u64` | `U64 -> U32 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-shr-u64) |
-| `wrapping-shr-u8` | `U8 -> U32 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-shr-u8) |
+| `wrapping-shr-u16` | `U16 -> U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u16) |
+| `wrapping-shr-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u32) |
+| `wrapping-shr-u64` | `U64 -> U32 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u64) |
+| `wrapping-shr-u8` | `U8 -> U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-shr-u8) |
 | `wrapping-shr-usize` | `Usize -> U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-shr-usize) |
-| `wrapping-sub-i16` | `I16 -> I16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-sub-i16) |
-| `wrapping-sub-i32` | `I32 -> I32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-sub-i32) |
-| `wrapping-sub-i64` | `I64 -> I64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-sub-i64) |
-| `wrapping-sub-i8` | `I8 -> I8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-sub-i8) |
+| `wrapping-sub-i16` | `I16 -> I16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i16) |
+| `wrapping-sub-i32` | `I32 -> I32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i32) |
+| `wrapping-sub-i64` | `I64 -> I64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i64) |
+| `wrapping-sub-i8` | `I8 -> I8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-i8) |
 | `wrapping-sub-isize` | `Isize -> Isize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-sub-isize) |
-| `wrapping-sub-u16` | `U16 -> U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-sub-u16) |
-| `wrapping-sub-u32` | `U32 -> U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-sub-u32) |
-| `wrapping-sub-u64` | `U64 -> U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-sub-u64) |
-| `wrapping-sub-u8` | `U8 -> U8 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-sub-u8) |
+| `wrapping-sub-u16` | `U16 -> U16 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u16) |
+| `wrapping-sub-u32` | `U32 -> U32 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u32) |
+| `wrapping-sub-u64` | `U64 -> U64 -> U64` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u64) |
+| `wrapping-sub-u8` | `U8 -> U8 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-sub-u8) |
 | `wrapping-sub-usize` | `Usize -> Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-sub-usize) |
-| `wrapping-u16-to-i16` | `U16 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i16) |
+| `wrapping-u16-to-i16` | `U16 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-i16) |
 | `wrapping-u16-to-i32` | `U16 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i32) |
 | `wrapping-u16-to-i64` | `U16 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i64) |
-| `wrapping-u16-to-i8` | `U16 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-i8) |
+| `wrapping-u16-to-i8` | `U16 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-i8) |
 | `wrapping-u16-to-isize` | `U16 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-isize) |
 | `wrapping-u16-to-u16` | `U16 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u16) |
 | `wrapping-u16-to-u32` | `U16 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u32) |
 | `wrapping-u16-to-u64` | `U16 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u64) |
-| `wrapping-u16-to-u8` | `U16 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-u8) |
+| `wrapping-u16-to-u8` | `U16 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u16-to-u8) |
 | `wrapping-u16-to-usize` | `U16 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u16-to-usize) |
-| `wrapping-u32-to-i16` | `U32 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-i16) |
-| `wrapping-u32-to-i32` | `U32 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-i32) |
+| `wrapping-u32-to-i16` | `U32 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i16) |
+| `wrapping-u32-to-i32` | `U32 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i32) |
 | `wrapping-u32-to-i64` | `U32 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-i64) |
-| `wrapping-u32-to-i8` | `U32 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-i8) |
+| `wrapping-u32-to-i8` | `U32 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-i8) |
 | `wrapping-u32-to-isize` | `U32 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-isize) |
-| `wrapping-u32-to-u16` | `U32 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u16) |
+| `wrapping-u32-to-u16` | `U32 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-u16) |
 | `wrapping-u32-to-u32` | `U32 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u32) |
 | `wrapping-u32-to-u64` | `U32 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u64) |
-| `wrapping-u32-to-u8` | `U32 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-u8) |
+| `wrapping-u32-to-u8` | `U32 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u32-to-u8) |
 | `wrapping-u32-to-usize` | `U32 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u32-to-usize) |
-| `wrapping-u64-to-i16` | `U64 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-i16) |
-| `wrapping-u64-to-i32` | `U64 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-i32) |
-| `wrapping-u64-to-i64` | `U64 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-i64) |
-| `wrapping-u64-to-i8` | `U64 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-i8) |
+| `wrapping-u64-to-i16` | `U64 -> I16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i16) |
+| `wrapping-u64-to-i32` | `U64 -> I32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i32) |
+| `wrapping-u64-to-i64` | `U64 -> I64` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i64) |
+| `wrapping-u64-to-i8` | `U64 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-i8) |
 | `wrapping-u64-to-isize` | `U64 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-isize) |
-| `wrapping-u64-to-u16` | `U64 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-u16) |
-| `wrapping-u64-to-u32` | `U64 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-u32) |
+| `wrapping-u64-to-u16` | `U64 -> U16` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u16) |
+| `wrapping-u64-to-u32` | `U64 -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u32) |
 | `wrapping-u64-to-u64` | `U64 -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-u64) |
-| `wrapping-u64-to-u8` | `U64 -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-u8) |
-| `wrapping-u64-to-usize` | `U64 -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-u64-to-usize) |
+| `wrapping-u64-to-u8` | `U64 -> U8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-u8) |
+| `wrapping-u64-to-usize` | `U64 -> Usize` | [Prim.Machine](Prim.Machine.md#v-wrapping-u64-to-usize) |
 | `wrapping-u8-to-i16` | `U8 -> I16` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i16) |
 | `wrapping-u8-to-i32` | `U8 -> I32` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i32) |
 | `wrapping-u8-to-i64` | `U8 -> I64` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i64) |
-| `wrapping-u8-to-i8` | `U8 -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-i8) |
+| `wrapping-u8-to-i8` | `U8 -> I8` | [Prim.Machine](Prim.Machine.md#v-wrapping-u8-to-i8) |
 | `wrapping-u8-to-isize` | `U8 -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-isize) |
 | `wrapping-u8-to-u16` | `U8 -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u16) |
 | `wrapping-u8-to-u32` | `U8 -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-u8-to-u32) |
@@ -1539,7 +1582,7 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `wrapping-usize-to-i8` | `Usize -> I8` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-i8) |
 | `wrapping-usize-to-isize` | `Usize -> Isize` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-isize) |
 | `wrapping-usize-to-u16` | `Usize -> U16` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u16) |
-| `wrapping-usize-to-u32` | `Usize -> U32` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u32) |
+| `wrapping-usize-to-u32` | `Usize -> U32` | [Prim.Machine](Prim.Machine.md#v-wrapping-usize-to-u32) |
 | `wrapping-usize-to-u64` | `Usize -> U64` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u64) |
 | `wrapping-usize-to-u8` | `Usize -> U8` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-u8) |
 | `wrapping-usize-to-usize` | `Usize -> Usize` | [Data.Machine](Data.Machine.md#v-wrapping-usize-to-usize) |

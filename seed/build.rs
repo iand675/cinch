@@ -40,13 +40,33 @@ fn link_llvm() {
 /// entry without re-rendering it to compare.
 fn build_identity() {
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let roots = [manifest.join("src"), manifest.join("prelude"), manifest.join("runtime/src/block_kinds.rs")];
+    let prelude = manifest.join("prelude");
+    let pkg_manifest = prelude.join("cinch-base.cinchpkg");
     let mut files: Vec<PathBuf> = Vec::new();
-    for root in &roots {
+    for root in [manifest.join("src"), manifest.join("runtime/src/block_kinds.rs")] {
         println!("cargo:rerun-if-changed={}", root.display());
-        collect(root, &mut files);
+        collect(&root, &mut files);
+    }
+    // Only embedded prelude files are compiled into the compiler binary;
+    // source-distributed modules under `prelude/` are loaded from disk by
+    // consumers and must not invalidate `CINCH_BUILD_ID` or force full
+    // compiler rebuilds when edited.
+    let mut embedded = vec![pkg_manifest.clone(), prelude.join("Prelude.cinch")];
+    if let Ok(text) = std::fs::read_to_string(&pkg_manifest) {
+        for line in text.lines() {
+            if let Some(rest) = line.trim().strip_prefix("\"path\": \"") {
+                if let Some(rel) = rest.strip_suffix("\",") .or_else(|| rest.strip_suffix('"')) {
+                    embedded.push(prelude.join(rel));
+                }
+            }
+        }
+    }
+    for path in embedded {
+        println!("cargo:rerun-if-changed={}", path.display());
+        files.push(path);
     }
     files.sort();
+    files.dedup();
     // FNV-1a 64: stable across toolchains, unlike `DefaultHasher`.
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut eat = |bytes: &[u8]| {

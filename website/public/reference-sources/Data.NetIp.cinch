@@ -1,0 +1,1402 @@
+-- | Immutable IPv4 and IPv6 addresses, address-port pairs, and CIDR prefixes.
+--
+-- Every value of `Addr`, `AddrPort`, or `Prefix` is valid by construction:
+-- text parsing and fallible constructors return `Result NetIpError` or `Option`
+-- rather than carrying an uninitialized sentinel state. IPv4 addresses are
+-- stored as big-endian 32-bit unsigned integers, and IPv6 addresses as
+-- big-endian 128-bit unsigned integers with an optional scoped addressing zone.
+--
+-- Text rendering follows RFC 5952 for IPv6 addresses (lowercase hexadecimal,
+-- compressing the longest run of two or more zero 16-bit groups, with the
+-- earliest run winning ties), renders IPv4-mapped IPv6 addresses (`::ffff:0:0/96`)
+-- in `::ffff:a.b.c.d` form, and appends `%zone` when a zone is present.
+-- Address parsing is strict: IPv4 octets forbid leading zeros, zones are only
+-- permitted on IPv6 addresses and must be non-empty, and prefixes forbid zones
+-- and leading zeros in the prefix bit length.
+module Data.NetIp where
+
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Ordering
+  import Data.Bool
+  import Data.Nat
+  import Data.Int
+  import Data.Option
+  import Data.Result
+  import Data.List
+  import Data.Machine
+  import Data.Wide
+  import Data.Bytes
+  import Data.String
+  import Data.Hash
+  import Data.IpAddr
+  import Text.Show (Show, show, nat-to-string, int-to-string)
+
+  export NetIpError, NetIpInvalidAddr, NetIpInvalidAddrPort, NetIpInvalidPrefix, NetIpInvalidPrefixBits, NetIpInvalidBinary
+  export netip-error-message
+  export Addr, ipv4-unspecified, ipv6-unspecified, ipv6-loopback, ipv6-link-local-all-nodes, ipv6-link-local-all-routers
+  export parse-addr, addr-from4, addr-from16, addr-from-slice, addr-from-u32, addr-from-u128
+  export addr-is4, addr-is6, addr-is4-in6, addr-unmap
+  export addr-as4, addr-as16, addr-as-slice, addr-bit-len
+  export addr-zone, addr-with-zone
+  export addr-to-string, addr-string-expanded
+  export addr-compare, addr-less, addr-next, addr-prev, addr-prefix
+  export addr-is-unspecified, addr-is-loopback, addr-is-multicast
+  export addr-is-interface-local-multicast, addr-is-link-local-multicast
+  export addr-is-link-local-unicast, addr-is-global-unicast, addr-is-private
+  export addr-marshal-binary, addr-unmarshal-binary
+  export addr-to-ip-addr, addr-from-ip-addr
+  export AddrPort, addr-port-from, parse-addr-port, addr-port-addr, addr-port-port
+  export addr-port-to-string, addr-port-compare
+  export addr-port-marshal-binary, addr-port-unmarshal-binary
+  export Prefix, prefix-from, parse-prefix, prefix-addr, prefix-bits
+  export prefix-is-single-ip, prefix-masked, prefix-contains, prefix-overlaps
+  export prefix-to-string, prefix-compare
+  export prefix-marshal-binary, prefix-unmarshal-binary
+
+  -- ---------------------------------------------------------------------
+  -- Error vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | Why parsing or constructing an address, address-port, or prefix failed.
+  data NetIpError where
+    -- | Input text could not be parsed as an IPv4 or IPv6 address.
+    NetIpInvalidAddr :: String -> NetIpError
+    -- | Input text could not be parsed as an IP address and port.
+    NetIpInvalidAddrPort :: String -> NetIpError
+    -- | Input text could not be parsed as a CIDR prefix.
+    NetIpInvalidPrefix :: String -> NetIpError
+    -- | Requested prefix length was outside `[0, bit-len]` for the address family.
+    NetIpInvalidPrefixBits :: Int -> Nat -> NetIpError
+    -- | Binary representation had an unexpected length or malformed zone text.
+    NetIpInvalidBinary :: String -> NetIpError
+
+  -- | Human-readable diagnostic message for a `NetIpError`.
+  netip-error-message :: NetIpError -> String
+  netip-error-message err = case err of
+    NetIpInvalidAddr msg -> string-concat "invalid IP address: " msg
+    NetIpInvalidAddrPort msg -> string-concat "invalid address-port: " msg
+    NetIpInvalidPrefix msg -> string-concat "invalid prefix: " msg
+    NetIpInvalidPrefixBits bits max-bits ->
+      string-concat-all ["prefix length ", int-to-string bits, " out of range [0, ", nat-to-string max-bits, "]"]
+    NetIpInvalidBinary msg -> string-concat "invalid binary encoding: " msg
+
+  -- | Structural equality on `NetIpError`.
+  implicit instance Eq_NetIpError :: Eq NetIpError where
+    (==) a b = case a of
+      NetIpInvalidAddr x -> case b of NetIpInvalidAddr y -> x == y; _ -> False
+      NetIpInvalidAddrPort x -> case b of NetIpInvalidAddrPort y -> x == y; _ -> False
+      NetIpInvalidPrefix x -> case b of NetIpInvalidPrefix y -> x == y; _ -> False
+      NetIpInvalidPrefixBits x1 x2 -> case b of NetIpInvalidPrefixBits y1 y2 -> x1 == y1 && x2 == y2; _ -> False
+      NetIpInvalidBinary x -> case b of NetIpInvalidBinary y -> x == y; _ -> False
+    (/=) a b = not (a == b)
+
+  -- | Render a `NetIpError` via its message text.
+  implicit instance Show_NetIpError :: Show NetIpError where
+    show err = netip-error-message err
+
+  -- ---------------------------------------------------------------------
+  -- Core data types.
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable IPv4 or IPv6 address (with optional IPv6 scoped addressing zone).
+  data Addr where
+    -- | An IPv4 address packed as a big-endian 32-bit unsigned integer.
+    AddrV4 :: U32 -> Addr
+    -- | An IPv6 address packed as a big-endian 128-bit unsigned integer with a zone (empty for none).
+    AddrV6 :: U128 -> String -> Addr
+
+  -- | An immutable IP address paired with a 16-bit port number.
+  data AddrPort where
+    -- | An address and its 16-bit port number.
+    MkAddrPort :: Addr -> U16 -> AddrPort
+
+  -- | An immutable CIDR network prefix: an address (without zone) and a valid bit length.
+  data Prefix where
+    -- | A zoneless IP address and prefix length in `[0, addr-bit-len addr]`.
+    MkPrefix :: Addr -> Nat -> Prefix
+
+  -- ---------------------------------------------------------------------
+  -- Low-level bit, byte, and slice helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert a byte-range `Nat` to `U8`.
+  nat-byte-to-u8 :: InRange 0 255 Nat -> U8
+  nat-byte-to-u8 n = wrapping-i64-to-u8 (nat-to-i64 n)
+
+  -- | Convert a small `Nat` (at most 128) to `U32` for shift counts.
+  nat-shift-to-u32 :: Nat -> U32
+  nat-shift-to-u32 n = if n <= 128 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | Convert an `I64` comparison result (-1, 0, 1) to `Ordering`.
+  i64-to-ordering :: I64 -> Ordering
+  i64-to-ordering c =
+    if lt-i64 c 0 then LT
+    else if gt-i64 c 0 then GT
+    else EQ
+
+  -- | Convert an ASCII byte buffer into a `String` (all bytes produced are valid UTF-8).
+  bytes-to-string-ascii :: Bytes -> String
+  bytes-to-string-ascii b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  -- | Extract the byte range `[start, end)` from a `Bytes` buffer.
+  bytes-slice :: Bytes -> Nat -> Nat -> Bytes
+  bytes-slice b start end =
+    if start <= end && end <= bytes-len b then
+      let n = end - start in
+      let out = bytes-new n in
+      let u = if start + n <= bytes-len b && n <= bytes-len out then bytes-copy-range out b 0 start n else () in
+      out
+    else bytes-new 0
+
+  -- | Find the first occurrence of a byte in `[start, end)`, or `end` if absent.
+  find-byte :: Bytes -> Nat -> Nat -> Nat -> Nat
+  find-byte b i end needle =
+    if i < end && i < bytes-len b then
+      if bytes-get b i == needle then i
+      else find-byte b (i + 1) end needle
+    else end
+
+  -- | Find the last occurrence of a byte in `[0, len)`, or `None` if absent.
+  rfind-byte :: Bytes -> Nat -> Nat -> Option Nat
+  rfind-byte b pos needle =
+    if pos == 0 then None
+    else
+      let prev = pos - 1 in
+      if prev < bytes-len b then
+        if bytes-get b prev == needle then Some prev
+        else rfind-byte b prev needle
+      else None
+
+  -- | Pack four big-endian octets into a `U32`.
+  pack-u32 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-u32 b0 b1 b2 b3 =
+    let w0 = wrapping-shl-u32 (u8-to-u32 b0) 24 in
+    let w1 = wrapping-shl-u32 (u8-to-u32 b1) 16 in
+    let w2 = wrapping-shl-u32 (u8-to-u32 b2) 8 in
+    let w3 = u8-to-u32 b3 in
+    bit-or-u32 (bit-or-u32 w0 w1) (bit-or-u32 w2 w3)
+
+  -- | Read a big-endian `U32` from four bytes starting at `off`.
+  read-be-u32 :: Bytes -> Nat -> U32
+  read-be-u32 b off =
+    if off + 4 <= bytes-len b then
+      pack-u32
+        (nat-byte-to-u8 (bytes-get b off))
+        (nat-byte-to-u8 (bytes-get b (off + 1)))
+        (nat-byte-to-u8 (bytes-get b (off + 2)))
+        (nat-byte-to-u8 (bytes-get b (off + 3)))
+    else 0
+
+  -- | Write a big-endian `U32` into four bytes starting at `off`.
+  write-be-u32 :: Bytes -> Nat -> U32 -> Unit
+  write-be-u32 b off v =
+    if off + 4 <= bytes-len b then
+      let u0 = bytes-set b off (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 v 24))) in
+      let u1 = bytes-set b (off + 1) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 v 16))) in
+      let u2 = bytes-set b (off + 2) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 v 8))) in
+      bytes-set b (off + 3) (u8-to-nat (wrapping-u32-to-u8 v))
+    else ()
+
+  -- | Read a big-endian `U128` from 16 bytes starting at `off`.
+  read-be-u128 :: Bytes -> Nat -> U128
+  read-be-u128 b off = read-be-u128-loop b off 0 0
+
+  -- | Tail-recursive loop accumulating 16 big-endian bytes into a `U128`.
+  read-be-u128-loop :: Bytes -> Nat -> Nat -> U128 -> U128
+  read-be-u128-loop b off i acc =
+    if i < 16 && off + i < bytes-len b then
+      let byte = u8-to-u128 (nat-byte-to-u8 (bytes-get b (off + i))) in
+      let next = bit-or-u128 (wrapping-shl-u128 acc 8) byte in
+      read-be-u128-loop b off (i + 1) next
+    else acc
+
+  -- | Write a big-endian `U128` into 16 bytes starting at `off`.
+  write-be-u128 :: Bytes -> Nat -> U128 -> Unit
+  write-be-u128 b off v = write-be-u128-loop b off v 0
+
+  -- | Tail-recursive loop writing 16 big-endian bytes from a `U128`.
+  write-be-u128-loop :: Bytes -> Nat -> U128 -> Nat -> Unit
+  write-be-u128-loop b off v i =
+    if i < 16 && off + i < bytes-len b then
+      let shift = nat-shift-to-u32 ((15 - i) * 8) in
+      let byte = u8-to-nat (wrapping-u128-to-u8 (wrapping-shr-u128 v shift)) in
+      let u = bytes-set b (off + i) byte in
+      write-be-u128-loop b off v (i + 1)
+    else ()
+
+  -- | Extract the `i`-th octet (`0..=3`, most significant first) of an IPv4 `U32`.
+  v4-octet :: U32 -> Nat -> U8
+  v4-octet v i =
+    if i < 4 then
+      let shift = nat-shift-to-u32 ((3 - i) * 8) in
+      wrapping-u32-to-u8 (wrapping-shr-u32 v shift)
+    else 0
+
+  -- | Extract the `i`-th 16-bit group (`0..=7`, most significant first) of an IPv6 `U128`.
+  v6-group :: U128 -> Nat -> U16
+  v6-group v i =
+    if i < 8 then
+      let shift = nat-shift-to-u32 ((7 - i) * 16) in
+      wrapping-u128-to-u16 (wrapping-shr-u128 v shift)
+    else 0
+
+  -- | Extract the top byte (octet 0) of an IPv6 `U128`.
+  v6-first-byte :: U128 -> U8
+  v6-first-byte v = wrapping-u128-to-u8 (wrapping-shr-u128 v 120)
+
+  -- | Build the IPv4-mapped IPv6 `U128` (`::ffff:a.b.c.d`) for a 32-bit IPv4 value.
+  v4-to-mapped-u128 :: U32 -> U128
+  v4-to-mapped-u128 v =
+    bit-or-u128 (wrapping-shl-u128 (u32-to-u128 65535) 32) (u32-to-u128 v)
+
+  -- | Test whether a 128-bit IPv6 value lies in the `::ffff:0:0/96` IPv4-mapped range.
+  is4-in6-u128 :: U128 -> Bool
+  is4-in6-u128 v = eq-u128 (wrapping-shr-u128 v 32) (u32-to-u128 65535)
+
+  -- | Bitmask with the topmost `bits` bits set in a 32-bit word (`0 <= bits <= 32`).
+  mask-u32 :: Nat -> U32
+  mask-u32 bits =
+    if bits == 0 then 0
+    else if bits >= 32 then max-bound-u32
+    else wrapping-shl-u32 max-bound-u32 (nat-shift-to-u32 (32 - bits))
+
+  -- | Bitmask with the topmost `bits` bits set in a 128-bit word (`0 <= bits <= 128`).
+  mask-u128 :: Nat -> U128
+  mask-u128 bits =
+    if bits == 0 then min-bound-u128
+    else if bits >= 128 then max-bound-u128
+    else wrapping-shl-u128 max-bound-u128 (nat-shift-to-u32 (128 - bits))
+
+  -- | Lowercase ASCII hex digit byte (`'0'..'9'` or `'a'..'f'`) for a nibble (`0..=15`).
+  hex-nibble-byte :: U8 -> InRange 0 255 Nat
+  hex-nibble-byte d =
+    let n = u8-to-nat (bit-and-u8 d 15) in
+    if n < 10 then 48 + n
+    else if n < 16 then 87 + n
+    else 48
+
+  -- | Decode a single ASCII hex digit byte to `0..=15`, or `None`.
+  hex-byte-value :: Nat -> Option U32
+  hex-byte-value b =
+    if b >= 48 && b <= 57 then Some (wrapping-i64-to-u32 (nat-to-i64 (b - 48)))
+    else if b >= 97 && b <= 102 then Some (wrapping-i64-to-u32 (nat-to-i64 (b - 87)))
+    else if b >= 65 && b <= 70 then Some (wrapping-i64-to-u32 (nat-to-i64 (b - 55)))
+    else None
+
+  -- ---------------------------------------------------------------------
+  -- Well-known addresses and direct constructors.
+  -- ---------------------------------------------------------------------
+
+  -- | The IPv4 unspecified address `0.0.0.0`.
+  ipv4-unspecified :: Addr
+  ipv4-unspecified = AddrV4 0
+
+  -- | The IPv6 unspecified address `::`.
+  ipv6-unspecified :: Addr
+  ipv6-unspecified = AddrV6 0 ""
+
+  -- | The IPv6 loopback address `::1`.
+  ipv6-loopback :: Addr
+  ipv6-loopback = AddrV6 1 ""
+
+  -- | The IPv6 link-local all-nodes multicast address `ff02::1`.
+  ipv6-link-local-all-nodes :: Addr
+  ipv6-link-local-all-nodes =
+    AddrV6 (bit-or-u128 (wrapping-shl-u128 (u32-to-u128 65282) 112) 1) ""
+
+  -- | The IPv6 link-local all-routers multicast address `ff02::2`.
+  ipv6-link-local-all-routers :: Addr
+  ipv6-link-local-all-routers =
+    AddrV6 (bit-or-u128 (wrapping-shl-u128 (u32-to-u128 65282) 112) 2) ""
+
+  -- | Construct an IPv4 address from four octets in network byte order.
+  addr-from4 :: U8 -> U8 -> U8 -> U8 -> Addr
+  addr-from4 b0 b1 b2 b3 = AddrV4 (pack-u32 b0 b1 b2 b3)
+
+  -- | Construct an IPv4 address from a big-endian 32-bit unsigned integer.
+  addr-from-u32 :: U32 -> Addr
+  addr-from-u32 v = AddrV4 v
+
+  -- | Construct an IPv6 address from a big-endian 128-bit unsigned integer (without zone).
+  addr-from-u128 :: U128 -> Addr
+  addr-from-u128 v = AddrV6 v ""
+
+  -- | Construct an IPv6 address from a 16-byte buffer in network byte order.
+  -- Returns `None` if the buffer length is not 16. An IPv4-mapped IPv6 byte
+  -- sequence stays an IPv6 address; call `addr-unmap` to unwrap it.
+  addr-from16 :: Bytes -> Option Addr
+  addr-from16 b =
+    if bytes-len b == 16 then Some (AddrV6 (read-be-u128 b 0) "")
+    else None
+
+  -- | Construct an IPv4 address from 4 bytes or an IPv6 address from 16 bytes.
+  -- Returns `None` for any other buffer length.
+  addr-from-slice :: Bytes -> Option Addr
+  addr-from-slice b =
+    if bytes-len b == 4 then Some (AddrV4 (read-be-u32 b 0))
+    else if bytes-len b == 16 then Some (AddrV6 (read-be-u128 b 0) "")
+    else None
+
+  -- ---------------------------------------------------------------------
+  -- Strict IPv4 and IPv6 text parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse an IPv4 or IPv6 address string (including IPv4-mapped IPv6 and
+  -- IPv6 scoped addressing zones such as `fe80::1%eth0`).
+  parse-addr :: String -> Result NetIpError Addr
+  parse-addr s =
+    let b = string-to-bytes s in
+    parse-addr-dispatch b 0 (bytes-len b)
+
+  -- | Scan for the first `.`, `:`, or `%` to choose the IPv4 or IPv6 parser.
+  parse-addr-dispatch :: Bytes -> Nat -> Nat -> Result NetIpError Addr
+  parse-addr-dispatch b i n =
+    if i < n && i < bytes-len b then
+      let c = bytes-get b i in
+      if c == 46 then
+        case parse-ipv4-slice b 0 n of
+          Ok v -> Ok (AddrV4 v)
+          Err e -> Err e
+      else if c == 58 then parse-ipv6-bytes b n
+      else if c == 37 then Err (NetIpInvalidAddr "missing IPv6 address")
+      else parse-addr-dispatch b (i + 1) n
+    else Err (NetIpInvalidAddr "unable to parse IP")
+
+  -- | Parse four strict dotted-decimal IPv4 octets in `b[start..end)`.
+  parse-ipv4-slice :: Bytes -> Nat -> Nat -> Result NetIpError U32
+  parse-ipv4-slice b start end = parse-ipv4-loop b start start end 0 0 0 0
+
+  -- | Tail-recursive strict IPv4 scanner rejecting leading zeros, empty fields, and overflow.
+  parse-ipv4-loop :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> U32 -> Result NetIpError U32
+  parse-ipv4-loop b start i end pos dig-len val acc =
+    if i < end && i < bytes-len b then
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then
+        if dig-len == 1 && val == 0 then
+          Err (NetIpInvalidAddr "IPv4 field has octet with leading zero")
+        else
+          let next-val = val * 10 + (c - 48) in
+          if next-val > 255 then
+            Err (NetIpInvalidAddr "IPv4 field has value >255")
+          else
+            parse-ipv4-loop b start (i + 1) end pos (dig-len + 1) next-val acc
+      else if c == 46 then
+        if i == start || i + 1 == end || dig-len == 0 then
+          Err (NetIpInvalidAddr "IPv4 field must have at least one digit")
+        else if pos == 3 then
+          Err (NetIpInvalidAddr "IPv4 address too long")
+        else
+          let byte-u32 = if val <= 255 then wrapping-i64-to-u32 (nat-to-i64 val) else 0 in
+          let next-acc = bit-or-u32 (wrapping-shl-u32 acc 8) byte-u32 in
+          parse-ipv4-loop b start (i + 1) end (pos + 1) 0 0 next-acc
+      else Err (NetIpInvalidAddr "unexpected character in IPv4 address")
+    else
+      if pos < 3 || dig-len == 0 then
+        Err (NetIpInvalidAddr "IPv4 address too short")
+      else
+        let byte-u32 = if val <= 255 then wrapping-i64-to-u32 (nat-to-i64 val) else 0 in
+        Ok (bit-or-u32 (wrapping-shl-u32 acc 8) byte-u32)
+
+  -- | Parse an IPv6 address (with optional `%zone`) from UTF-8 bytes.
+  parse-ipv6-bytes :: Bytes -> Nat -> Result NetIpError Addr
+  parse-ipv6-bytes b n =
+    let pct = find-byte b 0 n 37 in
+    if pct < n then
+      if pct + 1 >= n then Err (NetIpInvalidAddr "zone must be a non-empty string")
+      else
+        let zone-bytes = bytes-slice b (pct + 1) n in
+        case string-from-bytes zone-bytes of
+          None -> Err (NetIpInvalidAddr "invalid UTF-8 in zone")
+          Some zone ->
+            case parse-ipv6-body b pct of
+              Ok v -> Ok (AddrV6 v zone)
+              Err e -> Err e
+    else
+      case parse-ipv6-body b n of
+        Ok v -> Ok (AddrV6 v "")
+        Err e -> Err e
+
+  -- | Parse the IPv6 address body in `b[0..end)` (before any `%zone`).
+  parse-ipv6-body :: Bytes -> Nat -> Result NetIpError U128
+  parse-ipv6-body b end =
+    if end == 0 then Err (NetIpInvalidAddr "missing IPv6 address")
+    else
+      let buf = bytes-new 16 in
+      if end >= 2 && end <= bytes-len b && bytes-get b 0 == 58 && bytes-get b 1 == 58 then
+        if end == 2 then Ok 0
+        else parse-ipv6-loop b 2 end buf 0 (Some 0)
+      else parse-ipv6-loop b 0 end buf 0 None
+
+  -- | Scan up to four hexadecimal digits starting at `pos` in `b[0..end)`.
+  scan-hex-group :: Bytes -> Nat -> Nat -> Nat -> U32 -> Result NetIpError (Nat, Nat, U32)
+  scan-hex-group b pos end digits acc =
+    if pos < end && pos < bytes-len b then
+      case hex-byte-value (bytes-get b pos) of
+        None -> Ok (pos, digits, acc)
+        Some d ->
+          if digits >= 4 then
+            Err (NetIpInvalidAddr "each IPv6 group must have at most 4 hex digits")
+          else
+            let next-acc = bit-or-u32 (wrapping-shl-u32 acc 4) d in
+            scan-hex-group b (pos + 1) end (digits + 1) next-acc
+    else Ok (pos, digits, acc)
+
+  -- | Tail-recursive IPv6 parser supporting `::` compression and trailing embedded IPv4.
+  parse-ipv6-loop :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Option Nat -> Result NetIpError U128
+  parse-ipv6-loop b pos end buf out-idx ellipsis =
+    if out-idx >= 16 then
+      if pos < end then Err (NetIpInvalidAddr "trailing garbage after IPv6 address")
+      else finish-ipv6 buf out-idx ellipsis
+    else
+      case scan-hex-group b pos end 0 0 of
+        Err e -> Err e
+        Ok scanned -> case scanned of
+          (next-pos, digits, acc) ->
+            if digits == 0 then
+              Err (NetIpInvalidAddr "each colon-separated field must have at least one digit")
+            else if next-pos < end && next-pos < bytes-len b && bytes-get b next-pos == 46 then
+              parse-ipv6-embedded-v4 b pos end buf out-idx ellipsis
+            else
+              let hi = u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 acc 8)) in
+              let lo = u8-to-nat (wrapping-u32-to-u8 acc) in
+              let u0 = if out-idx + 1 < bytes-len buf then bytes-set buf out-idx hi else () in
+              let u1 = if out-idx + 1 < bytes-len buf then bytes-set buf (out-idx + 1) lo else () in
+              let next-out = out-idx + 2 in
+              if next-pos == end then finish-ipv6 buf next-out ellipsis
+              else if next-pos < bytes-len b && bytes-get b next-pos == 58 then
+                if next-pos + 1 == end then
+                  Err (NetIpInvalidAddr "colon must be followed by more characters")
+                else
+                  let after-colon = next-pos + 1 in
+                  if after-colon < bytes-len b && bytes-get b after-colon == 58 then
+                    case ellipsis of
+                      Some _ -> Err (NetIpInvalidAddr "multiple :: in IPv6 address")
+                      None ->
+                        if after-colon + 1 == end then finish-ipv6 buf next-out (Some next-out)
+                        else parse-ipv6-loop b (after-colon + 1) end buf next-out (Some next-out)
+                  else parse-ipv6-loop b after-colon end buf next-out ellipsis
+              else Err (NetIpInvalidAddr "unexpected character, want colon")
+
+  -- | Parse a trailing dotted-decimal IPv4 suffix inside an IPv6 address.
+  parse-ipv6-embedded-v4 :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Option Nat -> Result NetIpError U128
+  parse-ipv6-embedded-v4 b pos end buf out-idx ellipsis =
+    let bad-place = (case ellipsis of None -> out-idx /= 12; Some _ -> False) in
+    if bad-place then
+      Err (NetIpInvalidAddr "embedded IPv4 address must replace the final 2 fields")
+    else if out-idx + 4 > 16 then
+      Err (NetIpInvalidAddr "too many hex fields to fit an embedded IPv4")
+    else
+      case parse-ipv4-slice b pos end of
+        Err e -> Err e
+        Ok v4 ->
+          let u = write-be-u32 buf out-idx v4 in
+          finish-ipv6 buf (out-idx + 4) ellipsis
+
+  -- | Expand any `::` ellipsis into zeros and assemble the final 128-bit IPv6 value.
+  finish-ipv6 :: Bytes -> Nat -> Option Nat -> Result NetIpError U128
+  finish-ipv6 buf out-idx ellipsis =
+    if out-idx < 16 then
+      case ellipsis of
+        None -> Err (NetIpInvalidAddr "IPv6 address too short")
+        Some ell ->
+          let gap = 16 - out-idx in
+          let tail-len = if ell <= out-idx then out-idx - ell else 0 in
+          let out = bytes-new 16 in
+          let u0 = if ell <= bytes-len buf && ell <= bytes-len out then bytes-copy-range out buf 0 0 ell else () in
+          let u1 = if ell + tail-len <= bytes-len buf && ell + gap + tail-len <= bytes-len out then bytes-copy-range out buf (ell + gap) ell tail-len else () in
+          Ok (read-be-u128 out 0)
+    else
+      case ellipsis of
+        Some _ -> Err (NetIpInvalidAddr "the :: must expand to at least one field of zeros")
+        None -> Ok (read-be-u128 buf 0)
+
+  -- ---------------------------------------------------------------------
+  -- Addr inspection, conversion, stepping, and classification predicates.
+  -- ---------------------------------------------------------------------
+
+  -- | Report whether the address is an IPv4 address (false for IPv4-mapped IPv6).
+  addr-is4 :: Addr -> Bool
+  addr-is4 a = case a of
+    AddrV4 _ -> True
+    AddrV6 _ _ -> False
+
+  -- | Report whether the address is an IPv6 address (including IPv4-mapped IPv6).
+  addr-is6 :: Addr -> Bool
+  addr-is6 a = case a of
+    AddrV4 _ -> False
+    AddrV6 _ _ -> True
+
+  -- | Report whether the address is an IPv4-mapped IPv6 address (`::ffff:0:0/96`).
+  addr-is4-in6 :: Addr -> Bool
+  addr-is4-in6 a = case a of
+    AddrV4 _ -> False
+    AddrV6 v _ -> is4-in6-u128 v
+
+  -- | Unwrap an IPv4-mapped IPv6 address to its underlying IPv4 address (stripping any zone).
+  -- All other addresses are returned unchanged.
+  addr-unmap :: Addr -> Addr
+  addr-unmap a = case a of
+    AddrV4 _ -> a
+    AddrV6 v _ ->
+      if is4-in6-u128 v then AddrV4 (wrapping-u128-to-u32 v)
+      else a
+
+  -- | Return the 4-byte network-order representation for IPv4 or IPv4-mapped IPv6 addresses.
+  -- Returns `None` for non-mapped IPv6 addresses.
+  addr-as4 :: Addr -> Option Bytes
+  addr-as4 a = case a of
+    AddrV4 v ->
+      let out = bytes-new 4 in
+      let u = write-be-u32 out 0 v in
+      Some out
+    AddrV6 v _ ->
+      if is4-in6-u128 v then
+        let out = bytes-new 4 in
+        let u = write-be-u32 out 0 (wrapping-u128-to-u32 v) in
+        Some out
+      else None
+
+  -- | Return the 16-byte network-order representation of the address.
+  -- IPv4 addresses are represented as IPv4-mapped IPv6 bytes; IPv6 zones are omitted.
+  addr-as16 :: Addr -> Bytes
+  addr-as16 a =
+    let out = bytes-new 16 in
+    let u = (case a of
+      AddrV4 v -> write-be-u128 out 0 (v4-to-mapped-u128 v)
+      AddrV6 v _ -> write-be-u128 out 0 v) in
+    out
+
+  -- | Return the 4-byte representation for IPv4 or 16-byte representation for IPv6 (without zone).
+  addr-as-slice :: Addr -> Bytes
+  addr-as-slice a = case a of
+    AddrV4 v ->
+      let out = bytes-new 4 in
+      let u = write-be-u32 out 0 v in
+      out
+    AddrV6 v _ ->
+      let out = bytes-new 16 in
+      let u = write-be-u128 out 0 v in
+      out
+
+  -- | Number of bits in the address: `32` for IPv4, `128` for IPv6 (including IPv4-mapped IPv6).
+  addr-bit-len :: Addr -> Nat
+  addr-bit-len a = case a of
+    AddrV4 _ -> 32
+    AddrV6 _ _ -> 128
+
+  -- | The IPv6 scoped addressing zone, or `""` for IPv4 and zoneless IPv6 addresses.
+  addr-zone :: Addr -> String
+  addr-zone a = case a of
+    AddrV4 _ -> ""
+    AddrV6 _ z -> z
+
+  -- | Return the address with the given IPv6 scoped addressing zone (empty removes the zone).
+  -- For IPv4 addresses this is a no-op.
+  addr-with-zone :: Addr -> String -> Addr
+  addr-with-zone a zone = case a of
+    AddrV4 _ -> a
+    AddrV6 v _ -> AddrV6 v zone
+
+  -- | Total order on addresses: IPv4 sorts before IPv6, then by numeric address value,
+  -- then by IPv6 zone in byte-lexicographic order.
+  addr-compare :: Addr -> Addr -> Ordering
+  addr-compare a b = case a of
+    AddrV4 x -> case b of
+      AddrV4 y ->
+        if lt-u32 x y then LT
+        else if gt-u32 x y then GT
+        else EQ
+      AddrV6 _ _ -> LT
+    AddrV6 x zx -> case b of
+      AddrV4 _ -> GT
+      AddrV6 y zy ->
+        if lt-u128 x y then LT
+        else if gt-u128 x y then GT
+        else i64-to-ordering (string-compare zx zy)
+
+  -- | Report whether `a` sorts strictly before `b` under `addr-compare`.
+  addr-less :: Addr -> Addr -> Bool
+  addr-less a b = case addr-compare a b of
+    LT -> True
+    _ -> False
+
+  -- | Return the next address in numeric order (preserving any IPv6 zone),
+  -- or `None` when incrementing would overflow the address family.
+  addr-next :: Addr -> Option Addr
+  addr-next a = case a of
+    AddrV4 v -> case checked-add-u32 v 1 of
+      Some n -> Some (AddrV4 n)
+      None -> None
+    AddrV6 v z -> case checked-add-u128 v 1 of
+      Some n -> Some (AddrV6 n z)
+      None -> None
+
+  -- | Return the previous address in numeric order (preserving any IPv6 zone),
+  -- or `None` when decrementing would underflow the address family.
+  addr-prev :: Addr -> Option Addr
+  addr-prev a = case a of
+    AddrV4 v -> case checked-sub-u32 v 1 of
+      Some p -> Some (AddrV4 p)
+      None -> None
+    AddrV6 v z -> case checked-sub-u128 v 1 of
+      Some p -> Some (AddrV6 p z)
+      None -> None
+
+  -- | Mask the address to its top `bits` bits, stripping any IPv6 zone, to form a canonical `Prefix`.
+  addr-prefix :: Addr -> Int -> Result NetIpError Prefix
+  addr-prefix a bits =
+    let max-bits = addr-bit-len a in
+    if bits < 0 || bits > nat-to-int max-bits then
+      Err (NetIpInvalidPrefixBits bits max-bits)
+    else
+      let b = nat-from-int bits in
+      let masked = (case a of
+        AddrV4 v -> AddrV4 (bit-and-u32 v (mask-u32 b))
+        AddrV6 v _ -> AddrV6 (bit-and-u128 v (mask-u128 b)) "") in
+      Ok (MkPrefix masked b)
+
+  -- | Report whether the address is `0.0.0.0` or `::` (without a zone).
+  addr-is-unspecified :: Addr -> Bool
+  addr-is-unspecified a = case a of
+    AddrV4 v -> eq-u32 v 0
+    AddrV6 v z -> eq-u128 v 0 && z == ""
+
+  -- | Report whether the address is a loopback address (`127.0.0.0/8` or `::1`, unmapping 4-in-6).
+  addr-is-loopback :: Addr -> Bool
+  addr-is-loopback a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v -> eq-u8 (v4-octet v 0) 127
+      AddrV6 v _ -> eq-u128 v 1
+
+  -- | Report whether the address is a multicast address (`224.0.0.0/4` or `ff00::/8`, unmapping 4-in-6).
+  addr-is-multicast :: Addr -> Bool
+  addr-is-multicast a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v -> eq-u8 (bit-and-u8 (v4-octet v 0) 240) 224
+      AddrV6 v _ -> eq-u8 (v6-first-byte v) 255
+
+  -- | Report whether the address is an IPv6 interface-local multicast address (`ff01::/16` family).
+  addr-is-interface-local-multicast :: Addr -> Bool
+  addr-is-interface-local-multicast a = case a of
+    AddrV4 _ -> False
+    AddrV6 v _ ->
+      if is4-in6-u128 v then False
+      else eq-u16 (bit-and-u16 (v6-group v 0) 65295) 65281
+
+  -- | Report whether the address is a link-local multicast address (`224.0.0.0/24` or `ff02::/16` family, unmapping 4-in-6).
+  addr-is-link-local-multicast :: Addr -> Bool
+  addr-is-link-local-multicast a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v ->
+        eq-u8 (v4-octet v 0) 224 && eq-u8 (v4-octet v 1) 0 && eq-u8 (v4-octet v 2) 0
+      AddrV6 v _ -> eq-u16 (bit-and-u16 (v6-group v 0) 65295) 65282
+
+  -- | Report whether the address is a link-local unicast address (`169.254.0.0/16` or `fe80::/10`, unmapping 4-in-6).
+  addr-is-link-local-unicast :: Addr -> Bool
+  addr-is-link-local-unicast a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v -> eq-u8 (v4-octet v 0) 169 && eq-u8 (v4-octet v 1) 254
+      AddrV6 v _ -> eq-u16 (bit-and-u16 (v6-group v 0) 65472) 65152
+
+  -- | Report whether the address is a global unicast address (unmapping 4-in-6; excludes
+  -- unspecified, IPv4 broadcast `255.255.255.255`, loopback, multicast, and link-local unicast).
+  addr-is-global-unicast :: Addr -> Bool
+  addr-is-global-unicast a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v ->
+        if eq-u32 v 0 || eq-u32 v max-bound-u32 then False
+        else not (addr-is-loopback u || addr-is-multicast u || addr-is-link-local-unicast u)
+      AddrV6 v z ->
+        if eq-u128 v 0 && z == "" then False
+        else not (addr-is-loopback u || addr-is-multicast u || addr-is-link-local-unicast u)
+
+  -- | Report whether the address is in RFC 1918 IPv4 private space (`10.0.0.0/8`,
+  -- `172.16.0.0/12`, `192.168.0.0/16`) or RFC 4193 IPv6 unique local space (`fc00::/7`),
+  -- unmapping 4-in-6 addresses first.
+  addr-is-private :: Addr -> Bool
+  addr-is-private a =
+    let u = addr-unmap a in
+    case u of
+      AddrV4 v ->
+        let o0 = v4-octet v 0 in
+        let o1 = v4-octet v 1 in
+        eq-u8 o0 10 || (eq-u8 o0 172 && eq-u8 (bit-and-u8 o1 240) 16) || (eq-u8 o0 192 && eq-u8 o1 168)
+      AddrV6 v _ -> eq-u8 (bit-and-u8 (v6-first-byte v) 254) 252
+
+  -- ---------------------------------------------------------------------
+  -- Canonical and expanded text formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Count decimal digits of an octet (`1..=3`).
+  octet-decimal-len :: U8 -> Nat
+  octet-decimal-len x =
+    let n = u8-to-nat x in
+    if n >= 100 then 3 else if n >= 10 then 2 else 1
+
+  -- | Convert the low decimal digit of a natural number to its ASCII byte (`'0'..'9'`).
+  decimal-digit-byte :: Nat -> InRange 0 255 Nat
+  decimal-digit-byte d =
+    let r = nat-rem d 10 in
+    if r < 10 then 48 + r else 48
+
+  -- | Write an octet in decimal into `buf` at `pos`, returning the new offset.
+  write-octet-decimal :: Bytes -> Nat -> U8 -> Nat
+  write-octet-decimal buf pos x =
+    let n = u8-to-nat x in
+    if n >= 100 then
+      let d0 = decimal-digit-byte (nat-div n 100) in
+      let d1 = decimal-digit-byte (nat-div n 10) in
+      let d2 = decimal-digit-byte n in
+      let u0 = if pos + 2 < bytes-len buf then bytes-set buf pos d0 else () in
+      let u1 = if pos + 2 < bytes-len buf then bytes-set buf (pos + 1) d1 else () in
+      let u2 = if pos + 2 < bytes-len buf then bytes-set buf (pos + 2) d2 else () in
+      pos + 3
+    else if n >= 10 then
+      let d0 = decimal-digit-byte (nat-div n 10) in
+      let d1 = decimal-digit-byte n in
+      let u0 = if pos + 1 < bytes-len buf then bytes-set buf pos d0 else () in
+      let u1 = if pos + 1 < bytes-len buf then bytes-set buf (pos + 1) d1 else () in
+      pos + 2
+    else
+      let d0 = decimal-digit-byte n in
+      let u0 = if pos < bytes-len buf then bytes-set buf pos d0 else () in
+      pos + 1
+
+  -- | Format an IPv4 `U32` in canonical dotted-decimal form.
+  format-v4 :: U32 -> String
+  format-v4 v =
+    let o0 = v4-octet v 0 in
+    let o1 = v4-octet v 1 in
+    let o2 = v4-octet v 2 in
+    let o3 = v4-octet v 3 in
+    let len = octet-decimal-len o0 + octet-decimal-len o1 + octet-decimal-len o2 + octet-decimal-len o3 + 3 in
+    let buf = bytes-new len in
+    let p1 = write-octet-decimal buf 0 o0 in
+    let u1 = if p1 < bytes-len buf then bytes-set buf p1 46 else () in
+    let p2 = write-octet-decimal buf (p1 + 1) o1 in
+    let u2 = if p2 < bytes-len buf then bytes-set buf p2 46 else () in
+    let p3 = write-octet-decimal buf (p2 + 1) o2 in
+    let u3 = if p3 < bytes-len buf then bytes-set buf p3 46 else () in
+    let p4 = write-octet-decimal buf (p3 + 1) o3 in
+    bytes-to-string-ascii buf
+
+  -- | Count minimal lowercase hex digits of a 16-bit group (`1..=4`).
+  hex-group-len :: U16 -> Nat
+  hex-group-len g =
+    if ge-u16 g 4096 then 4
+    else if ge-u16 g 256 then 3
+    else if ge-u16 g 16 then 2
+    else 1
+
+  -- | Write minimal lowercase hex digits of a 16-bit group into `buf` at `pos`.
+  write-hex-group :: Bytes -> Nat -> U16 -> Nat
+  write-hex-group buf pos g =
+    let p1 = (if ge-u16 g 4096 then
+        let u = if pos < bytes-len buf then bytes-set buf pos (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 12))) else () in
+        pos + 1
+      else pos) in
+    let p2 = (if ge-u16 g 256 then
+        let u = if p1 < bytes-len buf then bytes-set buf p1 (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 8))) else () in
+        p1 + 1
+      else p1) in
+    let p3 = (if ge-u16 g 16 then
+        let u = if p2 < bytes-len buf then bytes-set buf p2 (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 4))) else () in
+        p2 + 1
+      else p2) in
+    let u = if p3 < bytes-len buf then bytes-set buf p3 (hex-nibble-byte (wrapping-u16-to-u8 g)) else () in
+    p3 + 1
+
+  -- | Write a zero-padded 4-character lowercase hex group into `buf` at `pos`.
+  write-hex-group-pad :: Bytes -> Nat -> U16 -> Nat
+  write-hex-group-pad buf pos g =
+    if pos + 4 <= bytes-len buf then
+      let u0 = bytes-set buf pos (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 12))) in
+      let u1 = bytes-set buf (pos + 1) (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 8))) in
+      let u2 = bytes-set buf (pos + 2) (hex-nibble-byte (wrapping-u16-to-u8 (wrapping-shr-u16 g 4))) in
+      let u3 = bytes-set buf (pos + 3) (hex-nibble-byte (wrapping-u16-to-u8 g)) in
+      pos + 4
+    else pos + 4
+
+  -- | Find the longest run of consecutive zero 16-bit groups of length >= 2 (earliest wins ties).
+  -- Returns `(start, end)` with `start == 8` when no run qualifies.
+  find-longest-zero-run :: U128 -> (Nat, Nat)
+  find-longest-zero-run v = scan-zero-runs v 0 0 0 8 8
+
+  -- | Tail-recursive scan over the 8 groups of an IPv6 address for RFC 5952 zero compression.
+  scan-zero-runs :: U128 -> Nat -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat)
+  scan-zero-runs v i cur-start cur-len best-start best-end =
+    if i >= 8 then
+      let best-len = if best-start <= best-end then best-end - best-start else 0 in
+      if cur-len >= 2 && cur-len > best-len then (cur-start, cur-start + cur-len)
+      else (best-start, best-end)
+    else if eq-u16 (v6-group v i) 0 then
+      let next-start = if cur-len == 0 then i else cur-start in
+      scan-zero-runs v (i + 1) next-start (cur-len + 1) best-start best-end
+    else
+      let best-len = if best-start <= best-end then best-end - best-start else 0 in
+      if cur-len >= 2 && cur-len > best-len then
+        scan-zero-runs v (i + 1) 0 0 cur-start (cur-start + cur-len)
+      else
+        scan-zero-runs v (i + 1) 0 0 best-start best-end
+
+  -- | Format a pure IPv6 `U128` (non-4-in-6) in RFC 5952 canonical text without zone.
+  format-v6-bare :: U128 -> String
+  format-v6-bare v =
+    case find-longest-zero-run v of
+      (z-start, z-end) ->
+        let buf = bytes-new 39 in
+        let used = format-v6-loop v 0 z-start z-end buf 0 in
+        bytes-to-string-ascii (bytes-slice buf 0 used)
+
+  -- | Tail-recursive RFC 5952 formatter writing compressed IPv6 groups into `buf`.
+  format-v6-loop :: U128 -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat
+  format-v6-loop v i z-start z-end buf pos =
+    if i >= 8 then pos
+    else if i == z-start then
+      let u0 = if pos + 1 < bytes-len buf then bytes-set buf pos 58 else () in
+      let u1 = if pos + 1 < bytes-len buf then bytes-set buf (pos + 1) 58 else () in
+      let next-pos = pos + 2 in
+      if z-end >= 8 then next-pos
+      else
+        let p2 = write-hex-group buf next-pos (v6-group v z-end) in
+        format-v6-loop v (z-end + 1) z-start z-end buf p2
+    else
+      let p1 = (if i > 0 then
+          let u = if pos < bytes-len buf then bytes-set buf pos 58 else () in
+          pos + 1
+        else pos) in
+      let p2 = write-hex-group buf p1 (v6-group v i) in
+      format-v6-loop v (i + 1) z-start z-end buf p2
+
+  -- | Append `%zone` to an IPv6 string when `zone` is non-empty.
+  append-zone :: String -> String -> String
+  append-zone base zone =
+    if zone == "" then base
+    else string-concat-all [base, "%", zone]
+
+  -- | Render an address in canonical text form (dotted decimal for IPv4,
+  -- `::ffff:a.b.c.d` for IPv4-mapped IPv6, RFC 5952 for IPv6, with `%zone` if present).
+  addr-to-string :: Addr -> String
+  addr-to-string a = case a of
+    AddrV4 v -> format-v4 v
+    AddrV6 v z ->
+      let base = (if is4-in6-u128 v then string-concat "::ffff:" (format-v4 (wrapping-u128-to-u32 v)) else format-v6-bare v) in
+      append-zone base z
+
+  -- | Render an address in expanded form: IPv4 renders normally, while IPv6 (including
+  -- IPv4-mapped IPv6) renders all 8 four-digit lowercase hex groups with no `::` compression.
+  addr-string-expanded :: Addr -> String
+  addr-string-expanded a = case a of
+    AddrV4 v -> format-v4 v
+    AddrV6 v z ->
+      let buf = bytes-new 39 in
+      let u = format-v6-expanded-loop v 0 buf 0 in
+      append-zone (bytes-to-string-ascii buf) z
+
+  -- | Tail-recursive loop writing all 8 zero-padded 4-digit hex groups into `buf`.
+  format-v6-expanded-loop :: U128 -> Nat -> Bytes -> Nat -> Unit
+  format-v6-expanded-loop v i buf pos =
+    if i >= 8 then ()
+    else
+      let p1 = (if i > 0 then
+          let u = if pos < bytes-len buf then bytes-set buf pos 58 else () in
+          pos + 1
+        else pos) in
+      let p2 = write-hex-group-pad buf p1 (v6-group v i) in
+      format-v6-expanded-loop v (i + 1) buf p2
+
+  -- ---------------------------------------------------------------------
+  -- Binary marshaling for Addr.
+  -- ---------------------------------------------------------------------
+
+  -- | Encode an address to binary: 4 big-endian bytes for IPv4, or 16 big-endian bytes
+  -- followed by the UTF-8 zone bytes for IPv6.
+  addr-marshal-binary :: Addr -> Bytes
+  addr-marshal-binary a = case a of
+    AddrV4 v ->
+      let out = bytes-new 4 in
+      let u = write-be-u32 out 0 v in
+      out
+    AddrV6 v z ->
+      let zb = string-to-bytes z in
+      let zn = bytes-len zb in
+      let out = bytes-new (16 + zn) in
+      let u0 = write-be-u128 out 0 v in
+      let u1 = if zn > 0 && 16 + zn <= bytes-len out && zn <= bytes-len zb then bytes-copy-range out zb 16 0 zn else () in
+      out
+
+  -- | Decode an address from the binary format produced by `addr-marshal-binary`.
+  addr-unmarshal-binary :: Bytes -> Result NetIpError Addr
+  addr-unmarshal-binary b =
+    let n = bytes-len b in
+    if n == 4 then Ok (AddrV4 (read-be-u32 b 0))
+    else if n == 16 then Ok (AddrV6 (read-be-u128 b 0) "")
+    else if n > 16 then
+      let zb = bytes-slice b 16 n in
+      case string-from-bytes zb of
+        Some z -> Ok (AddrV6 (read-be-u128 b 0) z)
+        None -> Err (NetIpInvalidBinary "invalid UTF-8 in IPv6 zone")
+    else Err (NetIpInvalidBinary "unexpected byte length for Addr")
+
+  -- ---------------------------------------------------------------------
+  -- Conversions with Data.IpAddr.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert a `Data.IpAddr.IpAddr` to a `Data.NetIp.Addr`.
+  addr-from-ip-addr :: IpAddr -> Addr
+  addr-from-ip-addr ip = case ip of
+    V4Addr v4 ->
+      let b = ipv4-bytes v4 in
+      AddrV4 (read-be-u32 b 0)
+    V6Addr v6 ->
+      let b = ipv6-bytes v6 in
+      AddrV6 (read-be-u128 b 0) ""
+
+  -- | Convert a zoneless `Addr` to a `Data.IpAddr.IpAddr`.
+  -- Returns `None` if the address carries an IPv6 scoped zone.
+  addr-to-ip-addr :: Addr -> Option IpAddr
+  addr-to-ip-addr a = case a of
+    AddrV4 v ->
+      case ipv4-from-octets
+        (u8-to-nat (v4-octet v 0))
+        (u8-to-nat (v4-octet v 1))
+        (u8-to-nat (v4-octet v 2))
+        (u8-to-nat (v4-octet v 3)) of
+        Some v4 -> Some (V4Addr v4)
+        None -> None
+    AddrV6 v z ->
+      if z == "" then
+        let gs = [
+          u16-to-nat (v6-group v 0), u16-to-nat (v6-group v 1),
+          u16-to-nat (v6-group v 2), u16-to-nat (v6-group v 3),
+          u16-to-nat (v6-group v 4), u16-to-nat (v6-group v 5),
+          u16-to-nat (v6-group v 6), u16-to-nat (v6-group v 7)
+        ] in
+        case ipv6-from-groups gs of
+          Some v6 -> Some (V6Addr v6)
+          None -> None
+      else None
+
+  -- ---------------------------------------------------------------------
+  -- Hashing helpers and Addr instances.
+  -- ---------------------------------------------------------------------
+
+  -- | FNV-1a 64-bit offset basis.
+  netip-fnv-offset :: U64
+  netip-fnv-offset = 14695981039346656037
+
+  -- | Mix one byte into an FNV-1a 64-bit accumulator.
+  fnv-mix-byte :: U64 -> U8 -> U64
+  fnv-mix-byte h b = wrapping-mul-u64 (bit-xor-u64 h (u8-to-u64 b)) 1099511628211
+
+  -- | Mix a 32-bit word into an FNV-1a 64-bit accumulator.
+  fnv-mix-u32 :: U64 -> U32 -> U64
+  fnv-mix-u32 h w =
+    let h0 = fnv-mix-byte h (wrapping-u32-to-u8 (wrapping-shr-u32 w 24)) in
+    let h1 = fnv-mix-byte h0 (wrapping-u32-to-u8 (wrapping-shr-u32 w 16)) in
+    let h2 = fnv-mix-byte h1 (wrapping-u32-to-u8 (wrapping-shr-u32 w 8)) in
+    fnv-mix-byte h2 (wrapping-u32-to-u8 w)
+
+  -- | Mix a 64-bit word into an FNV-1a 64-bit accumulator.
+  fnv-mix-u64 :: U64 -> U64 -> U64
+  fnv-mix-u64 h w =
+    let h0 = fnv-mix-u32 h (wrapping-u64-to-u32 (wrapping-shr-u64 w 32)) in
+    fnv-mix-u32 h0 (wrapping-u64-to-u32 w)
+
+  -- | Fold a `Bytes` buffer into an FNV-1a 64-bit accumulator.
+  fnv-mix-bytes :: U64 -> Bytes -> Nat -> U64
+  fnv-mix-bytes h b i =
+    if i < bytes-len b then
+      fnv-mix-bytes (fnv-mix-byte h (nat-byte-to-u8 (bytes-get b i))) b (i + 1)
+    else h
+
+  -- | Mix an `Addr` into an FNV-1a 64-bit accumulator.
+  fnv-mix-addr :: U64 -> Addr -> U64
+  fnv-mix-addr h a = case a of
+    AddrV4 v -> fnv-mix-u32 (fnv-mix-byte h 4) v
+    AddrV6 v z ->
+      let h0 = fnv-mix-byte h 6 in
+      let h1 = fnv-mix-u64 h0 (wrapping-u128-to-u64 (wrapping-shr-u128 v 64)) in
+      let h2 = fnv-mix-u64 h1 (wrapping-u128-to-u64 v) in
+      if z == "" then h2
+      else fnv-mix-bytes (fnv-mix-byte h2 37) (string-to-bytes z) 0
+
+  -- | Reduce a 64-bit hash word to a non-negative `Nat` bucket digest.
+  fnv-finish :: U64 -> Nat
+  fnv-finish w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  -- | Structural equality on `Addr` (distinguishes IPv4 from 4-in-6 and includes IPv6 zone).
+  implicit instance Eq_Addr :: Eq Addr where
+    (==) a b = case addr-compare a b of EQ -> True; _ -> False
+    (/=) a b = case addr-compare a b of EQ -> False; _ -> True
+
+  -- | Total order on `Addr`, matching `addr-compare`.
+  implicit instance Ord_Addr :: Ord Addr where
+    (<) a b = case addr-compare a b of LT -> True; _ -> False
+    (<=) a b = case addr-compare a b of GT -> False; _ -> True
+    (>) a b = case addr-compare a b of GT -> True; _ -> False
+    (>=) a b = case addr-compare a b of LT -> False; _ -> True
+
+  -- | Hash digest on `Addr`, consistent with `Eq`.
+  implicit instance Hash_Addr :: Hash Addr where
+    hash a = fnv-finish (fnv-mix-addr netip-fnv-offset a)
+
+  -- | Render an `Addr` using `addr-to-string`.
+  implicit instance Show_Addr :: Show Addr where
+    show a = addr-to-string a
+
+  -- ---------------------------------------------------------------------
+  -- AddrPort.
+  -- ---------------------------------------------------------------------
+
+  -- | Construct an `AddrPort` from an `Addr` and a 16-bit port number.
+  addr-port-from :: Addr -> U16 -> AddrPort
+  addr-port-from ip port = MkAddrPort ip port
+
+  -- | Extract the `Addr` component of an `AddrPort`.
+  addr-port-addr :: AddrPort -> Addr
+  addr-port-addr ap = case ap of MkAddrPort ip _ -> ip
+
+  -- | Extract the 16-bit port component of an `AddrPort`.
+  addr-port-port :: AddrPort -> U16
+  addr-port-port ap = case ap of MkAddrPort _ port -> port
+
+  -- | Parse an unsigned decimal 16-bit port number from `b[start..end)`.
+  -- Accepts base-10 ASCII digits in `[0, 65535]` (including leading zeros).
+  parse-port-slice :: Bytes -> Nat -> Nat -> Result NetIpError U16
+  parse-port-slice b start end =
+    if start >= end then Err (NetIpInvalidAddrPort "empty port")
+    else parse-port-loop b start end 0
+
+  -- | Tail-recursive decimal port parser checking overflow against `65535`.
+  parse-port-loop :: Bytes -> Nat -> Nat -> Nat -> Result NetIpError U16
+  parse-port-loop b i end acc =
+    if i < end && i < bytes-len b then
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then
+        let next = acc * 10 + (c - 48) in
+        if next > 65535 then Err (NetIpInvalidAddrPort "port out of range")
+        else parse-port-loop b (i + 1) end next
+      else Err (NetIpInvalidAddrPort "invalid character in port")
+    else
+      if acc <= 65535 then Ok (wrapping-i64-to-u16 (nat-to-i64 acc))
+      else Err (NetIpInvalidAddrPort "port out of range")
+
+  -- | Parse an `ip:port` (IPv4) or `[ip]:port` (IPv6) string into an `AddrPort`.
+  -- Performs no name resolution: both address and port must be numeric.
+  parse-addr-port :: String -> Result NetIpError AddrPort
+  parse-addr-port s =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    case rfind-byte b n 58 of
+      None -> Err (NetIpInvalidAddrPort "not an ip:port")
+      Some colon ->
+        if colon == 0 then Err (NetIpInvalidAddrPort "no IP")
+        else if colon + 1 >= n then Err (NetIpInvalidAddrPort "no port")
+        else
+          case parse-port-slice b (colon + 1) n of
+            Err e -> Err e
+            Ok port ->
+              let bracketed = colon > 0 && colon <= bytes-len b && bytes-get b 0 == 91 in
+              if bracketed then
+                if colon < 2 || bytes-get b (colon - 1) /= 93 then
+                  Err (NetIpInvalidAddrPort "missing ]")
+                else
+                  let ip-bytes = bytes-slice b 1 (colon - 1) in
+                  case string-from-bytes ip-bytes of
+                    None -> Err (NetIpInvalidAddrPort "invalid UTF-8 in IP")
+                    Some ip-str ->
+                      case parse-addr ip-str of
+                        Err e -> Err e
+                        Ok ip ->
+                          if addr-is4 ip then
+                            Err (NetIpInvalidAddrPort "square brackets can only be used with IPv6 addresses")
+                          else Ok (MkAddrPort ip port)
+              else
+                let ip-bytes = bytes-slice b 0 colon in
+                case string-from-bytes ip-bytes of
+                  None -> Err (NetIpInvalidAddrPort "invalid UTF-8 in IP")
+                  Some ip-str ->
+                    case parse-addr ip-str of
+                      Err e -> Err e
+                      Ok ip ->
+                        if addr-is6 ip then
+                          Err (NetIpInvalidAddrPort "IPv6 addresses must be surrounded by square brackets")
+                        else Ok (MkAddrPort ip port)
+
+  -- | Format an `AddrPort` as `ip:port` for IPv4 or `[ip]:port` for IPv6.
+  addr-port-to-string :: AddrPort -> String
+  addr-port-to-string ap = case ap of
+    MkAddrPort ip port ->
+      let p-str = nat-to-string (u16-to-nat port) in
+      if addr-is4 ip then
+        string-concat-all [addr-to-string ip, ":", p-str]
+      else
+        string-concat-all ["[", addr-to-string ip, "]:", p-str]
+
+  -- | Total order on `AddrPort`: sorts by `Addr` first, then by port number.
+  addr-port-compare :: AddrPort -> AddrPort -> Ordering
+  addr-port-compare a b = case a of
+    MkAddrPort ip1 p1 -> case b of
+      MkAddrPort ip2 p2 ->
+        case addr-compare ip1 ip2 of
+          EQ ->
+            if lt-u16 p1 p2 then LT
+            else if gt-u16 p1 p2 then GT
+            else EQ
+          c -> c
+
+  -- | Encode an `AddrPort` to binary: `addr-marshal-binary` followed by the 16-bit port
+  -- in little-endian byte order.
+  addr-port-marshal-binary :: AddrPort -> Bytes
+  addr-port-marshal-binary ap = case ap of
+    MkAddrPort ip port ->
+      let ab = addr-marshal-binary ip in
+      let an = bytes-len ab in
+      let out = bytes-new (an + 2) in
+      let u0 = if an <= bytes-len out && an <= bytes-len ab then bytes-copy-range out ab 0 0 an else () in
+      let lo = u8-to-nat (wrapping-u16-to-u8 port) in
+      let hi = u8-to-nat (wrapping-u16-to-u8 (wrapping-shr-u16 port 8)) in
+      let u1 = if an + 1 < bytes-len out then bytes-set out an lo else () in
+      let u2 = if an + 1 < bytes-len out then bytes-set out (an + 1) hi else () in
+      out
+
+  -- | Decode an `AddrPort` from the binary format produced by `addr-port-marshal-binary`.
+  addr-port-unmarshal-binary :: Bytes -> Result NetIpError AddrPort
+  addr-port-unmarshal-binary b =
+    let n = bytes-len b in
+    if n < 2 then Err (NetIpInvalidBinary "unexpected byte length for AddrPort")
+    else
+      let addr-len = n - 2 in
+      case addr-unmarshal-binary (bytes-slice b 0 addr-len) of
+        Err e -> Err e
+        Ok ip ->
+          if addr-len + 1 < bytes-len b then
+            let lo = u8-to-u16 (nat-byte-to-u8 (bytes-get b addr-len)) in
+            let hi = u8-to-u16 (nat-byte-to-u8 (bytes-get b (addr-len + 1))) in
+            let port = bit-or-u16 lo (wrapping-shl-u16 hi 8) in
+            Ok (MkAddrPort ip port)
+          else Err (NetIpInvalidBinary "unexpected byte length for AddrPort")
+
+  -- | Structural equality on `AddrPort`.
+  implicit instance Eq_AddrPort :: Eq AddrPort where
+    (==) a b = case addr-port-compare a b of EQ -> True; _ -> False
+    (/=) a b = case addr-port-compare a b of EQ -> False; _ -> True
+
+  -- | Total order on `AddrPort`, matching `addr-port-compare`.
+  implicit instance Ord_AddrPort :: Ord AddrPort where
+    (<) a b = case addr-port-compare a b of LT -> True; _ -> False
+    (<=) a b = case addr-port-compare a b of GT -> False; _ -> True
+    (>) a b = case addr-port-compare a b of GT -> True; _ -> False
+    (>=) a b = case addr-port-compare a b of LT -> False; _ -> True
+
+  -- | Hash digest on `AddrPort`, consistent with `Eq`.
+  implicit instance Hash_AddrPort :: Hash AddrPort where
+    hash ap = case ap of
+      MkAddrPort ip port ->
+        let h0 = fnv-mix-addr netip-fnv-offset ip in
+        let h1 = fnv-mix-byte h0 (wrapping-u16-to-u8 port) in
+        let h2 = fnv-mix-byte h1 (wrapping-u16-to-u8 (wrapping-shr-u16 port 8)) in
+        fnv-finish h2
+
+  -- | Render an `AddrPort` using `addr-port-to-string`.
+  implicit instance Show_AddrPort :: Show AddrPort where
+    show ap = addr-port-to-string ap
+
+  -- ---------------------------------------------------------------------
+  -- Prefix (CIDR network).
+  -- ---------------------------------------------------------------------
+
+  -- | Construct a `Prefix` from an `Addr` and bit length without masking host bits.
+  -- Strips any IPv6 zone from `ip`. Fails with `NetIpInvalidPrefixBits` if `bits`
+  -- is outside `[0, addr-bit-len ip]`.
+  prefix-from :: Addr -> Int -> Result NetIpError Prefix
+  prefix-from ip bits =
+    let max-bits = addr-bit-len ip in
+    if bits < 0 || bits > nat-to-int max-bits then
+      Err (NetIpInvalidPrefixBits bits max-bits)
+    else
+      Ok (MkPrefix (addr-with-zone ip "") (nat-from-int bits))
+
+  -- | Parse a strict non-negative prefix bit length in `b[start..end)` (no leading zeros, no sign).
+  parse-prefix-bits :: Bytes -> Nat -> Nat -> Nat -> Result NetIpError Nat
+  parse-prefix-bits b start end max-bits =
+    if start >= end then Err (NetIpInvalidPrefix "empty prefix length")
+    else
+      let first = if start < bytes-len b then bytes-get b start else 0 in
+      if end - start > 1 && (first < 49 || first > 57) then
+        Err (NetIpInvalidPrefix "bad bits after slash")
+      else parse-prefix-bits-loop b start end max-bits 0
+
+  -- | Tail-recursive decimal scanner for prefix bit lengths.
+  parse-prefix-bits-loop :: Bytes -> Nat -> Nat -> Nat -> Nat -> Result NetIpError Nat
+  parse-prefix-bits-loop b i end max-bits acc =
+    if i < end && i < bytes-len b then
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then
+        let next = acc * 10 + (c - 48) in
+        if next > max-bits then Err (NetIpInvalidPrefix "prefix length out of range")
+        else parse-prefix-bits-loop b (i + 1) end max-bits next
+      else Err (NetIpInvalidPrefix "bad bits after slash")
+    else
+      if acc <= max-bits then Ok acc
+      else Err (NetIpInvalidPrefix "prefix length out of range")
+
+  -- | Parse a CIDR prefix string such as `"192.168.1.0/24"` or `"2001:db8::/32"`.
+  -- Host bits are preserved (call `prefix-masked` to zero them). IPv6 zones and
+  -- leading zeros in the bit length are rejected.
+  parse-prefix :: String -> Result NetIpError Prefix
+  parse-prefix s =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    case rfind-byte b n 47 of
+      None -> Err (NetIpInvalidPrefix "no '/'")
+      Some slash ->
+        let ip-bytes = bytes-slice b 0 slash in
+        case string-from-bytes ip-bytes of
+          None -> Err (NetIpInvalidPrefix "invalid UTF-8 in prefix")
+          Some ip-str ->
+            case parse-addr ip-str of
+              Err e -> Err (NetIpInvalidPrefix (netip-error-message e))
+              Ok ip ->
+                if addr-is6 ip && addr-zone ip /= "" then
+                  Err (NetIpInvalidPrefix "IPv6 zones cannot be present in a prefix")
+                else
+                  let max-bits = addr-bit-len ip in
+                  case parse-prefix-bits b (slash + 1) n max-bits of
+                    Err e -> Err e
+                    Ok bits -> Ok (MkPrefix ip bits)
+
+  -- | Extract the `Addr` stored in a `Prefix` (always zoneless).
+  prefix-addr :: Prefix -> Addr
+  prefix-addr p = case p of MkPrefix ip _ -> ip
+
+  -- | Extract the prefix bit length (`0..=32` for IPv4, `0..=128` for IPv6).
+  prefix-bits :: Prefix -> Nat
+  prefix-bits p = case p of MkPrefix _ bits -> bits
+
+  -- | Report whether the prefix matches exactly one address (`/32` for IPv4 or `/128` for IPv6).
+  prefix-is-single-ip :: Prefix -> Bool
+  prefix-is-single-ip p = case p of
+    MkPrefix ip bits -> bits == addr-bit-len ip
+
+  -- | Return the prefix in canonical form with all host bits beyond `prefix-bits` zeroed.
+  prefix-masked :: Prefix -> Prefix
+  prefix-masked p = case p of
+    MkPrefix ip bits ->
+      let masked = (case ip of
+        AddrV4 v -> AddrV4 (bit-and-u32 v (mask-u32 bits))
+        AddrV6 v _ -> AddrV6 (bit-and-u128 v (mask-u128 bits)) "") in
+      MkPrefix masked bits
+
+  -- | Report whether the network prefix `p` contains `ip`.
+  -- Returns `False` if `ip` has an IPv6 zone or belongs to a different address family
+  -- (an IPv4-mapped IPv6 address does not match an IPv4 prefix, and vice versa).
+  prefix-contains :: Prefix -> Addr -> Bool
+  prefix-contains p ip = case p of
+    MkPrefix pip bits ->
+      case pip of
+        AddrV4 pv -> case ip of
+          AddrV4 iv ->
+            if bits == 0 then True
+            else eq-u32 (bit-and-u32 (bit-xor-u32 iv pv) (mask-u32 bits)) 0
+          AddrV6 _ _ -> False
+        AddrV6 pv _ -> case ip of
+          AddrV4 _ -> False
+          AddrV6 iv iz ->
+            if iz /= "" then False
+            else eq-u128 (bit-and-u128 (bit-xor-u128 iv pv) (mask-u128 bits)) 0
+
+  -- | Report whether two prefixes share at least one IP address.
+  -- Returns `False` for prefixes of different address families.
+  prefix-overlaps :: Prefix -> Prefix -> Bool
+  prefix-overlaps a b = case a of
+    MkPrefix ip1 bits1 -> case b of
+      MkPrefix ip2 bits2 ->
+        let min-bits = if bits1 < bits2 then bits1 else bits2 in
+        case ip1 of
+          AddrV4 v1 -> case ip2 of
+            AddrV4 v2 ->
+              if min-bits == 0 then True
+              else eq-u32 (bit-and-u32 (bit-xor-u32 v1 v2) (mask-u32 min-bits)) 0
+            AddrV6 _ _ -> False
+          AddrV6 v1 _ -> case ip2 of
+            AddrV4 _ -> False
+            AddrV6 v2 _ ->
+              if min-bits == 0 then True
+              else eq-u128 (bit-and-u128 (bit-xor-u128 v1 v2) (mask-u128 min-bits)) 0
+
+  -- | Format a `Prefix` in CIDR notation (`"<ip>/<bits>"`).
+  prefix-to-string :: Prefix -> String
+  prefix-to-string p = case p of
+    MkPrefix ip bits -> string-concat-all [addr-to-string ip, "/", nat-to-string bits]
+
+  -- | Total order on `Prefix`: sorts by `Addr` first (IPv4 before IPv6, then numeric value),
+  -- then by prefix bit length.
+  prefix-compare :: Prefix -> Prefix -> Ordering
+  prefix-compare a b = case a of
+    MkPrefix ip1 bits1 -> case b of
+      MkPrefix ip2 bits2 ->
+        case addr-compare ip1 ip2 of
+          EQ -> i64-to-ordering (nat-cmp bits1 bits2)
+          c -> c
+
+  -- | Encode a `Prefix` to binary: `addr-marshal-binary` of its zoneless address followed
+  -- by one byte carrying the prefix bit length.
+  prefix-marshal-binary :: Prefix -> Bytes
+  prefix-marshal-binary p = case p of
+    MkPrefix ip bits ->
+      let ab = addr-marshal-binary (addr-with-zone ip "") in
+      let an = bytes-len ab in
+      let out = bytes-new (an + 1) in
+      let u0 = if an <= bytes-len out && an <= bytes-len ab then bytes-copy-range out ab 0 0 an else () in
+      let u1 = if an < bytes-len out && bits <= 255 then bytes-set out an bits else () in
+      out
+
+  -- | Decode a `Prefix` from the binary format produced by `prefix-marshal-binary`.
+  prefix-unmarshal-binary :: Bytes -> Result NetIpError Prefix
+  prefix-unmarshal-binary b =
+    let n = bytes-len b in
+    if n < 1 then Err (NetIpInvalidBinary "unexpected byte length for Prefix")
+    else
+      let addr-len = n - 1 in
+      if addr-len /= 4 && addr-len /= 16 then
+        Err (NetIpInvalidBinary "unexpected byte length for Prefix")
+      else
+        case addr-unmarshal-binary (bytes-slice b 0 addr-len) of
+          Err e -> Err e
+          Ok ip ->
+            let bits = if addr-len < bytes-len b then bytes-get b addr-len else 255 in
+            prefix-from ip (nat-to-int bits)
+
+  -- | Structural equality on `Prefix`.
+  implicit instance Eq_Prefix :: Eq Prefix where
+    (==) a b = case prefix-compare a b of EQ -> True; _ -> False
+    (/=) a b = case prefix-compare a b of EQ -> False; _ -> True
+
+  -- | Total order on `Prefix`, matching `prefix-compare`.
+  implicit instance Ord_Prefix :: Ord Prefix where
+    (<) a b = case prefix-compare a b of LT -> True; _ -> False
+    (<=) a b = case prefix-compare a b of GT -> False; _ -> True
+    (>) a b = case prefix-compare a b of GT -> True; _ -> False
+    (>=) a b = case prefix-compare a b of LT -> False; _ -> True
+
+  -- | Hash digest on `Prefix`, consistent with `Eq`.
+  implicit instance Hash_Prefix :: Hash Prefix where
+    hash p = case p of
+      MkPrefix ip bits ->
+        let h0 = fnv-mix-addr netip-fnv-offset ip in
+        let b-u8 = if bits <= 255 then nat-byte-to-u8 bits else 0 in
+        fnv-finish (fnv-mix-byte h0 b-u8)
+
+  -- | Render a `Prefix` using `prefix-to-string`.
+  implicit instance Show_Prefix :: Show Prefix where
+    show p = prefix-to-string p

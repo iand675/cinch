@@ -26,12 +26,49 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The modules under test and their dependencies, written beside the entry.
-const NET: &str = include_str!("../prelude/Effect/Net.cinch");
-const URI: &str = include_str!("../prelude/Text/Uri.cinch");
-const IPADDR: &str = include_str!("../prelude/Data/IpAddr.cinch");
-const HTTP: &str = include_str!("../prelude/Effect/Http.cinch");
+const HTTP_DEPS: &[(&str, &str)] = &[
+    ("Data.Bytes.Build.cinch", include_str!("../prelude/Data/Bytes/Build.cinch")),
+    ("Data.Bytes.Utf8.cinch", include_str!("../prelude/Data/Bytes/Utf8.cinch")),
+    ("Data.Bytes.Word.cinch", include_str!("../prelude/Data/Bytes/Word.cinch")),
+    ("Data.Unicode.Tables.cinch", include_str!("../prelude/Data/Unicode/Tables.cinch")),
+    ("Data.Unicode.Kernel.cinch", include_str!("../prelude/Data/Unicode/Kernel.cinch")),
+    ("Data.IpAddr.cinch", include_str!("../prelude/Data/IpAddr.cinch")),
+    ("Data.NetIp.cinch", include_str!("../prelude/Data/NetIp.cinch")),
+    ("Effect.Stream.cinch", include_str!("../prelude/Effect/Stream.cinch")),
+    ("Effect.Net.cinch", include_str!("../prelude/Effect/Net.cinch")),
+    ("Effect.Random.cinch", include_str!("../prelude/Effect/Random.cinch")),
+    ("Text.Asn1.cinch", include_str!("../prelude/Text/Asn1.cinch")),
+    ("Text.Base64.cinch", include_str!("../prelude/Text/Base64.cinch")),
+    ("Text.Base64.Encoding.cinch", include_str!("../prelude/Text/Base64/Encoding.cinch")),
+    ("Text.Binary.cinch", include_str!("../prelude/Text/Binary.cinch")),
+    ("Text.Digest.cinch", include_str!("../prelude/Text/Digest.cinch")),
+    ("Text.Hex.cinch", include_str!("../prelude/Text/Hex.cinch")),
+    ("Text.Md5.cinch", include_str!("../prelude/Text/Md5.cinch")),
+    ("Text.Pem.cinch", include_str!("../prelude/Text/Pem.cinch")),
+    ("Text.Sha1.cinch", include_str!("../prelude/Text/Sha1.cinch")),
+    ("Text.Sha256.cinch", include_str!("../prelude/Text/Sha256.cinch")),
+    ("Text.Sha512.cinch", include_str!("../prelude/Text/Sha512.cinch")),
+    ("Text.Uri.cinch", include_str!("../prelude/Text/Uri.cinch")),
+    ("Crypto.ConstantTime.cinch", include_str!("../prelude/Crypto/ConstantTime.cinch")),
+    ("Crypto.Hmac.cinch", include_str!("../prelude/Crypto/Hmac.cinch")),
+    ("Crypto.Kdf.cinch", include_str!("../prelude/Crypto/Kdf.cinch")),
+    ("Crypto.Cipher.cinch", include_str!("../prelude/Crypto/Cipher.cinch")),
+    ("Crypto.Aes.cinch", include_str!("../prelude/Crypto/Aes.cinch")),
+    ("Crypto.ChaCha20Poly1305.cinch", include_str!("../prelude/Crypto/ChaCha20Poly1305.cinch")),
+    ("Crypto.P256.cinch", include_str!("../prelude/Crypto/P256.cinch")),
+    ("Crypto.Ecdsa.cinch", include_str!("../prelude/Crypto/Ecdsa.cinch")),
+    ("Crypto.Field25519.cinch", include_str!("../prelude/Crypto/Field25519.cinch")),
+    ("Crypto.Ed25519.cinch", include_str!("../prelude/Crypto/Ed25519.cinch")),
+    ("Crypto.X25519.cinch", include_str!("../prelude/Crypto/X25519.cinch")),
+    ("Crypto.Rsa.cinch", include_str!("../prelude/Crypto/Rsa.cinch")),
+    ("Crypto.Pkix.cinch", include_str!("../prelude/Crypto/Pkix.cinch")),
+    ("Crypto.X509.cinch", include_str!("../prelude/Crypto/X509.cinch")),
+    ("Crypto.Tls.cinch", include_str!("../prelude/Crypto/Tls.cinch")),
+    ("Effect.Tls.cinch", include_str!("../prelude/Effect/Tls.cinch")),
+    ("Effect.Http.cinch", include_str!("../prelude/Effect/Http.cinch")),
+];
 
-/// A fresh project directory: the four modules plus the `Main`.
+/// A fresh project directory: the HTTP/TLS modules plus the `Main`.
 fn write_project(name: &str, main: &str) -> PathBuf {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir = std::env::temp_dir().join(format!(
@@ -42,15 +79,10 @@ fn write_project(name: &str, main: &str) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    for (file, src) in [
-        ("Net.cinch", NET),
-        ("Uri.cinch", URI),
-        ("IpAddr.cinch", IPADDR),
-        ("Http.cinch", HTTP),
-        ("Main.cinch", main),
-    ] {
+    for (file, src) in HTTP_DEPS {
         std::fs::write(dir.join(file), src).expect("write module");
     }
+    std::fs::write(dir.join("Main.cinch"), main).expect("write Main");
     dir
 }
 

@@ -336,12 +336,50 @@ fn url_full_public_capabilities_and_ownership_match_independent_results() {
 #[test]
 fn url_hex_pairs_match_complete_independent_domain_digest() {
     let fixture: Value = serde_json::from_str(include_str!("fixtures/url-vectors.json")).unwrap();
-    let module = include_str!("../prelude/Text/Url/Codec.cinch");
-    let start = module.find("  prim hex-pair ::").unwrap();
-    let end = start + module[start..].find("\n  -- |").unwrap();
-    let source = include_str!("fixtures/url-pair-kernel.cinch.in")
-        .replace("__KERNEL__", &module[start..end])
-        .replace("__HASH__", &fixture["hex_pair_hash"].to_string());
+    let hash = fixture["hex_pair_hash"].to_string();
+    let source = format!(
+        r#"-- | Every percent-digit pair agrees with an independent public-decoder digest.
+module Main where
+  import Text.Url.Codec
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+
+  -- | Decode one two-byte percent escape through the public URL decoder.
+  decode-pair :: Bytes -> U8 -> U8 -> U16
+  decode-pair buf first last =
+    if 3 <= bytes-len buf then
+      let w0 = bytes-set-u8 buf 0 37 in
+      let w1 = bytes-set-u8 buf 1 first in
+      let w2 = bytes-set-u8 buf 2 last in
+      case url-unescape UrlPath buf of
+        Ok out -> if 0 < bytes-len out then u8-to-u16 (bytes-get-u8 out 0) else 256
+        Err err -> 256
+    else 256
+
+  -- | Accumulate both little-endian bytes of one independently observed U16 result.
+  accumulate :: U16 -> U64 -> U64
+  accumulate value hash =
+    let low = u16-to-u64 (bit-and-u16 value 255) in
+    let high = u16-to-u64 (wrapping-shr-u16 value 8) in
+    let first = wrapping-mul-u64 (bit-xor-u64 hash low) 1099511628211 in
+    wrapping-mul-u64 (bit-xor-u64 first high) 1099511628211
+
+  -- | Visit all 65,536 byte pairs using exact unboxed machine counters.
+  pairs :: Bytes -> U32 -> U64 -> U64
+  pairs buf index hash = if lt-u32 index 65536 then
+    let first = wrapping-u32-to-u8 (wrapping-shr-u32 index 8) in
+    let last = wrapping-u32-to-u8 index in
+    let value = decode-pair buf first last in
+    let next = accumulate value hash in pairs buf (wrapping-add-u32 index 1) next
+    else hash
+
+  -- | Verify every valid and invalid byte pair against independent public decoding.
+  main :: Int
+  main = if eq-u64 (pairs (bytes-new 3) 0 14695981039346656037) {hash} then 0 else 1
+"#
+    );
     run(&source, &["pairs".to_string()]);
 }
 
@@ -402,37 +440,10 @@ fn url_declarations_have_canonical_documentation() {
     }
 }
 
-/// The actual SIMD, SWAR, exact-load and packed-name arithmetic remains legal on foreign objects.
+/// The actual 16-byte SIMD URL codec and scanning paths remain legal on foreign objects.
 /// This checks the Rust emitter explicitly; selected host frontend tests never fall back.
 #[test]
 fn url_kernels_compile_for_wasm_arm_and_big_endian_targets() {
-    let codec = include_str!("../prelude/Text/Url/Codec.cinch");
-    let scan = include_str!("../prelude/Text/Url/Scan.cinch");
-    let mut kernels = String::from("-- | Isolated actual URL kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n");
-    for (source, names) in [
-        (
-            codec,
-            vec![
-                "load-eight",
-                "load-one",
-                "classify-one",
-                "classify-eight",
-                "decode-flags-eight",
-                "hex-pair",
-            ],
-        ),
-        (scan, vec!["mask-eight", "population"]),
-    ] {
-        for name in names {
-            let start = source.find(&format!("  prim {name} ::")).unwrap();
-            let rest = &source[start..];
-            let end = rest.find("\n  -- |").unwrap_or(rest.len());
-            kernels
-                .push_str("\n  -- | Actual retained URL classification or exact-load primitive.\n");
-            kernels.push_str(&rest[..end]);
-        }
-    }
-    kernels.push_str("\n  -- | Hold backing storage across a private exact load.\n  keep :: forall a. Bytes -> a -> a\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep every byte-policy kernel reachable without foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 8 in let address = bytes-data bytes in let word = keep bytes (load-eight address) in let byte = keep bytes (load-one address) in let single = classify-one byte byte in let encoded = classify-eight word byte in let decoded = decode-flags-eight word byte in let mask = mask-eight word single decoded in let count = population mask in let pair = hex-pair byte single in let folded = bit-xor-u64 count (u16-to-u64 pair) in if eq-u64 folded encoded then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -451,21 +462,53 @@ fn url_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, source) in [
+            (
+                "Text.Url.Error",
+                include_str!("../prelude/Text/Url/Error.cinch"),
+            ),
+            (
+                "Text.Url.Codec",
+                include_str!("../prelude/Text/Url/Codec.cinch"),
+            ),
+            (
+                "Text.Url.Scan",
+                include_str!("../prelude/Text/Url/Scan.cinch"),
+            ),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), source).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public URL codec and scanning paths for foreign targets.\nmodule Main where\n  import Text.Url.Codec\n  import Text.Url.Scan\n  import Data.Bytes\n  import Data.Nat\n  import Data.Result\n\n  -- | Exercise public 16-byte SIMD URL escaping, unescaping and scanning paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 32 in\n    let n = bytes-len input in\n    let escaped = url-escape UrlQueryComponent input in\n    let a = url-find-byte input 0 n 47 in\n    let b = url-last-byte input 0 n 47 in\n    let c = url-find-control input 0 n in\n    let d = url-count-byte input 0 n 47 in\n    let e = url-scheme-colon input in\n    let f = url-find-invalid-user input 0 n in\n    case url-unescape UrlQueryComponent escaped of\n      Ok decoded -> if bytes-len decoded == n && a + b + c + d + e + f >= 0 && url-escaped-length UrlPath input >= n then 0 else 1\n      Err err -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "url-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

@@ -225,29 +225,51 @@ fn rust_byte_views_o2_preserve_nested_alias_and_compiled_pattern_owners() {
     run(vec!["owners-case ()".into(); 10], 1, Some(2));
 }
 
-/// Actual private packed loads, endian-normalized failure entries and bounded loops compile portably.
+/// Actual packed SIMD searches, failure tables and bounded comparisons compile portably.
 #[test]
 fn byte_view_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let start = VIEW.find("  -- | Keep one backing owner").unwrap();
-    let end = VIEW
-        .find("  -- | Convert a private absolute match sentinel")
-        .unwrap();
-    let count_start = VIEW
-        .find("  -- | Count nonoverlapping complete matches with SWAR")
-        .unwrap();
-    let count_end = VIEW
-        .find("  -- | Count nonoverlapping compiled matches;")
-        .unwrap();
-    let compare_start = VIEW
-        .find("  -- | Find the first unequal private byte")
-        .unwrap();
-    let compare_end = VIEW
-        .find("  -- | Compare raw view bytes lexicographically")
-        .unwrap();
-    let kernels = format!("-- | Isolated production byte-view kernels.\nmodule Main where\n  import Data.Bytes\n  import Data.Bool\n  import Data.Machine\n  import Data.Nat\n{}\n{}\n{}\n{}",
-        &VIEW[start..end], &VIEW[count_start..count_end], &VIEW[compare_start..compare_end],
-        include_str!("fixtures/byte-view-kernel-entry.cinchpart"));
+    let kernels = [
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+        include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+        VIEW,
+        r#"-- | Root complete public byte-view search, count, equality and comparison kernels in portable objects.
+module Main where
+  import Data.Bytes
+  import Data.Bytes.View
+  import Data.Bool
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Observe an optional relative byte offset.
+  is-at :: Option Nat -> Nat -> Bool
+  is-at found expected = case found of
+    None -> False
+    Some at -> at == expected
+
+  -- | Exercise SIMD forward/backward search, endpoint filtering, count, equality and comparison.
+  main :: Int
+  main =
+    let raw = bytes-from-u8s [97,97,97,97,97,97,97,97,97,98,97,97,97,97,97,97,97,0,1] in
+    let needle = bytes-from-u8s [97,98] in
+    let single = bytes-from-u8s [98] in
+    let view = bytes-view raw in
+    let pat = bytes-compile-pattern needle in
+    let one = bytes-compile-pattern single in
+    let first = byte-view-index-pattern view pat in
+    let last = byte-view-last-index-pattern view pat in
+    let last-one = byte-view-last-index-pattern view one in
+    let count = byte-view-count-pattern view pat in
+    let count-one = byte-view-count-pattern view one in
+    let found-byte = byte-view-index-byte view 98 in
+    let same = byte-view-equal view view in
+    let cmp = byte-view-compare view (bytes-view needle) in
+    if is-at first 8 && is-at last 8 && is-at last-one 9 && count == 1 && count-one == 1
+      && is-at found-byte 9 && same && eq-i64 cmp (-1) then 0 else 1
+"#,
+    ]
+    .join("\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -280,8 +302,34 @@ fn byte_view_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("%x = load i64, ptr %a, align 1"));
-        assert!(ir.contains("%sums = mul i64 %lanes, 72340172838076673"));
+        assert!(ir.contains("load i128"), "{triple}: missing wide block load");
+        assert!(ir.contains("load i64"), "{triple}: missing 64-bit word load");
+        assert!(
+            ir.contains("icmp eq <16 x i8>"),
+            "{triple}: missing SIMD byte compare"
+        );
+        assert!(
+            ir.contains("bitcast <16 x i1>"),
+            "{triple}: missing SIMD movemask"
+        );
+        assert!(
+            ir.contains("@llvm.cttz.i32"),
+            "{triple}: missing trailing-zeros scan"
+        );
+        assert!(
+            ir.contains("@llvm.ctlz.i32"),
+            "{triple}: missing leading-zeros scan"
+        );
+        assert!(
+            ir.contains("@llvm.ctpop.i32"),
+            "{triple}: missing lane popcount"
+        );
+        if endian == "big" {
+            assert!(
+                ir.contains("@llvm.bswap.i128") && ir.contains("@llvm.bswap.i64"),
+                "{triple}: missing big-endian word swaps"
+            );
+        }
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(

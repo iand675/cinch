@@ -11,12 +11,12 @@ module Text.TextProto where
 
   import Data.Bytes
   import Data.Bytes.Build
-  import Data.Bytes.Word
   import Data.List
   import Data.Machine
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export MimeHeader, mime-header, header-add, header-set, header-get, header-values, header-delete, header-keys, header-entries
   export canonical-header-key, trim-bytes
@@ -122,38 +122,39 @@ module Text.TextProto where
   at input i = if i < bytes-len input then bytes-get input i else 0
 
   -- | SWAR ASCII lowercase of eight bytes: add 32 to every byte in 'A'..'Z' without crossing lanes.
-  prim lower8 :: U64 -> U64 where
-    llvm {
-      %low7 = and i64 %0, 9187201950435737471
-      %above = add i64 %low7, 2676586395008836901
-      %below = add i64 %low7, 4557430888798830399
-      %range = xor i64 %above, %below
-      %ascii = xor i64 %0, -1
-      %flags = and i64 %range, %ascii
-      %upper = and i64 %flags, -9187201950435737472
-      %bits = lshr i64 %upper, 2
-      %value = or i64 %0, %bits
-      ret i64 %value
-    }
+  lower8 :: U64 -> U64
+  lower8 w =
+    let low7 = bit-and-u64 w 9187201950435737471 in
+    let above = wrapping-add-u64 low7 2676586395008836901 in
+    let below = wrapping-add-u64 low7 4557430888798830399 in
+    let range = bit-xor-u64 above below in
+    let ascii = bit-not-u64 w in
+    let flags = bit-and-u64 range ascii in
+    let upper = bit-and-u64 flags 9259542123273814144 in
+    let bits = wrapping-shr-u64 upper 2 in
+    bit-or-u64 w bits
 
-  -- | SWAR: non-zero when any of eight bytes is not a valid header-name byte (control, space, high bit or separator).
-  prim invalid8 :: U64 -> U64 where
-    llvm {
-      %high = and i64 %0, -9187201950435737472
-      %low7 = and i64 %0, 9187201950435737471
-      %over = add i64 %low7, 6872316419617283935
-      %ctl = xor i64 %over, -1
-      %control = and i64 %ctl, -9187201950435737472
-      %del = xor i64 %0, 9187201950435737471
-      %dl = and i64 %del, 9187201950435737471
-      %dz = add i64 %dl, 9187201950435737471
-      %dn = or i64 %dz, %del
-      %delbits = xor i64 %dn, -1
-      %delete = and i64 %delbits, -9187201950435737472
-      %a = or i64 %high, %control
-      %value = or i64 %a, %delete
-      ret i64 %value
-    }
+  -- | Lowercase sixteen packed ASCII bytes in parallel without altering any other byte.
+  lower16 :: U128 -> U128
+  lower16 v =
+    let ge-a = simd-u8x16-cmpgt v (simd-u8x16-splat 64) in
+    let le-z = simd-u8x16-cmplt v (simd-u8x16-splat 91) in
+    let upper = bit-and-u128 ge-a le-z in
+    bit-or-u128 v (bit-and-u128 upper (simd-u8x16-splat 32))
+
+  -- | Compute the sixteen-lane invalid-byte mask for header token names.
+  header-token-invalid-lanes :: U128 -> U128
+  header-token-invalid-lanes v =
+    let low = simd-u8x16-cmplt v (simd-u8x16-splat 33) in
+    let hi = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+    let colon-at = bit-and-u128 (simd-u8x16-cmpgt v (simd-u8x16-splat 57)) (simd-u8x16-cmplt v (simd-u8x16-splat 65)) in
+    let bracket-range = bit-and-u128 (simd-u8x16-cmpgt v (simd-u8x16-splat 90)) (simd-u8x16-cmplt v (simd-u8x16-splat 94)) in
+    let s0 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 34)) (simd-u8x16-cmpeq v (simd-u8x16-splat 40)) in
+    let s1 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 41)) (simd-u8x16-cmpeq v (simd-u8x16-splat 44)) in
+    let s2 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 47)) (simd-u8x16-cmpeq v (simd-u8x16-splat 123)) in
+    let s3 = simd-u8x16-cmpeq v (simd-u8x16-splat 125) in
+    let seps = bit-or-u128 (bit-or-u128 colon-at bracket-range) (bit-or-u128 (bit-or-u128 s0 s1) (bit-or-u128 s2 s3)) in
+    bit-or-u128 (bit-or-u128 low hi) seps
 
   -- | Whether a byte is a token character allowed in header names.
   token-byte :: Nat -> Bool
@@ -161,42 +162,95 @@ module Text.TextProto where
     b > 32 && b < 127 && not (b == 34 || b == 40 || b == 41 || b == 44 || b == 47 || b == 58 || b == 59 || b == 60
       || b == 61 || b == 62 || b == 63 || b == 64 || b == 91 || b == 92 || b == 93 || b == 123 || b == 125)
 
+  -- | Whether a machine byte is a token character allowed in header names.
+  token-u8 :: U8 -> Bool
+  token-u8 b =
+    gt-u8 b 32 && lt-u8 b 127 && not (ge-u8 b 58 && le-u8 b 64) && not (ge-u8 b 91 && le-u8 b 93) &&
+    ne-u8 b 34 && ne-u8 b 40 && ne-u8 b 41 && ne-u8 b 44 && ne-u8 b 47 && ne-u8 b 123 && ne-u8 b 125
+
   -- | Canonical form of a header name: "content-TYPE" becomes "Content-Type". A name containing a byte
   -- that is not a header token, or a space, is returned unchanged.
   canonical-header-key :: Bytes -> Bytes
   canonical-header-key key =
-    if all-token key 0 then
+    if all-token-at key 0 then
       let out = bytes-new (bytes-len key) in
-      let lowered = lower-into out key 0 in
-      let raised = raise-words out 0 True in out
+      let lowered = lower-into-at out key 0 in
+      let raised = raise-words-at out 0 True in out
     else slice key 0 (bytes-len key)
 
-  -- | Check eight bytes at a time with SWAR, then the separators and tail bytewise.
-  all-token :: Bytes -> Nat -> Bool
-  all-token key i =
-    if i + 8 <= bytes-len key then eq-u64 (invalid8 (bytes-read-le64 key i)) 0 && separators-ok key i (i + 8) && all-token key (i + 8)
-    else if i < bytes-len key then token-byte (bytes-get key i) && all-token key (i + 1)
+  -- | Check sixteen bytes at a time with portable SIMD, then finish the scalar tail.
+  all-token-at :: Bytes -> I64 -> Bool
+  all-token-at key i =
+    let n = bytes-len-i64 key in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (header-token-invalid-lanes (bytes-load-u128-at key i)) in
+          if eq-u32 mask 0 then all-token-at key (wrapping-add-i64 i 16) else False
+        else all-token-tail key i
+      else all-token-tail key i
+    else all-token-tail key i
+
+  -- | Check remaining header-name bytes one byte at a time.
+  all-token-tail :: Bytes -> I64 -> Bool
+  all-token-tail key i =
+    if 0 <= i && i < bytes-len-i64 key then
+      if token-u8 (bytes-get-u8-at key i) then all-token-tail key (wrapping-add-i64 i 1) else False
     else True
 
-  -- | Reject header separators that the SWAR range check admits.
-  separators-ok :: Bytes -> Nat -> Nat -> Bool
-  separators-ok key i end = if i < end then token-byte (at key i) && separators-ok key (i + 1) end else True
+  -- | Lowercase into the output sixteen bytes at a time with SIMD, then eight bytes with SWAR, then bytewise.
+  lower-into-at :: Bytes -> Bytes -> I64 -> Unit
+  lower-into-at out key i =
+    let kn = bytes-len-i64 key in
+    let on = bytes-len-i64 out in
+    if 16 <= kn && 16 <= on && 0 <= i && i <= wrapping-sub-i64 kn 16 && i <= wrapping-sub-i64 on 16 then
+      let knn = nat-from-i64 kn in
+      let onn = nat-from-i64 on in
+      if 16 <= knn && 16 <= onn then
+        let ni = nat-from-i64 i in
+        if ni <= knn - 16 && ni <= onn - 16 then
+          let w = bytes-store-u128-at out i (lower16 (bytes-load-u128-at key i)) in
+          lower-into-at out key (wrapping-add-i64 i 16)
+        else lower-into-swar out key i
+      else lower-into-swar out key i
+    else lower-into-swar out key i
 
-  -- | Lowercase into the output eight bytes at a time.
-  lower-into :: Bytes -> Bytes -> Nat -> Unit
-  lower-into out key i =
-    if i + 8 <= bytes-len key && i + 8 <= bytes-len out then let w = bytes-write-le64 out i (lower8 (bytes-read-le64 key i)) in lower-into out key (i + 8)
-    else if i < bytes-len key && i < bytes-len out then
-      let b = bytes-get key i in let w = bytes-set out i (if b >= 65 && b <= 90 then b + 32 else b) in lower-into out key (i + 1)
+  -- | Lowercase eight bytes with pure SWAR when at least eight bytes remain, then finish bytewise.
+  lower-into-swar :: Bytes -> Bytes -> I64 -> Unit
+  lower-into-swar out key i =
+    let kn = bytes-len-i64 key in
+    let on = bytes-len-i64 out in
+    if 8 <= kn && 8 <= on && 0 <= i && i <= wrapping-sub-i64 kn 8 && i <= wrapping-sub-i64 on 8 then
+      let knn = nat-from-i64 kn in
+      let onn = nat-from-i64 on in
+      if 8 <= knn && 8 <= onn then
+        let ni = nat-from-i64 i in
+        if ni <= knn - 8 && ni <= onn - 8 then
+          let w = bytes-store-le64-at out i (lower8 (bytes-load-le64-at key i)) in
+          lower-into-tail out key (wrapping-add-i64 i 8)
+        else lower-into-tail out key i
+      else lower-into-tail out key i
+    else lower-into-tail out key i
+
+  -- | Lowercase remaining tail bytes one byte at a time.
+  lower-into-tail :: Bytes -> Bytes -> I64 -> Unit
+  lower-into-tail out key i =
+    if 0 <= i && i < bytes-len-i64 key && i < bytes-len-i64 out then
+      let b = bytes-get-u8-at key i in
+      let w = bytes-set-u8-at out i (if ge-u8 b 65 && le-u8 b 90 then wrapping-add-u8 b 32 else b) in
+      lower-into-tail out key (wrapping-add-i64 i 1)
     else ()
 
   -- | Uppercase the first byte and every byte after a hyphen.
-  raise-words :: Bytes -> Nat -> Bool -> Unit
-  raise-words out i start =
-    if i < bytes-len out then
-      let b = bytes-get out i in
-      let w = if start && b >= 97 && b <= 122 then bytes-set out i (b - 32) else () in
-      raise-words out (i + 1) (b == 45)
+  raise-words-at :: Bytes -> I64 -> Bool -> Unit
+  raise-words-at out i start =
+    if 0 <= i && i < bytes-len-i64 out then
+      let b = bytes-get-u8-at out i in
+      let w = if start && ge-u8 b 97 && le-u8 b 122 then bytes-set-u8-at out i (wrapping-sub-u8 b 32) else () in
+      raise-words-at out (wrapping-add-i64 i 1) (eq-u8 b 45)
     else ()
 
   -- | Remove leading and trailing spaces and tabs, as header values and continuation lines require.

@@ -18,6 +18,7 @@ module Text.Binary.Layout where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide (wrapping-u128-to-u64, wrapping-u128-to-u32, wrapping-shr-u128, bit-and-u128, bit-or-u128, simd-u32x4-pack, simd-u32x4-splat, simd-u32x4-shl, simd-u32x4-shr, simd-u64x2-pack)
 
   export BinaryOrder, BinaryLittleEndian, BinaryBigEndian, BinaryNativeEndian, binary-order-name
   export BinaryLayout, BinaryLayoutError, BinaryShortInput, BinaryShortDestination, BinaryInvalidOffset, BinaryLengthMismatch
@@ -50,9 +51,10 @@ module Text.Binary.Layout where
     BinaryNativeEndian -> "NativeEndian"
 
   -- | Select target endianness at compilation, without runtime CPU probing.
-  prim native-little :: U8 -> Bool where
-    llvm { ret i8 1 } when endian little
-    llvm { ret i8 0 } when endian big
+  native-little :: U8 -> Bool
+  -- | Compile-time target endianness equations for little-endian and big-endian targets.
+  when endian little native-little ignored = True
+  when endian big native-little ignored = False
 
   -- | Resolve explicit or target-native significance before fixed-word conversion.
   little-order :: BinaryOrder -> Bool
@@ -178,46 +180,24 @@ module Text.Binary.Layout where
   accept-value :: forall a. a -> Result BinaryLayoutError Unit
   accept-value value = Ok ()
 
-  -- | Retain a complete byte owner around its exact private word load.
-  hold-field :: forall a. Bytes -> a -> a
-  hold-field owner value = case bytes-len owner of _ -> value
-
-  -- | Load exactly two little-endian bytes from a caller-proved unaligned interval.
-  prim load-le16 :: I64 -> I64 -> U16 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i16, ptr %at, align 1
-      ret i16 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i16, ptr %at, align 1
-      %swapped = call i16 @llvm.bswap.i16(i16 %value)
-      ret i16 %swapped
-    } when endian big
+  -- | Load exactly two little-endian bytes from a caller-proved interval.
+  read-le16 :: using (start + 2 <= bytes-len input) => (input :: Bytes) -> (start :: Nat) -> U16
+  read-le16 input start =
+    let lo = u8-to-u16 (bytes-get-u8 input start) in
+    let hi = u8-to-u16 (bytes-get-u8 input (start + 1)) in
+    bit-or-u16 lo (wrapping-shl-u16 hi 8)
 
   -- | Reverse one complete unsigned sixteen-bit field.
-  prim swap16 :: U16 -> U16 where
-    llvm {
-      %value = call i16 @llvm.bswap.i16(i16 %0)
-      ret i16 %value
-    }
+  swap16 :: U16 -> U16
+  swap16 value = swap-bytes-u16 value
 
   -- | Reverse one complete unsigned thirty-two-bit field.
-  prim swap32 :: U32 -> U32 where
-    llvm {
-      %value = call i32 @llvm.bswap.i32(i32 %0)
-      ret i32 %value
-    }
+  swap32 :: U32 -> U32
+  swap32 value = swap-bytes-u32 value
 
   -- | Reverse one complete unsigned sixty-four-bit field.
-  prim swap64 :: U64 -> U64 where
-    llvm {
-      %value = call i64 @llvm.bswap.i64(i64 %0)
-      ret i64 %value
-    }
+  swap64 :: U64 -> U64
+  swap64 value = swap-bytes-u64 value
 
   -- | Convert a numeric sixteen-bit field to or from the canonical little-endian packed convention.
   ordered16 :: BinaryOrder -> U16 -> U16
@@ -234,24 +214,24 @@ module Text.Binary.Layout where
   -- | Read one exact arithmetic field; all private widths are one, two, four or eight bytes.
   read-atom :: BinaryOrder -> Nat -> Bytes -> Nat -> Result BinaryLayoutError U64
   read-atom order width input start =
-    if width == 1 && start < bytes-len input then Ok (wrapping-i64-to-u64 (nat-to-i64 (bytes-get input start)))
+    if width == 1 && start < bytes-len input then Ok (u8-to-u64 (bytes-get-u8 input start))
     else if width == 2 && start + 2 <= bytes-len input then
-      let value = hold-field input (load-le16 (bytes-data input) (nat-to-i64 start)) in Ok (wrapping-u16-to-u64 (ordered16 order value))
-    else if width == 4 && start + 4 <= bytes-len input then Ok (wrapping-u32-to-u64 (ordered32 order (bytes-read-le32 input start)))
-    else if width == 8 && start + 8 <= bytes-len input then Ok (ordered64 order (bytes-read-le64 input start))
+      Ok (u16-to-u64 (ordered16 order (read-le16 input start)))
+    else if width == 4 && start + 4 <= bytes-len input then Ok (u32-to-u64 (ordered32 order (bytes-load-le32 input start)))
+    else if width == 8 && start + 8 <= bytes-len input then Ok (ordered64 order (bytes-load-le64 input start))
     else if start > bytes-len input then Err (BinaryInvalidOffset start (bytes-len input))
     else Err (BinaryShortInput width (bytes-len input - start))
 
   -- | Write a complete arithmetic field after its exact width check, with checked stores only.
   write-atom :: BinaryOrder -> Nat -> Bytes -> Nat -> U64 -> Result BinaryLayoutError Unit
   write-atom order width output start value =
-    if width == 1 && start < bytes-len output then Ok (bytes-set output start (u8-to-nat (wrapping-u64-to-u8 value)))
+    if width == 1 && start < bytes-len output then Ok (bytes-set-u8 output start (wrapping-u64-to-u8 value))
     else if width == 2 && start + 2 <= bytes-len output then
-      let word = wrapping-u16-to-u64 (ordered16 order (wrapping-u64-to-u16 value)) in
-      let first = bytes-set output start (u8-to-nat (wrapping-u64-to-u8 word)) in
-      Ok (bytes-set output (start + 1) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 8))))
-    else if width == 4 && start + 4 <= bytes-len output then Ok (bytes-write-le32 output start (ordered32 order (wrapping-u64-to-u32 value)))
-    else if width == 8 && start + 8 <= bytes-len output then Ok (bytes-write-le64 output start (ordered64 order value))
+      let word = u16-to-u64 (ordered16 order (wrapping-u64-to-u16 value)) in
+      let first = bytes-set-u8 output start (wrapping-u64-to-u8 word) in
+      Ok (bytes-set-u8 output (start + 1) (wrapping-u64-to-u8 (wrapping-shr-u64 word 8)))
+    else if width == 4 && start + 4 <= bytes-len output then Ok (bytes-store-le32 output start (ordered32 order (wrapping-u64-to-u32 value)))
+    else if width == 8 && start + 8 <= bytes-len output then Ok (bytes-store-le64 output start (ordered64 order value))
     else if start > bytes-len output then Err (BinaryInvalidOffset start (bytes-len output))
     else Err (BinaryShortDestination width (bytes-len output - start))
 
@@ -298,32 +278,20 @@ module Text.Binary.Layout where
   binary-i64 = scalar-layout 8 wrapping-i64-to-u64 wrapping-u64-to-i64
 
   -- | Observe all binary32 bits without arithmetic or NaN canonicalization.
-  prim binary-f32-bits :: F32 -> U32 where
-    llvm {
-      %bits = bitcast float %0 to i32
-      ret i32 %bits
-    }
+  binary-f32-bits :: F32 -> U32
+  binary-f32-bits value = f32-bits value
 
   -- | Construct binary32 from its complete bit pattern, including signed zeros and NaN payloads.
-  prim binary-f32-from-bits :: U32 -> F32 where
-    llvm {
-      %value = bitcast i32 %0 to float
-      ret float %value
-    }
+  binary-f32-from-bits :: U32 -> F32
+  binary-f32-from-bits bits = f32-from-bits bits
 
   -- | Observe all binary64 bits without arithmetic or NaN canonicalization.
-  prim binary-f64-bits :: F64 -> U64 where
-    llvm {
-      %bits = bitcast double %0 to i64
-      ret i64 %bits
-    }
+  binary-f64-bits :: F64 -> U64
+  binary-f64-bits value = f64-bits value
 
   -- | Construct binary64 from its complete bit pattern, including signed zeros and NaN payloads.
-  prim binary-f64-from-bits :: U64 -> F64 where
-    llvm {
-      %value = bitcast i64 %0 to double
-      ret double %value
-    }
+  binary-f64-from-bits :: U64 -> F64
+  binary-f64-from-bits bits = f64-from-bits bits
 
   -- | One bit-preserving binary32 floating-point field.
   binary-f32 :: BinaryLayout F32
@@ -437,130 +405,66 @@ module Text.Binary.Layout where
         get-elements left size get order input next values
 
   -- | Pack four low byte lanes with SWAR into their exact wire-order word.
-  prim pack-four8 :: U64 -> U64 -> U64 -> U64 -> U32 where
-    llvm {
-      %a = trunc i64 %0 to i8
-      %b = trunc i64 %1 to i8
-      %c = trunc i64 %2 to i8
-      %d = trunc i64 %3 to i8
-      %aw = zext i8 %a to i32
-      %bw = zext i8 %b to i32
-      %cw = zext i8 %c to i32
-      %dw = zext i8 %d to i32
-      %bs = shl i32 %bw, 8
-      %cs = shl i32 %cw, 16
-      %ds = shl i32 %dw, 24
-      %ab = or i32 %aw, %bs
-      %cd = or i32 %cs, %ds
-      %value = or i32 %ab, %cd
-      ret i32 %value
-    }
+  pack-four8 :: U64 -> U64 -> U64 -> U64 -> U32
+  pack-four8 a b c d =
+    let aw = u8-to-u32 (wrapping-u64-to-u8 a) in
+    let bw = wrapping-shl-u32 (u8-to-u32 (wrapping-u64-to-u8 b)) 8 in
+    let cw = wrapping-shl-u32 (u8-to-u32 (wrapping-u64-to-u8 c)) 16 in
+    let dw = wrapping-shl-u32 (u8-to-u32 (wrapping-u64-to-u8 d)) 24 in
+    bit-or-u32 (bit-or-u32 aw bw) (bit-or-u32 cw dw)
 
   -- | Pack four low sixteen-bit lanes into one complete word without numeric conversion.
-  prim pack-four16 :: U64 -> U64 -> U64 -> U64 -> U64 where
-    llvm {
-      %a = and i64 %0, 65535
-      %b = and i64 %1, 65535
-      %c = and i64 %2, 65535
-      %d = and i64 %3, 65535
-      %bs = shl i64 %b, 16
-      %cs = shl i64 %c, 32
-      %ds = shl i64 %d, 48
-      %ab = or i64 %a, %bs
-      %cd = or i64 %cs, %ds
-      %value = or i64 %ab, %cd
-      ret i64 %value
-    }
+  pack-four16 :: U64 -> U64 -> U64 -> U64 -> U64
+  pack-four16 a b c d =
+    let aw = bit-and-u64 a 65535 in
+    let bw = wrapping-shl-u64 (bit-and-u64 b 65535) 16 in
+    let cw = wrapping-shl-u64 (bit-and-u64 c 65535) 32 in
+    let dw = wrapping-shl-u64 (bit-and-u64 d 65535) 48 in
+    bit-or-u64 (bit-or-u64 aw bw) (bit-or-u64 cw dw)
 
   -- | Pack four low thirty-two-bit lanes into a private wide register, first lane low.
-  prim pack-four32 :: U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a = trunc i64 %0 to i32
-      %b = trunc i64 %1 to i32
-      %c = trunc i64 %2 to i32
-      %d = trunc i64 %3 to i32
-      %aw = zext i32 %a to i128
-      %bw = zext i32 %b to i128
-      %cw = zext i32 %c to i128
-      %dw = zext i32 %d to i128
-      %bs = shl i128 %bw, 32
-      %cs = shl i128 %cw, 64
-      %ds = shl i128 %dw, 96
-      %ab = or i128 %aw, %bs
-      %cd = or i128 %cs, %ds
-      %value = or i128 %ab, %cd
-      ret i128 %value
-    }
+  pack-four32 :: U64 -> U64 -> U64 -> U64 -> U128
+  pack-four32 a b c d =
+    simd-u32x4-pack (wrapping-u64-to-u32 a) (wrapping-u64-to-u32 b) (wrapping-u64-to-u32 c) (wrapping-u64-to-u32 d)
 
   -- | Join two packed words in a private wide register without introducing a stored wide field.
-  prim join-wide :: U64 -> U64 -> U128 where
-    llvm {
-      %low = zext i64 %0 to i128
-      %high = zext i64 %1 to i128
-      %upper = shl i128 %high, 64
-      %value = or i128 %low, %upper
-      ret i128 %value
-    }
+  join-wide :: U64 -> U64 -> U128
+  join-wide low high = simd-u64x2-pack low high
 
   -- | Observe the low packed word of one private wide register.
-  prim wide-low :: U128 -> U64 where
-    llvm {
-      %value = trunc i128 %0 to i64
-      ret i64 %value
-    }
+  wide-low :: U128 -> U64
+  wide-low word = wrapping-u128-to-u64 word
 
   -- | Observe the high packed word of one private wide register.
-  prim wide-high :: U128 -> U64 where
-    llvm {
-      %upper = lshr i128 %0, 64
-      %value = trunc i128 %upper to i64
-      ret i64 %value
-    }
+  wide-high :: U128 -> U64
+  wide-high word = wrapping-u128-to-u64 (wrapping-shr-u128 word 64)
 
   -- | Select a private thirty-two-bit lane by a bounded bit shift, returning its zero-extended bits.
-  prim wide-lane32 :: U128 -> U32 -> U64 where
-    llvm {
-      %bounded = and i32 %1, 127
-      %shift = zext i32 %bounded to i128
-      %upper = lshr i128 %0, %shift
-      %lane = trunc i128 %upper to i32
-      %value = zext i32 %lane to i64
-      ret i64 %value
-    }
+  wide-lane32 :: U128 -> U32 -> U64
+  wide-lane32 word shift =
+    u32-to-u64 (wrapping-u128-to-u32 (wrapping-shr-u128 word (bit-and-u32 shift 127)))
 
-  -- | Conditionally reverse bytes in four independent sixteen-bit SIMD lanes.
+  -- | Conditionally reverse bytes in four independent sixteen-bit lanes.
   -- Only lane-local operations are used, so numeric packing is independent of host endianness.
-  prim ordered-four16 :: U64 -> U8 -> U64 where
-    llvm {
-      %lanes = bitcast i64 %0 to <4 x i16>
-      %left = shl <4 x i16> %lanes, <i16 8, i16 8, i16 8, i16 8>
-      %right = lshr <4 x i16> %lanes, <i16 8, i16 8, i16 8, i16 8>
-      %swapped = or <4 x i16> %left, %right
-      %swap = icmp ne i8 %1, 0
-      %selected = select i1 %swap, <4 x i16> %swapped, <4 x i16> %lanes
-      %value = bitcast <4 x i16> %selected to i64
-      ret i64 %value
-    }
+  ordered-four16 :: U64 -> U8 -> U64
+  ordered-four16 word flag =
+    if eq-u8 flag 0 then word
+    else
+      let left = wrapping-shl-u64 (bit-and-u64 word 0x00FF00FF00FF00FF) 8 in
+      let right = wrapping-shr-u64 (bit-and-u64 word 0xFF00FF00FF00FF00) 8 in
+      bit-or-u64 left right
 
   -- | Conditionally reverse bytes in four independent thirty-two-bit SIMD lanes.
   -- Integer lane operations preserve all floating-point payloads when used by binary32 arrays.
-  prim ordered-four32 :: U128 -> U8 -> U128 where
-    llvm {
-      %lanes = bitcast i128 %0 to <4 x i32>
-      %a = shl <4 x i32> %lanes, <i32 24, i32 24, i32 24, i32 24>
-      %bm = and <4 x i32> %lanes, <i32 65280, i32 65280, i32 65280, i32 65280>
-      %b = shl <4 x i32> %bm, <i32 8, i32 8, i32 8, i32 8>
-      %cm = and <4 x i32> %lanes, <i32 16711680, i32 16711680, i32 16711680, i32 16711680>
-      %c = lshr <4 x i32> %cm, <i32 8, i32 8, i32 8, i32 8>
-      %d = lshr <4 x i32> %lanes, <i32 24, i32 24, i32 24, i32 24>
-      %ab = or <4 x i32> %a, %b
-      %cd = or <4 x i32> %c, %d
-      %swapped = or <4 x i32> %ab, %cd
-      %swap = icmp ne i8 %1, 0
-      %selected = select i1 %swap, <4 x i32> %swapped, <4 x i32> %lanes
-      %value = bitcast <4 x i32> %selected to i128
-      ret i128 %value
-    }
+  ordered-four32 :: U128 -> U8 -> U128
+  ordered-four32 word flag =
+    if eq-u8 flag 0 then word
+    else
+      let a = simd-u32x4-shl word 24 in
+      let b = simd-u32x4-shl (bit-and-u128 word (simd-u32x4-splat 65280)) 8 in
+      let c = simd-u32x4-shr (bit-and-u128 word (simd-u32x4-splat 16711680)) 8 in
+      let d = simd-u32x4-shr word 24 in
+      bit-or-u128 (bit-or-u128 a b) (bit-or-u128 c d)
 
   -- | Resolve the packed little-endian convention's per-lane swap flag outside each SIMD fragment.
   swap-flag :: BinaryOrder -> U8
@@ -571,16 +475,15 @@ module Text.Binary.Layout where
   put-four-atoms width pack order output start a b c d =
     let av = pack a in let bv = pack b in let cv = pack c in let dv = pack d in
     if width == 1 && start + 4 <= bytes-len output then
-      let stored = bytes-write-le32 output start (pack-four8 av bv cv dv) in Ok 4
+      let stored = bytes-store-le32 output start (pack-four8 av bv cv dv) in Ok 4
     else if width == 2 && start + 8 <= bytes-len output then
       let packed = pack-four16 av bv cv dv in let flag = swap-flag order in
       let word = ordered-four16 packed flag in
-      let stored = bytes-write-le64 output start word in Ok 8
+      let stored = bytes-store-le64 output start word in Ok 8
     else if width == 4 && start + 16 <= bytes-len output then
       let packed = pack-four32 av bv cv dv in let flag = swap-flag order in
       let word = ordered-four32 packed flag in
-      let first = bytes-write-le64 output start (wide-low word) in
-      let next = start + 8 in let last = bytes-write-le64 output next (wide-high word) in Ok 16
+      let stored = bytes-store-u128 output start word in Ok 16
     else Err (BinaryShortDestination (width * 4) (saturating-sub (bytes-len output) start))
 
   -- | Write homogeneous machine fields in blocks, carrying no wide value through recursive boundaries.
@@ -592,8 +495,8 @@ module Text.Binary.Layout where
         Nil -> write-atom order width output start (pack first)
         Cons second following -> if start + 16 <= bytes-len output then
           let a = pack first in let b = pack second in
-          let written = bytes-write-le64 output start (ordered64 order a) in
-          let middle = start + 8 in let last = bytes-write-le64 output middle (ordered64 order b) in
+          let written = bytes-store-le64 output start (ordered64 order a) in
+          let middle = start + 8 in let last = bytes-store-le64 output middle (ordered64 order b) in
           let next = start + 16 in put-atom-elements width pack order output next following
           else Err (BinaryShortDestination 16 (saturating-sub (bytes-len output) start))
       else case rest of
@@ -609,14 +512,13 @@ module Text.Binary.Layout where
   get-atom-elements remaining width unpack order input start reversed =
     if remaining == 0 then Ok (reverse reversed)
     else if width == 8 && remaining >= 2 && start + 16 <= bytes-len input then
-      let first-word = bytes-read-le64 input start in let first-bits = ordered64 order first-word in let first = unpack first-bits in
-      let middle = start + 8 in let second-word = bytes-read-le64 input middle in
+      let first-word = bytes-load-le64 input start in let first-bits = ordered64 order first-word in let first = unpack first-bits in
+      let middle = start + 8 in let second-word = bytes-load-le64 input middle in
       let second-bits = ordered64 order second-word in let second = unpack second-bits in
       let a = Cons first reversed in let values = Cons second a in
       let left = remaining - 2 in let next = start + 16 in get-atom-elements left width unpack order input next values
     else if width == 4 && remaining >= 4 && start + 16 <= bytes-len input then
-      let low = bytes-read-le64 input start in let middle = start + 8 in let high = bytes-read-le64 input middle in
-      let packed = join-wide low high in let flag = swap-flag order in
+      let packed = bytes-load-u128 input start in let flag = swap-flag order in
       let word = ordered-four32 packed flag in
       let first = unpack (wide-lane32 word 0) in let second = unpack (wide-lane32 word 32) in
       let third = unpack (wide-lane32 word 64) in let fourth = unpack (wide-lane32 word 96) in
@@ -624,7 +526,7 @@ module Text.Binary.Layout where
       let left = remaining - 4 in let next = start + 16 in get-atom-elements left width unpack order input next values
     else if width == 2 && remaining >= 4 then
       if start + 8 <= bytes-len input then
-        let packed = bytes-read-le64 input start in let flag = swap-flag order in
+        let packed = bytes-load-le64 input start in let flag = swap-flag order in
         let word = ordered-four16 packed flag in
         let first = unpack (bit-and-u64 word 65535) in let second = unpack (bit-and-u64 (wrapping-shr-u64 word 16) 65535) in
         let third = unpack (bit-and-u64 (wrapping-shr-u64 word 32) 65535) in let fourth = unpack (wrapping-shr-u64 word 48) in
@@ -633,7 +535,7 @@ module Text.Binary.Layout where
       else Err (BinaryShortInput 8 (saturating-sub (bytes-len input) start))
     else if width == 1 && remaining >= 4 then
       if start + 4 <= bytes-len input then
-        let packed = bytes-read-le32 input start in let word = wrapping-u32-to-u64 packed in
+        let packed = bytes-load-le32 input start in let word = u32-to-u64 packed in
         let first = unpack (bit-and-u64 word 255) in let second = unpack (bit-and-u64 (wrapping-shr-u64 word 8) 255) in
         let third = unpack (bit-and-u64 (wrapping-shr-u64 word 16) 255) in let fourth = unpack (wrapping-shr-u64 word 24) in
         let a = Cons first reversed in let b = Cons second a in let c = Cons third b in let values = Cons fourth c in

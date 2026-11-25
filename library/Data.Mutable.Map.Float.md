@@ -21,7 +21,7 @@ they can be stored and enumerated but cannot be found or deleted by key.
 # Values
 
 <article class="doc-entry" id="v-map-f32-ieee-policy">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f32-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-map-f32-ieee-policy" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Map.Float/source/#L42" title="View source at line 42">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f32-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-map-f32-ieee-policy" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Map.Float/source/#L28" title="View source at line 28">Source</a></span></div>
 <div class="doc-body">
 
 Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
@@ -30,7 +30,7 @@ Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
 </article>
 
 <article class="doc-entry" id="v-map-f64-ieee-policy">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f64-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-map-f64-ieee-policy" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Map.Float/source/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f64-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-map-f64-ieee-policy" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Map.Float/source/#L32" title="View source at line 32">Source</a></span></div>
 <div class="doc-body">
 
 Select binary64 IEEE equality explicitly, including equivalent signed zeros.

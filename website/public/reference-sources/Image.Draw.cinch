@@ -18,6 +18,7 @@ module Image.Draw where
   import Data.List
   import Data.Machine
   import Data.Nat
+  import Data.Wide (wrapping-u128-to-u32, wrapping-shr-u128, simd-u32x4-pack)
   import Image.Raster
 
   export DrawOp, DrawOver, DrawSrc, DrawRect, draw-rect, draw, draw-mask, draw-uniform, draw-floyd-steinberg
@@ -179,15 +180,8 @@ module Image.Draw where
   quads out s d o n done =
     if done + 4 > n || d + 16 > bytes-len out || o + 16 > bytes-len s then done
     else
-      let source = lane s o in
-      let result = over4 (lane out d) source in
-      let a = bytes-write-le64 out d (low64 result) in
-      let b = if d + 16 <= bytes-len out then bytes-write-le64 out (d + 8) (high64 result) else () in
+      let stored = bytes-store-u128 out d (over4 (bytes-load-u128 out d) (bytes-load-u128 s o)) in
       quads out s (d + 16) (o + 16) n (done + 4)
-
-  -- | Sixteen bytes at an offset as a U128.
-  lane :: Bytes -> Nat -> U128
-  lane b o = if o + 16 <= bytes-len b then join64 (bytes-read-le64 b o) (bytes-read-le64 b (o + 8)) else join64 0 0
 
   -- | Combine single pixels from x to x1.
   pixels :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Source -> Option Raster -> DrawOp -> Nat -> Nat -> Nat -> (Nat, Nat) -> (Nat, Nat) -> Unit
@@ -448,101 +442,54 @@ module Image.Draw where
   to-nat :: Int -> Nat
   to-nat n = case checked-int-to-i64 n of Some k -> (if 0 <= k then nat-from-i64 k else 0); None -> 0
 
-  -- | A U128 from its halves.
-  prim join64 :: U64 -> U64 -> U128 where
-    llvm {
-      %lo = zext i64 %0 to i128
-      %hi = zext i64 %1 to i128
-      %s = shl i128 %hi, 64
-      %r = or i128 %lo, %s
-      ret i128 %r
-    }
+  -- | Pack four 8-bit channels into a little-endian 32-bit RGBA pixel.
+  pack-rgba8 :: U32 -> U32 -> U32 -> U32 -> U32
+  pack-rgba8 r g b a =
+    bit-or-u32 (bit-or-u32 r (wrapping-shl-u32 g 8)) (bit-or-u32 (wrapping-shl-u32 b 16) (wrapping-shl-u32 a 24))
 
-  -- | The low half of a U128.
-  prim low64 :: U128 -> U64 where
-    llvm {
-      %r = trunc i128 %0 to i64
-      ret i64 %r
-    }
-
-  -- | The high half of a U128.
-  prim high64 :: U128 -> U64 where
-    llvm {
-      %s = lshr i128 %0, 64
-      %r = trunc i128 %s to i64
-      ret i64 %r
-    }
+  -- | Composite one non-premultiplied 8-bit RGBA pixel Over in 16-bit premultiplied arithmetic.
+  over1 :: U32 -> U32 -> U32
+  over1 dst src =
+    let sa = wrapping-shr-u32 src 24 in
+    if eq-u32 sa 255 then src
+    else
+      let dr = bit-and-u32 dst 255 in
+      let dg = bit-and-u32 (wrapping-shr-u32 dst 8) 255 in
+      let db = bit-and-u32 (wrapping-shr-u32 dst 16) 255 in
+      let da = wrapping-shr-u32 dst 24 in
+      let sr = bit-and-u32 src 255 in
+      let sg = bit-and-u32 (wrapping-shr-u32 src 8) 255 in
+      let sb = bit-and-u32 (wrapping-shr-u32 src 16) 255 in
+      let da16 = wrapping-mul-u32 da 257 in
+      let dr16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 dr 257) da) 255 in
+      let dg16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 dg 257) da) 255 in
+      let db16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 db 257) da) 255 in
+      let sa16 = wrapping-mul-u32 sa 257 in
+      let sr16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 sr 257) sa) 255 in
+      let sg16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 sg 257) sa) 255 in
+      let sb16 = div-u32 (wrapping-mul-u32 (wrapping-mul-u32 sb 257) sa) 255 in
+      let inv = wrapping-sub-u32 65535 sa16 in
+      let or16 = wrapping-add-u32 (div-u32 (wrapping-mul-u32 dr16 inv) 65535) sr16 in
+      let og16 = wrapping-add-u32 (div-u32 (wrapping-mul-u32 dg16 inv) 65535) sg16 in
+      let ob16 = wrapping-add-u32 (div-u32 (wrapping-mul-u32 db16 inv) 65535) sb16 in
+      let oa16 = wrapping-add-u32 (div-u32 (wrapping-mul-u32 da16 inv) 65535) sa16 in
+      let out-a = wrapping-shr-u32 oa16 8 in
+      if oa16 /= 0 && oa16 /= 65535 then
+        let ur = wrapping-shr-u32 (div-u32 (wrapping-mul-u32 or16 65535) oa16) 8 in
+        let ug = wrapping-shr-u32 (div-u32 (wrapping-mul-u32 og16 65535) oa16) 8 in
+        let ub = wrapping-shr-u32 (div-u32 (wrapping-mul-u32 ob16 65535) oa16) 8 in
+        pack-rgba8 ur ug ub out-a
+      else pack-rgba8 (wrapping-shr-u32 or16 8) (wrapping-shr-u32 og16 8) (wrapping-shr-u32 ob16 8) out-a
 
   -- | Four non-premultiplied 8-bit RGBA pixels composited Over: both premultiplied to 16 bits, d * (65535 - sA) / 65535 + s, then un-premultiplied and narrowed, as the generic path computes each pixel.
-  prim over4 :: U128 -> U128 -> U128 where
-    llvm {
-      %v1 = bitcast i128 %0 to <16 x i8>
-      %v2 = zext <16 x i8> %v1 to <16 x i32>
-      %v3 = shufflevector <16 x i32> %v2, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v4 = mul <16 x i32> %v2, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
-      %v5 = mul <16 x i32> %v4, %v3
-      %v6 = udiv <16 x i32> %v5, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
-      %v7 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v4, <16 x i32> %v6
-      %v8 = bitcast i128 %1 to <16 x i8>
-      %v9 = zext <16 x i8> %v8 to <16 x i32>
-      %v10 = shufflevector <16 x i32> %v9, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v11 = mul <16 x i32> %v9, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
-      %v12 = mul <16 x i32> %v11, %v10
-      %v13 = udiv <16 x i32> %v12, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
-      %v14 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v11, <16 x i32> %v13
-      %v15 = shufflevector <16 x i32> %v14, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v16 = sub <16 x i32> <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>, %v15
-      %v17 = mul <16 x i32> %v7, %v16
-      %v18 = udiv <16 x i32> %v17, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v19 = add <16 x i32> %v18, %v14
-      %v20 = shufflevector <16 x i32> %v19, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v21 = icmp eq <16 x i32> %v20, zeroinitializer
-      %v22 = icmp eq <16 x i32> %v20, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v23 = or <16 x i1> %v21, %v22
-      %v24 = select <16 x i1> %v21, <16 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <16 x i32> %v20
-      %v25 = mul <16 x i32> %v19, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v26 = udiv <16 x i32> %v25, %v24
-      %v27 = select <16 x i1> %v23, <16 x i32> %v19, <16 x i32> %v26
-      %v28 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v19, <16 x i32> %v27
-      %v29 = lshr <16 x i32> %v28, <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
-      %v30 = trunc <16 x i32> %v29 to <16 x i8>
-      %v31 = bitcast <16 x i8> %v30 to i128
-      ret i128 %v31
-    } when endian little
-    llvm {
-      %v1 = bitcast i128 %0 to <16 x i8>
-      %v2 = shufflevector <16 x i8> %v1, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
-      %v3 = zext <16 x i8> %v2 to <16 x i32>
-      %v4 = shufflevector <16 x i32> %v3, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v5 = mul <16 x i32> %v3, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
-      %v6 = mul <16 x i32> %v5, %v4
-      %v7 = udiv <16 x i32> %v6, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
-      %v8 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v5, <16 x i32> %v7
-      %v9 = bitcast i128 %1 to <16 x i8>
-      %v10 = shufflevector <16 x i8> %v9, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
-      %v11 = zext <16 x i8> %v10 to <16 x i32>
-      %v12 = shufflevector <16 x i32> %v11, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v13 = mul <16 x i32> %v11, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
-      %v14 = mul <16 x i32> %v13, %v12
-      %v15 = udiv <16 x i32> %v14, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
-      %v16 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v13, <16 x i32> %v15
-      %v17 = shufflevector <16 x i32> %v16, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v18 = sub <16 x i32> <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>, %v17
-      %v19 = mul <16 x i32> %v8, %v18
-      %v20 = udiv <16 x i32> %v19, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v21 = add <16 x i32> %v20, %v16
-      %v22 = shufflevector <16 x i32> %v21, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
-      %v23 = icmp eq <16 x i32> %v22, zeroinitializer
-      %v24 = icmp eq <16 x i32> %v22, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v25 = or <16 x i1> %v23, %v24
-      %v26 = select <16 x i1> %v23, <16 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <16 x i32> %v22
-      %v27 = mul <16 x i32> %v21, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
-      %v28 = udiv <16 x i32> %v27, %v26
-      %v29 = select <16 x i1> %v25, <16 x i32> %v21, <16 x i32> %v28
-      %v30 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v21, <16 x i32> %v29
-      %v31 = lshr <16 x i32> %v30, <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
-      %v32 = trunc <16 x i32> %v31 to <16 x i8>
-      %v33 = shufflevector <16 x i8> %v32, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
-      %v34 = bitcast <16 x i8> %v33 to i128
-      ret i128 %v34
-    } when endian big
+  over4 :: U128 -> U128 -> U128
+  over4 dst src =
+    let d0 = wrapping-u128-to-u32 dst in
+    let d1 = wrapping-u128-to-u32 (wrapping-shr-u128 dst 32) in
+    let d2 = wrapping-u128-to-u32 (wrapping-shr-u128 dst 64) in
+    let d3 = wrapping-u128-to-u32 (wrapping-shr-u128 dst 96) in
+    let s0 = wrapping-u128-to-u32 src in
+    let s1 = wrapping-u128-to-u32 (wrapping-shr-u128 src 32) in
+    let s2 = wrapping-u128-to-u32 (wrapping-shr-u128 src 64) in
+    let s3 = wrapping-u128-to-u32 (wrapping-shr-u128 src 96) in
+    simd-u32x4-pack (over1 d0 s0) (over1 d1 s1) (over1 d2 s2) (over1 d3 s3)

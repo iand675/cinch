@@ -43,7 +43,7 @@ Byte fields may contain arbitrary bytes; constructing a URL snapshots them.
 </article>
 
 <article class="doc-entry" id="t-UrlEncoding">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlEncoding</strong></code><span class="doc-sig-links"><a href="#t-UrlEncoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L24" title="View source at line 24">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlEncoding</strong></code><span class="doc-sig-links"><a href="#t-UrlEncoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L25" title="View source at line 25">Source</a></span></div>
 <div class="doc-body">
 
 The independent byte grammar of one URL component.
@@ -209,7 +209,7 @@ Observe explicit timeout classification; pure parsing failures do not time out.
 </article>
 
 <article class="doc-entry" id="v-url-escape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L241" title="View source at line 241">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L276" title="View source at line 276">Source</a></span></div>
 <div class="doc-body">
 
 Encode one complete component into fresh bytes, preserving no caller aliases.
@@ -227,7 +227,7 @@ Choose a valid raw fragment spelling only when it decodes to the stored fragment
 </article>
 
 <article class="doc-entry" id="v-url-escaped-length">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escaped-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-escaped-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-escaped-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-url-escaped-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L187" title="View source at line 187">Source</a></span></div>
 <div class="doc-body">
 
 Exact percent-encoded byte count; query-space substitution does not change length.
@@ -482,7 +482,7 @@ Observe path as a fresh byte buffer.
 </article>
 
 <article class="doc-entry" id="v-url-path-escape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L423" title="View source at line 423">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L476" title="View source at line 476">Source</a></span></div>
 <div class="doc-body">
 
 Escape one arbitrary-byte path segment, including every slash inside the segment.
@@ -491,7 +491,7 @@ Escape one arbitrary-byte path segment, including every slash inside the segment
 </article>
 
 <article class="doc-entry" id="v-url-path-escape-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-path-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L439" title="View source at line 439">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-path-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L492" title="View source at line 492">Source</a></span></div>
 <div class="doc-body">
 
 Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
@@ -500,7 +500,7 @@ Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
 </article>
 
 <article class="doc-entry" id="v-url-path-unescape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L427" title="View source at line 427">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-path-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-path-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L480" title="View source at line 480">Source</a></span></div>
 <div class="doc-body">
 
 Percent-decode a path component without treating plus as a space.
@@ -527,7 +527,7 @@ Parse raw query fields with the default bound, discarding malformed pairs and th
 </article>
 
 <article class="doc-entry" id="v-url-query-escape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L431" title="View source at line 431">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-escape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L484" title="View source at line 484">Source</a></span></div>
 <div class="doc-body">
 
 Escape one arbitrary-byte query key or value, using plus for space.
@@ -536,7 +536,7 @@ Escape one arbitrary-byte query key or value, using plus for space.
 </article>
 
 <article class="doc-entry" id="v-url-query-escape-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-query-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L443" title="View source at line 443">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-url-query-escape-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L496" title="View source at line 496">Source</a></span></div>
 <div class="doc-body">
 
 Escape UTF-8 text as an ASCII query component; decoding remains byte based.
@@ -545,7 +545,7 @@ Escape UTF-8 text as an ASCII query component; decoding remains byte based.
 </article>
 
 <article class="doc-entry" id="v-url-query-unescape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L435" title="View source at line 435">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-query-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-query-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L488" title="View source at line 488">Source</a></span></div>
 <div class="doc-body">
 
 Decode a query key or value, mapping plus to space and retaining arbitrary decoded bytes.
@@ -644,7 +644,7 @@ Decode rendered bytes as UTF-8 only when every preserved byte is valid text.
 </article>
 
 <article class="doc-entry" id="v-url-unescape">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L376" title="View source at line 376">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlEncoding" title="Text.Url.Codec.UrlEncoding">UrlEncoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L411" title="View source at line 411">Source</a></span></div>
 <div class="doc-body">
 
 Decode a complete component to fresh arbitrary bytes, or return a precise failure without partial output.
@@ -653,7 +653,7 @@ Decode a complete component to fresh arbitrary bytes, or return a precise failur
 </article>
 
 <article class="doc-entry" id="v-url-unescape-fragment-hint">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-fragment-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-fragment-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L419" title="View source at line 419">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-fragment-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-fragment-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L472" title="View source at line 472">Source</a></span></div>
 <div class="doc-body">
 
 Decode a raw fragment hint only when its pchar spellings and percent triplets are valid.
@@ -662,7 +662,7 @@ Decode a raw fragment hint only when its pchar spellings and percent triplets ar
 </article>
 
 <article class="doc-entry" id="v-url-unescape-path-hint">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-path-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-path-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L415" title="View source at line 415">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-unescape-path-hint</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Url/#t-UrlFailure" title="Text.Url.Error.UrlFailure">UrlFailure</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-unescape-path-hint" title="Permalink">#</a><a href="/packages/stdlib/Text.Url.Codec/source/#L468" title="View source at line 468">Source</a></span></div>
 <div class="doc-body">
 
 Decode a raw path hint only when its pchar spellings and percent triplets are valid.

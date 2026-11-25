@@ -1,7 +1,7 @@
 -- Data.Bool: the booleans and their strict operations.
 --
--- `Bool` is a core runtime type; the `cinch.prim.*Bool` foreign
--- imports are the machine operations. `&&` and `||` are strict
+-- `Bool` is a core runtime type; its primitive operations are pure
+-- Cinch case expressions. `&&` and `||` are strict
 -- functions in the bootstrap slice; the surface short-circuiting form
 -- lands with the effects correction (primitive types specification
 -- section 6).
@@ -20,11 +20,34 @@ module Data.Bool where
   export prim-eq-bool, prim-ne-bool, prim-not-bool, prim-and-bool, prim-or-bool, not, and, or, xor, bool, (&&), (||)
 
 
-  foreign import ccall "cinch.prim.eqBool" prim-eq-bool :: Bool -> Bool -> Bool
-  foreign import ccall "cinch.prim.neBool" prim-ne-bool :: Bool -> Bool -> Bool
-  foreign import ccall "cinch.prim.notBool" prim-not-bool :: Bool -> Bool
-  foreign import ccall "cinch.prim.andBool" prim-and-bool :: Bool -> Bool -> Bool
-  foreign import ccall "cinch.prim.orBool" prim-or-bool :: Bool -> Bool -> Bool
+  prim-eq-bool :: Bool -> Bool -> Bool
+  prim-eq-bool x y = case x of
+    True -> y
+    False -> case y of
+      True -> False
+      False -> True
+
+  prim-ne-bool :: Bool -> Bool -> Bool
+  prim-ne-bool x y = case x of
+    True -> case y of
+      True -> False
+      False -> True
+    False -> y
+
+  prim-not-bool :: Bool -> Bool
+  prim-not-bool b = case b of
+    True -> False
+    False -> True
+
+  prim-and-bool :: Bool -> Bool -> Bool
+  prim-and-bool x y = case x of
+    True -> y
+    False -> False
+
+  prim-or-bool :: Bool -> Bool -> Bool
+  prim-or-bool x y = case x of
+    True -> True
+    False -> y
 
   -- These are strict functions in the bootstrap slice; the surface `&&`
   -- and `||` short-circuit once that deviation is corrected (primitive

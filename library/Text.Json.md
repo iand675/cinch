@@ -4,7 +4,7 @@ JSON parsing and rendering over Data.Json, with explicit errors and builder-base
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Json</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json/source/">View source</a><a href="/packages/search/?q=%2BText.Json">Search module</a><a href="/reference-sources/Text.Json.cinch" download="Text.Json.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -87,7 +87,7 @@ implement; each is a named boundary, never a silent gap):
 # Types
 
 <article class="doc-entry" id="t-JParser">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JParser</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JParser" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JParser</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JParser" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L200" title="View source at line 200">Source</a></span></div>
 <div class="doc-body">
 
 A parser: a function from cursor to reply (the P30 `Parser`
@@ -99,7 +99,7 @@ sit under a lambda (the D302 top-level value discipline).
 </article>
 
 <article class="doc-entry" id="t-JReply">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JReply</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JReply" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JReply</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JReply" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L193" title="View source at line 193">Source</a></span></div>
 <div class="doc-body">
 
 A reply: the consumed/empty success and failure distinction of
@@ -111,7 +111,7 @@ there).
 </article>
 
 <article class="doc-entry" id="t-JState">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JState</strong></code><span class="doc-sig-links"><a href="#t-JState" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JState</strong></code><span class="doc-sig-links"><a href="#t-JState" title="Permalink">#</a><a href="/packages/stdlib/Text.Json/source/#L171" title="View source at line 171">Source</a></span></div>
 <div class="doc-body">
 
 The cursor into the source: the buffer, the byte offset, and the

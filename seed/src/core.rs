@@ -226,72 +226,6 @@ impl CmpOp {
     }
 }
 
-/// Binary floating-point operations (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FloatBinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    /// IEEE 754-2019 `minimum`: propagates NaN, `-0 < +0`.
-    Minimum,
-    /// IEEE 754-2019 `maximum`: propagates NaN, `-0 < +0`.
-    Maximum,
-}
-
-impl FloatBinOp {
-    fn name(self) -> &'static str {
-        match self {
-            FloatBinOp::Add => "add",
-            FloatBinOp::Sub => "sub",
-            FloatBinOp::Mul => "mul",
-            FloatBinOp::Div => "div",
-            FloatBinOp::Minimum => "minimum",
-            FloatBinOp::Maximum => "maximum",
-        }
-    }
-}
-
-/// Unary floating-point operations (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FloatUnOp {
-    Neg,
-    Abs,
-    Sqrt,
-}
-
-impl FloatUnOp {
-    fn name(self) -> &'static str {
-        match self {
-            FloatUnOp::Neg => "neg",
-            FloatUnOp::Abs => "abs",
-            FloatUnOp::Sqrt => "sqrt",
-        }
-    }
-}
-
-/// Floating-point classification (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FClassOp {
-    IsNan,
-    IsInfinite,
-    IsFinite,
-    IsNormal,
-    SignBit,
-}
-
-impl FClassOp {
-    fn name(self) -> &'static str {
-        match self {
-            FClassOp::IsNan => "isNaN",
-            FClassOp::IsInfinite => "isInfinite",
-            FClassOp::IsFinite => "isFinite",
-            FClassOp::IsNormal => "isNormal",
-            FClassOp::SignBit => "signBit",
-        }
-    }
-}
-
 /// Conversion families (section 7). `Total` is `sToT` (value-preserving
 /// integer conversions, integer-to-float and float-to-float with IEEE
 /// rounding), `Checked` returns `Option T`, `Saturating` clamps (`NaN` maps
@@ -475,6 +409,40 @@ pub enum BytesOp {
     /// `bytesCompare :: Bytes -> Bytes -> I64`: the lexicographic order
     /// of the two buffers' contents as -1/0/1, read in place.
     Compare,
+    /// `bytesLenI64 :: Bytes -> I64`: buffer length as an unboxed `I64`.
+    LenI64,
+    /// `bytesGetU8 :: Bytes -> Nat -> U8`: unboxed byte read at `Nat` index.
+    GetU8,
+    /// `bytesSetU8 :: Bytes -> Nat -> U8 -> Unit`: unboxed byte write at `Nat` index.
+    SetU8,
+    /// `bytesGetU8At :: Bytes -> I64 -> U8`: unboxed byte read at `I64` index.
+    GetU8At,
+    /// `bytesSetU8At :: Bytes -> I64 -> U8 -> Unit`: unboxed byte write at `I64` index.
+    SetU8At,
+    /// `bytesLoadLe32 :: Bytes -> Nat -> U32`: unaligned little-endian 32-bit read at `Nat` index.
+    LoadLe32,
+    /// `bytesStoreLe32 :: Bytes -> Nat -> U32 -> Unit`: unaligned little-endian 32-bit write at `Nat` index.
+    StoreLe32,
+    /// `bytesLoadLe32At :: Bytes -> I64 -> U32`: unaligned little-endian 32-bit read at `I64` index.
+    LoadLe32At,
+    /// `bytesStoreLe32At :: Bytes -> I64 -> U32 -> Unit`: unaligned little-endian 32-bit write at `I64` index.
+    StoreLe32At,
+    /// `bytesLoadLe64 :: Bytes -> Nat -> U64`: unaligned little-endian 64-bit read at `Nat` index.
+    LoadLe64,
+    /// `bytesStoreLe64 :: Bytes -> Nat -> U64 -> Unit`: unaligned little-endian 64-bit write at `Nat` index.
+    StoreLe64,
+    /// `bytesLoadLe64At :: Bytes -> I64 -> U64`: unaligned little-endian 64-bit read at `I64` index.
+    LoadLe64At,
+    /// `bytesStoreLe64At :: Bytes -> I64 -> U64 -> Unit`: unaligned little-endian 64-bit write at `I64` index.
+    StoreLe64At,
+    /// `bytesLoadU128 :: Bytes -> Nat -> U128`: unaligned little-endian 128-bit read at `Nat` index.
+    LoadU128,
+    /// `bytesStoreU128 :: Bytes -> Nat -> U128 -> Unit`: unaligned little-endian 128-bit write at `Nat` index.
+    StoreU128,
+    /// `bytesLoadU128At :: Bytes -> I64 -> U128`: unaligned little-endian 128-bit read at `I64` index.
+    LoadU128At,
+    /// `bytesStoreU128At :: Bytes -> I64 -> U128 -> Unit`: unaligned little-endian 128-bit write at `I64` index.
+    StoreU128At,
 }
 
 impl BytesOp {
@@ -487,6 +455,23 @@ impl BytesOp {
             BytesOp::Data => "Data",
             BytesOp::Copy => "Copy",
             BytesOp::Compare => "Compare",
+            BytesOp::LenI64 => "LenI64",
+            BytesOp::GetU8 => "GetU8",
+            BytesOp::SetU8 => "SetU8",
+            BytesOp::GetU8At => "GetU8At",
+            BytesOp::SetU8At => "SetU8At",
+            BytesOp::LoadLe32 => "LoadLe32",
+            BytesOp::StoreLe32 => "StoreLe32",
+            BytesOp::LoadLe32At => "LoadLe32At",
+            BytesOp::StoreLe32At => "StoreLe32At",
+            BytesOp::LoadLe64 => "LoadLe64",
+            BytesOp::StoreLe64 => "StoreLe64",
+            BytesOp::LoadLe64At => "LoadLe64At",
+            BytesOp::StoreLe64At => "StoreLe64At",
+            BytesOp::LoadU128 => "LoadU128",
+            BytesOp::StoreU128 => "StoreU128",
+            BytesOp::LoadU128At => "LoadU128At",
+            BytesOp::StoreU128At => "StoreU128At",
         }
     }
 
@@ -494,9 +479,25 @@ impl BytesOp {
     pub fn extern_name(self) -> &'static str {
         match self {
             BytesOp::New => "cinch_bytes_new",
-            BytesOp::Len => "cinch_bytes_len",
-            BytesOp::Get => "cinch_bytes_get",
-            BytesOp::Set => "cinch_bytes_set",
+            BytesOp::Len | BytesOp::LenI64 => "cinch_bytes_len",
+            BytesOp::Get
+            | BytesOp::GetU8
+            | BytesOp::GetU8At
+            | BytesOp::LoadLe32
+            | BytesOp::LoadLe32At
+            | BytesOp::LoadLe64
+            | BytesOp::LoadLe64At
+            | BytesOp::LoadU128
+            | BytesOp::LoadU128At => "cinch_bytes_get",
+            BytesOp::Set
+            | BytesOp::SetU8
+            | BytesOp::SetU8At
+            | BytesOp::StoreLe32
+            | BytesOp::StoreLe32At
+            | BytesOp::StoreLe64
+            | BytesOp::StoreLe64At
+            | BytesOp::StoreU128
+            | BytesOp::StoreU128At => "cinch_bytes_set",
             BytesOp::Data => "cinch_bytes_data",
             BytesOp::Copy => "cinch_bytes_copy",
             BytesOp::Compare => "cinch_bytes_compare",
@@ -744,6 +745,20 @@ pub enum NetOp {
     /// `netResolve :: Bytes -> I64 -> Result I64 Bytes`: UTF-8 host text
     /// at a port as one `<ip>:<port>` line per resolved address.
     Resolve,
+    /// `netTcpListen :: Bytes -> I64 -> Result I64 I64`: bind a TCP
+    /// listener on UTF-8 host text and port; payload is listener handle.
+    TcpListen,
+    /// `netTcpAccept :: I64 -> Result I64 I64`: accept one incoming TCP
+    /// connection on a listener handle; payload is socket handle.
+    TcpAccept,
+    /// `netListenerAddr :: I64 -> Result I64 Bytes`: bound `<ip>:<port>`
+    /// local address of a listener handle.
+    ListenerAddr,
+    /// `netListenerClose :: I64 -> Result I64 Unit`: close a listener handle.
+    ListenerClose,
+    /// `netUdpSend :: Bytes -> I64 -> Bytes -> Result I64 Nat`: send one
+    /// UDP datagram to `(host, port)`.
+    UdpSend,
 }
 
 impl NetOp {
@@ -754,6 +769,11 @@ impl NetOp {
             NetOp::Write => "Write",
             NetOp::Close => "Close",
             NetOp::Resolve => "Resolve",
+            NetOp::TcpListen => "TcpListen",
+            NetOp::TcpAccept => "TcpAccept",
+            NetOp::ListenerAddr => "ListenerAddr",
+            NetOp::ListenerClose => "ListenerClose",
+            NetOp::UdpSend => "UdpSend",
         }
     }
 
@@ -765,6 +785,11 @@ impl NetOp {
             NetOp::Write => "cinch_net_write",
             NetOp::Close => "cinch_net_close",
             NetOp::Resolve => "cinch_net_resolve",
+            NetOp::TcpListen => "cinch_net_tcp_listen",
+            NetOp::TcpAccept => "cinch_net_tcp_accept",
+            NetOp::ListenerAddr => "cinch_net_listener_addr",
+            NetOp::ListenerClose => "cinch_net_listener_close",
+            NetOp::UdpSend => "cinch_net_udp_send",
         }
     }
 }
@@ -1093,6 +1118,10 @@ pub enum PrimOp {
     /// `minBound / -1` for signed types (section 4).
     CheckedDiv { ty: Scalar },
     CheckedRem { ty: Scalar },
+    /// Proof-bearing unsigned division/remainder (`using (b /= 0)`):
+    /// traps on zero in unchecked Core, single `udiv`/`urem` in valid code.
+    Div { ty: Scalar },
+    Rem { ty: Scalar },
     /// `checkedShl`/`checkedShr`/`wrappingShl`/`wrappingShr` (section 4).
     Shift { ty: Scalar, op: ShiftOp, checked: bool },
     /// `rotateLeft`/`rotateRight`: total, count modulo the width (section 4).
@@ -1107,16 +1136,6 @@ pub enum PrimOp {
     /// `eq`/`ne`/`lt`/`le`/`gt`/`ge` for integer types, `Usize`, `Isize`
     /// and `Char` (sections 6 and 8).
     Cmp { ty: Scalar, op: CmpOp },
-    /// `add`/`sub`/`mul`/`div`/`minimum`/`maximum` (section 5).
-    FloatBin { ty: Scalar, op: FloatBinOp },
-    /// `neg`/`abs`/`sqrt` (section 5).
-    FloatUn { ty: Scalar, op: FloatUnOp },
-    /// `feq`/`fne`/`flt`/`fle`/`fgt`/`fge`: quiet IEEE comparisons (section 5).
-    FCmp { ty: Scalar, op: CmpOp },
-    /// `isNaN`/`isInfinite`/`isFinite`/`isNormal`/`signBit` (section 5).
-    FClass { ty: Scalar, op: FClassOp },
-    /// `totalOrderF32`/`totalOrderF64` (section 5).
-    TotalOrder { ty: Scalar },
     /// `charToU32 :: Char -> U32` (section 6), total.
     CharToU32,
     /// `u32ToChar :: U32 -> Option Char` (sections 6 and 7): rejects
@@ -1174,6 +1193,8 @@ impl PrimOp {
             Neg { ty, mode } => Neg { ty: s(ty), mode },
             CheckedDiv { ty } => CheckedDiv { ty: s(ty) },
             CheckedRem { ty } => CheckedRem { ty: s(ty) },
+            Div { ty } => Div { ty: s(ty) },
+            Rem { ty } => Rem { ty: s(ty) },
             Shift { ty, op, checked } => Shift { ty: s(ty), op, checked },
             Rotate { ty, right } => Rotate { ty: s(ty), right },
             Bit { ty, op } => Bit { ty: s(ty), op },
@@ -1181,11 +1202,6 @@ impl PrimOp {
             BitScan { ty, op } => BitScan { ty: s(ty), op },
             Cmp { ty, op } => Cmp { ty: s(ty), op },
             Conv { from, to, mode } => Conv { from: s(from), to: s(to), mode },
-            FloatBin { ty, op } => FloatBin { ty: s(ty), op },
-            FloatUn { ty, op } => FloatUn { ty: s(ty), op },
-            FCmp { ty, op } => FCmp { ty: s(ty), op },
-            FClass { ty, op } => FClass { ty: s(ty), op },
-            TotalOrder { ty } => TotalOrder { ty: s(ty) },
             other => other,
         }
     }
@@ -1253,6 +1269,23 @@ impl PrimOp {
                 "bytesData" => Bytes(BytesOp::Data),
                 "bytesCopy" => Bytes(BytesOp::Copy),
                 "bytesCompare" => Bytes(BytesOp::Compare),
+                "bytesLenI64" => Bytes(BytesOp::LenI64),
+                "bytesGetU8" => Bytes(BytesOp::GetU8),
+                "bytesSetU8" => Bytes(BytesOp::SetU8),
+                "bytesGetU8At" => Bytes(BytesOp::GetU8At),
+                "bytesSetU8At" => Bytes(BytesOp::SetU8At),
+                "bytesLoadLe32" => Bytes(BytesOp::LoadLe32),
+                "bytesStoreLe32" => Bytes(BytesOp::StoreLe32),
+                "bytesLoadLe32At" => Bytes(BytesOp::LoadLe32At),
+                "bytesStoreLe32At" => Bytes(BytesOp::StoreLe32At),
+                "bytesLoadLe64" => Bytes(BytesOp::LoadLe64),
+                "bytesStoreLe64" => Bytes(BytesOp::StoreLe64),
+                "bytesLoadLe64At" => Bytes(BytesOp::LoadLe64At),
+                "bytesStoreLe64At" => Bytes(BytesOp::StoreLe64At),
+                "bytesLoadU128" => Bytes(BytesOp::LoadU128),
+                "bytesStoreU128" => Bytes(BytesOp::StoreU128),
+                "bytesLoadU128At" => Bytes(BytesOp::LoadU128At),
+                "bytesStoreU128At" => Bytes(BytesOp::StoreU128At),
                 "utf8Validate" => Utf8(Utf8Op::Validate),
                 "utf8CountChars" => Utf8(Utf8Op::CountChars),
                 "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
@@ -1279,6 +1312,11 @@ impl PrimOp {
                 "arenaNew" => Platform(PlatformOp::ArenaNew),
                 "arenaLeave" => Platform(PlatformOp::ArenaLeave),
                 "netTcpConnect" => Net(NetOp::TcpConnect),
+                "netTcpListen" => Net(NetOp::TcpListen),
+                "netTcpAccept" => Net(NetOp::TcpAccept),
+                "netListenerAddr" => Net(NetOp::ListenerAddr),
+                "netListenerClose" => Net(NetOp::ListenerClose),
+                "netUdpSend" => Net(NetOp::UdpSend),
                 "netRead" => Net(NetOp::Read),
                 "netWrite" => Net(NetOp::Write),
                 "netClose" => Net(NetOp::Close),
@@ -1370,6 +1408,8 @@ impl PrimOp {
             Neg { ty, mode } => format!("{}Neg{}", mode.name(), ty.name()),
             CheckedDiv { ty } => format!("checkedDiv{}", ty.name()),
             CheckedRem { ty } => format!("checkedRem{}", ty.name()),
+            Div { ty } => format!("div{}", ty.name()),
+            Rem { ty } => format!("rem{}", ty.name()),
             Shift { ty, op, checked } => format!(
                 "{}{}{}",
                 if checked { "checked" } else { "wrapping" },
@@ -1383,11 +1423,6 @@ impl PrimOp {
             BitNot { ty } => format!("bitNot{}", ty.name()),
             BitScan { ty, op } => format!("{}{}", op.name(), ty.name()),
             Cmp { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FloatBin { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FloatUn { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FCmp { ty, op } => format!("f{}{}", op.name(), ty.name()),
-            FClass { ty, op } => format!("{}{}", op.name(), ty.name()),
-            TotalOrder { ty } => format!("totalOrder{}", ty.name()),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
         format!("cinch.prim.{n}")
@@ -1402,9 +1437,29 @@ impl PrimOp {
     pub fn is_pure_arith(self) -> bool {
         use PrimOp::*;
         match self {
-            Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. } | Shift { .. }
-            | Rotate { .. } | Bit { .. } | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
+            Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. }
+            | Div { .. } | Rem { .. } | Shift { .. } | Rotate { .. } | Bit { .. }
+            | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
             Conv { from, to, .. } => !from.is_float() && !to.is_float(),
+            _ => false,
+        }
+    }
+
+    /// Whether this primitive is total, non-allocating, non-faulting,
+    /// memory-free, and safe to evaluate speculatively in an LLVM `select`.
+    pub fn is_trivial_pure(self) -> bool {
+        use PrimOp::*;
+        match self {
+            AndBool | OrBool | NotBool | EqBool | NeBool | CharToU32 | Bound { .. }
+            | Arith { mode: ArithMode::Wrapping | ArithMode::Saturating, .. }
+            | Neg { mode: ArithMode::Wrapping | ArithMode::Saturating, .. }
+            | Shift { checked: false, .. }
+            | Rotate { .. }
+            | Bit { .. }
+            | BitNot { .. }
+            | BitScan { .. }
+            | Cmp { .. }
+            | Conv { mode: ConvMode::Total | ConvMode::Wrapping | ConvMode::Saturating, .. } => true,
             _ => false,
         }
     }
@@ -1419,7 +1474,7 @@ impl PrimOp {
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat | IntOp::FromI128 | IntOp::ToI128)
-            | Bytes(BytesOp::New | BytesOp::Len | BytesOp::Data)
+            | Bytes(BytesOp::New | BytesOp::Len | BytesOp::LenI64 | BytesOp::Data)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
             | Text(
                 TextOp::Sha256 | TextOp::Sha512 | TextOp::Sha1 | TextOp::Md5
@@ -1428,10 +1483,20 @@ impl PrimOp {
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
             | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
             Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
-            Bytes(BytesOp::Set) => 3,
+            Bytes(
+                BytesOp::Set
+                | BytesOp::SetU8
+                | BytesOp::SetU8At
+                | BytesOp::StoreLe32
+                | BytesOp::StoreLe32At
+                | BytesOp::StoreLe64
+                | BytesOp::StoreLe64At
+                | BytesOp::StoreU128
+                | BytesOp::StoreU128At,
+            ) => 3,
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
-            Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
+            Neg { .. } | BitNot { .. } | BitScan { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             // The participant hint takes one count; callback forms take two
@@ -1464,7 +1529,7 @@ impl PrimOp {
 
     /// Does the operation return the prelude `Ordering`?
     pub fn returns_ordering(self) -> bool {
-        matches!(self, PrimOp::TotalOrder { .. })
+        false
     }
 
     /// The argument types and result type of the primitive (the prelude
@@ -1473,7 +1538,9 @@ impl PrimOp {
         use PrimOp::*;
         let prim = |s: Scalar| Ty::Prim(s);
         let opt = |t: Ty| Ty::Adt(crate::known::OPTION.into(), vec![t]);
+        let u8t = prim(Scalar::U8);
         let u32t = prim(Scalar::U32);
+        let u64t = prim(Scalar::U64);
         let i64t = prim(Scalar::I64);
         // The net and piped-child units present their boundary word as
         // the prelude `Result`: `Err` (tag 0) over the POSITIVE named
@@ -1508,8 +1575,25 @@ impl PrimOp {
             Int(IntOp::ToI128) => (vec![Ty::Int], prim(Scalar::I128)),
             Bytes(BytesOp::New) => (vec![Ty::Nat], Ty::Bytes),
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
+            Bytes(BytesOp::LenI64) => (vec![Ty::Bytes], i64t),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
             Bytes(BytesOp::Set) => (vec![Ty::Bytes, Ty::Nat, Ty::Nat], Ty::Unit),
+            Bytes(BytesOp::GetU8) => (vec![Ty::Bytes, Ty::Nat], u8t),
+            Bytes(BytesOp::SetU8) => (vec![Ty::Bytes, Ty::Nat, u8t], Ty::Unit),
+            Bytes(BytesOp::GetU8At) => (vec![Ty::Bytes, i64t], u8t),
+            Bytes(BytesOp::SetU8At) => (vec![Ty::Bytes, i64t, u8t], Ty::Unit),
+            Bytes(BytesOp::LoadLe32) => (vec![Ty::Bytes, Ty::Nat], u32t),
+            Bytes(BytesOp::StoreLe32) => (vec![Ty::Bytes, Ty::Nat, u32t], Ty::Unit),
+            Bytes(BytesOp::LoadLe32At) => (vec![Ty::Bytes, i64t], u32t),
+            Bytes(BytesOp::StoreLe32At) => (vec![Ty::Bytes, i64t, u32t], Ty::Unit),
+            Bytes(BytesOp::LoadLe64) => (vec![Ty::Bytes, Ty::Nat], u64t),
+            Bytes(BytesOp::StoreLe64) => (vec![Ty::Bytes, Ty::Nat, u64t], Ty::Unit),
+            Bytes(BytesOp::LoadLe64At) => (vec![Ty::Bytes, i64t], u64t),
+            Bytes(BytesOp::StoreLe64At) => (vec![Ty::Bytes, i64t, u64t], Ty::Unit),
+            Bytes(BytesOp::LoadU128) => (vec![Ty::Bytes, Ty::Nat], prim(Scalar::U128)),
+            Bytes(BytesOp::StoreU128) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U128)], Ty::Unit),
+            Bytes(BytesOp::LoadU128At) => (vec![Ty::Bytes, i64t], prim(Scalar::U128)),
+            Bytes(BytesOp::StoreU128At) => (vec![Ty::Bytes, i64t, prim(Scalar::U128)], Ty::Unit),
             Bytes(BytesOp::Copy) => {
                 (vec![Ty::Bytes, Ty::Bytes, Ty::Nat, Ty::Nat, Ty::Nat], Ty::Unit)
             }
@@ -1544,6 +1628,11 @@ impl PrimOp {
             Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
             Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => (vec![i64t.clone()], i64t),
             Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
+            Net(NetOp::TcpListen) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
+            Net(NetOp::TcpAccept) => (vec![i64t.clone()], res(i64t.clone())),
+            Net(NetOp::ListenerAddr) => (vec![i64t.clone()], res(Ty::Bytes)),
+            Net(NetOp::ListenerClose) => (vec![i64t.clone()], res(Ty::Unit)),
+            Net(NetOp::UdpSend) => (vec![Ty::Bytes, i64t.clone(), Ty::Bytes], res(Ty::Nat)),
             Net(NetOp::Read) => (vec![i64t.clone(), Ty::Nat], res(Ty::Bytes)),
             Net(NetOp::Write) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),
             Net(NetOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
@@ -1590,6 +1679,7 @@ impl PrimOp {
             CheckedDiv { ty } | CheckedRem { ty } => {
                 (vec![prim(ty), prim(ty)], opt(prim(ty)))
             }
+            Div { ty } | Rem { ty } => (vec![prim(ty), prim(ty)], prim(ty)),
             Shift { ty, checked, .. } => {
                 let res = if checked { opt(prim(ty)) } else { prim(ty) };
                 (vec![prim(ty), u32t], res)
@@ -1602,14 +1692,6 @@ impl PrimOp {
                 (vec![prim(ty)], res)
             }
             Cmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
-            FloatBin { ty, .. } => (vec![prim(ty), prim(ty)], prim(ty)),
-            FloatUn { ty, .. } => (vec![prim(ty)], prim(ty)),
-            FCmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
-            FClass { ty, .. } => (vec![prim(ty)], Ty::Bool),
-            TotalOrder { ty } => (
-                vec![prim(ty), prim(ty)],
-                Ty::Adt(crate::known::ORDERING.into(), vec![]),
-            ),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
@@ -1731,6 +1813,12 @@ fn typed_op_from_head(head: &str, ty: Scalar) -> Option<PrimOp> {
     if head == "checkedRem" && ty.is_int_like() {
         return Some(CheckedRem { ty });
     }
+    if head == "div" && ty.is_int_like() && !ty.is_signed() {
+        return Some(Div { ty });
+    }
+    if head == "rem" && ty.is_int_like() && !ty.is_signed() {
+        return Some(Rem { ty });
+    }
     for (h, op, checked) in [
         ("checkedShl", ShiftOp::Shl, true),
         ("checkedShr", ShiftOp::Shr, true),
@@ -1776,56 +1864,6 @@ fn typed_op_from_head(head: &str, ty: Scalar) -> Option<PrimOp> {
     if let Some(op) = CmpOp::parse(head) {
         if ty.is_int_like() || ty == Scalar::Char {
             return Some(Cmp { ty, op });
-        }
-    }
-    // Floating point (section 5).
-    if ty.is_float() {
-        for (h, op) in [
-            ("add", FloatBinOp::Add),
-            ("sub", FloatBinOp::Sub),
-            ("mul", FloatBinOp::Mul),
-            ("div", FloatBinOp::Div),
-            ("minimum", FloatBinOp::Minimum),
-            ("maximum", FloatBinOp::Maximum),
-        ] {
-            if head == h {
-                return Some(FloatBin { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("neg", FloatUnOp::Neg),
-            ("abs", FloatUnOp::Abs),
-            ("sqrt", FloatUnOp::Sqrt),
-        ] {
-            if head == h {
-                return Some(FloatUn { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("feq", CmpOp::Eq),
-            ("fne", CmpOp::Ne),
-            ("flt", CmpOp::Lt),
-            ("fle", CmpOp::Le),
-            ("fgt", CmpOp::Gt),
-            ("fge", CmpOp::Ge),
-        ] {
-            if head == h {
-                return Some(FCmp { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("isNaN", FClassOp::IsNan),
-            ("isInfinite", FClassOp::IsInfinite),
-            ("isFinite", FClassOp::IsFinite),
-            ("isNormal", FClassOp::IsNormal),
-            ("signBit", FClassOp::SignBit),
-        ] {
-            if head == h {
-                return Some(FClass { ty, op });
-            }
-        }
-        if head == "totalOrder" {
-            return Some(TotalOrder { ty });
         }
     }
     None
@@ -3696,6 +3734,8 @@ pub struct PrimPlan {
     /// The declared ABI's argument and result shapes (the fragment's).
     pub args: Vec<PrimAbiTy>,
     pub res: PrimAbiTy,
+    /// Whether the declared result type is `Bool` (which crosses LLVM as `i8`).
+    pub res_bool: bool,
     /// The declared effect row is empty (the body is pure computation).
     pub pure: bool,
     pub tier: PrimTier,
@@ -5866,21 +5906,25 @@ fn prim_touches_wide(op: PrimOp) -> bool {
         | Neg { ty, .. }
         | CheckedDiv { ty }
         | CheckedRem { ty }
+        | Div { ty }
+        | Rem { ty }
         | Shift { ty, .. }
         | Rotate { ty, .. }
         | Bit { ty, .. }
         | BitNot { ty }
         | BitScan { ty, .. }
-        | Cmp { ty, .. }
-        | FloatBin { ty, .. }
-        | FloatUn { ty, .. }
-        | FCmp { ty, .. }
-        | FClass { ty, .. }
-        | TotalOrder { ty } => ty.is_wide(),
+        | Cmp { ty, .. } => ty.is_wide(),
         Conv { from, to, .. } => from.is_wide() || to.is_wide(),
         Array { classes, packed, .. } => packed.is_some_and(Scalar::is_wide)
             || packed.is_none() && classes.contains(&Class::Wide),
-        Nat(NatOp::FromU128 | NatOp::ToU128) | Int(IntOp::FromI128 | IntOp::ToI128) => true,
+        Nat(NatOp::FromU128 | NatOp::ToU128)
+        | Int(IntOp::FromI128 | IntOp::ToI128)
+        | Bytes(
+            BytesOp::LoadU128
+            | BytesOp::LoadU128At
+            | BytesOp::StoreU128
+            | BytesOp::StoreU128At,
+        ) => true,
         _ => false,
     }
 }
@@ -6098,6 +6142,14 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
                 return opt_value(ctors, None);
             }
             opt_value(ctors, Some(Core::Int(trunc_word(q, ty))))
+        }
+        PrimOp::Div { ty } | PrimOp::Rem { ty } => {
+            let (x, y) = (scalar_value(words[0], ty), scalar_value(words[1], ty));
+            if y == 0 {
+                return None;
+            }
+            let q = if matches!(op, PrimOp::Div { .. }) { x / y } else { x % y };
+            Some(Core::Int(trunc_word(q, ty)))
         }
         PrimOp::Shift { ty, op: sop, checked } => {
             let (x, sh) = (scalar_value(words[0], ty), words[1] as u32);
@@ -9255,11 +9307,6 @@ mod tests {
             PrimOp::BitScan { ty: Scalar::U32, op: BitScanOp::CountOnes },
             PrimOp::BitScan { ty: Scalar::U8, op: BitScanOp::SwapBytes },
             PrimOp::Cmp { ty: Scalar::Char, op: CmpOp::Ge },
-            PrimOp::FloatBin { ty: Scalar::F32, op: FloatBinOp::Minimum },
-            PrimOp::FloatUn { ty: Scalar::F64, op: FloatUnOp::Sqrt },
-            PrimOp::FCmp { ty: Scalar::F64, op: CmpOp::Ne },
-            PrimOp::FClass { ty: Scalar::F32, op: FClassOp::IsNormal },
-            PrimOp::TotalOrder { ty: Scalar::F64 },
             PrimOp::CharToU32,
             PrimOp::U32ToChar,
             PrimOp::Conv { from: Scalar::U8, to: Scalar::I64, mode: ConvMode::Total },
@@ -9268,6 +9315,11 @@ mod tests {
             PrimOp::Conv { from: Scalar::I32, to: Scalar::U8, mode: ConvMode::Wrapping },
             PrimOp::Conv { from: Scalar::F32, to: Scalar::F64, mode: ConvMode::Total },
             PrimOp::Net(NetOp::TcpConnect),
+            PrimOp::Net(NetOp::TcpListen),
+            PrimOp::Net(NetOp::TcpAccept),
+            PrimOp::Net(NetOp::ListenerAddr),
+            PrimOp::Net(NetOp::ListenerClose),
+            PrimOp::Net(NetOp::UdpSend),
             PrimOp::Net(NetOp::Read),
             PrimOp::Net(NetOp::Write),
             PrimOp::Net(NetOp::Close),
@@ -9347,8 +9399,6 @@ mod tests {
         }
         .sig();
         assert_eq!(res, Ty::Prim(Scalar::U8));
-        let (_, res) = PrimOp::TotalOrder { ty: Scalar::F64 }.sig();
-        assert_eq!(res, Ty::Adt(crate::known::ORDERING.into(), vec![]));
         let (args, res) = PrimOp::U32ToChar.sig();
         assert_eq!(args, vec![Ty::Prim(Scalar::U32)]);
         assert_eq!(res, Ty::Adt(crate::known::OPTION.into(), vec![Ty::Prim(Scalar::Char)]));

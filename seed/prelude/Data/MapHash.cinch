@@ -1,0 +1,494 @@
+-- | Fast, keyed, non-cryptographic 64-bit hashing for hash tables, byte streams and comparable values.
+--
+-- Each MapSeed carries a 128-bit secret key that selects an independent hash function.
+-- Construct deterministic seeds with maphash-seed-from-u64, maphash-seed-from-u128 or
+-- maphash-seed-from-bytes, or draw unpredictable per-table seeds from operating-system
+-- entropy through Effect.MapHash.maphash-make-seed.
+--
+-- MapHash is an immutable persistent streaming state: retaining any intermediate value
+-- acts as an O(1) snapshot without copying or aliasing mutable buffers. The computed
+-- digest depends only on the seed and the sequence of written bytes, never on how writes
+-- are split across maphash-write, maphash-write-string and maphash-write-byte. One-shot
+-- maphash-bytes and maphash-string produce the exact same digest as streaming writes.
+--
+-- Typed values implement MapHashable using prefix-free canonical encodings so composite
+-- values such as pairs, options and lists avoid boundary collisions, and floating-point
+-- instances normalize negative zero to positive zero. Because MapHash is pure, NaN values
+-- hash deterministically to a canonical quiet-NaN bit pattern.
+--
+-- These functions are intended for hash tables and in-memory indexing; they are not
+-- cryptographic hashes.
+module Data.MapHash where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Data.Wide
+  import Relation.Eq
+
+  export MapSeed, maphash-seed-from-u64, maphash-seed-from-u128, maphash-seed-bytes, maphash-seed-from-bytes
+  export MapHash, maphash-new, maphash-seed, maphash-set-seed, maphash-reset
+  export maphash-size, maphash-block-size
+  export maphash-write, maphash-write-string, maphash-write-byte
+  export maphash-sum64, maphash-sum
+  export maphash-bytes, maphash-string
+  export MapHashable, maphash-write-value, maphash-comparable, maphash-write-comparable
+
+  -- ---------------------------------------------------------------------
+  -- Mixing constants and wide-multiply core.
+  -- ---------------------------------------------------------------------
+
+  -- | First odd 64-bit mixing constant with balanced bit weight.
+  secret0 :: U64
+  secret0 = 0x2d358dccaa6c78a5
+
+  -- | Second odd 64-bit mixing constant with balanced bit weight.
+  secret1 :: U64
+  secret1 = 0x8bb84b93962eacc9
+
+  -- | Third odd 64-bit mixing constant with balanced bit weight.
+  secret2 :: U64
+  secret2 = 0x4b33a62ed433d4a3
+
+  -- | Fourth odd 64-bit mixing constant with balanced bit weight.
+  secret3 :: U64
+  secret3 = 0xa0761d6478bd642f
+
+  -- | Pack a high and low 64-bit word into one 128-bit unsigned value.
+  pack-u128 :: U64 -> U64 -> U128
+  pack-u128 hi lo = bit-or-u128 (wrapping-shl-u128 (u64-to-u128 hi) 64) (u64-to-u128 lo)
+
+  -- | Extract the low 64 bits of a 128-bit unsigned value.
+  low-u64 :: U128 -> U64
+  low-u64 x = wrapping-u128-to-u64 x
+
+  -- | Extract the high 64 bits of a 128-bit unsigned value.
+  high-u64 :: U128 -> U64
+  high-u64 x = wrapping-u128-to-u64 (wrapping-shr-u128 x 64)
+
+  -- | Compute the 128-bit product of two 64-bit words and xor-fold the halves.
+  wymix :: U64 -> U64 -> U64
+  wymix a b =
+    let p = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b) in
+    bit-xor-u64 (low-u64 p) (high-u64 p)
+
+  -- | Derive the first 64-bit state lane from a 128-bit seed key.
+  init-lane0 :: U64 -> U64 -> U64
+  init-lane0 k0 k1 = wymix (bit-xor-u64 k0 secret0) (bit-xor-u64 k1 secret1)
+
+  -- | Derive the second 64-bit state lane from a 128-bit seed key.
+  init-lane1 :: U64 -> U64 -> U64
+  init-lane1 k0 k1 = wymix (bit-xor-u64 k1 secret2) (bit-xor-u64 k0 secret3)
+
+  -- | Finalize a 128-bit stream state with its 0..7 trailing bytes and total byte count.
+  finalize-hash :: U64 -> U64 -> U64 -> U64 -> U64
+  finalize-hash s0 s1 tail total-len =
+    let a0 = bit-xor-u64 s0 (bit-xor-u64 tail secret0) in
+    let b0 = bit-xor-u64 s1 (bit-xor-u64 total-len secret1) in
+    let p1 = wrapping-mul-u128 (u64-to-u128 a0) (u64-to-u128 b0) in
+    let lo1 = low-u64 p1 in
+    let hi1 = high-u64 p1 in
+    let a1 = bit-xor-u64 lo1 (bit-xor-u64 (wrapping-add-u64 s0 total-len) secret2) in
+    let b1 = bit-xor-u64 hi1 (bit-xor-u64 (wrapping-add-u64 s1 tail) secret3) in
+    let p2 = wrapping-mul-u128 (u64-to-u128 a1) (u64-to-u128 b1) in
+    let lo2 = low-u64 p2 in
+    let hi2 = high-u64 p2 in
+    wymix (bit-xor-u64 (bit-xor-u64 lo2 hi1) secret0) (bit-xor-u64 (bit-xor-u64 hi2 lo1) secret1)
+
+  -- ---------------------------------------------------------------------
+  -- Seeds.
+  -- ---------------------------------------------------------------------
+
+  -- | A 128-bit key selecting a specific MapHash function.
+  -- Equal seeds produce identical digests for identical inputs; distinct seeds produce independent digests.
+  data MapSeed where
+    -- | The 128-bit seed key stored in one wide scalar.
+    MapSeedBits :: U128 -> MapSeed
+
+  -- | Equality on 128-bit hash seeds.
+  implicit instance Eq_MapSeed :: Eq MapSeed where
+    (==) a b = case a of
+      MapSeedBits x -> case b of
+        MapSeedBits y -> eq-u128 x y
+    (/=) a b = case a of
+      MapSeedBits x -> case b of
+        MapSeedBits y -> ne-u128 x y
+
+  -- | Construct a 128-bit MapSeed deterministically from a 64-bit word.
+  maphash-seed-from-u64 :: U64 -> MapSeed
+  maphash-seed-from-u64 lo =
+    let hi = wymix (bit-xor-u64 lo secret0) secret1 in
+    MapSeedBits (pack-u128 hi lo)
+
+  -- | Construct a MapSeed directly from a 128-bit unsigned key.
+  maphash-seed-from-u128 :: U128 -> MapSeed
+  maphash-seed-from-u128 bits = MapSeedBits bits
+
+  -- | Encode a MapSeed as a fresh 16-byte big-endian buffer.
+  maphash-seed-bytes :: MapSeed -> Bytes
+  maphash-seed-bytes seed = case seed of
+    MapSeedBits bits ->
+      let out = bytes-new 16 in
+      let w0 = (if 8 <= bytes-len out then bytes-write-le64 out 0 (swap-bytes-u64 (high-u64 bits)) else ()) in
+      let w1 = (if 16 <= bytes-len out then bytes-write-le64 out 8 (swap-bytes-u64 (low-u64 bits)) else ()) in
+      out
+
+  -- | Decode a MapSeed from a 16-byte big-endian buffer, returning None for any other length.
+  maphash-seed-from-bytes :: Bytes -> Option MapSeed
+  maphash-seed-from-bytes b =
+    if bytes-len b == 16 then
+      let hi = swap-bytes-u64 (bytes-read-le64 b 0) in
+      let lo = swap-bytes-u64 (bytes-read-le64 b 8) in
+      Some (MapSeedBits (pack-u128 hi lo))
+    else None
+
+  -- ---------------------------------------------------------------------
+  -- Streaming hash state.
+  -- ---------------------------------------------------------------------
+
+  -- | Digest width in bytes (8 bytes for a 64-bit digest).
+  maphash-size :: Nat
+  maphash-size = 8
+
+  -- | Preferred streaming write block size in bytes (128 bytes).
+  maphash-block-size :: Nat
+  maphash-block-size = 128
+
+  -- | Immutable streaming hash state holding its seed, 128-bit accumulator, 0..7-byte tail and total length.
+  data MapHash where
+    -- | Internal state: seed low/high words, state lanes s0/s1, packed tail word, tail count and total bytes.
+    MapHashState :: U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 -> MapHash
+
+  -- | Create a new empty MapHash initialized with the given seed.
+  maphash-new :: MapSeed -> MapHash
+  maphash-new seed = case seed of
+    MapSeedBits bits ->
+      let k0 = low-u64 bits in
+      let k1 = high-u64 bits in
+      MapHashState k0 k1 (init-lane0 k0 k1) (init-lane1 k0 k1) 0 0 0
+
+  -- | Return the MapSeed governing this MapHash.
+  maphash-seed :: MapHash -> MapSeed
+  maphash-seed h = case h of
+    MapHashState k0 k1 s0 s1 buf buf-len total-len -> MapSeedBits (pack-u128 k1 k0)
+
+  -- | Replace the seed and discard any previously written bytes.
+  maphash-set-seed :: MapHash -> MapSeed -> MapHash
+  maphash-set-seed h seed = maphash-new seed
+
+  -- | Discard all previously written bytes while keeping the same seed.
+  maphash-reset :: MapHash -> MapHash
+  maphash-reset h = case h of
+    MapHashState k0 k1 s0 s1 buf buf-len total-len ->
+      MapHashState k0 k1 (init-lane0 k0 k1) (init-lane1 k0 k1) 0 0 0
+
+  -- | Pack trailing bytes from b starting at pos in little-endian order at the given bit shift.
+  read-tail-bytes :: Bytes -> Nat -> U32 -> U64 -> U64
+  read-tail-bytes b pos shift acc =
+    if pos < bytes-len b then
+      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b pos)) in
+      let next-acc = bit-or-u64 acc (wrapping-shl-u64 byte shift) in
+      read-tail-bytes b (pos + 1) (wrapping-add-u32 shift 8) next-acc
+    else acc
+
+  -- | Pack 0..7 trailing bytes from b starting at pos in little-endian order using a 32-bit load when possible.
+  read-tail :: Bytes -> Nat -> U64
+  read-tail b pos =
+    if pos + 4 <= bytes-len b then
+      let lo32 = u32-to-u64 (bytes-read-le32 b pos) in
+      read-tail-bytes b (pos + 4) 32 lo32
+    else
+      read-tail-bytes b pos 0 0
+
+  -- | Fill a partial 8-byte buffer from b, absorb when full, and delegate remaining aligned blocks.
+  write-fill-buf :: U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 -> Bytes -> Nat -> MapHash
+  write-fill-buf k0 k1 s0 s1 buf buf-len total-len b pos =
+    if pos < bytes-len b then
+      let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b pos)) in
+      let shift = wrapping-shl-u32 (u8-to-u32 buf-len) 3 in
+      let next-buf = bit-or-u64 buf (wrapping-shl-u64 byte shift) in
+      let next-len = wrapping-add-u8 buf-len 1 in
+      let next-total = wrapping-add-u64 total-len 1 in
+      if eq-u8 next-len 8 then
+        let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 next-buf s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+        let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+        let ns1 = bit-xor-u64 (wrapping-add-u64 s0 next-buf) (high-u64 p) in
+        write-aligned k0 k1 ns0 ns1 next-total b (pos + 1)
+      else
+        write-fill-buf k0 k1 s0 s1 next-buf next-len next-total b (pos + 1)
+    else
+      MapHashState k0 k1 s0 s1 buf buf-len total-len
+
+  -- | Absorb complete 8-byte little-endian blocks from b and buffer the remaining 0..7 bytes.
+  write-aligned :: U64 -> U64 -> U64 -> U64 -> U64 -> Bytes -> Nat -> MapHash
+  write-aligned k0 k1 s0 s1 total-len b pos =
+    if pos + 8 <= bytes-len b then
+      let w = bytes-read-le64 b pos in
+      let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 w s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+      let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+      let ns1 = bit-xor-u64 (wrapping-add-u64 s0 w) (high-u64 p) in
+      write-aligned k0 k1 ns0 ns1 (wrapping-add-u64 total-len 8) b (pos + 8)
+    else if pos < bytes-len b then
+      let rem = bytes-len b - pos in
+      let tail = read-tail b pos in
+      let rem-u8 = wrapping-i64-to-u8 (nat-to-i64 rem) in
+      let rem-u64 = wrapping-i64-to-u64 (nat-to-i64 rem) in
+      MapHashState k0 k1 s0 s1 tail rem-u8 (wrapping-add-u64 total-len rem-u64)
+    else
+      MapHashState k0 k1 s0 s1 0 0 total-len
+
+  -- | Add all bytes of b to the stream hashed by h, returning the updated MapHash.
+  maphash-write :: MapHash -> Bytes -> MapHash
+  maphash-write h b =
+    if bytes-len b == 0 then h
+    else case h of
+      MapHashState k0 k1 s0 s1 buf buf-len total-len ->
+        if eq-u8 buf-len 0 then write-aligned k0 k1 s0 s1 total-len b 0
+        else write-fill-buf k0 k1 s0 s1 buf buf-len total-len b 0
+
+  -- | Add the UTF-8 bytes of s to the stream hashed by h, returning the updated MapHash.
+  maphash-write-string :: MapHash -> String -> MapHash
+  maphash-write-string h s = maphash-write h (string-to-bytes s)
+
+  -- | Add one byte to the stream hashed by h, returning the updated MapHash.
+  maphash-write-byte :: MapHash -> U8 -> MapHash
+  maphash-write-byte h byte = case h of
+    MapHashState k0 k1 s0 s1 buf buf-len total-len ->
+      let shift = wrapping-shl-u32 (u8-to-u32 buf-len) 3 in
+      let next-buf = bit-or-u64 buf (wrapping-shl-u64 (u8-to-u64 byte) shift) in
+      let next-len = wrapping-add-u8 buf-len 1 in
+      let next-total = wrapping-add-u64 total-len 1 in
+      if eq-u8 next-len 8 then
+        let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 next-buf s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+        let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+        let ns1 = bit-xor-u64 (wrapping-add-u64 s0 next-buf) (high-u64 p) in
+        MapHashState k0 k1 ns0 ns1 0 0 next-total
+      else
+        MapHashState k0 k1 s0 s1 next-buf next-len next-total
+
+  -- | Return the current 64-bit digest of h without altering h.
+  maphash-sum64 :: MapHash -> U64
+  maphash-sum64 h = case h of
+    MapHashState k0 k1 s0 s1 buf buf-len total-len ->
+      finalize-hash s0 s1 buf total-len
+
+  -- | Append the 8-byte big-endian digest of h to prefix, returning a fresh buffer.
+  maphash-sum :: MapHash -> Bytes -> Bytes
+  maphash-sum h prefix =
+    let digest = maphash-sum64 h in
+    let plen = bytes-len prefix in
+    let out = bytes-new (plen + 8) in
+    let copied = bytes-copy-range out prefix 0 0 plen in
+    let written = (if plen + 8 <= bytes-len out then bytes-write-le64 out plen (swap-bytes-u64 digest) else ()) in
+    out
+
+  -- ---------------------------------------------------------------------
+  -- One-shot fast paths.
+  -- ---------------------------------------------------------------------
+
+  -- | Process complete 8-byte blocks directly into registers and finalize the trailing 0..7 bytes.
+  hash-bytes-loop :: U64 -> U64 -> U64 -> Bytes -> Nat -> U64
+  hash-bytes-loop s0 s1 total-len b pos =
+    if pos + 8 <= bytes-len b then
+      let w = bytes-read-le64 b pos in
+      let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 w s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+      let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+      let ns1 = bit-xor-u64 (wrapping-add-u64 s0 w) (high-u64 p) in
+      hash-bytes-loop ns0 ns1 (wrapping-add-u64 total-len 8) b (pos + 8)
+    else if pos < bytes-len b then
+      let rem = bytes-len b - pos in
+      let tail = read-tail b pos in
+      let rem-u64 = wrapping-i64-to-u64 (nat-to-i64 rem) in
+      finalize-hash s0 s1 tail (wrapping-add-u64 total-len rem-u64)
+    else
+      finalize-hash s0 s1 0 total-len
+
+  -- | Hash a byte buffer in one pass with the given seed, matching streaming maphash-write and maphash-sum64.
+  maphash-bytes :: MapSeed -> Bytes -> U64
+  maphash-bytes seed b = case seed of
+    MapSeedBits bits ->
+      let k0 = low-u64 bits in
+      let k1 = high-u64 bits in
+      hash-bytes-loop (init-lane0 k0 k1) (init-lane1 k0 k1) 0 b 0
+
+  -- | Hash a UTF-8 string in one pass with the given seed, matching maphash-write-string and maphash-sum64.
+  maphash-string :: MapSeed -> String -> U64
+  maphash-string seed s = maphash-bytes seed (string-to-bytes s)
+
+  -- ---------------------------------------------------------------------
+  -- Direct scalar writers for comparable hashing.
+  -- ---------------------------------------------------------------------
+
+  -- | Write a 16-bit unsigned integer in little-endian byte order without intermediate buffers.
+  write-u16-le :: MapHash -> U16 -> MapHash
+  write-u16-le h x =
+    let h1 = maphash-write-byte h (wrapping-u16-to-u8 x) in
+    maphash-write-byte h1 (wrapping-u16-to-u8 (wrapping-shr-u16 x 8))
+
+  -- | Write a 32-bit unsigned integer in little-endian byte order without intermediate buffers.
+  write-u32-le :: MapHash -> U32 -> MapHash
+  write-u32-le h x =
+    let h1 = maphash-write-byte h (wrapping-u32-to-u8 x) in
+    let h2 = maphash-write-byte h1 (wrapping-u32-to-u8 (wrapping-shr-u32 x 8)) in
+    let h3 = maphash-write-byte h2 (wrapping-u32-to-u8 (wrapping-shr-u32 x 16)) in
+    maphash-write-byte h3 (wrapping-u32-to-u8 (wrapping-shr-u32 x 24))
+
+  -- | Write a 64-bit unsigned integer in little-endian byte order directly into the block state.
+  write-u64-le :: MapHash -> U64 -> MapHash
+  write-u64-le h w = case h of
+    MapHashState k0 k1 s0 s1 buf buf-len total-len ->
+      if eq-u8 buf-len 0 then
+        let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 w s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+        let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+        let ns1 = bit-xor-u64 (wrapping-add-u64 s0 w) (high-u64 p) in
+        MapHashState k0 k1 ns0 ns1 0 0 (wrapping-add-u64 total-len 8)
+      else
+        let shift = wrapping-shl-u32 (u8-to-u32 buf-len) 3 in
+        let rem-shift = wrapping-sub-u32 64 shift in
+        let full-word = bit-or-u64 buf (wrapping-shl-u64 w shift) in
+        let next-buf = wrapping-shr-u64 w rem-shift in
+        let p = wrapping-mul-u128 (u64-to-u128 (bit-xor-u64 full-word s0)) (u64-to-u128 (bit-xor-u64 s1 secret2)) in
+        let ns0 = bit-xor-u64 (wrapping-add-u64 s1 secret0) (low-u64 p) in
+        let ns1 = bit-xor-u64 (wrapping-add-u64 s0 full-word) (high-u64 p) in
+        MapHashState k0 k1 ns0 ns1 next-buf buf-len (wrapping-add-u64 total-len 8)
+
+  -- | Write an arbitrary-precision natural number as tagged 64-bit little-endian limbs terminated by zero.
+  write-nat-limbs :: MapHash -> Nat -> MapHash
+  write-nat-limbs h n =
+    if n == 0 then maphash-write-byte h 0
+    else if n <= 9223372036854775807 then
+      let w = wrapping-i64-to-u64 (nat-to-i64 n) in
+      maphash-write-byte (write-u64-le (maphash-write-byte h 1) w) 0
+    else
+      let limb = nat-rem n 18446744073709551616 in
+      let w = (case checked-nat-to-u128 limb of Some u -> wrapping-u128-to-u64 u; None -> 0) in
+      let next-h = write-u64-le (maphash-write-byte h 1) w in
+      write-nat-limbs next-h (nat-div n 18446744073709551616)
+
+  -- ---------------------------------------------------------------------
+  -- Comparable hashing class and instances.
+  -- ---------------------------------------------------------------------
+
+  -- | Types that admit canonical, prefix-free hashing into a MapHash stream.
+  signature MapHashable a where
+    -- | Feed a canonical prefix-free representation of a value into a MapHash state.
+    maphash-write-value :: MapHash -> a -> MapHash
+
+  -- | Feed a comparable value into a MapHash stream.
+  maphash-write-comparable :: forall a. using (mh :: MapHashable a) => MapHash -> a -> MapHash
+  maphash-write-comparable h x = maphash-write-value h x
+
+  -- | Compute the seeded 64-bit digest of a comparable value.
+  maphash-comparable :: forall a. using (mh :: MapHashable a) => MapSeed -> a -> U64
+  maphash-comparable seed x = maphash-sum64 (maphash-write-value (maphash-new seed) x)
+
+  -- | Hash a boolean as one byte (0 for False, 1 for True).
+  implicit instance MapHashable_Bool :: MapHashable Bool where
+    maphash-write-value h x = maphash-write-byte h (if x then 1 else 0)
+
+  -- | Hash an unsigned 8-bit integer directly.
+  implicit instance MapHashable_U8 :: MapHashable U8 where
+    maphash-write-value h x = maphash-write-byte h x
+
+  -- | Hash an unsigned 16-bit integer as two little-endian bytes.
+  implicit instance MapHashable_U16 :: MapHashable U16 where
+    maphash-write-value h x = write-u16-le h x
+
+  -- | Hash an unsigned 32-bit integer as four little-endian bytes.
+  implicit instance MapHashable_U32 :: MapHashable U32 where
+    maphash-write-value h x = write-u32-le h x
+
+  -- | Hash an unsigned 64-bit integer as eight little-endian bytes.
+  implicit instance MapHashable_U64 :: MapHashable U64 where
+    maphash-write-value h x = write-u64-le h x
+
+  -- | Hash a signed 8-bit integer by its two's-complement byte.
+  implicit instance MapHashable_I8 :: MapHashable I8 where
+    maphash-write-value h x = maphash-write-byte h (wrapping-i8-to-u8 x)
+
+  -- | Hash a signed 16-bit integer as two little-endian two's-complement bytes.
+  implicit instance MapHashable_I16 :: MapHashable I16 where
+    maphash-write-value h x = write-u16-le h (wrapping-i16-to-u16 x)
+
+  -- | Hash a signed 32-bit integer as four little-endian two's-complement bytes.
+  implicit instance MapHashable_I32 :: MapHashable I32 where
+    maphash-write-value h x = write-u32-le h (wrapping-i32-to-u32 x)
+
+  -- | Hash a signed 64-bit integer as eight little-endian two's-complement bytes.
+  implicit instance MapHashable_I64 :: MapHashable I64 where
+    maphash-write-value h x = write-u64-le h (wrapping-i64-to-u64 x)
+
+  -- | Hash an unsigned 128-bit integer as sixteen little-endian bytes.
+  implicit instance MapHashable_U128 :: MapHashable U128 where
+    maphash-write-value h x = write-u64-le (write-u64-le h (low-u64 x)) (high-u64 x)
+
+  -- | Hash a signed 128-bit integer as sixteen little-endian two's-complement bytes.
+  implicit instance MapHashable_I128 :: MapHashable I128 where
+    maphash-write-value h x =
+      let u = wrapping-i128-to-u128 x in
+      write-u64-le (write-u64-le h (low-u64 u)) (high-u64 u)
+
+  -- | Hash a 32-bit float, normalizing negative zero to positive zero and NaN to a canonical quiet NaN.
+  implicit instance MapHashable_F32 :: MapHashable F32 where
+    maphash-write-value h x =
+      write-u32-le h (if feq-f32 x 0 then 0 else if is-na-nf32 x then 0x7FC00000 else f32-bits x)
+
+  -- | Hash a 64-bit float, normalizing negative zero to positive zero and NaN to a canonical quiet NaN.
+  implicit instance MapHashable_F64 :: MapHashable F64 where
+    maphash-write-value h x =
+      write-u64-le h (if feq-f64 x 0 then 0 else if is-na-nf64 x then 0x7FF8000000000000 else f64-bits x)
+
+  -- | Hash a Unicode scalar value by its 32-bit code point.
+  implicit instance MapHashable_Char :: MapHashable Char where
+    maphash-write-value h c = write-u32-le h (char-to-u32 c)
+
+  -- | Hash an arbitrary-precision natural number using a self-delimiting limb encoding.
+  implicit instance MapHashable_Nat :: MapHashable Nat where
+    maphash-write-value h n = write-nat-limbs h n
+
+  -- | Hash an arbitrary-precision signed integer with a sign byte followed by its magnitude limbs.
+  implicit instance MapHashable_Int :: MapHashable Int where
+    maphash-write-value h x =
+      if x < 0 then write-nat-limbs (maphash-write-byte h 1) (nat-from-int (0 - x))
+      else write-nat-limbs (maphash-write-byte h 0) (nat-from-int x)
+
+  -- | Hash a byte buffer framed by its 64-bit byte length so adjacent buffers cannot collide.
+  implicit instance MapHashable_Bytes :: MapHashable Bytes where
+    maphash-write-value h b =
+      let len-u64 = wrapping-i64-to-u64 (nat-to-i64 (bytes-len b)) in
+      maphash-write (write-u64-le h len-u64) b
+
+  -- | Hash a string framed by its 64-bit UTF-8 byte length so adjacent strings cannot collide.
+  implicit instance MapHashable_String :: MapHashable String where
+    maphash-write-value h s =
+      let b = string-to-bytes s in
+      let len-u64 = wrapping-i64-to-u64 (nat-to-i64 (bytes-len b)) in
+      maphash-write (write-u64-le h len-u64) b
+
+  -- | Hash an optional value with a presence tag byte before any contained value.
+  implicit instance MapHashable_Option a :: using (mh :: MapHashable a) => MapHashable (Option a) where
+    maphash-write-value h o = case o of
+      None -> maphash-write-byte h 0
+      Some x -> maphash-write-value (maphash-write-byte h 1) x
+
+  -- | Hash a pair by hashing its first and second components in order.
+  implicit instance MapHashable_Pair a b :: using (ha :: MapHashable a, hb :: MapHashable b) => MapHashable (a, b) where
+    maphash-write-value h p = case p of
+      (x, y) -> maphash-write-value (maphash-write-value h x) y
+
+  -- | Hash list elements sequentially with continuation tags and a trailing zero byte.
+  write-list-values :: forall a. using (mh :: MapHashable a) => MapHash -> List a -> MapHash
+  write-list-values h xs = case xs of
+    Nil -> maphash-write-byte h 0
+    Cons x rest -> write-list-values (maphash-write-value (maphash-write-byte h 1) x) rest
+
+  -- | Hash a list in a single tail-recursive pass using prefix-free element tags.
+  implicit instance MapHashable_List a :: using (mh :: MapHashable a) => MapHashable (List a) where
+    maphash-write-value h xs = write-list-values h xs

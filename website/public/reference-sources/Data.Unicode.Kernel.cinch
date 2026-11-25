@@ -453,59 +453,47 @@ module Data.Unicode.Kernel where
     Err error -> Err error
     Ok count -> let out = bytes-new (count * 20) in let written = write-case-rules rules out 0 in Ok (OwnedCaseRules out count)
 
-  -- | Keep private rule storage alive throughout its exact raw binary search.
-  hold-case-rules :: forall a. Bytes -> a -> a
-  hold-case-rules rules value = case bytes-len rules of _ -> value
+  -- | Read one complete little-endian pair of source bounds from a checked private record.
+  load-case-bounds :: Bytes -> I64 -> U64
+  load-case-bounds rules offset =
+    let n = bytes-len-i64 rules in
+    if 8 <= n && 0 <= offset then
+      let nn = nat-from-i64 n in
+      let no = nat-from-i64 offset in
+      if 8 <= nn && no <= nn - 8 then bytes-load-le64 rules no else 0
+    else 0
 
-  -- | Read one complete little-endian pair of source bounds from a proved private record.
-  prim load-case-bounds :: I64 -> U64 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %word = load i64, ptr %p, align 1
-      ret i64 %word
-    } when endian little
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %word = load i64, ptr %p, align 1
-      %result = call i64 @llvm.bswap.i64(i64 %word)
-      ret i64 %result
-    } when endian big
-
-  -- | Read one complete signed delta's raw bits from a proved private record.
-  prim load-case-delta :: I64 -> U32 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %word = load i32, ptr %p, align 1
-      ret i32 %word
-    } when endian little
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %word = load i32, ptr %p, align 1
-      %result = call i32 @llvm.bswap.i32(i32 %word)
-      ret i32 %result
-    } when endian big
+  -- | Read one complete signed delta's raw bits from a checked private record.
+  load-case-delta :: Bytes -> I64 -> U32
+  load-case-delta rules offset =
+    let n = bytes-len-i64 rules in
+    if 4 <= n && 0 <= offset then
+      let nn = nat-from-i64 n in
+      let no = nat-from-i64 offset in
+      if 4 <= nn && no <= nn - 4 then bytes-load-le32 rules no else 0
+    else 0
 
   -- | Find a custom record with machine-only state, returning the supplied count when absent.
-  custom-case-find :: I64 -> U64 -> U64 -> U64 -> U32 -> U64
-  custom-case-find base count low high cp = if lt-u64 low high then
+  custom-case-find :: Bytes -> U64 -> U64 -> U64 -> U32 -> U64
+  custom-case-find rules count low high cp = if lt-u64 low high then
     let middle = wrapping-shr-u64 (wrapping-add-u64 low high) 1 in
-    let offset = wrapping-mul-u64 middle 20 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
-    let word = load-case-bounds address in let start = wrapping-u64-to-u32 word in
+    let offset = wrapping-u64-to-i64 (wrapping-mul-u64 middle 20) in
+    let word = load-case-bounds rules offset in let start = wrapping-u64-to-u32 word in
     let end = wrapping-u64-to-u32 (wrapping-shr-u64 word 32) in
-    if lt-u32 cp start then custom-case-find base count low middle cp
-    else if gt-u32 cp end then custom-case-find base count (wrapping-add-u64 middle 1) high cp
+    if lt-u32 cp start then custom-case-find rules count low middle cp
+    else if gt-u32 cp end then custom-case-find rules count (wrapping-add-u64 middle 1) high cp
     else middle
     else count
 
   -- | Apply a found private rule while its owner and complete-record bounds remain held.
-  custom-case-code :: I64 -> U64 -> U32 -> I32 -> I32
-  custom-case-code base count which cp =
-    let raw = wrapping-i32-to-u32 cp in let index = custom-case-find base count 0 count raw in
+  custom-case-code :: Bytes -> U64 -> U32 -> I32 -> I32
+  custom-case-code rules count which cp =
+    let raw = wrapping-i32-to-u32 cp in let index = custom-case-find rules count 0 count raw in
     if lt-u64 index count then
-      let offset = wrapping-mul-u64 index 20 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
-      let bounds = load-case-bounds address in let start = wrapping-u64-to-u32 bounds in
-      let delta-offset = wrapping-add-i64 8 (u32-to-i64 (wrapping-mul-u32 which 4)) in
-      let delta-address = wrapping-add-i64 address delta-offset in let bits = load-case-delta delta-address in
+      let offset = wrapping-u64-to-i64 (wrapping-mul-u64 index 20) in
+      let bounds = load-case-bounds rules offset in let start = wrapping-u64-to-u32 bounds in
+      let delta-offset = wrapping-add-i64 offset (wrapping-add-i64 8 (u32-to-i64 (wrapping-mul-u32 which 4))) in
+      let bits = load-case-delta rules delta-offset in
       let delta = wrapping-u32-to-i32 bits in apply-case which raw start delta
     else case-code which cp
 
@@ -541,7 +529,7 @@ module Data.Unicode.Kernel where
     TurkicCase -> turkic-code which cp 0
     OwnedCaseRules rules count -> if count <= 1114112 && count * 20 <= bytes-len rules then
       let n = wrapping-i64-to-u64 (nat-to-i64 count) in
-      hold-case-rules rules (custom-case-code (bytes-data rules) n which cp)
+      custom-case-code rules n which cp
       else case-code which cp)
     else cp
 

@@ -4,7 +4,7 @@ Parse and format RFC 5322 mail addresses, read message header blocks and parse h
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Mail</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mail/source/">View source</a><a href="/packages/search/?q=%2BText.Mail">Search module</a><a href="/reference-sources/Text.Mail.cinch" download="Text.Mail.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Text.Mime](Text.Mime.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Wide](Data.Wide.md), [Text.Mime](Text.Mime.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -30,7 +30,7 @@ of HTTP, and dates accept the obsolete forms of RFC 5322.
 # Types
 
 <article class="doc-entry" id="t-MailAddress">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailAddress</strong></code><span class="doc-sig-links"><a href="#t-MailAddress" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailAddress</strong></code><span class="doc-sig-links"><a href="#t-MailAddress" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L154" title="View source at line 154">Source</a></span></div>
 <div class="doc-body">
 
 The display name, then the addr-spec.
@@ -40,7 +40,7 @@ The display name, then the addr-spec.
 </article>
 
 <article class="doc-entry" id="t-MailError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailError</strong></code><span class="doc-sig-links"><a href="#t-MailError" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailError</strong></code><span class="doc-sig-links"><a href="#t-MailError" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L48" title="View source at line 48">Source</a></span></div>
 <div class="doc-body">
 
 Why an address, header block or date was rejected.
@@ -50,7 +50,7 @@ Why an address, header block or date was rejected.
 </article>
 
 <article class="doc-entry" id="t-MailMessage">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailMessage</strong></code><span class="doc-sig-links"><a href="#t-MailMessage" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L602" title="View source at line 602">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MailMessage</strong></code><span class="doc-sig-links"><a href="#t-MailMessage" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L601" title="View source at line 601">Source</a></span></div>
 <div class="doc-body">
 
 The header, then the body.
@@ -62,7 +62,7 @@ The header, then the body.
 # Values
 
 <article class="doc-entry" id="v-mail-address">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-address" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-address" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L157" title="View source at line 157">Source</a></span></div>
 <div class="doc-body">
 
 Make an address from a display name and an addr-spec.
@@ -71,7 +71,7 @@ Make an address from a display name and an addr-spec.
 </article>
 
 <article class="doc-entry" id="v-mail-address-name">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L161" title="View source at line 161">Source</a></span></div>
 <div class="doc-body">
 
 The display name, empty when there is none.
@@ -80,7 +80,7 @@ The display name, empty when there is none.
 </article>
 
 <article class="doc-entry" id="v-mail-address-spec">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-spec</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-spec" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-spec</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-spec" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L165" title="View source at line 165">Source</a></span></div>
 <div class="doc-body">
 
 The addr-spec.
@@ -89,7 +89,7 @@ The addr-spec.
 </article>
 
 <article class="doc-entry" id="v-mail-address-to-string">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L509" title="View source at line 509">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-address-to-string</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-address-to-string" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L508" title="View source at line 508">Source</a></span></div>
 <div class="doc-body">
 
 Format an address as "<local@domain>" or "name <local@domain>". The local part is quoted unless it is
@@ -100,7 +100,7 @@ a valid dot-atom; a printable ASCII name is quoted, and any other name becomes U
 </article>
 
 <article class="doc-entry" id="v-mail-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L113" title="View source at line 113">Source</a></span></div>
 <div class="doc-body">
 
 Render an error.
@@ -109,7 +109,7 @@ Render an error.
 </article>
 
 <article class="doc-entry" id="v-mail-header-address-list">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-address-list</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-header-address-list" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L691" title="View source at line 691">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-address-list</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-header-address-list" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L690" title="View source at line 690">Source</a></span></div>
 <div class="doc-body">
 
 A field's value parsed as an address list.
@@ -118,7 +118,7 @@ A field's value parsed as an address list.
 </article>
 
 <article class="doc-entry" id="v-mail-header-date">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>)</code><span class="doc-sig-links"><a href="#v-mail-header-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L685" title="View source at line 685">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>)</code><span class="doc-sig-links"><a href="#v-mail-header-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L684" title="View source at line 684">Source</a></span></div>
 <div class="doc-body">
 
 The message's Date field, parsed.
@@ -127,7 +127,7 @@ The message's Date field, parsed.
 </article>
 
 <article class="doc-entry" id="v-mail-header-get">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-header-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L679" title="View source at line 679">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-header-get</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mail-header-get" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L678" title="View source at line 678">Source</a></span></div>
 <div class="doc-body">
 
 The first value of a header field, empty when absent.
@@ -136,7 +136,7 @@ The first value of a header field, empty when absent.
 </article>
 
 <article class="doc-entry" id="v-mail-message-body">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-message-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mail-message-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L609" title="View source at line 609">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-message-body</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mail-message-body" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L608" title="View source at line 608">Source</a></span></div>
 <div class="doc-body">
 
 The body bytes.
@@ -145,7 +145,7 @@ The body bytes.
 </article>
 
 <article class="doc-entry" id="v-mail-message-header">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-message-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a></code><span class="doc-sig-links"><a href="#v-mail-message-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L605" title="View source at line 605">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-message-header</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.TextProto/#t-MimeHeader" title="Text.TextProto.MimeHeader">MimeHeader</a></code><span class="doc-sig-links"><a href="#v-mail-message-header" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L604" title="View source at line 604">Source</a></span></div>
 <div class="doc-body">
 
 The header fields.
@@ -154,7 +154,7 @@ The header fields.
 </article>
 
 <article class="doc-entry" id="v-mail-parse-address">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-parse-address" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L168" title="View source at line 168">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-parse-address" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L169" title="View source at line 169">Source</a></span></div>
 <div class="doc-body">
 
 Parse exactly one address (a group is accepted when it holds exactly one).
@@ -163,7 +163,7 @@ Parse exactly one address (a group is accepted when it holds exactly one).
 </article>
 
 <article class="doc-entry" id="v-mail-parse-address-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-parse-address-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a></code><span class="doc-sig-links"><a href="#v-mail-parse-address-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L173" title="View source at line 173">Source</a></span></div>
 <div class="doc-body">
 
 Parse exactly one address from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
@@ -172,7 +172,7 @@ Parse exactly one address from raw header bytes, which need not be valid UTF-8 (
 </article>
 
 <article class="doc-entry" id="v-mail-parse-address-list">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-list</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-address-list" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-list</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-address-list" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L185" title="View source at line 185">Source</a></span></div>
 <div class="doc-body">
 
 Parse a comma-separated address list; groups contribute their members.
@@ -181,7 +181,7 @@ Parse a comma-separated address list; groups contribute their members.
 </article>
 
 <article class="doc-entry" id="v-mail-parse-address-list-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-list-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-address-list-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-address-list-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailAddress" title="Text.Mail.MailAddress">MailAddress</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-address-list-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L189" title="View source at line 189">Source</a></span></div>
 <div class="doc-body">
 
 Parse an address list from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
@@ -190,7 +190,7 @@ Parse an address list from raw header bytes, which need not be valid UTF-8 (inva
 </article>
 
 <article class="doc-entry" id="v-mail-parse-date">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L579" title="View source at line 579">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-parse-date</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>)</code><span class="doc-sig-links"><a href="#v-mail-parse-date" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L578" title="View source at line 578">Source</a></span></div>
 <div class="doc-body">
 
 Parse a header date: line breaks (CR LF) are removed first, a lone CR is rejected, and the date may use
@@ -200,7 +200,7 @@ the obsolete forms (comments, two- and three-digit years, North American zone na
 </article>
 
 <article class="doc-entry" id="v-mail-read-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-read-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a></code><span class="doc-sig-links"><a href="#v-mail-read-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L615" title="View source at line 615">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mail-read-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailError" title="Text.Mail.MailError">MailError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Mail/#t-MailMessage" title="Text.Mail.MailMessage">MailMessage</a></code><span class="doc-sig-links"><a href="#v-mail-read-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Mail/source/#L614" title="View source at line 614">Source</a></span></div>
 <div class="doc-body">
 
 Read a message: header lines (folded continuation lines joined by one space) up to a blank line or the

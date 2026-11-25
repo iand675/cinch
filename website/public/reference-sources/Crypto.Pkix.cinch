@@ -1,0 +1,1131 @@
+-- | Public Key Infrastructure (PKIX) data structures for X.509 certificates,
+-- certificate signing requests and certificate revocation lists (RFC 5280, RFC 4514).
+--
+-- Provides ASN.1 DER codecs and structured accessors for distinguished names
+-- (`PkixName`, `PkixRdn`, `PkixAttr`), algorithm identifiers (`PkixAlgorithmIdentifier`),
+-- X.509 v3 extensions (`PkixExtension`), revoked certificate entries
+-- (`PkixRevokedCertificate`) and certificate revocation lists (`PkixCrl`),
+-- together with RFC 4514 string formatting, OID utilities, RFC 5280 time codecs
+-- and exact DER TLV boundary helpers.
+module Crypto.Pkix where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Asn1
+  import Text.Hex
+  import Text.Show (nat-to-string)
+
+  export PkixError, PkixAsn1Error, PkixInvalidStructure, PkixInvalidTime, PkixInvalidOid, pkix-error-message
+  export oid-equal, oid-to-string, oid-from-string
+  export oid-common-name, oid-serial-number, oid-country, oid-locality, oid-province, oid-street-address, oid-organization, oid-organizational-unit, oid-postal-code
+  export der-element-bounds, der-first-child-bytes, der-split-sequence
+  export pkix-decode-time, pkix-encode-time
+  export PkixAttr, pkix-attr, pkix-attr-oid, pkix-attr-value, pkix-attr-string, pkix-attr-utf8, pkix-attr-printable, pkix-attr-for-string, pkix-attr-to-asn1, pkix-attr-from-asn1, pkix-attr-equal
+  export PkixRdn, pkix-rdn, pkix-rdn-attrs, pkix-rdn-to-asn1, pkix-rdn-from-asn1, pkix-rdn-equal
+  export PkixName, pkix-name-empty, pkix-name-from-rdns, pkix-name-rdns, pkix-name-add-rdn, pkix-name-add-attr
+  export pkix-with-common-name, pkix-with-serial-number, pkix-with-country, pkix-with-organization, pkix-with-organizational-unit, pkix-with-locality, pkix-with-province, pkix-with-street-address, pkix-with-postal-code, pkix-with-extra-attr
+  export pkix-common-name, pkix-serial-number, pkix-country, pkix-organization, pkix-organizational-unit, pkix-locality, pkix-province, pkix-street-address, pkix-postal-code
+  export pkix-name-to-string, pkix-name-to-canonical-string, pkix-name-to-asn1, pkix-name-from-asn1, pkix-marshal-name, pkix-parse-name, pkix-name-equal
+  export PkixAlgorithmIdentifier, pkix-algorithm-identifier, pkix-alg-oid, pkix-alg-params, pkix-alg-to-asn1, pkix-alg-from-asn1, pkix-alg-equal
+  export PkixExtension, pkix-extension, pkix-ext-oid, pkix-ext-critical, pkix-ext-value, pkix-ext-to-asn1, pkix-ext-from-asn1, pkix-find-extension
+  export PkixRevokedCertificate, pkix-revoked-certificate, pkix-revoked-serial, pkix-revoked-time, pkix-revoked-extensions, pkix-revoked-to-asn1, pkix-revoked-from-asn1
+  export PkixCrl, pkix-crl-from-parts, crl-version, crl-tbs-signature-algorithm, crl-issuer, crl-this-update, crl-next-update, crl-revoked-certificates, crl-extensions, crl-raw-tbs, crl-signature-algorithm, crl-signature, crl-raw
+  export parse-crl, marshal-crl, marshal-tbs-crl
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- | An error encountered while parsing or validating a PKIX structure.
+  data PkixError where
+    -- | Underlying ASN.1 DER decoding failed.
+    PkixAsn1Error :: Asn1Error -> PkixError
+    -- | A DER element did not match the expected PKIX schema.
+    PkixInvalidStructure :: String -> PkixError
+    -- | A UTCTime or GeneralizedTime field was malformed or out of I64 range.
+    PkixInvalidTime :: PkixError
+    -- | A dotted object identifier string could not be parsed.
+    PkixInvalidOid :: PkixError
+
+  -- | Render a PKIX error as a human-readable diagnostic message.
+  pkix-error-message :: PkixError -> String
+  pkix-error-message err = case err of
+    PkixAsn1Error e -> string-concat "pkix: " (asn1-error-message e)
+    PkixInvalidStructure msg -> string-concat "pkix: invalid structure: " msg
+    PkixInvalidTime -> "pkix: invalid ASN.1 time"
+    PkixInvalidOid -> "pkix: invalid object identifier"
+
+  -- ---------------------------------------------------------------------
+  -- Byte and arithmetic helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read a byte at index i, or return 0 past the end.
+  at :: Bytes -> Nat -> Nat
+  at buf i = if i < bytes-len buf then bytes-get buf i else 0
+
+  -- | Copy slice [start, stop) from a byte buffer.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let len = stop - start in
+      let out = bytes-new len in
+      let c = bytes-copy-range out buf 0 start len in
+      out
+    else bytes-new 0
+
+  -- | Saturating natural subtraction.
+  sub-sat :: Nat -> Nat -> Nat
+  sub-sat a b = if b <= a then a - b else 0
+
+  -- | Compare two byte buffers for exact equality.
+  bytes-eq :: Bytes -> Bytes -> Bool
+  bytes-eq a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Single-byte buffer from a natural value modulo 256.
+  one-byte :: Nat -> Bytes
+  one-byte n = bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))]
+
+  -- | Tail-recursive list append.
+  append-list :: forall a. List a -> List a -> List a
+  append-list xs ys = rev-onto (reverse xs) ys
+
+  -- | Reverse the first list onto the front of the second.
+  rev-onto :: forall a. List a -> List a -> List a
+  rev-onto xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> rev-onto rest (Cons x acc)
+
+  -- ---------------------------------------------------------------------
+  -- Object identifier helpers and standard X.520 attribute OIDs.
+  -- ---------------------------------------------------------------------
+
+  -- | OID 2.5.4.3 (commonName / CN).
+  oid-common-name :: List Nat
+  oid-common-name = [2, 5, 4, 3]
+
+  -- | OID 2.5.4.5 (serialNumber / SERIALNUMBER).
+  oid-serial-number :: List Nat
+  oid-serial-number = [2, 5, 4, 5]
+
+  -- | OID 2.5.4.6 (countryName / C).
+  oid-country :: List Nat
+  oid-country = [2, 5, 4, 6]
+
+  -- | OID 2.5.4.7 (localityName / L).
+  oid-locality :: List Nat
+  oid-locality = [2, 5, 4, 7]
+
+  -- | OID 2.5.4.8 (stateOrProvinceName / ST).
+  oid-province :: List Nat
+  oid-province = [2, 5, 4, 8]
+
+  -- | OID 2.5.4.9 (streetAddress / STREET).
+  oid-street-address :: List Nat
+  oid-street-address = [2, 5, 4, 9]
+
+  -- | OID 2.5.4.10 (organizationName / O).
+  oid-organization :: List Nat
+  oid-organization = [2, 5, 4, 10]
+
+  -- | OID 2.5.4.11 (organizationalUnitName / OU).
+  oid-organizational-unit :: List Nat
+  oid-organizational-unit = [2, 5, 4, 11]
+
+  -- | OID 2.5.4.17 (postalCode / POSTALCODE).
+  oid-postal-code :: List Nat
+  oid-postal-code = [2, 5, 4, 17]
+
+  -- | Return True iff two OID arc lists are identical.
+  oid-equal :: List Nat -> List Nat -> Bool
+  oid-equal a b = case a of
+    Nil -> (case b of Nil -> True; Cons _ _ -> False)
+    Cons x xs -> (case b of
+      Nil -> False
+      Cons y ys -> if x == y then oid-equal xs ys else False)
+
+  -- | Format an OID arc list in dotted-decimal notation (e.g. "2.5.4.3").
+  oid-to-string :: List Nat -> String
+  oid-to-string arcs = string-join (oid-arc-strings arcs Nil) "."
+
+  -- | Convert OID arcs to decimal strings preserving order.
+  oid-arc-strings :: List Nat -> List String -> List String
+  oid-arc-strings arcs acc = case arcs of
+    Nil -> reverse acc
+    Cons a rest -> oid-arc-strings rest (Cons (nat-to-string a) acc)
+
+  -- | Parse a dotted-decimal OID string (at least two valid arcs, first arc 0..2).
+  oid-from-string :: String -> Result PkixError (List Nat)
+  oid-from-string text =
+    let buf = string-to-bytes text in
+    let n = bytes-len buf in
+    if n == 0 then Err PkixInvalidOid
+    else parse-oid-arcs buf 0 n Nil
+
+  -- | Scan dotted decimal arcs from buf[i..n).
+  parse-oid-arcs :: Bytes -> Nat -> Nat -> List Nat -> Result PkixError (List Nat)
+  parse-oid-arcs buf i n acc =
+    case scan-decimal-arc buf i n 0 0 of
+      None -> Err PkixInvalidOid
+      Some (val, next) ->
+        let next-acc = Cons val acc in
+        if next >= n then
+          let arcs = reverse next-acc in
+          validate-oid-arcs arcs
+        else if at buf next == 46 && next + 1 < n then
+          parse-oid-arcs buf (next + 1) n next-acc
+        else Err PkixInvalidOid
+
+  -- | Validate that an OID has at least two arcs with valid root arcs.
+  validate-oid-arcs :: List Nat -> Result PkixError (List Nat)
+  validate-oid-arcs arcs = case arcs of
+    Cons a (Cons b rest) ->
+      if a <= 2 && (a == 2 || b < 40) then Ok arcs
+      else Err PkixInvalidOid
+    other -> Err PkixInvalidOid
+
+  -- | Scan one non-empty decimal arc without leading zeros (except single "0").
+  scan-decimal-arc :: Bytes -> Nat -> Nat -> Nat -> Nat -> Option (Nat, Nat)
+  scan-decimal-arc buf i n digits acc =
+    if i < n then
+      let c = at buf i in
+      if c >= 48 && c <= 57 then
+        if digits == 1 && acc == 0 then None
+        else scan-decimal-arc buf (i + 1) n (digits + 1) (acc * 10 + sub-sat c 48)
+      else if digits > 0 then Some (acc, i)
+      else None
+    else if digits > 0 then Some (acc, i)
+    else None
+
+  -- ---------------------------------------------------------------------
+  -- Exact DER TLV boundary extraction (preserves raw wire TBS bytes).
+  -- ---------------------------------------------------------------------
+
+  -- | Locate the DER element starting at offset `start`: returns Some (start, content-start, end).
+  der-element-bounds :: Bytes -> Nat -> Option (Nat, Nat, Nat)
+  der-element-bounds buf start =
+    let n = bytes-len buf in
+    if start + 2 > n then None
+    else
+      let first = at buf start in
+      let low = nat-rem first 32 in
+      case der-skip-tag buf start low of
+        None -> None
+        Some len-off ->
+          case der-read-length buf len-off of
+            None -> None
+            Some (clen, content-start) ->
+              if content-start + clen <= n then Some (start, content-start, content-start + clen)
+              else None
+
+  -- | Advance past the DER identifier octets starting at `start`.
+  der-skip-tag :: Bytes -> Nat -> Nat -> Option Nat
+  der-skip-tag buf start low =
+    if low < 31 then Some (start + 1)
+    else der-skip-high-tag buf (start + 1) 0
+
+  -- | Advance past base-128 high-tag continuation bytes.
+  der-skip-high-tag :: Bytes -> Nat -> Nat -> Option Nat
+  der-skip-high-tag buf i count =
+    if i >= bytes-len buf || count > 8 then None
+    else if at buf i >= 128 then der-skip-high-tag buf (i + 1) (count + 1)
+    else Some (i + 1)
+
+  -- | Read a definite DER length at offset `i`, returning (content-length, content-start).
+  der-read-length :: Bytes -> Nat -> Option (Nat, Nat)
+  der-read-length buf i =
+    let n = bytes-len buf in
+    if i >= n then None
+    else
+      let b = at buf i in
+      if b < 128 then Some (b, i + 1)
+      else if b == 128 || b > 132 then None
+      else
+        let count = sub-sat b 128 in
+        if i + 1 + count > n then None
+        else Some (der-be-nat buf (i + 1) (i + 1 + count) 0, i + 1 + count)
+
+  -- | Decode an unsigned big-endian integer from buf[i..end).
+  der-be-nat :: Bytes -> Nat -> Nat -> Nat -> Nat
+  der-be-nat buf i end acc =
+    if i < end then der-be-nat buf (i + 1) end (acc * 256 + at buf i)
+    else acc
+
+  -- | Extract the exact raw DER bytes of the first child element of a top-level DER SEQUENCE.
+  -- Used to obtain exact wire TBS bytes for signature verification.
+  der-first-child-bytes :: Bytes -> Option Bytes
+  der-first-child-bytes der =
+    if bytes-len der < 2 || at der 0 /= 48 then None
+    else case der-element-bounds der 0 of
+      None -> None
+      Some (_, content-start, outer-end) ->
+        if outer-end /= bytes-len der then None
+        else case der-element-bounds der content-start of
+          None -> None
+          Some (cstart, _, cend) ->
+            if cend <= outer-end then Some (slice der cstart cend)
+            else None
+
+  -- | Split a buffer of concatenated top-level DER elements into individual raw element slices.
+  der-split-sequence :: Bytes -> Option (List Bytes)
+  der-split-sequence buf = der-split-loop buf 0 (bytes-len buf) Nil
+
+  -- | Tail-recursive loop collecting consecutive DER TLV slices across [i, n).
+  der-split-loop :: Bytes -> Nat -> Nat -> List Bytes -> Option (List Bytes)
+  der-split-loop buf i n acc =
+    if i == n then Some (reverse acc)
+    else case der-element-bounds buf i of
+      None -> None
+      Some (start, _, end) ->
+        if end <= start || end > n then None
+        else der-split-loop buf end n (Cons (slice buf start end) acc)
+
+  -- ---------------------------------------------------------------------
+  -- RFC 5280 Time encoding and decoding (UTCTime / GeneralizedTime <-> I64).
+  -- ---------------------------------------------------------------------
+
+  -- | Decode an ASN.1 UTCTime or GeneralizedTime into Unix seconds (I64).
+  pkix-decode-time :: Asn1 -> Result PkixError I64
+  pkix-decode-time val = case asn1-time-seconds val of
+    None -> Err PkixInvalidTime
+    Some secs -> (case checked-int-to-i64 secs of
+      Some i -> Ok i
+      None -> Err PkixInvalidTime)
+
+  -- | Encode Unix seconds (I64) as RFC 5280 Time: UTCTime for years 1950..2049, GeneralizedTime otherwise.
+  pkix-encode-time :: I64 -> Asn1
+  pkix-encode-time secs =
+    let total = int-from-i64 secs in
+    let day-sec = int-mod-nat total 86400 in
+    let days = int-div (total - nat-to-int day-sec) 86400 in
+    let hour = nat-div day-sec 3600 in
+    let rem-min = nat-rem day-sec 3600 in
+    let minute = nat-div rem-min 60 in
+    let second = nat-rem rem-min 60 in
+    case civil-from-days days of
+      (year, month, day) ->
+        let tail = bytes-concat [two-digits month, two-digits day, two-digits hour, two-digits minute, two-digits second, one-byte 90] in
+        if year >= 1950 && year < 2050 then
+          let yy = nat-rem (nat-from-int-nonneg year) 100 in
+          Asn1UtcTime (bytes-concat [two-digits yy, tail])
+        else
+          let yyyy = nat-from-int-nonneg year in
+          Asn1GeneralizedTime (bytes-concat [four-digits yyyy, tail])
+
+  -- | Convert days since 1970-01-01 to proleptic Gregorian (year, month, day).
+  civil-from-days :: Int -> (Int, Nat, Nat)
+  civil-from-days z0 =
+    let z = z0 + 719468 in
+    let era = int-div (if z >= 0 then z else z - 146096) 146097 in
+    let doe = nat-from-int-nonneg (z - era * 146097) in
+    let yoe = nat-div (sub-sat (sub-sat doe (nat-div doe 1460) + nat-div doe 36524) (nat-div doe 146096)) 365 in
+    let y = nat-to-int yoe + era * 400 in
+    let doy = sub-sat doe (sub-sat (365 * yoe + nat-div yoe 4) (nat-div yoe 100)) in
+    let mp = nat-div (5 * doy + 2) 153 in
+    let d = sub-sat doy (nat-div (153 * mp + 2) 5) + 1 in
+    let m = if mp < 10 then mp + 3 else sub-sat mp 9 in
+    let year = if m <= 2 then y + 1 else y in
+    (year, m, d)
+
+  -- | Convert a non-negative Int to Nat, clamping negative inputs to zero.
+  nat-from-int-nonneg :: Int -> Nat
+  nat-from-int-nonneg x = if x >= 0 then nat-from-int x else 0
+
+  -- | Format a number 0..99 as two ASCII decimal digits.
+  two-digits :: Nat -> Bytes
+  two-digits n =
+    let d0 = nat-rem (nat-div n 10) 10 + 48 in
+    let d1 = nat-rem n 10 + 48 in
+    bytes-concat [one-byte d0, one-byte d1]
+
+  -- | Format a number 0..9999 as four ASCII decimal digits.
+  four-digits :: Nat -> Bytes
+  four-digits n = bytes-concat [two-digits (nat-div n 100), two-digits (nat-rem n 100)]
+
+  -- ---------------------------------------------------------------------
+  -- PkixAttr (AttributeTypeAndValue).
+  -- ---------------------------------------------------------------------
+
+  -- | A single X.501 AttributeTypeAndValue pairing an OID with an ASN.1 value.
+  data PkixAttr where
+    -- | Attribute type OID and ASN.1 value.
+    PkixAttr :: List Nat -> Asn1 -> PkixAttr
+
+  -- | Construct a `PkixAttr` from an OID and ASN.1 value.
+  pkix-attr :: List Nat -> Asn1 -> PkixAttr
+  pkix-attr oid val = PkixAttr oid val
+
+  -- | Return the OID of a `PkixAttr`.
+  pkix-attr-oid :: PkixAttr -> List Nat
+  pkix-attr-oid a = case a of PkixAttr oid _ -> oid
+
+  -- | Return the raw ASN.1 value of a `PkixAttr`.
+  pkix-attr-value :: PkixAttr -> Asn1
+  pkix-attr-value a = case a of PkixAttr _ val -> val
+
+  -- | Construct a UTF8String `PkixAttr`.
+  pkix-attr-utf8 :: List Nat -> String -> PkixAttr
+  pkix-attr-utf8 oid text = PkixAttr oid (Asn1String tag-utf8-string (string-to-bytes text))
+
+  -- | Construct a PrintableString `PkixAttr`.
+  pkix-attr-printable :: List Nat -> String -> PkixAttr
+  pkix-attr-printable oid text = PkixAttr oid (Asn1String tag-printable-string (string-to-bytes text))
+
+  -- | Construct a string `PkixAttr` using PrintableString when all bytes are valid PrintableString characters, else UTF8String.
+  pkix-attr-for-string :: List Nat -> String -> PkixAttr
+  pkix-attr-for-string oid text =
+    let bs = string-to-bytes text in
+    if is-printable-bytes bs 0 (bytes-len bs) then PkixAttr oid (Asn1String tag-printable-string bs)
+    else PkixAttr oid (Asn1String tag-utf8-string bs)
+
+  -- | Return True iff every byte in buf[i..n) is a valid ASN.1 PrintableString character (RFC 5280).
+  is-printable-bytes :: Bytes -> Nat -> Nat -> Bool
+  is-printable-bytes buf i n =
+    if i >= n then True
+    else if is-printable-byte (at buf i) then is-printable-bytes buf (i + 1) n
+    else False
+
+  -- | Return True iff byte b is permitted in ASN.1 PrintableString.
+  is-printable-byte :: Nat -> Bool
+  is-printable-byte b =
+    (b >= 65 && b <= 90)
+      || (b >= 97 && b <= 122)
+      || (b >= 48 && b <= 57)
+      || b == 32 || b == 39 || b == 40 || b == 41 || b == 43 || b == 44
+      || b == 45 || b == 46 || b == 47 || b == 58 || b == 61 || b == 63
+
+  -- | Extract the UTF-8 string value of a `PkixAttr`, decoding BMPString (UTF-16BE) and Latin-1/T61 strings as well.
+  pkix-attr-string :: PkixAttr -> Option String
+  pkix-attr-string a = case a of
+    PkixAttr _ val -> asn1-value-to-string val
+
+  -- | Extract a string from an ASN.1 character string value.
+  asn1-value-to-string :: Asn1 -> Option String
+  asn1-value-to-string val = case val of
+    Asn1String tag bs ->
+      if tag == tag-bmp-string then decode-bmp-string bs
+      else string-from-bytes bs
+    Asn1UtcTime bs -> string-from-bytes bs
+    Asn1GeneralizedTime bs -> string-from-bytes bs
+    other -> None
+
+  -- | Decode a BMPString (big-endian UCS-2) into a UTF-8 String.
+  decode-bmp-string :: Bytes -> Option String
+  decode-bmp-string bs =
+    let n = bytes-len bs in
+    if nat-rem n 2 /= 0 then None
+    else string-from-bytes (bytes-concat (bmp-to-utf8-chunks bs 0 n Nil))
+
+  -- | Encode consecutive big-endian 16-bit BMP code units as UTF-8 chunks.
+  bmp-to-utf8-chunks :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  bmp-to-utf8-chunks bs i n acc =
+    if i + 2 <= n then
+      let cp = at bs i * 256 + at bs (i + 1) in
+      let chunk = encode-bmp-cp cp in
+      bmp-to-utf8-chunks bs (i + 2) n (Cons chunk acc)
+    else reverse acc
+
+  -- | Encode a BMP code point (0..65535) as 1, 2, or 3 UTF-8 bytes.
+  encode-bmp-cp :: Nat -> Bytes
+  encode-bmp-cp cp =
+    if cp < 128 then one-byte cp
+    else if cp < 2048 then
+      bytes-concat [one-byte (192 + nat-div cp 64), one-byte (128 + nat-rem cp 64)]
+    else
+      bytes-concat [
+        one-byte (224 + nat-div cp 4096),
+        one-byte (128 + nat-rem (nat-div cp 64) 64),
+        one-byte (128 + nat-rem cp 64)
+      ]
+
+  -- | Encode a `PkixAttr` as an ASN.1 SEQUENCE { OBJECT IDENTIFIER, ANY }.
+  pkix-attr-to-asn1 :: PkixAttr -> Asn1
+  pkix-attr-to-asn1 a = case a of
+    PkixAttr oid val -> asn1-sequence [Asn1Oid oid, val]
+
+  -- | Decode an ASN.1 AttributeTypeAndValue into a `PkixAttr`.
+  pkix-attr-from-asn1 :: Asn1 -> Result PkixError PkixAttr
+  pkix-attr-from-asn1 val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons (Asn1Oid oid) (Cons v Nil) -> Ok (PkixAttr oid v)
+      other -> Err (PkixInvalidStructure "AttributeTypeAndValue must be SEQUENCE { OID, ANY }"))
+    other -> Err (PkixInvalidStructure "AttributeTypeAndValue must be a SEQUENCE")
+
+  -- | Return True iff two `PkixAttr` values have the same OID and identical DER-encoded value.
+  pkix-attr-equal :: PkixAttr -> PkixAttr -> Bool
+  pkix-attr-equal a b = case a of
+    PkixAttr oid1 v1 -> case b of
+      PkixAttr oid2 v2 -> oid-equal oid1 oid2 && bytes-eq (asn1-encode v1) (asn1-encode v2)
+
+  -- ---------------------------------------------------------------------
+  -- PkixRdn (RelativeDistinguishedName).
+  -- ---------------------------------------------------------------------
+
+  -- | A RelativeDistinguishedName: a SET OF AttributeTypeAndValue.
+  data PkixRdn where
+    -- | Attributes belonging to this RDN.
+    PkixRdn :: List PkixAttr -> PkixRdn
+
+  -- | Construct a `PkixRdn` from a list of attributes.
+  pkix-rdn :: List PkixAttr -> PkixRdn
+  pkix-rdn attrs = PkixRdn attrs
+
+  -- | Return the attributes contained in a `PkixRdn`.
+  pkix-rdn-attrs :: PkixRdn -> List PkixAttr
+  pkix-rdn-attrs r = case r of PkixRdn attrs -> attrs
+
+  -- | Encode a `PkixRdn` as an ASN.1 SET OF AttributeTypeAndValue.
+  pkix-rdn-to-asn1 :: PkixRdn -> Asn1
+  pkix-rdn-to-asn1 r = case r of
+    PkixRdn attrs -> asn1-set (encode-attr-list attrs Nil)
+
+  -- | Map `pkix-attr-to-asn1` over a list tail-recursively.
+  encode-attr-list :: List PkixAttr -> List Asn1 -> List Asn1
+  encode-attr-list attrs acc = case attrs of
+    Nil -> reverse acc
+    Cons a rest -> encode-attr-list rest (Cons (pkix-attr-to-asn1 a) acc)
+
+  -- | Decode an ASN.1 SET into a `PkixRdn`.
+  pkix-rdn-from-asn1 :: Asn1 -> Result PkixError PkixRdn
+  pkix-rdn-from-asn1 val = case val of
+    Asn1Set _ -> decode-attr-list (asn1-members val) Nil
+    other -> Err (PkixInvalidStructure "RelativeDistinguishedName must be a SET")
+
+  -- | Decode each attribute inside an RDN SET.
+  decode-attr-list :: List Asn1 -> List PkixAttr -> Result PkixError PkixRdn
+  decode-attr-list items acc = case items of
+    Nil -> Ok (PkixRdn (reverse acc))
+    Cons item rest -> (case pkix-attr-from-asn1 item of
+      Err e -> Err e
+      Ok a -> decode-attr-list rest (Cons a acc))
+
+  -- | Return True iff two `PkixRdn` values have equal DER encodings.
+  pkix-rdn-equal :: PkixRdn -> PkixRdn -> Bool
+  pkix-rdn-equal a b = bytes-eq (asn1-encode (pkix-rdn-to-asn1 a)) (asn1-encode (pkix-rdn-to-asn1 b))
+
+  -- ---------------------------------------------------------------------
+  -- PkixName (RDNSequence / X.509 Name).
+  -- ---------------------------------------------------------------------
+
+  -- | An X.509 distinguished name represented as an ordered sequence of RDNs.
+  data PkixName where
+    -- | The RDNSequence preserving exact order and multi-valued RDNs.
+    PkixName :: List PkixRdn -> PkixName
+
+  -- | An empty distinguished name.
+  pkix-name-empty :: PkixName
+  pkix-name-empty = PkixName Nil
+
+  -- | Construct a `PkixName` from an explicit RDN sequence.
+  pkix-name-from-rdns :: List PkixRdn -> PkixName
+  pkix-name-from-rdns rdns = PkixName rdns
+
+  -- | Return the RDN sequence of a `PkixName`.
+  pkix-name-rdns :: PkixName -> List PkixRdn
+  pkix-name-rdns name = case name of PkixName rdns -> rdns
+
+  -- | Append one `PkixRdn` to the end of a `PkixName`.
+  pkix-name-add-rdn :: PkixName -> PkixRdn -> PkixName
+  pkix-name-add-rdn name rdn = case name of
+    PkixName rdns -> PkixName (append-list rdns [rdn])
+
+  -- | Append a single-attribute RDN to a `PkixName`.
+  pkix-name-add-attr :: PkixName -> PkixAttr -> PkixName
+  pkix-name-add-attr name attr = pkix-name-add-rdn name (PkixRdn [attr])
+
+  -- | Append a CommonName (CN) RDN.
+  pkix-with-common-name :: PkixName -> String -> PkixName
+  pkix-with-common-name name cn = pkix-name-add-attr name (pkix-attr-for-string oid-common-name cn)
+
+  -- | Append a SerialNumber (SERIALNUMBER) RDN.
+  pkix-with-serial-number :: PkixName -> String -> PkixName
+  pkix-with-serial-number name sn = pkix-name-add-attr name (pkix-attr-for-string oid-serial-number sn)
+
+  -- | Append a Country (C) RDN.
+  pkix-with-country :: PkixName -> String -> PkixName
+  pkix-with-country name c = pkix-name-add-attr name (pkix-attr-for-string oid-country c)
+
+  -- | Append an Organization (O) RDN.
+  pkix-with-organization :: PkixName -> String -> PkixName
+  pkix-with-organization name o = pkix-name-add-attr name (pkix-attr-for-string oid-organization o)
+
+  -- | Append an OrganizationalUnit (OU) RDN.
+  pkix-with-organizational-unit :: PkixName -> String -> PkixName
+  pkix-with-organizational-unit name ou = pkix-name-add-attr name (pkix-attr-for-string oid-organizational-unit ou)
+
+  -- | Append a Locality (L) RDN.
+  pkix-with-locality :: PkixName -> String -> PkixName
+  pkix-with-locality name l = pkix-name-add-attr name (pkix-attr-for-string oid-locality l)
+
+  -- | Append a Province/State (ST) RDN.
+  pkix-with-province :: PkixName -> String -> PkixName
+  pkix-with-province name st = pkix-name-add-attr name (pkix-attr-for-string oid-province st)
+
+  -- | Append a StreetAddress (STREET) RDN.
+  pkix-with-street-address :: PkixName -> String -> PkixName
+  pkix-with-street-address name street = pkix-name-add-attr name (pkix-attr-for-string oid-street-address street)
+
+  -- | Append a PostalCode (POSTALCODE) RDN.
+  pkix-with-postal-code :: PkixName -> String -> PkixName
+  pkix-with-postal-code name pc = pkix-name-add-attr name (pkix-attr-for-string oid-postal-code pc)
+
+  -- | Append an arbitrary attribute RDN to a `PkixName`.
+  pkix-with-extra-attr :: PkixName -> PkixAttr -> PkixName
+  pkix-with-extra-attr name attr = pkix-name-add-attr name attr
+
+  -- | Flatten all attributes across all RDNs of a `PkixName` in sequence order.
+  all-name-attrs :: PkixName -> List PkixAttr
+  all-name-attrs name = case name of
+    PkixName rdns -> flatten-rdns rdns Nil
+
+  -- | Tail-recursively flatten RDNs into a single attribute list.
+  flatten-rdns :: List PkixRdn -> List PkixAttr -> List PkixAttr
+  flatten-rdns rdns acc = case rdns of
+    Nil -> reverse acc
+    Cons (PkixRdn attrs) rest -> flatten-rdns rest (rev-onto attrs acc)
+
+  -- | Collect all string values matching the given OID in sequence order.
+  collect-attr-strings :: PkixName -> List Nat -> List String
+  collect-attr-strings name oid = collect-attr-strings-loop (all-name-attrs name) oid Nil
+
+  -- | Tail-recursive filter-map collecting matching OID attribute strings.
+  collect-attr-strings-loop :: List PkixAttr -> List Nat -> List String -> List String
+  collect-attr-strings-loop attrs oid acc = case attrs of
+    Nil -> reverse acc
+    Cons a rest ->
+      if oid-equal (pkix-attr-oid a) oid then
+        (case pkix-attr-string a of
+          Some s -> collect-attr-strings-loop rest oid (Cons s acc)
+          None -> collect-attr-strings-loop rest oid acc)
+      else collect-attr-strings-loop rest oid acc
+
+  -- | Return the last string value matching an OID (for single-valued attributes such as CN).
+  last-attr-string :: List String -> Option String
+  last-attr-string xs = case xs of
+    Nil -> None
+    Cons x Nil -> Some x
+    Cons _ rest -> last-attr-string rest
+
+  -- | Extract the CommonName (OID 2.5.4.3), if present.
+  pkix-common-name :: PkixName -> Option String
+  pkix-common-name name = last-attr-string (collect-attr-strings name oid-common-name)
+
+  -- | Extract the SerialNumber (OID 2.5.4.5), if present.
+  pkix-serial-number :: PkixName -> Option String
+  pkix-serial-number name = last-attr-string (collect-attr-strings name oid-serial-number)
+
+  -- | Extract all Country (OID 2.5.4.6) values.
+  pkix-country :: PkixName -> List String
+  pkix-country name = collect-attr-strings name oid-country
+
+  -- | Extract all Organization (OID 2.5.4.10) values.
+  pkix-organization :: PkixName -> List String
+  pkix-organization name = collect-attr-strings name oid-organization
+
+  -- | Extract all OrganizationalUnit (OID 2.5.4.11) values.
+  pkix-organizational-unit :: PkixName -> List String
+  pkix-organizational-unit name = collect-attr-strings name oid-organizational-unit
+
+  -- | Extract all Locality (OID 2.5.4.7) values.
+  pkix-locality :: PkixName -> List String
+  pkix-locality name = collect-attr-strings name oid-locality
+
+  -- | Extract all Province/State (OID 2.5.4.8) values.
+  pkix-province :: PkixName -> List String
+  pkix-province name = collect-attr-strings name oid-province
+
+  -- | Extract all StreetAddress (OID 2.5.4.9) values.
+  pkix-street-address :: PkixName -> List String
+  pkix-street-address name = collect-attr-strings name oid-street-address
+
+  -- | Extract all PostalCode (OID 2.5.4.17) values.
+  pkix-postal-code :: PkixName -> List String
+  pkix-postal-code name = collect-attr-strings name oid-postal-code
+
+  -- | Map standard X.520 attribute OIDs to their RFC 4514 short names.
+  short-attr-name :: List Nat -> Option String
+  short-attr-name oid =
+    if oid-equal oid oid-country then Some "C"
+    else if oid-equal oid oid-organization then Some "O"
+    else if oid-equal oid oid-organizational-unit then Some "OU"
+    else if oid-equal oid oid-common-name then Some "CN"
+    else if oid-equal oid oid-serial-number then Some "SERIALNUMBER"
+    else if oid-equal oid oid-locality then Some "L"
+    else if oid-equal oid oid-province then Some "ST"
+    else if oid-equal oid oid-street-address then Some "STREET"
+    else if oid-equal oid oid-postal-code then Some "POSTALCODE"
+    else None
+
+  -- | Format a `PkixName` according to RFC 4514 (RDNs in reverse order, joined by ",", multi-valued RDNs by "+").
+  pkix-name-to-string :: PkixName -> String
+  pkix-name-to-string name = rdn-sequence-to-string (pkix-name-rdns name)
+
+  -- | Format a `PkixName` in canonical attribute-type order with non-standard attributes placed at the end.
+  pkix-name-to-canonical-string :: PkixName -> String
+  pkix-name-to-canonical-string name =
+    let extra = collect-nonstandard-rdns (all-name-attrs name) Nil in
+    let std = canonical-standard-rdns name in
+    rdn-sequence-to-string (append-list extra std)
+
+  -- | Collect non-standard attributes as individual RDNs.
+  collect-nonstandard-rdns :: List PkixAttr -> List PkixRdn -> List PkixRdn
+  collect-nonstandard-rdns attrs acc = case attrs of
+    Nil -> reverse acc
+    Cons a rest -> (case short-attr-name (pkix-attr-oid a) of
+      Some _ -> collect-nonstandard-rdns rest acc
+      None -> collect-nonstandard-rdns rest (Cons (PkixRdn [a]) acc))
+
+  -- | Build standard RDNs in canonical sequence order (C, ST, L, STREET, POSTALCODE, O, OU, CN, SERIALNUMBER).
+  canonical-standard-rdns :: PkixName -> List PkixRdn
+  canonical-standard-rdns name =
+    let r0 = append-multi-rdn Nil oid-country (pkix-country name) in
+    let r1 = append-multi-rdn r0 oid-province (pkix-province name) in
+    let r2 = append-multi-rdn r1 oid-locality (pkix-locality name) in
+    let r3 = append-multi-rdn r2 oid-street-address (pkix-street-address name) in
+    let r4 = append-multi-rdn r3 oid-postal-code (pkix-postal-code name) in
+    let r5 = append-multi-rdn r4 oid-organization (pkix-organization name) in
+    let r6 = append-multi-rdn r5 oid-organizational-unit (pkix-organizational-unit name) in
+    let r7 = (case pkix-common-name name of Some cn -> append-multi-rdn r6 oid-common-name [cn]; None -> r6) in
+    case pkix-serial-number name of Some sn -> append-multi-rdn r7 oid-serial-number [sn]; None -> r7
+
+  -- | Append a multi-value RDN for `oid` if `vals` is non-empty.
+  append-multi-rdn :: List PkixRdn -> List Nat -> List String -> List PkixRdn
+  append-multi-rdn rdns oid vals = case vals of
+    Nil -> rdns
+    Cons _ _ -> append-list rdns [PkixRdn (strings-to-attrs oid vals Nil)]
+
+  -- | Convert string values to attributes for a given OID.
+  strings-to-attrs :: List Nat -> List String -> List PkixAttr -> List PkixAttr
+  strings-to-attrs oid vals acc = case vals of
+    Nil -> reverse acc
+    Cons v rest -> strings-to-attrs oid rest (Cons (pkix-attr-for-string oid v) acc)
+
+  -- | Format an RDNSequence per RFC 4514 (reversing the RDN sequence).
+  rdn-sequence-to-string :: List PkixRdn -> String
+  rdn-sequence-to-string rdns = string-join (format-rdn-list (reverse rdns) Nil) ","
+
+  -- | Format each RDN in a list.
+  format-rdn-list :: List PkixRdn -> List String -> List String
+  format-rdn-list rdns acc = case rdns of
+    Nil -> reverse acc
+    Cons (PkixRdn attrs) rest ->
+      format-rdn-list rest (Cons (string-join (format-attr-list attrs Nil) "+") acc)
+
+  -- | Format each attribute in an RDN.
+  format-attr-list :: List PkixAttr -> List String -> List String
+  format-attr-list attrs acc = case attrs of
+    Nil -> reverse acc
+    Cons a rest -> format-attr-list rest (Cons (format-pkix-attr a) acc)
+
+  -- | Format one `PkixAttr` according to RFC 4514: known OIDs escaped as text, unknown OIDs as `#hex(DER)`.
+  format-pkix-attr :: PkixAttr -> String
+  format-pkix-attr a = case a of
+    PkixAttr oid val -> (case short-attr-name oid of
+      None ->
+        let der-hex = hex-encode (asn1-encode val) in
+        string-concat-all [oid-to-string oid, "=#", der-hex]
+      Some label -> (case asn1-value-to-string val of
+        Some text -> string-concat-all [label, "=", rfc4514-escape text]
+        None -> string-concat-all [label, "=#", hex-encode (asn1-encode val)]))
+
+  -- | Escape an RFC 4514 attribute value string.
+  rfc4514-escape :: String -> String
+  rfc4514-escape text =
+    let bs = string-to-bytes text in
+    let n = bytes-len bs in
+    let escaped = bytes-concat (escape-bytes-loop bs 0 n Nil) in
+    case string-from-bytes escaped of
+      Some s -> s
+      None -> text
+
+  -- | Escape special RFC 4514 bytes: `,`, `+`, `"`, `\`, `<`, `>`, `;`, leading/trailing space, leading `#`.
+  escape-bytes-loop :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  escape-bytes-loop bs i n acc =
+    if i >= n then reverse acc
+    else
+      let b = at bs i in
+      let is-special = b == 44 || b == 43 || b == 34 || b == 92 || b == 60 || b == 62 || b == 59 in
+      let is-edge-space = b == 32 && (i == 0 || i + 1 == n) in
+      let is-leading-hash = b == 35 && i == 0 in
+      let needs = is-special || is-edge-space || is-leading-hash in
+      let piece = if needs then bytes-concat [one-byte 92, one-byte b] else one-byte b in
+      escape-bytes-loop bs (i + 1) n (Cons piece acc)
+
+  -- | Encode a `PkixName` to its ASN.1 RDNSequence tree.
+  pkix-name-to-asn1 :: PkixName -> Asn1
+  pkix-name-to-asn1 name = case name of
+    PkixName rdns -> asn1-sequence (encode-rdn-list rdns Nil)
+
+  -- | Map `pkix-rdn-to-asn1` over a list of RDNs.
+  encode-rdn-list :: List PkixRdn -> List Asn1 -> List Asn1
+  encode-rdn-list rdns acc = case rdns of
+    Nil -> reverse acc
+    Cons r rest -> encode-rdn-list rest (Cons (pkix-rdn-to-asn1 r) acc)
+
+  -- | Decode an ASN.1 RDNSequence into a `PkixName`.
+  pkix-name-from-asn1 :: Asn1 -> Result PkixError PkixName
+  pkix-name-from-asn1 val = case val of
+    Asn1Sequence _ -> decode-rdn-list (asn1-members val) Nil
+    other -> Err (PkixInvalidStructure "Name must be a SEQUENCE of RDNs")
+
+  -- | Decode each RDN SET in a Name SEQUENCE.
+  decode-rdn-list :: List Asn1 -> List PkixRdn -> Result PkixError PkixName
+  decode-rdn-list items acc = case items of
+    Nil -> Ok (PkixName (reverse acc))
+    Cons item rest -> (case pkix-rdn-from-asn1 item of
+      Err e -> Err e
+      Ok r -> decode-rdn-list rest (Cons r acc))
+
+  -- | Marshal a `PkixName` to DER bytes.
+  pkix-marshal-name :: PkixName -> Bytes
+  pkix-marshal-name name = asn1-encode (pkix-name-to-asn1 name)
+
+  -- | Parse a DER-encoded `PkixName`.
+  pkix-parse-name :: Bytes -> Result PkixError PkixName
+  pkix-parse-name der = case asn1-decode der of
+    Err e -> Err (PkixAsn1Error e)
+    Ok val -> pkix-name-from-asn1 val
+
+  -- | Return True iff two `PkixName` values have identical canonical DER encodings.
+  pkix-name-equal :: PkixName -> PkixName -> Bool
+  pkix-name-equal a b = bytes-eq (pkix-marshal-name a) (pkix-marshal-name b)
+
+  -- ---------------------------------------------------------------------
+  -- PkixAlgorithmIdentifier.
+  -- ---------------------------------------------------------------------
+
+  -- | An X.509 AlgorithmIdentifier pairing an algorithm OID with optional parameters.
+  data PkixAlgorithmIdentifier where
+    -- | Algorithm OID and optional ASN.1 parameters.
+    PkixAlgorithmIdentifier :: List Nat -> Option Asn1 -> PkixAlgorithmIdentifier
+
+  -- | Construct a `PkixAlgorithmIdentifier`.
+  pkix-algorithm-identifier :: List Nat -> Option Asn1 -> PkixAlgorithmIdentifier
+  pkix-algorithm-identifier oid params = PkixAlgorithmIdentifier oid params
+
+  -- | Return the OID of a `PkixAlgorithmIdentifier`.
+  pkix-alg-oid :: PkixAlgorithmIdentifier -> List Nat
+  pkix-alg-oid alg = case alg of PkixAlgorithmIdentifier oid _ -> oid
+
+  -- | Return the optional ASN.1 parameters of a `PkixAlgorithmIdentifier`.
+  pkix-alg-params :: PkixAlgorithmIdentifier -> Option Asn1
+  pkix-alg-params alg = case alg of PkixAlgorithmIdentifier _ p -> p
+
+  -- | Encode a `PkixAlgorithmIdentifier` as an ASN.1 SEQUENCE.
+  pkix-alg-to-asn1 :: PkixAlgorithmIdentifier -> Asn1
+  pkix-alg-to-asn1 alg = case alg of
+    PkixAlgorithmIdentifier oid params -> (case params of
+      None -> asn1-sequence [Asn1Oid oid]
+      Some p -> asn1-sequence [Asn1Oid oid, p])
+
+  -- | Decode an ASN.1 AlgorithmIdentifier SEQUENCE.
+  pkix-alg-from-asn1 :: Asn1 -> Result PkixError PkixAlgorithmIdentifier
+  pkix-alg-from-asn1 val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons (Asn1Oid oid) Nil -> Ok (PkixAlgorithmIdentifier oid None)
+      Cons (Asn1Oid oid) (Cons p Nil) -> Ok (PkixAlgorithmIdentifier oid (Some p))
+      other -> Err (PkixInvalidStructure "AlgorithmIdentifier must be SEQUENCE { OID, parameters OPTIONAL }"))
+    other -> Err (PkixInvalidStructure "AlgorithmIdentifier must be a SEQUENCE")
+
+  -- | Return True iff two `PkixAlgorithmIdentifier` values have identical DER encodings.
+  pkix-alg-equal :: PkixAlgorithmIdentifier -> PkixAlgorithmIdentifier -> Bool
+  pkix-alg-equal a b = bytes-eq (asn1-encode (pkix-alg-to-asn1 a)) (asn1-encode (pkix-alg-to-asn1 b))
+
+  -- ---------------------------------------------------------------------
+  -- PkixExtension.
+  -- ---------------------------------------------------------------------
+
+  -- | An X.509 v3 extension (RFC 5280 Section 4.1).
+  data PkixExtension where
+    -- | Extension OID, critical flag, and raw DER extnValue octets.
+    PkixExtension :: List Nat -> Bool -> Bytes -> PkixExtension
+
+  -- | Construct a `PkixExtension`.
+  pkix-extension :: List Nat -> Bool -> Bytes -> PkixExtension
+  pkix-extension oid critical val = PkixExtension oid critical (bytes-clone val)
+
+  -- | Return the OID of a `PkixExtension`.
+  pkix-ext-oid :: PkixExtension -> List Nat
+  pkix-ext-oid e = case e of PkixExtension oid _ _ -> oid
+
+  -- | Return whether a `PkixExtension` is marked critical.
+  pkix-ext-critical :: PkixExtension -> Bool
+  pkix-ext-critical e = case e of PkixExtension _ crit _ -> crit
+
+  -- | Return the raw DER value bytes of a `PkixExtension`.
+  pkix-ext-value :: PkixExtension -> Bytes
+  pkix-ext-value e = case e of PkixExtension _ _ val -> bytes-clone val
+
+  -- | Encode a `PkixExtension` as ASN.1 DER (omitting critical BOOLEAN when False per DER DEFAULT).
+  pkix-ext-to-asn1 :: PkixExtension -> Asn1
+  pkix-ext-to-asn1 e = case e of
+    PkixExtension oid crit val ->
+      if crit then asn1-sequence [Asn1Oid oid, Asn1Boolean True, Asn1OctetString val]
+      else asn1-sequence [Asn1Oid oid, Asn1OctetString val]
+
+  -- | Decode an ASN.1 Extension SEQUENCE.
+  pkix-ext-from-asn1 :: Asn1 -> Result PkixError PkixExtension
+  pkix-ext-from-asn1 val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons (Asn1Oid oid) (Cons (Asn1OctetString bs) Nil) ->
+        Ok (PkixExtension oid False bs)
+      Cons (Asn1Oid oid) (Cons (Asn1Boolean crit) (Cons (Asn1OctetString bs) Nil)) ->
+        Ok (PkixExtension oid crit bs)
+      other -> Err (PkixInvalidStructure "Extension must be SEQUENCE { OID, BOOLEAN OPTIONAL, OCTET STRING }"))
+    other -> Err (PkixInvalidStructure "Extension must be a SEQUENCE")
+
+  -- | Find the first extension with the given OID in a list.
+  pkix-find-extension :: List Nat -> List PkixExtension -> Option PkixExtension
+  pkix-find-extension oid exts = case exts of
+    Nil -> None
+    Cons e rest -> if oid-equal (pkix-ext-oid e) oid then Some e else pkix-find-extension oid rest
+
+  -- | Decode a list of ASN.1 Extension elements.
+  decode-ext-list :: List Asn1 -> List PkixExtension -> Result PkixError (List PkixExtension)
+  decode-ext-list items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons item rest -> (case pkix-ext-from-asn1 item of
+      Err e -> Err e
+      Ok ext -> decode-ext-list rest (Cons ext acc))
+
+  -- | Encode a list of `PkixExtension` values to ASN.1 elements.
+  encode-ext-list :: List PkixExtension -> List Asn1 -> List Asn1
+  encode-ext-list exts acc = case exts of
+    Nil -> reverse acc
+    Cons e rest -> encode-ext-list rest (Cons (pkix-ext-to-asn1 e) acc)
+
+  -- ---------------------------------------------------------------------
+  -- PkixRevokedCertificate and PkixCrl (RFC 5280 Section 5.1).
+  -- ---------------------------------------------------------------------
+
+  -- | One entry in a CRL's revokedCertificates sequence.
+  data PkixRevokedCertificate where
+    -- | Revoked certificate serial number, revocation Unix timestamp, and entry extensions.
+    PkixRevokedCertificate :: Int -> I64 -> List PkixExtension -> PkixRevokedCertificate
+
+  -- | Construct a `PkixRevokedCertificate`.
+  pkix-revoked-certificate :: Int -> I64 -> List PkixExtension -> PkixRevokedCertificate
+  pkix-revoked-certificate serial rev-time exts = PkixRevokedCertificate serial rev-time exts
+
+  -- | Return the revoked certificate's serial number.
+  pkix-revoked-serial :: PkixRevokedCertificate -> Int
+  pkix-revoked-serial r = case r of PkixRevokedCertificate s _ _ -> s
+
+  -- | Return the revocation time in Unix seconds.
+  pkix-revoked-time :: PkixRevokedCertificate -> I64
+  pkix-revoked-time r = case r of PkixRevokedCertificate _ t _ -> t
+
+  -- | Return any CRL entry extensions attached to this revoked certificate entry.
+  pkix-revoked-extensions :: PkixRevokedCertificate -> List PkixExtension
+  pkix-revoked-extensions r = case r of PkixRevokedCertificate _ _ exts -> exts
+
+  -- | Encode a `PkixRevokedCertificate` to ASN.1.
+  pkix-revoked-to-asn1 :: PkixRevokedCertificate -> Asn1
+  pkix-revoked-to-asn1 r = case r of
+    PkixRevokedCertificate serial rev-time exts -> (case exts of
+      Nil -> asn1-sequence [Asn1Integer serial, pkix-encode-time rev-time]
+      Cons _ _ -> asn1-sequence [Asn1Integer serial, pkix-encode-time rev-time, asn1-sequence (encode-ext-list exts Nil)])
+
+  -- | Decode an ASN.1 revokedCertificate entry.
+  pkix-revoked-from-asn1 :: Asn1 -> Result PkixError PkixRevokedCertificate
+  pkix-revoked-from-asn1 val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons (Asn1Integer serial) (Cons t-val rest) -> (case pkix-decode-time t-val of
+        Err e -> Err e
+        Ok rev-time -> (case rest of
+          Nil -> Ok (PkixRevokedCertificate serial rev-time Nil)
+          Cons (Asn1Sequence _) Nil -> (case rest of
+            Cons ext-seq Nil -> (case decode-ext-list (asn1-members ext-seq) Nil of
+              Err e -> Err e
+              Ok exts -> Ok (PkixRevokedCertificate serial rev-time exts))
+            other -> Err (PkixInvalidStructure "invalid CRL entry extensions"))
+          other -> Err (PkixInvalidStructure "invalid revokedCertificate entry")))
+      other -> Err (PkixInvalidStructure "revokedCertificate must start with serial and revocationDate"))
+    other -> Err (PkixInvalidStructure "revokedCertificate must be a SEQUENCE")
+
+  -- | Decode a list of ASN.1 revokedCertificate entries.
+  decode-revoked-list :: List Asn1 -> List PkixRevokedCertificate -> Result PkixError (List PkixRevokedCertificate)
+  decode-revoked-list items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons item rest -> (case pkix-revoked-from-asn1 item of
+      Err e -> Err e
+      Ok entry -> decode-revoked-list rest (Cons entry acc))
+
+  -- | Encode a list of `PkixRevokedCertificate` entries.
+  encode-revoked-list :: List PkixRevokedCertificate -> List Asn1 -> List Asn1
+  encode-revoked-list entries acc = case entries of
+    Nil -> reverse acc
+    Cons r rest -> encode-revoked-list rest (Cons (pkix-revoked-to-asn1 r) acc)
+
+  -- | A parsed or constructed X.509 Certificate Revocation List (RFC 5280 CertificateList).
+  data PkixCrl where
+    -- | Version (1 or 2), inner signature algorithm, issuer, thisUpdate, optional nextUpdate,
+    -- revoked entries, CRL extensions, raw TBS DER, outer signature algorithm, signature bytes, raw DER.
+    MkPkixCrl :: Nat -> PkixAlgorithmIdentifier -> PkixName -> I64 -> Option I64 -> List PkixRevokedCertificate -> List PkixExtension -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> PkixCrl
+
+  -- | Construct a `PkixCrl` from its constituent fields and signature.
+  pkix-crl-from-parts :: Nat -> PkixAlgorithmIdentifier -> PkixName -> I64 -> Option I64 -> List PkixRevokedCertificate -> List PkixExtension -> Bytes -> PkixCrl
+  pkix-crl-from-parts ver sig-alg issuer this-upd next-upd revoked exts sig =
+    let tbs = marshal-tbs-crl ver sig-alg issuer this-upd next-upd revoked exts in
+    let sig-bits = Asn1BitString sig (bytes-len sig * 8) in
+    let raw = asn1-encode (asn1-sequence [
+      Asn1Raw class-universal 16 True (strip-der-header tbs),
+      pkix-alg-to-asn1 sig-alg,
+      sig-bits
+    ]) in
+    MkPkixCrl ver sig-alg issuer this-upd next-upd revoked exts tbs sig-alg (bytes-clone sig) raw
+
+  -- | Strip the outer TLV tag and length from a DER SEQUENCE, returning its content octets.
+  strip-der-header :: Bytes -> Bytes
+  strip-der-header der = case der-element-bounds der 0 of
+    Some (_, cstart, cend) -> slice der cstart cend
+    None -> bytes-new 0
+
+  -- | Return the CRL version (1 for v1, 2 for v2).
+  crl-version :: PkixCrl -> Nat
+  crl-version c = case c of MkPkixCrl v _ _ _ _ _ _ _ _ _ _ -> v
+
+  -- | Return the inner TBS signature algorithm identifier.
+  crl-tbs-signature-algorithm :: PkixCrl -> PkixAlgorithmIdentifier
+  crl-tbs-signature-algorithm c = case c of MkPkixCrl _ alg _ _ _ _ _ _ _ _ _ -> alg
+
+  -- | Return the CRL issuer distinguished name.
+  crl-issuer :: PkixCrl -> PkixName
+  crl-issuer c = case c of MkPkixCrl _ _ iss _ _ _ _ _ _ _ _ -> iss
+
+  -- | Return the CRL thisUpdate timestamp in Unix seconds.
+  crl-this-update :: PkixCrl -> I64
+  crl-this-update c = case c of MkPkixCrl _ _ _ t _ _ _ _ _ _ _ -> t
+
+  -- | Return the optional CRL nextUpdate timestamp in Unix seconds.
+  crl-next-update :: PkixCrl -> Option I64
+  crl-next-update c = case c of MkPkixCrl _ _ _ _ nu _ _ _ _ _ _ -> nu
+
+  -- | Return the list of revoked certificate entries.
+  crl-revoked-certificates :: PkixCrl -> List PkixRevokedCertificate
+  crl-revoked-certificates c = case c of MkPkixCrl _ _ _ _ _ revs _ _ _ _ _ -> revs
+
+  -- | Return the CRL extensions.
+  crl-extensions :: PkixCrl -> List PkixExtension
+  crl-extensions c = case c of MkPkixCrl _ _ _ _ _ _ exts _ _ _ _ -> exts
+
+  -- | Return the exact raw DER bytes of the TBSCertList signed by the issuer.
+  crl-raw-tbs :: PkixCrl -> Bytes
+  crl-raw-tbs c = case c of MkPkixCrl _ _ _ _ _ _ _ tbs _ _ _ -> bytes-clone tbs
+
+  -- | Return the outer signature algorithm identifier.
+  crl-signature-algorithm :: PkixCrl -> PkixAlgorithmIdentifier
+  crl-signature-algorithm c = case c of MkPkixCrl _ _ _ _ _ _ _ _ alg _ _ -> alg
+
+  -- | Return the raw signature bytes.
+  crl-signature :: PkixCrl -> Bytes
+  crl-signature c = case c of MkPkixCrl _ _ _ _ _ _ _ _ _ sig _ -> bytes-clone sig
+
+  -- | Return the complete DER encoding of the CRL.
+  crl-raw :: PkixCrl -> Bytes
+  crl-raw c = case c of MkPkixCrl _ _ _ _ _ _ _ _ _ _ raw -> bytes-clone raw
+
+  -- | Marshal the TBSCertList portion of a CRL to DER bytes.
+  marshal-tbs-crl :: Nat -> PkixAlgorithmIdentifier -> PkixName -> I64 -> Option I64 -> List PkixRevokedCertificate -> List PkixExtension -> Bytes
+  marshal-tbs-crl ver sig-alg issuer this-upd next-upd revoked exts =
+    let f-ver = if ver >= 2 then [Asn1Integer (nat-to-int (sub-sat ver 1))] else Nil in
+    let f-base = [pkix-alg-to-asn1 sig-alg, pkix-name-to-asn1 issuer, pkix-encode-time this-upd] in
+    let f-next = (case next-upd of None -> Nil; Some nu -> [pkix-encode-time nu]) in
+    let f-revs = (case revoked of Nil -> Nil; Cons _ _ -> [asn1-sequence (encode-revoked-list revoked Nil)]) in
+    let f-exts = (case exts of Nil -> Nil; Cons _ _ -> [asn1-explicit 0 (asn1-sequence (encode-ext-list exts Nil))]) in
+    asn1-encode (asn1-sequence (append-list f-ver (append-list f-base (append-list f-next (append-list f-revs f-exts)))))
+
+  -- | Marshal a `PkixCrl` to DER bytes.
+  marshal-crl :: PkixCrl -> Bytes
+  marshal-crl c = crl-raw c
+
+  -- | Parse a DER-encoded X.509 Certificate Revocation List (RFC 5280 CertificateList).
+  parse-crl :: Bytes -> Result PkixError PkixCrl
+  parse-crl der = case asn1-decode der of
+    Err e -> Err (PkixAsn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Cons tbs-val (Cons alg-val (Cons (Asn1BitString sig-bytes sig-bits) Nil)) ->
+          if nat-rem sig-bits 8 /= 0 then Err (PkixInvalidStructure "CRL signature bit string has non-zero unused bits")
+          else (case der-first-child-bytes der of
+            None -> Err (PkixInvalidStructure "failed to extract raw TBSCertList")
+            Some raw-tbs -> (case pkix-alg-from-asn1 alg-val of
+              Err e -> Err e
+              Ok outer-alg -> parse-tbs-crl tbs-val raw-tbs outer-alg sig-bytes der))
+        other -> Err (PkixInvalidStructure "CertificateList must be SEQUENCE { tbsCertList, signatureAlgorithm, signatureValue }"))
+      other -> Err (PkixInvalidStructure "CertificateList must be a SEQUENCE"))
+
+  -- | Parse the TBSCertList sequence inside a CRL.
+  parse-tbs-crl :: Asn1 -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> Result PkixError PkixCrl
+  parse-tbs-crl tbs-val raw-tbs outer-alg sig-bytes raw = case tbs-val of
+    Asn1Sequence _ -> (case asn1-members tbs-val of
+      Cons (Asn1Integer v) rest ->
+        if v == 0 || v == 1 then
+          parse-tbs-crl-after-version (nat-from-int-nonneg v + 1) rest raw-tbs outer-alg sig-bytes raw
+        else Err (PkixInvalidStructure "unsupported CRL version")
+      items -> parse-tbs-crl-after-version 1 items raw-tbs outer-alg sig-bytes raw)
+    other -> Err (PkixInvalidStructure "TBSCertList must be a SEQUENCE")
+
+  -- | Parse signature, issuer, thisUpdate and optional trailing fields of a TBSCertList.
+  parse-tbs-crl-after-version :: Nat -> List Asn1 -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> Result PkixError PkixCrl
+  parse-tbs-crl-after-version ver items raw-tbs outer-alg sig-bytes raw = case items of
+    Cons alg-val (Cons iss-val (Cons this-val rest)) ->
+      (case pkix-alg-from-asn1 alg-val of
+        Err e -> Err e
+        Ok tbs-alg -> (case pkix-name-from-asn1 iss-val of
+          Err e -> Err e
+          Ok issuer -> (case pkix-decode-time this-val of
+            Err e -> Err e
+            Ok this-upd -> parse-tbs-crl-tail ver tbs-alg issuer this-upd rest raw-tbs outer-alg sig-bytes raw)))
+    other -> Err (PkixInvalidStructure "TBSCertList missing required fields")
+
+  -- | Parse optional nextUpdate, revokedCertificates and [0] crlExtensions of a TBSCertList.
+  parse-tbs-crl-tail :: Nat -> PkixAlgorithmIdentifier -> PkixName -> I64 -> List Asn1 -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> Result PkixError PkixCrl
+  parse-tbs-crl-tail ver tbs-alg issuer this-upd rest raw-tbs outer-alg sig-bytes raw =
+    case consume-optional-time rest of
+      Err e -> Err e
+      Ok (next-upd, rest1) ->
+        (case consume-optional-revoked rest1 of
+          Err e -> Err e
+          Ok (revoked, rest2) ->
+            (case consume-optional-crl-exts rest2 of
+              Err e -> Err e
+              Ok exts ->
+                Ok (MkPkixCrl ver tbs-alg issuer this-upd next-upd revoked exts raw-tbs outer-alg sig-bytes (bytes-clone raw))))
+
+  -- | Consume an optional leading Time element (nextUpdate).
+  consume-optional-time :: List Asn1 -> Result PkixError (Option I64, List Asn1)
+  consume-optional-time items = case items of
+    Cons (Asn1UtcTime bs) rest -> (case pkix-decode-time (Asn1UtcTime bs) of Err e -> Err e; Ok t -> Ok (Some t, rest))
+    Cons (Asn1GeneralizedTime bs) rest -> (case pkix-decode-time (Asn1GeneralizedTime bs) of Err e -> Err e; Ok t -> Ok (Some t, rest))
+    other -> Ok (None, items)
+
+  -- | Consume an optional leading SEQUENCE OF revokedCertificates.
+  consume-optional-revoked :: List Asn1 -> Result PkixError (List PkixRevokedCertificate, List Asn1)
+  consume-optional-revoked items = case items of
+    Cons (Asn1Sequence cells) rest ->
+      (case decode-revoked-list (asn1-members (Asn1Sequence cells)) Nil of
+        Err e -> Err e
+        Ok entries -> Ok (entries, rest))
+    other -> Ok (Nil, items)
+
+  -- | Consume an optional [0] EXPLICIT crlExtensions element.
+  consume-optional-crl-exts :: List Asn1 -> Result PkixError (List PkixExtension)
+  consume-optional-crl-exts items = case items of
+    Nil -> Ok Nil
+    Cons (Asn1Raw cls tag constructed content) Nil ->
+      if cls == class-context && tag == 0 && constructed then
+        (case asn1-decode content of
+          Err e -> Err (PkixAsn1Error e)
+          Ok ext-seq -> (case ext-seq of
+            Asn1Sequence _ -> decode-ext-list (asn1-members ext-seq) Nil
+            other -> Err (PkixInvalidStructure "crlExtensions must be a SEQUENCE")))
+      else Err (PkixInvalidStructure "unexpected trailing element in TBSCertList")
+    other -> Err (PkixInvalidStructure "unexpected trailing elements in TBSCertList")

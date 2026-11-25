@@ -10,35 +10,24 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def local_words(source: str, class_only: bool = False) -> str:
-    """Inline six exact private word operations to remove provider calls from read-only routing/search."""
-    if '  prim table-add ::' in source:return source
+    """Provide six exact private word operations backed by always-inlined Data.Machine primitives."""
+    if '  table-add ::' in source:return source
     definitions=''
-    for name,operation in [('add','add'),('sub','sub'),('and','and')]:
-        definitions+=f'''  -- | Apply exact private 32-bit {name} semantics without an imported provider call.
-  prim table-{name} :: U32 -> U32 -> U32 where
-    llvm {{
-      %result = {operation} i32 %0, %1
-      ret i32 %result
-    }}
+    for name,fn in [('add','wrapping-add-u32'),('sub','wrapping-sub-u32'),('and','bit-and-u32')]:
+        definitions+=f'''  -- | Apply exact private 32-bit {name} semantics.
+  table-{name} :: U32 -> U32 -> U32
+  table-{name} a b = {fn} a b
 
 '''
-    definitions+='''  -- | Shift a private 32-bit table word with the same masked count as wrapping machine shifts.
-  prim table-shr :: U32 -> U32 -> U32 where
-    llvm {
-      %count = and i32 %1, 31
-      %result = lshr i32 %0, %count
-      ret i32 %result
-    }
+    definitions+='''  -- | Shift a private 32-bit table word with wrapping machine shift semantics.
+  table-shr :: U32 -> U32 -> U32
+  table-shr a b = wrapping-shr-u32 a b
 
 '''
-    for name,operation in [('lt','ult'),('le','ule')]:
-        definitions+=f'''  -- | Compare private unsigned table positions without allocating or crossing the provider ABI.
-  prim table-{name} :: U32 -> U32 -> Bool where
-    llvm {{
-      %yes = icmp {operation} i32 %0, %1
-      %result = zext i1 %yes to i8
-      ret i8 %result
-    }}
+    for name,fn in [('lt','lt-u32'),('le','le-u32')]:
+        definitions+=f'''  -- | Compare private unsigned table positions without allocating.
+  table-{name} :: U32 -> U32 -> Bool
+  table-{name} a b = {fn} a b
 
 '''
     replacements=[('wrapping-add-u32','table-add'),('wrapping-sub-u32','table-sub'),('wrapping-shr-u32','table-shr'),('bit-and-u32','table-and'),('lt-u32','table-lt'),('le-u32','table-le')]

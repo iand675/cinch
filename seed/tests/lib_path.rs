@@ -208,28 +208,10 @@ fn rust_slash_path_optimized_borrowed_owners_survive_repeated_calls() {
     run(vec!["owner-case ()".into()], extra, true);
 }
 
-/// Actual private SIMD/raw-load fragments remain legal for 32-bit and non-x86 object targets.
+/// Actual 16-byte SIMD slash-path scanning and glob paths remain legal for 32-bit and non-x86 object targets.
 #[test]
 fn slash_path_scan_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Path.cinch");
-    let mut kernels = String::from("-- | Isolated slash-path raw scanning kernel compilation.\nmodule Main where\n  import Data.Machine\n");
-    for (begin, end) in [
-        (
-            "  -- | Read exactly eight proved bytes",
-            "  -- | Find the next slash while",
-        ),
-        (
-            "  -- | Compare exact borrowed literal intervals",
-            "  -- | Check a complete literal interval",
-        ),
-    ] {
-        let start = source.find(begin).unwrap();
-        let finish = source[start..].find(end).unwrap() + start;
-        kernels.push('\n');
-        kernels.push_str(&source[start..finish]);
-    }
-    kernels.push_str(include_str!("fixtures/path-kernel-entry.cinchpart"));
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -247,21 +229,44 @@ fn slash_path_scan_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Path.cinch"),
+            include_str!("../prelude/Text/Path.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public slash-path scanning and glob paths for foreign targets.\nmodule Main where\n  import Text.Path\n  import Data.Bytes\n  import Data.Nat\n  import Data.Option\n  import Data.Result\n  import Data.String\n\n  -- | Exercise public 16-byte SIMD forward, backward and metacharacter scans across targets.\n  main :: Int\n  main =\n    let raw = case string-from-bytes (bytes-new 32) of Some s -> s; None -> \"/a/b/c.txt\" in\n    let cleaned = path-clean raw in\n    let base = path-base cleaned in\n    let ext = path-ext base in\n    case path-match \"*.txt\" ext of\n      Ok matched -> if matched || bytes-len (string-to-bytes cleaned) == 32 then 0 else 1\n      Err err -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "path-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, ir).unwrap();
+        assert!(
+            ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>") && ir.contains("load i128")
+        );
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

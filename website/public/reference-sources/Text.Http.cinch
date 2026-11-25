@@ -1,0 +1,2157 @@
+-- | Pure HTTP/1.1 protocol framing, status codes, canonical headers, request/response models and ServeMux routing.
+-- Provides standard HTTP status codes and reason phrases, canonical MIME header operations built on
+-- Text.TextProto, RFC 9112 HTTP/1.1 wire parsing and rendering with Content-Length and chunked transfer
+-- encoding, query and URL-encoded form helpers built on Text.Url, cookie helpers built on Text.Cookie,
+-- and a method/host/wildcard ServeMux router with specificity precedence, conflict detection, trailing-slash
+-- redirects and 405 Allow generation.
+module Text.Http where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Cookie
+  import Text.Show (nat-to-string)
+  import Text.TextProto
+  import Text.Url
+
+  export status-continue, status-switching-protocols, status-processing, status-early-hints
+  export status-ok, status-created, status-accepted, status-non-authoritative-info, status-no-content
+  export status-reset-content, status-partial-content, status-multi-status, status-already-reported, status-im-used
+  export status-multiple-choices, status-moved-permanently, status-found, status-see-other, status-not-modified
+  export status-use-proxy, status-temporary-redirect, status-permanent-redirect
+  export status-bad-request, status-unauthorized, status-payment-required, status-forbidden, status-not-found
+  export status-method-not-allowed, status-not-acceptable, status-proxy-auth-required, status-request-timeout
+  export status-conflict, status-gone, status-length-required, status-precondition-failed
+  export status-request-entity-too-large, status-request-uri-too-long, status-unsupported-media-type
+  export status-requested-range-not-satisfiable, status-expectation-failed, status-teapot
+  export status-misdirected-request, status-unprocessable-entity, status-locked, status-failed-dependency
+  export status-too-early, status-upgrade-required, status-precondition-required, status-too-many-requests
+  export status-request-header-fields-too-large, status-unavailable-for-legal-reasons
+  export status-internal-server-error, status-not-implemented, status-bad-gateway, status-service-unavailable
+  export status-gateway-timeout, status-http-version-not-supported, status-variant-also-negotiates
+  export status-insufficient-storage, status-loop-detected, status-not-extended, status-network-authentication-required
+  export http-status-text
+  export method-get, method-head, method-post, method-put, method-patch, method-delete, method-connect, method-options, method-trace
+  export HttpProtoError, HttpProtoIncomplete, HttpProtoBadRequestLine, HttpProtoBadStatusLine, HttpProtoBadHeader
+  export HttpProtoInvalidVersion, HttpProtoInvalidContentLength, HttpProtoConflictingContentLength
+  export HttpProtoUnsupportedTransferEncoding, HttpProtoBadChunk, HttpProtoTruncatedBody, HttpProtoTooLarge
+  export HttpProtoBadPattern, HttpProtoPatternConflict, http-proto-error-message
+  export HttpHeader, HttpHeaderMap, http-canonical-header-key, http-header-empty, http-header-add, http-header-set
+  export http-header-get, http-header-values, http-header-del, http-header-keys, http-header-entries, http-header-clone
+  export http-header-from-pairs, http-header-to-pairs, http-header-render, http-header-to-mime, http-header-from-mime
+  export http-set-cookie
+  export HttpVersion, HttpVersion, http10, http11, http-version-major, http-version-minor, http-version-string, http-parse-version
+  export HttpWireRequest, HttpWireRequest, http-new-request, req-method, req-request-uri, req-host, req-path, req-raw-path
+  export req-raw-query, req-proto-major, req-proto-minor, req-proto, req-headers, req-header, req-header-values
+  export req-body, req-trailers, req-path-values, req-path-value, req-remote-addr, req-content-length, req-close
+  export req-with-header, req-add-header, req-with-headers, req-with-host, req-with-body, req-with-path-values
+  export req-with-remote-addr, req-with-proto, req-add-cookie, req-cookies, req-cookie
+  export req-query, req-query-param, req-post-form, req-parse-form, req-form-value
+  export HttpWireResponse, HttpWireResponse, http-response-new, http-response-text, http-response-bytes
+  export http-response-error, http-response-redirect, resp-status, resp-reason, resp-proto-major, resp-proto-minor
+  export resp-headers, resp-header, resp-header-values, resp-body, resp-trailers, resp-cookies
+  export resp-with-status, resp-with-reason, resp-with-header, resp-add-header, resp-with-headers
+  export resp-with-body, resp-with-trailers, resp-add-cookie
+  export http-parse-request, http-parse-request-limit, http-render-request, http-render-request-chunked
+  export http-parse-response, http-parse-response-for, http-parse-response-limit
+  export http-render-response, http-render-response-for, http-render-response-chunked
+  export http-chunk-encode, http-chunk-decode, http-clean-path
+  export MuxSegment, SegLiteral, SegWild, SegMulti, SegExactEnd
+  export MuxPattern, MuxPattern, mux-parse-pattern, mux-pattern-string, mux-pattern-method, mux-pattern-host
+  export PatternRelation, PatDisjoint, PatEquivalent, PatMoreSpecific, PatLessSpecific, PatOverlaps, mux-pattern-compare
+  export ServeMux, mux-empty, mux-handle, MuxMatch, MuxMatched, MuxRedirect, MuxMethodNotAllowed, MuxNotFound
+  export mux-match, mux-handler, mux-allow-header
+
+  -- ---------------------------------------------------------------------
+  -- Status codes and methods.
+  -- ---------------------------------------------------------------------
+
+  -- | HTTP 100 Continue.
+  status-continue :: Nat
+  status-continue = 100
+
+  -- | HTTP 101 Switching Protocols.
+  status-switching-protocols :: Nat
+  status-switching-protocols = 101
+
+  -- | HTTP 102 Processing.
+  status-processing :: Nat
+  status-processing = 102
+
+  -- | HTTP 103 Early Hints.
+  status-early-hints :: Nat
+  status-early-hints = 103
+
+  -- | HTTP 200 OK.
+  status-ok :: Nat
+  status-ok = 200
+
+  -- | HTTP 201 Created.
+  status-created :: Nat
+  status-created = 201
+
+  -- | HTTP 202 Accepted.
+  status-accepted :: Nat
+  status-accepted = 202
+
+  -- | HTTP 203 Non-Authoritative Information.
+  status-non-authoritative-info :: Nat
+  status-non-authoritative-info = 203
+
+  -- | HTTP 204 No Content.
+  status-no-content :: Nat
+  status-no-content = 204
+
+  -- | HTTP 205 Reset Content.
+  status-reset-content :: Nat
+  status-reset-content = 205
+
+  -- | HTTP 206 Partial Content.
+  status-partial-content :: Nat
+  status-partial-content = 206
+
+  -- | HTTP 207 Multi-Status.
+  status-multi-status :: Nat
+  status-multi-status = 207
+
+  -- | HTTP 208 Already Reported.
+  status-already-reported :: Nat
+  status-already-reported = 208
+
+  -- | HTTP 226 IM Used.
+  status-im-used :: Nat
+  status-im-used = 226
+
+  -- | HTTP 300 Multiple Choices.
+  status-multiple-choices :: Nat
+  status-multiple-choices = 300
+
+  -- | HTTP 301 Moved Permanently.
+  status-moved-permanently :: Nat
+  status-moved-permanently = 301
+
+  -- | HTTP 302 Found.
+  status-found :: Nat
+  status-found = 302
+
+  -- | HTTP 303 See Other.
+  status-see-other :: Nat
+  status-see-other = 303
+
+  -- | HTTP 304 Not Modified.
+  status-not-modified :: Nat
+  status-not-modified = 304
+
+  -- | HTTP 305 Use Proxy.
+  status-use-proxy :: Nat
+  status-use-proxy = 305
+
+  -- | HTTP 307 Temporary Redirect.
+  status-temporary-redirect :: Nat
+  status-temporary-redirect = 307
+
+  -- | HTTP 308 Permanent Redirect.
+  status-permanent-redirect :: Nat
+  status-permanent-redirect = 308
+
+  -- | HTTP 400 Bad Request.
+  status-bad-request :: Nat
+  status-bad-request = 400
+
+  -- | HTTP 401 Unauthorized.
+  status-unauthorized :: Nat
+  status-unauthorized = 401
+
+  -- | HTTP 402 Payment Required.
+  status-payment-required :: Nat
+  status-payment-required = 402
+
+  -- | HTTP 403 Forbidden.
+  status-forbidden :: Nat
+  status-forbidden = 403
+
+  -- | HTTP 404 Not Found.
+  status-not-found :: Nat
+  status-not-found = 404
+
+  -- | HTTP 405 Method Not Allowed.
+  status-method-not-allowed :: Nat
+  status-method-not-allowed = 405
+
+  -- | HTTP 406 Not Acceptable.
+  status-not-acceptable :: Nat
+  status-not-acceptable = 406
+
+  -- | HTTP 407 Proxy Authentication Required.
+  status-proxy-auth-required :: Nat
+  status-proxy-auth-required = 407
+
+  -- | HTTP 408 Request Timeout.
+  status-request-timeout :: Nat
+  status-request-timeout = 408
+
+  -- | HTTP 409 Conflict.
+  status-conflict :: Nat
+  status-conflict = 409
+
+  -- | HTTP 410 Gone.
+  status-gone :: Nat
+  status-gone = 410
+
+  -- | HTTP 411 Length Required.
+  status-length-required :: Nat
+  status-length-required = 411
+
+  -- | HTTP 412 Precondition Failed.
+  status-precondition-failed :: Nat
+  status-precondition-failed = 412
+
+  -- | HTTP 413 Request Entity Too Large.
+  status-request-entity-too-large :: Nat
+  status-request-entity-too-large = 413
+
+  -- | HTTP 414 Request URI Too Long.
+  status-request-uri-too-long :: Nat
+  status-request-uri-too-long = 414
+
+  -- | HTTP 415 Unsupported Media Type.
+  status-unsupported-media-type :: Nat
+  status-unsupported-media-type = 415
+
+  -- | HTTP 416 Requested Range Not Satisfiable.
+  status-requested-range-not-satisfiable :: Nat
+  status-requested-range-not-satisfiable = 416
+
+  -- | HTTP 417 Expectation Failed.
+  status-expectation-failed :: Nat
+  status-expectation-failed = 417
+
+  -- | HTTP 418 I'm a teapot.
+  status-teapot :: Nat
+  status-teapot = 418
+
+  -- | HTTP 421 Misdirected Request.
+  status-misdirected-request :: Nat
+  status-misdirected-request = 421
+
+  -- | HTTP 422 Unprocessable Entity.
+  status-unprocessable-entity :: Nat
+  status-unprocessable-entity = 422
+
+  -- | HTTP 423 Locked.
+  status-locked :: Nat
+  status-locked = 423
+
+  -- | HTTP 424 Failed Dependency.
+  status-failed-dependency :: Nat
+  status-failed-dependency = 424
+
+  -- | HTTP 425 Too Early.
+  status-too-early :: Nat
+  status-too-early = 425
+
+  -- | HTTP 426 Upgrade Required.
+  status-upgrade-required :: Nat
+  status-upgrade-required = 426
+
+  -- | HTTP 428 Precondition Required.
+  status-precondition-required :: Nat
+  status-precondition-required = 428
+
+  -- | HTTP 429 Too Many Requests.
+  status-too-many-requests :: Nat
+  status-too-many-requests = 429
+
+  -- | HTTP 431 Request Header Fields Too Large.
+  status-request-header-fields-too-large :: Nat
+  status-request-header-fields-too-large = 431
+
+  -- | HTTP 451 Unavailable For Legal Reasons.
+  status-unavailable-for-legal-reasons :: Nat
+  status-unavailable-for-legal-reasons = 451
+
+  -- | HTTP 500 Internal Server Error.
+  status-internal-server-error :: Nat
+  status-internal-server-error = 500
+
+  -- | HTTP 501 Not Implemented.
+  status-not-implemented :: Nat
+  status-not-implemented = 501
+
+  -- | HTTP 502 Bad Gateway.
+  status-bad-gateway :: Nat
+  status-bad-gateway = 502
+
+  -- | HTTP 503 Service Unavailable.
+  status-service-unavailable :: Nat
+  status-service-unavailable = 503
+
+  -- | HTTP 504 Gateway Timeout.
+  status-gateway-timeout :: Nat
+  status-gateway-timeout = 504
+
+  -- | HTTP 505 HTTP Version Not Supported.
+  status-http-version-not-supported :: Nat
+  status-http-version-not-supported = 505
+
+  -- | HTTP 506 Variant Also Negotiates.
+  status-variant-also-negotiates :: Nat
+  status-variant-also-negotiates = 506
+
+  -- | HTTP 507 Insufficient Storage.
+  status-insufficient-storage :: Nat
+  status-insufficient-storage = 507
+
+  -- | HTTP 508 Loop Detected.
+  status-loop-detected :: Nat
+  status-loop-detected = 508
+
+  -- | HTTP 510 Not Extended.
+  status-not-extended :: Nat
+  status-not-extended = 510
+
+  -- | HTTP 511 Network Authentication Required.
+  status-network-authentication-required :: Nat
+  status-network-authentication-required = 511
+
+  -- | The standard reason phrase for an HTTP status code, or empty text if unknown.
+  http-status-text :: Nat -> String
+  http-status-text code = case code of
+    100 -> "Continue"
+    101 -> "Switching Protocols"
+    102 -> "Processing"
+    103 -> "Early Hints"
+    200 -> "OK"
+    201 -> "Created"
+    202 -> "Accepted"
+    203 -> "Non-Authoritative Information"
+    204 -> "No Content"
+    205 -> "Reset Content"
+    206 -> "Partial Content"
+    207 -> "Multi-Status"
+    208 -> "Already Reported"
+    226 -> "IM Used"
+    300 -> "Multiple Choices"
+    301 -> "Moved Permanently"
+    302 -> "Found"
+    303 -> "See Other"
+    304 -> "Not Modified"
+    305 -> "Use Proxy"
+    307 -> "Temporary Redirect"
+    308 -> "Permanent Redirect"
+    400 -> "Bad Request"
+    401 -> "Unauthorized"
+    402 -> "Payment Required"
+    403 -> "Forbidden"
+    404 -> "Not Found"
+    405 -> "Method Not Allowed"
+    406 -> "Not Acceptable"
+    407 -> "Proxy Authentication Required"
+    408 -> "Request Timeout"
+    409 -> "Conflict"
+    410 -> "Gone"
+    411 -> "Length Required"
+    412 -> "Precondition Failed"
+    413 -> "Request Entity Too Large"
+    414 -> "Request URI Too Long"
+    415 -> "Unsupported Media Type"
+    416 -> "Requested Range Not Satisfiable"
+    417 -> "Expectation Failed"
+    418 -> "I'm a teapot"
+    421 -> "Misdirected Request"
+    422 -> "Unprocessable Entity"
+    423 -> "Locked"
+    424 -> "Failed Dependency"
+    425 -> "Too Early"
+    426 -> "Upgrade Required"
+    428 -> "Precondition Required"
+    429 -> "Too Many Requests"
+    431 -> "Request Header Fields Too Large"
+    451 -> "Unavailable For Legal Reasons"
+    500 -> "Internal Server Error"
+    501 -> "Not Implemented"
+    502 -> "Bad Gateway"
+    503 -> "Service Unavailable"
+    504 -> "Gateway Timeout"
+    505 -> "HTTP Version Not Supported"
+    506 -> "Variant Also Negotiates"
+    507 -> "Insufficient Storage"
+    508 -> "Loop Detected"
+    510 -> "Not Extended"
+    511 -> "Network Authentication Required"
+    _ -> ""
+
+  -- | The HTTP GET method token.
+  method-get :: String
+  method-get = "GET"
+
+  -- | The HTTP HEAD method token.
+  method-head :: String
+  method-head = "HEAD"
+
+  -- | The HTTP POST method token.
+  method-post :: String
+  method-post = "POST"
+
+  -- | The HTTP PUT method token.
+  method-put :: String
+  method-put = "PUT"
+
+  -- | The HTTP PATCH method token.
+  method-patch :: String
+  method-patch = "PATCH"
+
+  -- | The HTTP DELETE method token.
+  method-delete :: String
+  method-delete = "DELETE"
+
+  -- | The HTTP CONNECT method token.
+  method-connect :: String
+  method-connect = "CONNECT"
+
+  -- | The HTTP OPTIONS method token.
+  method-options :: String
+  method-options = "OPTIONS"
+
+  -- | The HTTP TRACE method token.
+  method-trace :: String
+  method-trace = "TRACE"
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- | A named HTTP/1.1 framing, parsing or route pattern error.
+  data HttpProtoError where
+    -- | More input bytes are required before a complete message can be parsed.
+    HttpProtoIncomplete :: HttpProtoError
+    -- | The request line is syntactically invalid.
+    HttpProtoBadRequestLine :: String -> HttpProtoError
+    -- | The status line is syntactically invalid.
+    HttpProtoBadStatusLine :: String -> HttpProtoError
+    -- | A header block or header line is malformed.
+    HttpProtoBadHeader :: String -> HttpProtoError
+    -- | The HTTP version token is unsupported or malformed.
+    HttpProtoInvalidVersion :: String -> HttpProtoError
+    -- | A Content-Length header value is not a valid non-negative decimal integer.
+    HttpProtoInvalidContentLength :: String -> HttpProtoError
+    -- | Multiple Content-Length headers carried differing values.
+    HttpProtoConflictingContentLength :: HttpProtoError
+    -- | A Transfer-Encoding value other than chunked was supplied.
+    HttpProtoUnsupportedTransferEncoding :: String -> HttpProtoError
+    -- | A chunked transfer-encoding frame is malformed.
+    HttpProtoBadChunk :: String -> HttpProtoError
+    -- | A framed body ended before the declared length or final zero chunk.
+    HttpProtoTruncatedBody :: HttpProtoError
+    -- | A header section or message body exceeded the configured byte limit.
+    HttpProtoTooLarge :: Nat -> HttpProtoError
+    -- | A ServeMux route pattern failed syntax validation.
+    HttpProtoBadPattern :: String -> HttpProtoError
+    -- | A ServeMux route pattern conflicts with an already-registered pattern.
+    HttpProtoPatternConflict :: String -> HttpProtoError
+
+  -- | Render a readable diagnostic for an HTTP protocol error.
+  http-proto-error-message :: HttpProtoError -> String
+  http-proto-error-message err = case err of
+    HttpProtoIncomplete -> "http: incomplete message"
+    HttpProtoBadRequestLine detail -> string-concat "http: malformed request line: " detail
+    HttpProtoBadStatusLine detail -> string-concat "http: malformed status line: " detail
+    HttpProtoBadHeader detail -> string-concat "http: malformed header: " detail
+    HttpProtoInvalidVersion detail -> string-concat "http: invalid HTTP version: " detail
+    HttpProtoInvalidContentLength detail -> string-concat "http: invalid Content-Length: " detail
+    HttpProtoConflictingContentLength -> "http: conflicting Content-Length headers"
+    HttpProtoUnsupportedTransferEncoding detail -> string-concat "http: unsupported Transfer-Encoding: " detail
+    HttpProtoBadChunk detail -> string-concat "http: malformed chunked encoding: " detail
+    HttpProtoTruncatedBody -> "http: truncated message body"
+    HttpProtoTooLarge limit -> string-concat "http: message exceeded limit of " (nat-to-string limit)
+    HttpProtoBadPattern detail -> string-concat "http: invalid pattern: " detail
+    HttpProtoPatternConflict detail -> string-concat "http: pattern conflict: " detail
+
+  -- ---------------------------------------------------------------------
+  -- Byte and text helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read the byte at an index, or zero when out of bounds.
+  byte-at :: Bytes -> Nat -> Nat
+  byte-at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Saturating natural subtraction.
+  sat-sub :: Nat -> Nat -> Nat
+  sat-sub a b = if b <= a then a - b else 0
+
+  -- | Copy a byte interval [start, stop) safely into a fresh buffer.
+  slice-range :: Bytes -> Nat -> Nat -> Bytes
+  slice-range b start stop =
+    if start <= stop && stop <= bytes-len b then
+      let out = bytes-new (stop - start) in
+      let copied = bytes-copy-range out b 0 start (stop - start) in
+      out
+    else bytes-new 0
+
+  -- | Convert UTF-8 bytes to text, falling back to empty text on invalid UTF-8.
+  bytes-text :: Bytes -> String
+  bytes-text b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | Test byte-wise equality of two byte buffers.
+  bytes-same :: Bytes -> Bytes -> Bool
+  bytes-same a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Find the first occurrence of byte v at or after index i.
+  find-byte-from :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte-from b v i =
+    if i >= bytes-len b then None
+    else if byte-at b i == v then Some i
+    else find-byte-from b v (i + 1)
+
+  -- | Find the last occurrence of byte v strictly before index end.
+  find-last-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-last-byte b v end =
+    if end == 0 then None
+    else if byte-at b (sat-sub end 1) == v then Some (sat-sub end 1)
+    else find-last-byte b v (sat-sub end 1)
+
+  -- | ASCII lowercase conversion for a string.
+  ascii-lower-string :: String -> String
+  ascii-lower-string s =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    let out = bytes-new n in
+    let done = ascii-lower-loop b out 0 in
+    bytes-text out
+
+  -- | Lowercase ASCII uppercase letters into a destination buffer.
+  ascii-lower-loop :: Bytes -> Bytes -> Nat -> Unit
+  ascii-lower-loop src dst i =
+    if i >= bytes-len src || i >= bytes-len dst then ()
+    else
+      let c = bytes-get src i in
+      let lc = if c >= 65 && c <= 90 then c + 32 else c in
+      let w = if lc < 256 then bytes-set dst i lc else () in
+      ascii-lower-loop src dst (i + 1)
+
+  -- | ASCII case-insensitive equality for two strings.
+  ascii-eq-fold :: String -> String -> Bool
+  ascii-eq-fold a b = ascii-lower-string a == ascii-lower-string b
+
+  -- | Trim leading and trailing spaces and tabs from a string.
+  trim-ows :: String -> String
+  trim-ows s =
+    let b = string-to-bytes s in
+    let start = skip-ows b 0 in
+    let end = back-ows b (bytes-len b) start in
+    bytes-text (slice-range b start end)
+
+  -- | Skip leading spaces and tabs.
+  skip-ows :: Bytes -> Nat -> Nat
+  skip-ows b i =
+    if i < bytes-len b && (bytes-get b i == 32 || bytes-get b i == 9) then skip-ows b (i + 1)
+    else i
+
+  -- | Trim trailing spaces and tabs not before start.
+  back-ows :: Bytes -> Nat -> Nat -> Nat
+  back-ows b end start =
+    if end > start && (byte-at b (sat-sub end 1) == 32 || byte-at b (sat-sub end 1) == 9) then back-ows b (sat-sub end 1) start
+    else end
+
+  -- | Whether a byte is an HTTP token character per RFC 9110.
+  is-http-token-byte :: Nat -> Bool
+  is-http-token-byte c =
+    (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+    || c == 33 || c == 35 || c == 36 || c == 37 || c == 38 || c == 39 || c == 42 || c == 43
+    || c == 45 || c == 46 || c == 94 || c == 95 || c == 96 || c == 124 || c == 126
+
+  -- | Whether a string is a non-empty HTTP token.
+  is-http-token :: String -> Bool
+  is-http-token s =
+    let b = string-to-bytes s in
+    bytes-len b > 0 && all-http-token-bytes b 0
+
+  -- | Check every byte from index i is an HTTP token character.
+  all-http-token-bytes :: Bytes -> Nat -> Bool
+  all-http-token-bytes b i =
+    if i >= bytes-len b then True
+    else is-http-token-byte (bytes-get b i) && all-http-token-bytes b (i + 1)
+
+  -- | Parse a non-empty decimal natural number from bytes, rejecting non-digits.
+  parse-dec-bytes :: Bytes -> Option Nat
+  parse-dec-bytes b =
+    if bytes-len b == 0 then None
+    else parse-dec-loop b 0 0
+
+  -- | Accumulate decimal digits from index i.
+  parse-dec-loop :: Bytes -> Nat -> Nat -> Option Nat
+  parse-dec-loop b i acc =
+    if i >= bytes-len b then Some acc
+    else
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then parse-dec-loop b (i + 1) (acc * 10 + sat-sub c 48)
+      else None
+
+  -- | Parse a non-empty hexadecimal natural number from bytes.
+  parse-hex-bytes :: Bytes -> Option Nat
+  parse-hex-bytes b =
+    if bytes-len b == 0 then None
+    else parse-hex-loop b 0 0
+
+  -- | Accumulate hexadecimal digits from index i.
+  parse-hex-loop :: Bytes -> Nat -> Nat -> Option Nat
+  parse-hex-loop b i acc =
+    if i >= bytes-len b then Some acc
+    else
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then parse-hex-loop b (i + 1) (acc * 16 + sat-sub c 48)
+      else if c >= 65 && c <= 70 then parse-hex-loop b (i + 1) (acc * 16 + sat-sub c 55)
+      else if c >= 97 && c <= 102 then parse-hex-loop b (i + 1) (acc * 16 + sat-sub c 87)
+      else None
+
+  -- | Format a natural number in lowercase hexadecimal.
+  nat-to-hex :: Nat -> String
+  nat-to-hex n =
+    if n == 0 then "0"
+    else nat-to-hex-loop n Nil
+
+  -- | Accumulate lowercase hex digits most significant first.
+  nat-to-hex-loop :: Nat -> List String -> String
+  nat-to-hex-loop n acc =
+    if n == 0 then string-concat-all acc
+    else
+      let d = nat-rem n 16 in
+      let ch = hex-char d in
+      nat-to-hex-loop (nat-div n 16) (Cons ch acc)
+
+  -- | Single lowercase hex digit for 0..15.
+  hex-char :: Nat -> String
+  hex-char d =
+    let code = if d < 10 then 48 + d else 87 + d in
+    let out = bytes-new 1 in
+    let w = if code < 256 then bytes-set out 0 code else () in
+    bytes-text out
+
+  -- | Split a string on a single byte delimiter.
+  split-on-byte :: String -> Nat -> List String
+  split-on-byte s sep = split-bytes-loop (string-to-bytes s) sep 0 0 Nil
+
+  -- | Tail-recursive byte splitter.
+  split-bytes-loop :: Bytes -> Nat -> Nat -> Nat -> List String -> List String
+  split-bytes-loop b sep start i acc =
+    if i >= bytes-len b then reverse (Cons (bytes-text (slice-range b start i)) acc)
+    else if byte-at b i == sep then split-bytes-loop b sep (i + 1) (i + 1) (Cons (bytes-text (slice-range b start i)) acc)
+    else split-bytes-loop b sep start (i + 1) acc
+
+  -- | Check whether string s contains a comma-separated token matching target-tok case-insensitively.
+  header-has-token :: List String -> String -> Bool
+  header-has-token vals tok = case vals of
+    Nil -> False
+    Cons v rest ->
+      if tokens-contain (split-on-byte v 44) tok then True
+      else header-has-token rest tok
+
+  -- | Check whether any trimmed token in a list matches case-insensitively.
+  tokens-contain :: List String -> String -> Bool
+  tokens-contain parts tok = case parts of
+    Nil -> False
+    Cons p rest ->
+      if ascii-eq-fold (trim-ows p) tok then True
+      else tokens-contain rest tok
+
+  -- ---------------------------------------------------------------------
+  -- Canonical HTTP headers (reusing Text.TextProto).
+  -- ---------------------------------------------------------------------
+
+  -- | Canonical HTTP header multimap backed by Text.TextProto.MimeHeader.
+  data HttpHeader where
+    -- | Wrap an underlying canonical MIME header map.
+    HttpHeaderMap :: MimeHeader -> HttpHeader
+
+  -- | Canonicalize an HTTP header field name using Text.TextProto.
+  http-canonical-header-key :: String -> String
+  http-canonical-header-key key = bytes-text (canonical-header-key (string-to-bytes key))
+
+  -- | An empty HTTP header map.
+  http-header-empty :: HttpHeader
+  http-header-empty = HttpHeaderMap mime-header
+
+  -- | Append a value for a header field, canonicalizing the field name.
+  http-header-add :: HttpHeader -> String -> String -> HttpHeader
+  http-header-add h key val = case h of
+    HttpHeaderMap m -> HttpHeaderMap (header-add m (string-to-bytes key) (string-to-bytes val))
+
+  -- | Replace all values for a header field with a single value.
+  http-header-set :: HttpHeader -> String -> String -> HttpHeader
+  http-header-set h key val = case h of
+    HttpHeaderMap m -> HttpHeaderMap (header-set m (string-to-bytes key) (string-to-bytes val))
+
+  -- | Retrieve the first value for a header field, if present.
+  http-header-get :: HttpHeader -> String -> Option String
+  http-header-get h key = case h of
+    HttpHeaderMap m -> case header-get m (string-to-bytes key) of
+      None -> None
+      Some v -> Some (bytes-text v)
+
+  -- | Retrieve all values for a header field in insertion order.
+  http-header-values :: HttpHeader -> String -> List String
+  http-header-values h key = case h of
+    HttpHeaderMap m -> bytes-list-to-strings (header-values m (string-to-bytes key)) Nil
+
+  -- | Convert a list of byte buffers into a list of UTF-8 strings preserving order.
+  bytes-list-to-strings :: List Bytes -> List String -> List String
+  bytes-list-to-strings bs acc = case bs of
+    Nil -> reverse acc
+    Cons x rest -> bytes-list-to-strings rest (Cons (bytes-text x) acc)
+
+  -- | Delete a header field and all its values.
+  http-header-del :: HttpHeader -> String -> HttpHeader
+  http-header-del h key = case h of
+    HttpHeaderMap m -> HttpHeaderMap (header-delete m (string-to-bytes key))
+
+  -- | All canonical header keys in insertion order.
+  http-header-keys :: HttpHeader -> List String
+  http-header-keys h = case h of
+    HttpHeaderMap m -> bytes-list-to-strings (header-keys m) Nil
+
+  -- | All header fields with their ordered value lists.
+  http-header-entries :: HttpHeader -> List (String, List String)
+  http-header-entries h = case h of
+    HttpHeaderMap m -> convert-entries (header-entries m) Nil
+
+  -- | Convert MimeHeader entries into string key/value lists.
+  convert-entries :: List (Bytes, List Bytes) -> List (String, List String) -> List (String, List String)
+  convert-entries xs acc = case xs of
+    Nil -> reverse acc
+    Cons pair rest -> case pair of
+      (k, vs) -> convert-entries rest (Cons (bytes-text k, bytes-list-to-strings vs Nil) acc)
+
+  -- | Return an independent copy of a header map.
+  http-header-clone :: HttpHeader -> HttpHeader
+  http-header-clone h = http-header-from-pairs (http-header-to-pairs h)
+
+  -- | Construct a header map from name/value pairs in order.
+  http-header-from-pairs :: List (String, String) -> HttpHeader
+  http-header-from-pairs ps = add-header-pairs http-header-empty ps
+
+  -- | Insert a list of name/value pairs into a header map.
+  add-header-pairs :: HttpHeader -> List (String, String) -> HttpHeader
+  add-header-pairs h ps = case ps of
+    Nil -> h
+    Cons pair rest -> case pair of
+      (k, v) -> add-header-pairs (http-header-add h k v) rest
+
+  -- | Flatten a header map into ordered (CanonicalKey, Value) pairs.
+  http-header-to-pairs :: HttpHeader -> List (String, String)
+  http-header-to-pairs h = flatten-header-entries (http-header-entries h) Nil
+
+  -- | Flatten grouped header entries into pairs.
+  flatten-header-entries :: List (String, List String) -> List (String, String) -> List (String, String)
+  flatten-header-entries entries acc = case entries of
+    Nil -> reverse acc
+    Cons entry rest -> case entry of
+      (k, vs) -> flatten-header-entries rest (push-kv-list k vs acc)
+
+  -- | Push (k, v) pairs for each value in vs onto a reversed accumulator.
+  push-kv-list :: String -> List String -> List (String, String) -> List (String, String)
+  push-kv-list k vs acc = case vs of
+    Nil -> acc
+    Cons v rest -> push-kv-list k rest (Cons (k, v) acc)
+
+  -- | Render HTTP headers as wire lines followed by the terminating CRLF blank line.
+  http-header-render :: HttpHeader -> Bytes
+  http-header-render h = case h of
+    HttpHeaderMap m -> render-header m
+
+  -- | Unwrap the underlying Text.TextProto.MimeHeader.
+  http-header-to-mime :: HttpHeader -> MimeHeader
+  http-header-to-mime h = case h of
+    HttpHeaderMap m -> m
+
+  -- | Wrap a Text.TextProto.MimeHeader as an HttpHeader.
+  http-header-from-mime :: MimeHeader -> HttpHeader
+  http-header-from-mime m = HttpHeaderMap m
+
+  -- | Append a Set-Cookie header for a Cookie value when valid to serialize.
+  http-set-cookie :: HttpHeader -> Cookie -> HttpHeader
+  http-set-cookie h c =
+    let s = cookie-string c in
+    if s == "" then h else http-header-add h "Set-Cookie" s
+
+  -- ---------------------------------------------------------------------
+  -- HTTP protocol version.
+  -- ---------------------------------------------------------------------
+
+  -- | An HTTP protocol version consisting of major and minor numbers.
+  data HttpVersion where
+    -- | Major and minor version numbers.
+    HttpVersion :: Nat -> Nat -> HttpVersion
+
+  -- | HTTP/1.0 protocol version.
+  http10 :: HttpVersion
+  http10 = HttpVersion 1 0
+
+  -- | HTTP/1.1 protocol version.
+  http11 :: HttpVersion
+  http11 = HttpVersion 1 1
+
+  -- | The major version number.
+  http-version-major :: HttpVersion -> Nat
+  http-version-major v = case v of HttpVersion maj min -> maj
+
+  -- | The minor version number.
+  http-version-minor :: HttpVersion -> Nat
+  http-version-minor v = case v of HttpVersion maj min -> min
+
+  -- | Render an HTTP version token such as "HTTP/1.1".
+  http-version-string :: HttpVersion -> String
+  http-version-string v = case v of
+    HttpVersion maj min -> string-concat-all ["HTTP/", nat-to-string maj, ".", nat-to-string min]
+
+  -- | Parse an HTTP version token "HTTP/<major>.<minor>".
+  http-parse-version :: String -> Result HttpProtoError HttpVersion
+  http-parse-version s =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    if n < 8 then Err (HttpProtoInvalidVersion s)
+    else if not (bytes-same (slice-range b 0 5) (string-to-bytes "HTTP/")) then Err (HttpProtoInvalidVersion s)
+    else case find-byte-from b 46 5 of
+      None -> Err (HttpProtoInvalidVersion s)
+      Some dot ->
+        let maj-b = slice-range b 5 dot in
+        let min-b = slice-range b (dot + 1) n in
+        case parse-dec-bytes maj-b of
+          None -> Err (HttpProtoInvalidVersion s)
+          Some maj -> case parse-dec-bytes min-b of
+            None -> Err (HttpProtoInvalidVersion s)
+            Some min -> Ok (HttpVersion maj min)
+
+  -- ---------------------------------------------------------------------
+  -- HTTP request value and helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable HTTP/1.1 request: method, raw request-target URI, host, decoded path, raw path,
+  -- raw query, protocol major/minor, headers, body, trailers, matched path values, remote address,
+  -- declared content length (-1 when chunked/unknown), and close flag.
+  data HttpWireRequest where
+    -- | Request fields in the order listed above.
+    HttpWireRequest :: String -> String -> String -> String -> String -> String -> Nat -> Nat -> HttpHeader -> Bytes -> HttpHeader -> List (String, String) -> String -> Int -> Bool -> HttpWireRequest
+
+  -- | Construct a fresh HTTP/1.1 request from method, target URI/path, and body bytes.
+  http-new-request :: String -> String -> Bytes -> HttpWireRequest
+  http-new-request method raw-uri body =
+    let m = if method == "" then method-get else method in
+    let (host, path, rpath, rquery) = decompose-target raw-uri in
+    let cl = nat-to-int (bytes-len body) in
+    HttpWireRequest m raw-uri host path rpath rquery 1 1 http-header-empty (bytes-clone body) http-header-empty Nil "" cl False
+
+  -- | Extract (host, decoded-path, raw-path, raw-query) from a request target or absolute URL.
+  decompose-target :: String -> (String, String, String, String)
+  decompose-target raw-uri =
+    let (before-q, rquery) = cut-on-byte raw-uri 63 in
+    case url-parse-text raw-uri of
+      Ok u ->
+        let h = bytes-text (url-host u) in
+        let p0 = bytes-text (url-path u) in
+        let p = if p0 == "" then "/" else p0 in
+        let rp0 = bytes-text (url-raw-path u) in
+        let rp = if rp0 == "" then raw-path-of-target before-q h else rp0 in
+        let rq = bytes-text (url-raw-query u) in
+        (h, p, rp, rq)
+      Err _ ->
+        let p = if before-q == "" then "/" else before-q in
+        ( "", p, p, rquery )
+
+  -- | Extract the raw path component from an origin-form or absolute-form URI without query.
+  raw-path-of-target :: String -> String -> String
+  raw-path-of-target before-q host =
+    let b = string-to-bytes before-q in
+    if bytes-len b == 0 then "/"
+    else if byte-at b 0 == 47 then before-q
+    else case find-scheme-sep b 0 of
+      None -> before-q
+      Some after-scheme ->
+        case find-byte-from b 47 after-scheme of
+          None -> "/"
+          Some slash -> bytes-text (slice-range b slash (bytes-len b))
+
+  -- | Locate the index immediately after "://" in a URI buffer.
+  find-scheme-sep :: Bytes -> Nat -> Option Nat
+  find-scheme-sep b i =
+    if i + 2 >= bytes-len b then None
+    else if byte-at b i == 58 && byte-at b (i + 1) == 47 && byte-at b (i + 2) == 47 then Some (i + 3)
+    else find-scheme-sep b (i + 1)
+
+  -- | Cut a string at the first occurrence of byte sep into (before, after).
+  cut-on-byte :: String -> Nat -> (String, String)
+  cut-on-byte s sep =
+    let b = string-to-bytes s in
+    case find-byte-from b sep 0 of
+      None -> (s, "")
+      Some i -> (bytes-text (slice-range b 0 i), bytes-text (slice-range b (i + 1) (bytes-len b)))
+
+  -- | The HTTP method of a request.
+  req-method :: HttpWireRequest -> String
+  req-method r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> m
+
+  -- | The raw request-target URI of a request.
+  req-request-uri :: HttpWireRequest -> String
+  req-request-uri r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> u
+
+  -- | The host of a request.
+  req-host :: HttpWireRequest -> String
+  req-host r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> h
+
+  -- | The decoded path of a request.
+  req-path :: HttpWireRequest -> String
+  req-path r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> p
+
+  -- | The raw escaped path of a request.
+  req-raw-path :: HttpWireRequest -> String
+  req-raw-path r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> rp
+
+  -- | The raw query string (without leading '?') of a request.
+  req-raw-query :: HttpWireRequest -> String
+  req-raw-query r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> rq
+
+  -- | The HTTP major version number of a request.
+  req-proto-major :: HttpWireRequest -> Nat
+  req-proto-major r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> maj
+
+  -- | The HTTP minor version number of a request.
+  req-proto-minor :: HttpWireRequest -> Nat
+  req-proto-minor r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> min
+
+  -- | The HTTP protocol version string (such as "HTTP/1.1") of a request.
+  req-proto :: HttpWireRequest -> String
+  req-proto r = http-version-string (HttpVersion (req-proto-major r) (req-proto-minor r))
+
+  -- | The canonical header map of a request.
+  req-headers :: HttpWireRequest -> HttpHeader
+  req-headers r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> hd
+
+  -- | Retrieve the first value for a request header.
+  req-header :: HttpWireRequest -> String -> Option String
+  req-header r key = http-header-get (req-headers r) key
+
+  -- | Retrieve all values for a request header.
+  req-header-values :: HttpWireRequest -> String -> List String
+  req-header-values r key = http-header-values (req-headers r) key
+
+  -- | The decoded body bytes of a request.
+  req-body :: HttpWireRequest -> Bytes
+  req-body r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> b
+
+  -- | The trailing headers decoded after a chunked request body.
+  req-trailers :: HttpWireRequest -> HttpHeader
+  req-trailers r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> tr
+
+  -- | All matched route path parameter bindings.
+  req-path-values :: HttpWireRequest -> List (String, String)
+  req-path-values r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> pv
+
+  -- | Look up a single matched route path parameter by name.
+  req-path-value :: HttpWireRequest -> String -> Option String
+  req-path-value r name = lookup-str-pair (req-path-values r) name
+
+  -- | Find a key in a string association list.
+  lookup-str-pair :: List (String, String) -> String -> Option String
+  lookup-str-pair ps key = case ps of
+    Nil -> None
+    Cons pair rest -> case pair of
+      (k, v) -> if k == key then Some v else lookup-str-pair rest key
+
+  -- | The remote address string recorded on a request.
+  req-remote-addr :: HttpWireRequest -> String
+  req-remote-addr r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> ra
+
+  -- | The declared content length (-1 when chunked or unspecified).
+  req-content-length :: HttpWireRequest -> Int
+  req-content-length r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> cl
+
+  -- | Whether the connection should be closed after replying to this request.
+  req-close :: HttpWireRequest -> Bool
+  req-close r = case r of HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz -> clz
+
+  -- | Return a request with a header replaced.
+  req-with-header :: HttpWireRequest -> String -> String -> HttpWireRequest
+  req-with-header r key val = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min (http-header-set hd key val) b tr pv ra cl clz
+
+  -- | Return a request with an additional header value appended.
+  req-add-header :: HttpWireRequest -> String -> String -> HttpWireRequest
+  req-add-header r key val = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min (http-header-add hd key val) b tr pv ra cl clz
+
+  -- | Return a request with its entire header map replaced.
+  req-with-headers :: HttpWireRequest -> HttpHeader -> HttpWireRequest
+  req-with-headers r hd2 = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min hd2 b tr pv ra cl clz
+
+  -- | Return a request with its Host field updated.
+  req-with-host :: HttpWireRequest -> String -> HttpWireRequest
+  req-with-host r h2 = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h2 p rp rq maj min hd b tr pv ra cl clz
+
+  -- | Return a request with its body bytes replaced and content length updated.
+  req-with-body :: HttpWireRequest -> Bytes -> HttpWireRequest
+  req-with-body r b2 = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min hd (bytes-clone b2) tr pv ra (nat-to-int (bytes-len b2)) clz
+
+  -- | Return a request with matched route path parameters attached.
+  req-with-path-values :: HttpWireRequest -> List (String, String) -> HttpWireRequest
+  req-with-path-values r pv2 = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min hd b tr pv2 ra cl clz
+
+  -- | Return a request with its remote address updated.
+  req-with-remote-addr :: HttpWireRequest -> String -> HttpWireRequest
+  req-with-remote-addr r ra2 = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq maj min hd b tr pv ra2 cl clz
+
+  -- | Return a request with its protocol version updated.
+  req-with-proto :: HttpWireRequest -> HttpVersion -> HttpWireRequest
+  req-with-proto r ver = case r of
+    HttpWireRequest m u h p rp rq maj min hd b tr pv ra cl clz ->
+      HttpWireRequest m u h p rp rq (http-version-major ver) (http-version-minor ver) hd b tr pv ra cl clz
+
+  -- | Append a cookie name=value pair to the request's Cookie header.
+  req-add-cookie :: HttpWireRequest -> Cookie -> HttpWireRequest
+  req-add-cookie r c =
+    let pair = string-concat-all [cookie-name c, "=", cookie-value c] in
+    case req-header r "Cookie" of
+      None -> req-with-header r "Cookie" pair
+      Some existing -> req-with-header r "Cookie" (string-concat-all [existing, "; ", pair])
+
+  -- | Parse all cookies carried in the request's Cookie headers via Text.Cookie.
+  req-cookies :: HttpWireRequest -> List Cookie
+  req-cookies r = parse-cookie-headers (req-header-values r "Cookie") Nil
+
+  -- | Accumulate cookies from each Cookie header line.
+  parse-cookie-headers :: List String -> List Cookie -> List Cookie
+  parse-cookie-headers lines acc = case lines of
+    Nil -> reverse acc
+    Cons line rest -> parse-cookie-headers rest (push-rev-cookies (cookie-read line "") acc)
+
+  -- | Prepend cookies onto a reversed accumulator.
+  push-rev-cookies :: List Cookie -> List Cookie -> List Cookie
+  push-rev-cookies cs acc = case cs of
+    Nil -> acc
+    Cons c rest -> push-rev-cookies rest (Cons c acc)
+
+  -- | Find the first request cookie matching name.
+  req-cookie :: HttpWireRequest -> String -> Option Cookie
+  req-cookie r name = find-cookie-named (req-cookies r) name
+
+  -- | Linear lookup of a cookie by name.
+  find-cookie-named :: List Cookie -> String -> Option Cookie
+  find-cookie-named cs name = case cs of
+    Nil -> None
+    Cons c rest -> if cookie-name c == name then Some c else find-cookie-named rest name
+
+  -- | Parse the request's raw query string into URL values via Text.Url.
+  req-query :: HttpWireRequest -> Result UrlFailure UrlValues
+  req-query r = case url-parse-query (string-to-bytes (req-raw-query r)) of
+    (vals, None) -> Ok vals
+    (_, Some fail) -> Err fail
+
+  -- | Look up the first value of a query parameter by name.
+  req-query-param :: HttpWireRequest -> String -> Option String
+  req-query-param r key = case req-query r of
+    Err _ -> None
+    Ok vals ->
+      let kb = string-to-bytes key in
+      if url-values-has kb vals then Some (bytes-text (url-values-get kb vals))
+      else None
+
+  -- | Parse application/x-www-form-urlencoded parameters from a POST, PUT or PATCH request body.
+  req-post-form :: HttpWireRequest -> Result UrlFailure UrlValues
+  req-post-form r =
+    let m = req-method r in
+    if m == method-post || m == method-put || m == method-patch then
+      case req-header r "Content-Type" of
+        None -> Ok url-values-empty
+        Some ct ->
+          let (media, _) = cut-on-byte ct 59 in
+          if ascii-eq-fold (trim-ows media) "application/x-www-form-urlencoded" then
+            case url-parse-query (req-body r) of
+              (vals, None) -> Ok vals
+              (_, Some fail) -> Err fail
+          else Ok url-values-empty
+    else Ok url-values-empty
+
+  -- | Parse both URL-encoded body parameters (taking priority) and URL query parameters.
+  req-parse-form :: HttpWireRequest -> Result UrlFailure UrlValues
+  req-parse-form r = case req-post-form r of
+    Err e -> Err e
+    Ok post-vals -> case req-query r of
+      Err e -> Err e
+      Ok query-vals -> Ok (merge-url-values post-vals (url-values-pairs query-vals))
+
+  -- | Append (key, values) pairs from a second UrlValues into a base UrlValues.
+  merge-url-values :: UrlValues -> List (Bytes, List Bytes) -> UrlValues
+  merge-url-values base pairs = case pairs of
+    Nil -> base
+    Cons pair rest -> case pair of
+      (k, vs) -> merge-url-values (add-url-vals base k vs) rest
+
+  -- | Append all byte values for one key into UrlValues.
+  add-url-vals :: UrlValues -> Bytes -> List Bytes -> UrlValues
+  add-url-vals vals k vs = case vs of
+    Nil -> vals
+    Cons v rest -> add-url-vals (url-values-add k v vals) k rest
+
+  -- | Look up the first form value (body parameters before query parameters).
+  req-form-value :: HttpWireRequest -> String -> Option String
+  req-form-value r key = case req-parse-form r of
+    Err _ -> None
+    Ok vals ->
+      let kb = string-to-bytes key in
+      if url-values-has kb vals then Some (bytes-text (url-values-get kb vals))
+      else None
+
+  -- ---------------------------------------------------------------------
+  -- HTTP response value and helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable HTTP/1.1 response: status code, reason phrase, major/minor version, headers, body and trailers.
+  data HttpWireResponse where
+    -- | Response fields in the order listed above.
+    HttpWireResponse :: Nat -> String -> Nat -> Nat -> HttpHeader -> Bytes -> HttpHeader -> HttpWireResponse
+
+  -- | Build an HTTP/1.1 response with status code, headers and body bytes.
+  http-response-new :: Nat -> HttpHeader -> Bytes -> HttpWireResponse
+  http-response-new code headers body =
+    HttpWireResponse code (http-status-text code) 1 1 headers (bytes-clone body) http-header-empty
+
+  -- | Build a UTF-8 plain text HTTP/1.1 response.
+  http-response-text :: Nat -> String -> HttpWireResponse
+  http-response-text code text =
+    let hd = http-header-set http-header-empty "Content-Type" "text/plain; charset=utf-8" in
+    http-response-new code hd (string-to-bytes text)
+
+  -- | Build an HTTP/1.1 response with an explicit Content-Type and body bytes.
+  http-response-bytes :: Nat -> String -> Bytes -> HttpWireResponse
+  http-response-bytes code ctype body =
+    let hd = http-header-set http-header-empty "Content-Type" ctype in
+    http-response-new code hd body
+
+  -- | Build a standard plain-text error response with X-Content-Type-Options: nosniff.
+  http-response-error :: Nat -> String -> HttpWireResponse
+  http-response-error code msg =
+    let h1 = http-header-set http-header-empty "Content-Type" "text/plain; charset=utf-8" in
+    let h2 = http-header-set h1 "X-Content-Type-Options" "nosniff" in
+    http-response-new code h2 (string-to-bytes (string-concat msg "\n"))
+
+  -- | Build an HTTP redirect response with Location header.
+  http-response-redirect :: Nat -> String -> HttpWireResponse
+  http-response-redirect code loc =
+    let h1 = http-header-set http-header-empty "Location" loc in
+    let h2 = http-header-set h1 "Content-Type" "text/html; charset=utf-8" in
+    let label = http-status-text code in
+    let body = string-concat-all ["<a href=\"", loc, "\">", label, "</a>.\n\n"] in
+    http-response-new code h2 (string-to-bytes body)
+
+  -- | The HTTP status code of a response.
+  resp-status :: HttpWireResponse -> Nat
+  resp-status r = case r of HttpWireResponse c rs maj min hd b tr -> c
+
+  -- | The reason phrase of a response.
+  resp-reason :: HttpWireResponse -> String
+  resp-reason r = case r of HttpWireResponse c rs maj min hd b tr -> rs
+
+  -- | The HTTP major version of a response.
+  resp-proto-major :: HttpWireResponse -> Nat
+  resp-proto-major r = case r of HttpWireResponse c rs maj min hd b tr -> maj
+
+  -- | The HTTP minor version of a response.
+  resp-proto-minor :: HttpWireResponse -> Nat
+  resp-proto-minor r = case r of HttpWireResponse c rs maj min hd b tr -> min
+
+  -- | The canonical header map of a response.
+  resp-headers :: HttpWireResponse -> HttpHeader
+  resp-headers r = case r of HttpWireResponse c rs maj min hd b tr -> hd
+
+  -- | Look up the first value of a response header.
+  resp-header :: HttpWireResponse -> String -> Option String
+  resp-header r key = http-header-get (resp-headers r) key
+
+  -- | Look up all values of a response header.
+  resp-header-values :: HttpWireResponse -> String -> List String
+  resp-header-values r key = http-header-values (resp-headers r) key
+
+  -- | The decoded body bytes of a response.
+  resp-body :: HttpWireResponse -> Bytes
+  resp-body r = case r of HttpWireResponse c rs maj min hd b tr -> b
+
+  -- | The trailing headers of a response.
+  resp-trailers :: HttpWireResponse -> HttpHeader
+  resp-trailers r = case r of HttpWireResponse c rs maj min hd b tr -> tr
+
+  -- | Parse all valid Set-Cookie headers from a response via Text.Cookie.
+  resp-cookies :: HttpWireResponse -> List Cookie
+  resp-cookies r = parse-set-cookie-lines (resp-header-values r "Set-Cookie") Nil
+
+  -- | Parse Set-Cookie lines skipping malformed entries.
+  parse-set-cookie-lines :: List String -> List Cookie -> List Cookie
+  parse-set-cookie-lines lines acc = case lines of
+    Nil -> reverse acc
+    Cons line rest -> case cookie-parse-set line of
+      Ok c -> parse-set-cookie-lines rest (Cons c acc)
+      Err _ -> parse-set-cookie-lines rest acc
+
+  -- | Return a response with an updated status code and matching default reason phrase.
+  resp-with-status :: HttpWireResponse -> Nat -> HttpWireResponse
+  resp-with-status r code = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse code (http-status-text code) maj min hd b tr
+
+  -- | Return a response with an explicit reason phrase.
+  resp-with-reason :: HttpWireResponse -> String -> HttpWireResponse
+  resp-with-reason r rs2 = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs2 maj min hd b tr
+
+  -- | Return a response with a header replaced.
+  resp-with-header :: HttpWireResponse -> String -> String -> HttpWireResponse
+  resp-with-header r key val = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs maj min (http-header-set hd key val) b tr
+
+  -- | Return a response with an additional header value appended.
+  resp-add-header :: HttpWireResponse -> String -> String -> HttpWireResponse
+  resp-add-header r key val = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs maj min (http-header-add hd key val) b tr
+
+  -- | Return a response with its entire header map replaced.
+  resp-with-headers :: HttpWireResponse -> HttpHeader -> HttpWireResponse
+  resp-with-headers r hd2 = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs maj min hd2 b tr
+
+  -- | Return a response with its body bytes replaced.
+  resp-with-body :: HttpWireResponse -> Bytes -> HttpWireResponse
+  resp-with-body r b2 = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs maj min hd (bytes-clone b2) tr
+
+  -- | Return a response with its trailers replaced.
+  resp-with-trailers :: HttpWireResponse -> HttpHeader -> HttpWireResponse
+  resp-with-trailers r tr2 = case r of
+    HttpWireResponse c rs maj min hd b tr -> HttpWireResponse c rs maj min hd b tr2
+
+  -- | Append a Set-Cookie header to a response.
+  resp-add-cookie :: HttpWireResponse -> Cookie -> HttpWireResponse
+  resp-add-cookie r c = case r of
+    HttpWireResponse code rs maj min hd b tr -> HttpWireResponse code rs maj min (http-set-cookie hd c) b tr
+
+  -- ---------------------------------------------------------------------
+  -- Chunked transfer encoding codec.
+  -- ---------------------------------------------------------------------
+
+  -- | Encode raw body bytes using HTTP/1.1 chunked transfer encoding with a given maximum chunk size.
+  http-chunk-encode :: Bytes -> Nat -> Bytes
+  http-chunk-encode body chunk-size =
+    let step = if chunk-size == 0 then (4096 :: Nat) else chunk-size in
+    let parts = chunk-encode-loop body 0 step Nil in
+    bytes-concat (reverse (Cons (string-to-bytes "0\r\n\r\n") parts))
+
+  -- | Slice body into chunks of at most step bytes.
+  chunk-encode-loop :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  chunk-encode-loop body pos step acc =
+    let n = bytes-len body in
+    if pos >= n then acc
+    else
+      let rem = sat-sub n pos in
+      let take = if rem < step then rem else step in
+      let head = string-to-bytes (string-concat (nat-to-hex take) "\r\n") in
+      let piece = slice-range body pos (pos + take) in
+      let crlf = string-to-bytes "\r\n" in
+      chunk-encode-loop body (pos + take) step (Cons crlf (Cons piece (Cons head acc)))
+
+  -- | Decode an HTTP/1.1 chunked body and optional trailing headers starting at offset start.
+  -- Returns decoded body bytes, trailers, and the next byte offset after the terminating blank line.
+  http-chunk-decode :: Bytes -> Nat -> Result HttpProtoError (Bytes, HttpHeader, Nat)
+  http-chunk-decode input start = chunk-decode-loop input start 0 Nil 0
+
+  -- | Decode chunked body with an explicit maximum body byte limit (0 = unlimited).
+  chunk-decode-limit :: Bytes -> Nat -> Nat -> Result HttpProtoError (Bytes, HttpHeader, Nat)
+  chunk-decode-limit input start max-body = chunk-decode-loop input start max-body Nil 0
+
+  -- | Tail-recursive chunk decoder accumulating pieces in reverse order.
+  chunk-decode-loop :: Bytes -> Nat -> Nat -> List Bytes -> Nat -> Result HttpProtoError (Bytes, HttpHeader, Nat)
+  chunk-decode-loop input pos max-body acc total =
+    if pos >= bytes-len input then Err HttpProtoIncomplete
+    else case read-line input pos of
+      Err err -> case err of
+        UnexpectedEnd _ -> Err HttpProtoIncomplete
+        _ -> Err (HttpProtoBadChunk (text-proto-error-message err))
+      Ok (line, after-line) ->
+        let size-raw = trim-ows (fst-str (cut-on-byte (bytes-text line) 59)) in
+        case parse-hex-bytes (string-to-bytes size-raw) of
+          None -> Err (HttpProtoBadChunk size-raw)
+          Some sz ->
+            if sz == 0 then
+              decode-chunk-trailers input after-line (bytes-concat (reverse acc))
+            else
+              let next-total = total + sz in
+              if max-body > 0 && next-total > max-body then Err (HttpProtoTooLarge max-body)
+              else if after-line + sz + 2 > bytes-len input then Err HttpProtoIncomplete
+              else if byte-at input (after-line + sz) == 13 && byte-at input (after-line + sz + 1) == 10 then
+                let piece = slice-range input after-line (after-line + sz) in
+                chunk-decode-loop input (after-line + sz + 2) max-body (Cons piece acc) next-total
+              else Err (HttpProtoBadChunk "missing CRLF after chunk payload")
+
+  -- | Decode optional trailer headers after the terminating 0-length chunk line.
+  decode-chunk-trailers :: Bytes -> Nat -> Bytes -> Result HttpProtoError (Bytes, HttpHeader, Nat)
+  decode-chunk-trailers input pos body =
+    if pos >= bytes-len input then Err HttpProtoIncomplete
+    else if byte-at input pos == 13 && pos + 1 < bytes-len input && byte-at input (pos + 1) == 10 then
+      Ok (body, http-header-empty, pos + 2)
+    else if byte-at input pos == 10 then
+      Ok (body, http-header-empty, pos + 1)
+    else case read-mime-header input pos of
+      Err err -> case err of
+        UnexpectedEnd _ -> Err HttpProtoIncomplete
+        _ -> Err (HttpProtoBadHeader (text-proto-error-message err))
+      Ok (mhdr, end-pos) -> Ok (body, HttpHeaderMap mhdr, end-pos)
+
+  -- | First element of a string pair.
+  fst-str :: (String, String) -> String
+  fst-str p = case p of (a, _) -> a
+
+  -- ---------------------------------------------------------------------
+  -- Wire framing helpers (shared by request & response parsers).
+  -- ---------------------------------------------------------------------
+
+  -- | Locate the end of the HTTP header section (CRLFCRLF or LFLF).
+  -- Returns Some (head-end, body-start) where head-end includes the final header line's CRLF/LF.
+  find-head-end :: Bytes -> Nat -> Option (Nat, Nat)
+  find-head-end b i =
+    let n = bytes-len b in
+    if i >= n then None
+    else if byte-at b i == 13 && i + 3 < n && byte-at b (i + 1) == 10 && byte-at b (i + 2) == 13 && byte-at b (i + 3) == 10 then
+      Some (i + 2, i + 4)
+    else if byte-at b i == 10 && i + 1 < n && byte-at b (i + 1) == 10 then
+      Some (i + 1, i + 2)
+    else find-head-end b (i + 1)
+
+  -- | Inspect Transfer-Encoding and Content-Length headers to choose message framing.
+  data BodyFraming where
+    -- | Body is framed with Transfer-Encoding: chunked.
+    FrameChunked :: BodyFraming
+    -- | Body has an exact Content-Length byte count.
+    FrameLength :: Nat -> BodyFraming
+    -- | No explicit body framing (0 bytes for requests, EOF for responses).
+    FrameNone :: BodyFraming
+
+  -- | Validate and determine body framing from canonical headers.
+  inspect-framing :: HttpHeader -> Result HttpProtoError BodyFraming
+  inspect-framing hd =
+    let tes = http-header-values hd "Transfer-Encoding" in
+    case tes of
+      Cons _ _ ->
+        if header-has-token tes "chunked" then Ok FrameChunked
+        else Err (HttpProtoUnsupportedTransferEncoding (string-join tes ", "))
+      Nil ->
+        let cls = http-header-values hd "Content-Length" in
+        parse-content-lengths cls None
+
+  -- | Parse one or more Content-Length header values, rejecting invalid or conflicting lengths.
+  parse-content-lengths :: List String -> Option Nat -> Result HttpProtoError BodyFraming
+  parse-content-lengths vals seen = case vals of
+    Nil -> case seen of
+      None -> Ok FrameNone
+      Some n -> Ok (FrameLength n)
+    Cons raw rest ->
+      let parts = split-on-byte raw 44 in
+      case parse-cl-parts parts seen of
+        Err e -> Err e
+        Ok next-seen -> parse-content-lengths rest next-seen
+
+  -- | Parse comma-separated Content-Length pieces, ensuring all agree.
+  parse-cl-parts :: List String -> Option Nat -> Result HttpProtoError (Option Nat)
+  parse-cl-parts parts seen = case parts of
+    Nil -> Ok seen
+    Cons p rest ->
+      let trimmed = trim-ows p in
+      case parse-dec-bytes (string-to-bytes trimmed) of
+        None -> Err (HttpProtoInvalidContentLength trimmed)
+        Some n -> case seen of
+          None -> parse-cl-parts rest (Some n)
+          Some prev ->
+            if prev == n then parse-cl-parts rest seen
+            else Err HttpProtoConflictingContentLength
+
+  -- | Determine whether a connection should close based on HTTP version and Connection header.
+  should-close :: Nat -> Nat -> HttpHeader -> Bool
+  should-close maj min hd =
+    let conns = http-header-values hd "Connection" in
+    if header-has-token conns "close" then True
+    else if maj < 1 || (maj == 1 && min == 0) then not (header-has-token conns "keep-alive")
+    else False
+
+  -- ---------------------------------------------------------------------
+  -- Wire Request parser & renderer.
+  -- ---------------------------------------------------------------------
+
+  -- | Default maximum header section size (1 MiB).
+  default-max-header-bytes :: Nat
+  default-max-header-bytes = 1048576
+
+  -- | Default maximum body size (10 MiB).
+  default-max-body-bytes :: Nat
+  default-max-body-bytes = 10485760
+
+  -- | Parse one HTTP/1.1 request from wire bytes, returning the request and exact bytes consumed.
+  http-parse-request :: Bytes -> Result HttpProtoError (HttpWireRequest, Nat)
+  http-parse-request input = http-parse-request-limit default-max-header-bytes default-max-body-bytes input
+
+  -- | Parse one HTTP/1.1 request with explicit header and body byte limits (0 disables a limit).
+  http-parse-request-limit :: Nat -> Nat -> Bytes -> Result HttpProtoError (HttpWireRequest, Nat)
+  http-parse-request-limit max-head max-body input =
+    if bytes-len input == 0 then Err HttpProtoIncomplete
+    else case read-line input 0 of
+      Err err -> case err of
+        UnexpectedEnd _ ->
+          if max-head > 0 && bytes-len input > max-head then Err (HttpProtoTooLarge max-head)
+          else Err HttpProtoIncomplete
+        _ -> Err (HttpProtoBadRequestLine (text-proto-error-message err))
+      Ok (req-line-bytes, after-req-line) ->
+        if max-head > 0 && after-req-line > max-head then Err (HttpProtoTooLarge max-head)
+        else case parse-request-line (bytes-text req-line-bytes) of
+          Err e -> Err e
+          Ok (method, raw-uri, ver) ->
+            case read-mime-header input after-req-line of
+              Err herr -> case herr of
+                UnexpectedEnd _ ->
+                  if max-head > 0 && bytes-len input > max-head then Err (HttpProtoTooLarge max-head)
+                  else Err HttpProtoIncomplete
+                _ -> Err (HttpProtoBadHeader (text-proto-error-message herr))
+              Ok (mhdr, body-start) ->
+                if max-head > 0 && body-start > max-head then Err (HttpProtoTooLarge max-head)
+                else
+                  let hd0 = HttpHeaderMap mhdr in
+                  let (url-host-val, path, rpath, rquery) = decompose-target raw-uri in
+                  let host-from-hdr = (case http-header-get hd0 "Host" of
+                    Some h -> h
+                    None -> url-host-val) in
+                  let hd1 = http-header-del hd0 "Host" in
+                  let maj = http-version-major ver in
+                  let min = http-version-minor ver in
+                  let clz = should-close maj min hd1 in
+                  case inspect-framing hd1 of
+                    Err fe -> Err fe
+                    Ok framing -> case framing of
+                      FrameNone ->
+                        let req = HttpWireRequest method raw-uri host-from-hdr path rpath rquery maj min hd1 (bytes-new 0) http-header-empty Nil "" 0 clz in
+                        Ok (req, body-start)
+                      FrameLength len ->
+                        if max-body > 0 && len > max-body then Err (HttpProtoTooLarge max-body)
+                        else if body-start + len > bytes-len input then Err HttpProtoIncomplete
+                        else
+                          let body = slice-range input body-start (body-start + len) in
+                          let req = HttpWireRequest method raw-uri host-from-hdr path rpath rquery maj min hd1 body http-header-empty Nil "" (nat-to-int len) clz in
+                          Ok (req, body-start + len)
+                      FrameChunked ->
+                        let hd2 = http-header-del (http-header-del hd1 "Transfer-Encoding") "Content-Length" in
+                        case chunk-decode-limit input body-start max-body of
+                          Err ce -> Err ce
+                          Ok (body, trailers, end-pos) ->
+                            let req = HttpWireRequest method raw-uri host-from-hdr path rpath rquery maj min hd2 body trailers Nil "" (0 - 1) clz in
+                            Ok (req, end-pos)
+
+  -- | Parse "METHOD SP request-target SP HTTP/major.minor".
+  parse-request-line :: String -> Result HttpProtoError (String, String, HttpVersion)
+  parse-request-line line =
+    let (method, rest1) = cut-on-byte line 32 in
+    if rest1 == "" || not (is-http-token method) then Err (HttpProtoBadRequestLine line)
+    else
+      let (raw-uri, ver-str) = cut-on-byte rest1 32 in
+      if raw-uri == "" || ver-str == "" then Err (HttpProtoBadRequestLine line)
+      else case http-parse-version ver-str of
+        Err e -> Err e
+        Ok ver -> Ok (method, raw-uri, ver)
+
+  -- | Render an HTTP/1.1 request to wire bytes using Content-Length when a body is present.
+  http-render-request :: HttpWireRequest -> Bytes
+  http-render-request req =
+    let m = req-method req in
+    let u0 = req-request-uri req in
+    let u = if u0 == "" then "/" else u0 in
+    let ver = req-proto req in
+    let line = string-concat-all [m, " ", u, " ", ver, "\r\n"] in
+    let body = req-body req in
+    let h0 = req-headers req in
+    let h1 = if req-host req == "" then h0 else http-header-set h0 "Host" (req-host req) in
+    let h2 = if bytes-len body > 0 then http-header-set h1 "Content-Length" (nat-to-string (bytes-len body)) else h1 in
+    bytes-concat [string-to-bytes line, http-header-render h2, body]
+
+  -- | Render an HTTP/1.1 request using Transfer-Encoding: chunked with the specified chunk size.
+  http-render-request-chunked :: HttpWireRequest -> Nat -> Bytes
+  http-render-request-chunked req chunk-size =
+    let m = req-method req in
+    let u0 = req-request-uri req in
+    let u = if u0 == "" then "/" else u0 in
+    let ver = req-proto req in
+    let line = string-concat-all [m, " ", u, " ", ver, "\r\n"] in
+    let h0 = http-header-del (req-headers req) "Content-Length" in
+    let h1 = if req-host req == "" then h0 else http-header-set h0 "Host" (req-host req) in
+    let h2 = http-header-set h1 "Transfer-Encoding" "chunked" in
+    let encoded = http-chunk-encode (req-body req) chunk-size in
+    bytes-concat [string-to-bytes line, http-header-render h2, encoded]
+
+  -- ---------------------------------------------------------------------
+  -- Wire Response parser & renderer.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse an HTTP/1.1 response assuming a GET request.
+  http-parse-response :: Bytes -> Result HttpProtoError (HttpWireResponse, Nat)
+  http-parse-response input = http-parse-response-for method-get input
+
+  -- | Parse an HTTP/1.1 response for a given request method (handling HEAD and bodyless statuses).
+  http-parse-response-for :: String -> Bytes -> Result HttpProtoError (HttpWireResponse, Nat)
+  http-parse-response-for req-m input = http-parse-response-limit req-m default-max-header-bytes default-max-body-bytes input
+
+  -- | Parse an HTTP/1.1 response with explicit request method, header limit, and body limit.
+  http-parse-response-limit :: String -> Nat -> Nat -> Bytes -> Result HttpProtoError (HttpWireResponse, Nat)
+  http-parse-response-limit req-m max-head max-body input =
+    if bytes-len input == 0 then Err HttpProtoIncomplete
+    else case read-line input 0 of
+      Err err -> case err of
+        UnexpectedEnd _ ->
+          if max-head > 0 && bytes-len input > max-head then Err (HttpProtoTooLarge max-head)
+          else Err HttpProtoIncomplete
+        _ -> Err (HttpProtoBadStatusLine (text-proto-error-message err))
+      Ok (status-line-bytes, after-status-line) ->
+        if max-head > 0 && after-status-line > max-head then Err (HttpProtoTooLarge max-head)
+        else case parse-status-line (bytes-text status-line-bytes) of
+          Err e -> Err e
+          Ok (ver, code, reason) ->
+            case read-mime-header input after-status-line of
+              Err herr -> case herr of
+                UnexpectedEnd _ ->
+                  if max-head > 0 && bytes-len input > max-head then Err (HttpProtoTooLarge max-head)
+                  else Err HttpProtoIncomplete
+                _ -> Err (HttpProtoBadHeader (text-proto-error-message herr))
+              Ok (mhdr, body-start) ->
+                if max-head > 0 && body-start > max-head then Err (HttpProtoTooLarge max-head)
+                else
+                  let hd0 = HttpHeaderMap mhdr in
+                  let maj = http-version-major ver in
+                  let min = http-version-minor ver in
+                  if is-bodyless-response req-m code then
+                    Ok (HttpWireResponse code reason maj min hd0 (bytes-new 0) http-header-empty, body-start)
+                  else case inspect-framing hd0 of
+                    Err fe -> Err fe
+                    Ok framing -> case framing of
+                      FrameLength len ->
+                        if max-body > 0 && len > max-body then Err (HttpProtoTooLarge max-body)
+                        else if body-start + len > bytes-len input then Err HttpProtoTruncatedBody
+                        else
+                          let body = slice-range input body-start (body-start + len) in
+                          Ok (HttpWireResponse code reason maj min hd0 body http-header-empty, body-start + len)
+                      FrameChunked ->
+                        let hd1 = http-header-del (http-header-del hd0 "Transfer-Encoding") "Content-Length" in
+                        case chunk-decode-limit input body-start max-body of
+                          Err ce -> Err ce
+                          Ok (body, trailers, end-pos) ->
+                            Ok (HttpWireResponse code reason maj min hd1 body trailers, end-pos)
+                      FrameNone ->
+                        let rem = sat-sub (bytes-len input) body-start in
+                        if max-body > 0 && rem > max-body then Err (HttpProtoTooLarge max-body)
+                        else
+                          let body = slice-range input body-start (bytes-len input) in
+                          Ok (HttpWireResponse code reason maj min hd0 body http-header-empty, bytes-len input)
+
+  -- | Whether a response carries no message body on the wire (HEAD, 1xx, 204, 304).
+  is-bodyless-response :: String -> Nat -> Bool
+  is-bodyless-response req-m code =
+    req-m == method-head || (code >= 100 && code <= 199) || code == 204 || code == 304
+
+  -- | Parse "HTTP/<major>.<minor> <ddd>[ <reason>]".
+  parse-status-line :: String -> Result HttpProtoError (HttpVersion, Nat, String)
+  parse-status-line line =
+    let (ver-str, rest) = cut-on-byte line 32 in
+    if rest == "" then Err (HttpProtoBadStatusLine line)
+    else case http-parse-version ver-str of
+      Err e -> Err e
+      Ok ver ->
+        let (code-str, reason) = cut-on-byte rest 32 in
+        let cb = string-to-bytes code-str in
+        if not (bytes-len cb == 3) then Err (HttpProtoBadStatusLine line)
+        else case parse-dec-bytes cb of
+          None -> Err (HttpProtoBadStatusLine line)
+          Some code -> Ok (ver, code, reason)
+
+  -- | Render an HTTP/1.1 response to wire bytes with automatic status text and Content-Length.
+  http-render-response :: HttpWireResponse -> Bytes
+  http-render-response resp = http-render-response-for method-get resp
+
+  -- | Render an HTTP/1.1 response for a specific request method (omitting wire body for HEAD).
+  http-render-response-for :: String -> HttpWireResponse -> Bytes
+  http-render-response-for req-m resp =
+    let code = resp-status resp in
+    let rs0 = resp-reason resp in
+    let rs = if rs0 == "" then http-status-text code else rs0 in
+    let ver = http-version-string (HttpVersion (resp-proto-major resp) (resp-proto-minor resp)) in
+    let status-line = (if rs == "" then string-concat-all [ver, " ", nat-to-string code, "\r\n"]
+      else string-concat-all [ver, " ", nat-to-string code, " ", rs, "\r\n"]) in
+    let body = resp-body resp in
+    let h0 = resp-headers resp in
+    let bodyless-status = (code >= 100 && code <= 199) || code == 204 || code == 304 in
+    let has-te = header-has-token (http-header-values h0 "Transfer-Encoding") "chunked" in
+    let h1 = (if bodyless-status || has-te then h0
+      else (case http-header-get h0 "Content-Length" of
+        Some _ -> h0
+        None -> http-header-set h0 "Content-Length" (nat-to-string (bytes-len body)))) in
+    let wire-body = (if bodyless-status || req-m == method-head then (bytes-new 0 :: Bytes)
+      else body) in
+    bytes-concat [string-to-bytes status-line, http-header-render h1, wire-body]
+
+  -- | Render an HTTP/1.1 response using Transfer-Encoding: chunked.
+  http-render-response-chunked :: HttpWireResponse -> Nat -> Bytes
+  http-render-response-chunked resp chunk-size =
+    let code = resp-status resp in
+    let rs0 = resp-reason resp in
+    let rs = if rs0 == "" then http-status-text code else rs0 in
+    let ver = http-version-string (HttpVersion (resp-proto-major resp) (resp-proto-minor resp)) in
+    let status-line = (if rs == "" then string-concat-all [ver, " ", nat-to-string code, "\r\n"]
+      else string-concat-all [ver, " ", nat-to-string code, " ", rs, "\r\n"]) in
+    let h0 = http-header-del (resp-headers resp) "Content-Length" in
+    let h1 = http-header-set h0 "Transfer-Encoding" "chunked" in
+    let encoded = http-chunk-encode (resp-body resp) chunk-size in
+    bytes-concat [string-to-bytes status-line, http-header-render h1, encoded]
+
+  -- ---------------------------------------------------------------------
+  -- Path cleaning and host port stripping.
+  -- ---------------------------------------------------------------------
+
+  -- | Return the canonical URL path for p, eliminating "." and ".." elements and repeated slashes,
+  -- preserving a trailing slash when present.
+  http-clean-path :: String -> String
+  http-clean-path p =
+    let b = string-to-bytes p in
+    if bytes-len b == 0 then "/"
+    else
+      let trailing = bytes-len b > 1 && byte-at b (sat-sub (bytes-len b) 1) == 47 in
+      let raw-parts = split-on-byte p 47 in
+      let stack = clean-segments raw-parts Nil in
+      let joined = string-join (reverse stack) "/" in
+      if joined == "" then "/"
+      else if trailing then string-concat-all ["/", joined, "/"]
+      else string-concat "/" joined
+
+  -- | Resolve empty, ".", and ".." path segments onto a reversed stack.
+  clean-segments :: List String -> List String -> List String
+  clean-segments parts stack = case parts of
+    Nil -> stack
+    Cons seg rest ->
+      if seg == "" || seg == "." then clean-segments rest stack
+      else if seg == ".." then case stack of
+        Nil -> clean-segments rest Nil
+        Cons _ tail -> clean-segments rest tail
+      else clean-segments rest (Cons seg stack)
+
+  -- | Strip an optional ":port" suffix from a Host header (preserving bracketed IPv6 hostnames).
+  strip-host-port :: String -> String
+  strip-host-port host =
+    let b = string-to-bytes host in
+    let n = bytes-len b in
+    if n == 0 then ""
+    else if byte-at b 0 == 91 then
+      case find-byte-from b 93 1 of
+        None -> host
+        Some close -> bytes-text (slice-range b 0 (close + 1))
+    else case find-byte-from b 58 0 of
+      None -> host
+      Some colon -> bytes-text (slice-range b 0 colon)
+
+  -- ---------------------------------------------------------------------
+  -- ServeMux: pattern parser, specificity precedence, conflict check & router.
+  -- ---------------------------------------------------------------------
+
+  -- | One parsed segment in a ServeMux route pattern.
+  data MuxSegment where
+    -- | An unescaped literal path segment.
+    SegLiteral :: String -> MuxSegment
+    -- | A single-segment wildcard "{name}".
+    SegWild :: String -> MuxSegment
+    -- | A multi-segment wildcard "{name...}" or trailing slash (empty name).
+    SegMulti :: String -> MuxSegment
+    -- | The exact-end anchor "{$}".
+    SegExactEnd :: MuxSegment
+
+  -- | A parsed ServeMux route pattern with original text, optional method, optional host and segments.
+  data MuxPattern where
+    -- | Pattern fields: original string, method, host, segments.
+    MuxPattern :: String -> String -> String -> List MuxSegment -> MuxPattern
+
+  -- | Original text of a parsed route pattern.
+  mux-pattern-string :: MuxPattern -> String
+  mux-pattern-string p = case p of MuxPattern raw m h segs -> raw
+
+  -- | Method constraint of a parsed route pattern (empty if unconstrained).
+  mux-pattern-method :: MuxPattern -> String
+  mux-pattern-method p = case p of MuxPattern raw m h segs -> m
+
+  -- | Host constraint of a parsed route pattern (empty if unconstrained).
+  mux-pattern-host :: MuxPattern -> String
+  mux-pattern-host p = case p of MuxPattern raw m h segs -> h
+
+  -- | Segments of a parsed route pattern.
+  mux-pattern-segments :: MuxPattern -> List MuxSegment
+  mux-pattern-segments p = case p of MuxPattern raw m h segs -> segs
+
+  -- | Parse and validate a route pattern of the form "[METHOD ][HOST]/[PATH]".
+  mux-parse-pattern :: String -> Result HttpProtoError MuxPattern
+  mux-parse-pattern raw =
+    if raw == "" then Err (HttpProtoBadPattern "empty pattern")
+    else
+      let (method, rest) = split-pattern-method raw in
+      if not (method == "") && not (is-http-token method) then Err (HttpProtoBadPattern (string-concat "invalid method " method))
+      else
+        let rb = string-to-bytes rest in
+        case find-byte-from rb 47 0 of
+          None -> Err (HttpProtoBadPattern "host/path missing /")
+          Some slash ->
+            let host = bytes-text (slice-range rb 0 slash) in
+            let path-str = bytes-text (slice-range rb (slash + 1) (bytes-len rb)) in
+            if host-has-braces host then Err (HttpProtoBadPattern "host contains wildcard braces")
+            else
+              let raw-segs = split-on-byte path-str 47 in
+              case parse-mux-segments raw-segs Nil Nil of
+                Err e -> Err e
+                Ok segs -> Ok (MuxPattern raw method host segs)
+
+  -- | Split optional leading "METHOD[ \t]+" before the first '/'.
+  split-pattern-method :: String -> (String, String)
+  split-pattern-method s =
+    let b = string-to-bytes s in
+    case find-method-ws b 0 of
+      None -> ("", s)
+      Some ws ->
+        let method = bytes-text (slice-range b 0 ws) in
+        let after = skip-ows b ws in
+        (method, bytes-text (slice-range b after (bytes-len b)))
+
+  -- | Find the first space or tab in a pattern string (separating optional METHOD from HOST/PATH).
+  find-method-ws :: Bytes -> Nat -> Option Nat
+  find-method-ws b i =
+    if i >= bytes-len b then None
+    else
+      let c = bytes-get b i in
+      if c == 32 || c == 9 then Some i
+      else find-method-ws b (i + 1)
+
+  -- | Check whether a host string contains '{' or '}'.
+  host-has-braces :: String -> Bool
+  host-has-braces h =
+    let b = string-to-bytes h in
+    case find-byte-from b 123 0 of
+      Some _ -> True
+      None -> case find-byte-from b 125 0 of
+        Some _ -> True
+        None -> False
+
+  -- | Validate and parse raw slash-split path segments into MuxSegments, rejecting duplicate wildcards.
+  parse-mux-segments :: List String -> List String -> List MuxSegment -> Result HttpProtoError (List MuxSegment)
+  parse-mux-segments parts seen acc = case parts of
+    Nil -> Ok (reverse acc)
+    Cons raw-seg rest ->
+      let is-last = is-nil-str rest in
+      if raw-seg == "" then
+        if is-last then Ok (reverse (Cons (SegMulti "") acc))
+        else parse-mux-segments rest seen (Cons (SegLiteral "") acc)
+      else
+        let sb = string-to-bytes raw-seg in
+        let has-open = is-some-nat (find-byte-from sb 123 0) in
+        let has-close = is-some-nat (find-byte-from sb 125 0) in
+        if has-open || has-close then
+          if not (byte-at sb 0 == 123) then Err (HttpProtoBadPattern "wildcard segment must start with '{'")
+          else if not (byte-at sb (sat-sub (bytes-len sb) 1) == 125) then Err (HttpProtoBadPattern "wildcard segment must end with '}'")
+          else
+            let inner = bytes-text (slice-range sb 1 (sat-sub (bytes-len sb) 1)) in
+            if inner == "" then Err (HttpProtoBadPattern "empty wildcard")
+            else if inner == "$" then
+              if not is-last then Err (HttpProtoBadPattern "{$ } not at end")
+              else Ok (reverse (Cons SegExactEnd acc))
+            else
+              let ib = string-to-bytes inner in
+              let is-multi = bytes-len ib >= 3 && bytes-same (slice-range ib (sat-sub (bytes-len ib) 3) (bytes-len ib)) (string-to-bytes "...") in
+              let name = if is-multi then bytes-text (slice-range ib 0 (sat-sub (bytes-len ib) 3)) else inner in
+              if not (is-valid-wildcard-name name) then Err (HttpProtoBadPattern (string-concat "bad wildcard name " name))
+              else if list-contains-str seen name then Err (HttpProtoBadPattern (string-concat "duplicate wildcard name " name))
+              else if is-multi then
+                if not is-last then Err (HttpProtoBadPattern "{...} wildcard not at end")
+                else Ok (reverse (Cons (SegMulti name) acc))
+              else parse-mux-segments rest (Cons name seen) (Cons (SegWild name) acc)
+        else
+          case url-path-unescape sb of
+            Err _ -> Err (HttpProtoBadPattern (string-concat "invalid percent escape in segment " raw-seg))
+            Ok unescaped -> parse-mux-segments rest seen (Cons (SegLiteral (bytes-text unescaped)) acc)
+
+  -- | Whether a string list is empty.
+  is-nil-str :: List String -> Bool
+  is-nil-str xs = case xs of
+    Nil -> True
+    Cons _ _ -> False
+
+  -- | Whether an optional Nat is Some.
+  is-some-nat :: Option Nat -> Bool
+  is-some-nat o = case o of
+    Some _ -> True
+    None -> False
+
+  -- | Whether a string appears in a list.
+  list-contains-str :: List String -> String -> Bool
+  list-contains-str xs s = case xs of
+    Nil -> False
+    Cons x rest -> if x == s then True else list-contains-str rest s
+
+  -- | Whether a wildcard identifier starts with an ASCII letter or '_' and continues with letters, digits or '_'.
+  is-valid-wildcard-name :: String -> Bool
+  is-valid-wildcard-name s =
+    let b = string-to-bytes s in
+    if bytes-len b == 0 then False
+    else
+      let c0 = bytes-get b 0 in
+      is-ident-start c0 && all-ident-cont b 1
+
+  -- | Whether a byte may start a wildcard identifier.
+  is-ident-start :: Nat -> Bool
+  is-ident-start c = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95
+
+  -- | Whether all bytes from index i may continue a wildcard identifier.
+  all-ident-cont :: Bytes -> Nat -> Bool
+  all-ident-cont b i =
+    if i >= bytes-len b then True
+    else
+      let c = bytes-get b i in
+      (is-ident-start c || (c >= 48 && c <= 57)) && all-ident-cont b (i + 1)
+
+  -- | Specificity relationship between two route patterns.
+  data PatternRelation where
+    -- | No request matches both patterns.
+    PatDisjoint :: PatternRelation
+    -- | Both patterns match the exact same set of requests.
+    PatEquivalent :: PatternRelation
+    -- | The first pattern matches a strict subset of the second pattern's requests.
+    PatMoreSpecific :: PatternRelation
+    -- | The second pattern matches a strict subset of the first pattern's requests.
+    PatLessSpecific :: PatternRelation
+    -- | Both patterns match some common requests, but neither is more specific.
+    PatOverlaps :: PatternRelation
+
+  -- | Invert a pattern relationship when swapping operands.
+  invert-relation :: PatternRelation -> PatternRelation
+  invert-relation r = case r of
+    PatMoreSpecific -> PatLessSpecific
+    PatLessSpecific -> PatMoreSpecific
+    other -> other
+
+  -- | Combine two independent component specificity relations.
+  combine-relations :: PatternRelation -> PatternRelation -> PatternRelation
+  combine-relations a b = case a of
+    PatDisjoint -> PatDisjoint
+    PatEquivalent -> b
+    PatOverlaps -> case b of PatDisjoint -> PatDisjoint; _ -> PatOverlaps
+    PatMoreSpecific -> case b of
+      PatDisjoint -> PatDisjoint
+      PatEquivalent -> PatMoreSpecific
+      PatMoreSpecific -> PatMoreSpecific
+      PatLessSpecific -> PatOverlaps
+      PatOverlaps -> PatOverlaps
+    PatLessSpecific -> case b of
+      PatDisjoint -> PatDisjoint
+      PatEquivalent -> PatLessSpecific
+      PatLessSpecific -> PatLessSpecific
+      PatMoreSpecific -> PatOverlaps
+      PatOverlaps -> PatOverlaps
+
+  -- | Compare two route patterns for precedence and conflicts.
+  -- When patterns would otherwise overlap or invert on path/method, a pattern with an explicit host
+  -- takes precedence over a host-less pattern.
+  mux-pattern-compare :: MuxPattern -> MuxPattern -> PatternRelation
+  mux-pattern-compare p1 p2 =
+    let pm = combine-relations (compare-paths (mux-pattern-segments p1) (mux-pattern-segments p2)) (compare-methods (mux-pattern-method p1) (mux-pattern-method p2)) in
+    case pm of
+      PatDisjoint -> PatDisjoint
+      _ ->
+        let hrel = compare-hosts (mux-pattern-host p1) (mux-pattern-host p2) in
+        case hrel of
+          PatDisjoint -> PatDisjoint
+          PatMoreSpecific -> PatMoreSpecific
+          PatLessSpecific -> PatLessSpecific
+          _ -> pm
+
+  -- | Compare host constraints.
+  compare-hosts :: String -> String -> PatternRelation
+  compare-hosts h1 h2 =
+    if h1 == h2 then PatEquivalent
+    else if h1 == "" then PatLessSpecific
+    else if h2 == "" then PatMoreSpecific
+    else PatDisjoint
+
+  -- | Compare method constraints (empty matches all; GET matches GET and HEAD).
+  compare-methods :: String -> String -> PatternRelation
+  compare-methods m1 m2 =
+    if m1 == m2 then PatEquivalent
+    else if m1 == "" then PatLessSpecific
+    else if m2 == "" then PatMoreSpecific
+    else if m1 == method-head && m2 == method-get then PatMoreSpecific
+    else if m1 == method-get && m2 == method-head then PatLessSpecific
+    else PatDisjoint
+
+  -- | Compare two segment lists for path specificity.
+  compare-paths :: List MuxSegment -> List MuxSegment -> PatternRelation
+  compare-paths s1 s2 = compare-paths-acc s1 s2 PatEquivalent
+
+  -- | Tail-recursive segment comparison carrying accumulated relation.
+  compare-paths-acc :: List MuxSegment -> List MuxSegment -> PatternRelation -> PatternRelation
+  compare-paths-acc s1 s2 acc = case s1 of
+    Nil -> case s2 of
+      Nil -> acc
+      Cons _ _ -> PatDisjoint
+    Cons x xs -> case s2 of
+      Nil -> PatDisjoint
+      Cons y ys -> case x of
+        SegMulti _ -> case y of
+          SegMulti _ -> acc
+          _ -> combine-relations acc PatLessSpecific
+        _ -> case y of
+          SegMulti _ -> combine-relations acc PatMoreSpecific
+          _ ->
+            let step = compare-single-seg x y in
+            case step of
+              PatDisjoint -> PatDisjoint
+              _ -> compare-paths-acc xs ys (combine-relations acc step)
+
+  -- | Compare two non-multi segments at the same path position.
+  compare-single-seg :: MuxSegment -> MuxSegment -> PatternRelation
+  compare-single-seg a b = case a of
+    SegLiteral sa -> case b of
+      SegLiteral sb -> if sa == sb then PatEquivalent else PatDisjoint
+      SegWild _ -> if sa == "" then PatDisjoint else PatMoreSpecific
+      SegExactEnd -> if sa == "" then PatEquivalent else PatDisjoint
+      SegMulti _ -> PatMoreSpecific
+    SegWild _ -> case b of
+      SegWild _ -> PatEquivalent
+      SegLiteral sb -> if sb == "" then PatDisjoint else PatLessSpecific
+      SegExactEnd -> PatDisjoint
+      SegMulti _ -> PatMoreSpecific
+    SegExactEnd -> case b of
+      SegExactEnd -> PatEquivalent
+      SegLiteral sb -> if sb == "" then PatEquivalent else PatDisjoint
+      SegWild _ -> PatDisjoint
+      SegMulti _ -> PatMoreSpecific
+    SegMulti _ -> case b of
+      SegMulti _ -> PatEquivalent
+      _ -> PatLessSpecific
+
+  -- | A route table entry pairing a parsed pattern with its handler value.
+  data MuxEntry a where
+    -- | Parsed route pattern and associated handler.
+    MuxEntry :: MuxPattern -> a -> MuxEntry a
+
+  -- | An immutable HTTP request multiplexer parameterized by its handler type.
+  data ServeMux a where
+    -- | Registered entries.
+    ServeMux :: List (MuxEntry a) -> ServeMux a
+
+  -- | An empty ServeMux with no registered routes.
+  mux-empty :: forall a. ServeMux a
+  mux-empty = ServeMux Nil
+
+  -- | Register a pattern and handler, rejecting invalid syntax or conflicting routes.
+  mux-handle :: forall a. String -> a -> ServeMux a -> Result HttpProtoError (ServeMux a)
+  mux-handle raw hdl mux = case mux-parse-pattern raw of
+    Err e -> Err e
+    Ok pat -> case mux of
+      ServeMux entries -> case find-conflict pat entries of
+        Some other -> Err (HttpProtoPatternConflict (string-concat-all [raw, " conflicts with ", other]))
+        None -> Ok (ServeMux (Cons (MuxEntry pat hdl) entries))
+
+  -- | Check whether a new pattern conflicts with any existing route entry.
+  find-conflict :: forall a. MuxPattern -> List (MuxEntry a) -> Option String
+  find-conflict pat entries = case entries of
+    Nil -> None
+    Cons entry rest -> case entry of
+      MuxEntry existing _ -> case mux-pattern-compare pat existing of
+        PatEquivalent -> Some (mux-pattern-string existing)
+        PatOverlaps -> Some (mux-pattern-string existing)
+        _ -> find-conflict pat rest
+
+  -- | The outcome of matching an HTTP request against a ServeMux.
+  data MuxMatch a where
+    -- | Matched a registered route: handler, pattern string, and extracted path parameter pairs.
+    MuxMatched :: a -> String -> List (String, String) -> MuxMatch a
+    -- | Canonical path or trailing-slash redirect: Location header value and status code (301 or 307).
+    MuxRedirect :: String -> Nat -> MuxMatch a
+    -- | Path and host matched one or more routes for other methods: sorted allowed methods.
+    MuxMethodNotAllowed :: List String -> MuxMatch a
+    -- | No route matched the request.
+    MuxNotFound :: MuxMatch a
+
+  -- | Match an HTTP wire request against a ServeMux.
+  mux-handler :: forall a. ServeMux a -> HttpWireRequest -> MuxMatch a
+  mux-handler mux req =
+    mux-match-raw mux (req-method req) (req-host req) (req-raw-path req) (req-raw-query req)
+
+  -- | Match a method, host and path (optionally containing "?query") against a ServeMux.
+  mux-match :: forall a. ServeMux a -> String -> String -> String -> MuxMatch a
+  mux-match mux method host path-and-query =
+    let (rpath, rquery) = cut-on-byte path-and-query 63 in
+    mux-match-raw mux method host rpath rquery
+
+  -- | Core ServeMux dispatch handling path cleaning, segment unescaping, precedence, trailing-slash
+  -- redirects and 405 Method Not Allowed with Allow methods.
+  mux-match-raw :: forall a. ServeMux a -> String -> String -> String -> String -> MuxMatch a
+  mux-match-raw mux method host rpath0 rquery =
+    let rpath = if rpath0 == "" then "/" else rpath0 in
+    let clean-host = strip-host-port host in
+    let cleaned = if method == method-connect then rpath else http-clean-path rpath in
+    if not (cleaned == rpath) then
+      let loc = if rquery == "" then cleaned else string-concat-all [cleaned, "?", rquery] in
+      let code = if method == method-get then status-moved-permanently else status-temporary-redirect in
+      MuxRedirect loc code
+    else case split-and-unescape-path rpath of
+      None -> MuxNotFound
+      Some rsegs -> case mux of
+        ServeMux entries ->
+          let (best, allowed) = scan-entries entries method clean-host rsegs None Nil in
+          case best of
+            Some hit -> case hit of
+              (pat, h, params) -> MuxMatched h (mux-pattern-string pat) params
+            None -> case allowed of
+              Cons _ _ -> MuxMethodNotAllowed (sort-dedup-methods allowed)
+              Nil ->
+                let pb = string-to-bytes rpath in
+                let ends-slash = bytes-len pb > 0 && byte-at pb (sat-sub (bytes-len pb) 1) == 47 in
+                if ends-slash then MuxNotFound
+                else
+                  let slash-segs = append-str-end rsegs "" in
+                  let (best2, allowed2) = scan-entries entries method clean-host slash-segs None Nil in
+                  case best2 of
+                    Some _ ->
+                      let slash-path = string-concat rpath "/" in
+                      let loc = if rquery == "" then slash-path else string-concat-all [slash-path, "?", rquery] in
+                      let code = if method == method-get then status-moved-permanently else status-temporary-redirect in
+                      MuxRedirect loc code
+                    None -> case allowed2 of
+                      Cons _ _ -> MuxMethodNotAllowed (sort-dedup-methods allowed2)
+                      Nil -> MuxNotFound
+
+  -- | Append one string to the end of a string list.
+  append-str-end :: List String -> String -> List String
+  append-str-end xs s = reverse (Cons s (reverse xs))
+
+  -- | Split a leading-slash path on literal '/' and percent-unescape each segment.
+  split-and-unescape-path :: String -> Option (List String)
+  split-and-unescape-path rpath =
+    let b = string-to-bytes rpath in
+    let body = if bytes-len b > 0 && byte-at b 0 == 47 then bytes-text (slice-range b 1 (bytes-len b)) else rpath in
+    unescape-all-segs (split-on-byte body 47) Nil
+
+  -- | Percent-unescape a list of raw path segments.
+  unescape-all-segs :: List String -> List String -> Option (List String)
+  unescape-all-segs segs acc = case segs of
+    Nil -> Some (reverse acc)
+    Cons seg rest -> case url-path-unescape (string-to-bytes seg) of
+      Err _ -> None
+      Ok u -> unescape-all-segs rest (Cons (bytes-text u) acc)
+
+  -- | Check whether a pattern's method matches a request method.
+  pattern-matches-method :: String -> String -> Bool
+  pattern-matches-method pat-m req-m =
+    pat-m == "" || pat-m == req-m || (pat-m == method-get && req-m == method-head)
+
+  -- | Check whether a pattern's host matches a port-stripped request host.
+  pattern-matches-host :: String -> String -> Bool
+  pattern-matches-host pat-h req-h = pat-h == "" || pat-h == req-h
+
+  -- | Match parsed pattern segments against unescaped request segments, capturing wildcard bindings.
+  match-segments :: List MuxSegment -> List String -> List (String, String) -> Option (List (String, String))
+  match-segments psegs rsegs acc = case psegs of
+    Nil -> case rsegs of
+      Nil -> Some (reverse acc)
+      Cons _ _ -> None
+    Cons p prest -> case p of
+      SegExactEnd -> case rsegs of
+        Cons r Nil -> if r == "" then Some (reverse acc) else None
+        _ -> None
+      SegMulti name -> case rsegs of
+        Nil -> None
+        Cons _ _ ->
+          if name == "" then Some (reverse acc)
+          else Some (reverse (Cons (name, string-join rsegs "/") acc))
+      SegLiteral lit -> case rsegs of
+        Nil -> None
+        Cons r rrest -> if lit == r then match-segments prest rrest acc else None
+      SegWild name -> case rsegs of
+        Nil -> None
+        Cons r rrest -> if r == "" then None else match-segments prest rrest (Cons (name, r) acc)
+
+  -- | Scan all registered route entries, tracking the most specific full match and any alternative methods.
+  scan-entries :: forall a. List (MuxEntry a) -> String -> String -> List String -> Option (MuxPattern, a, List (String, String)) -> List String -> (Option (MuxPattern, a, List (String, String)), List String)
+  scan-entries entries method host rsegs best allowed = case entries of
+    Nil -> (best, allowed)
+    Cons entry rest -> case entry of
+      MuxEntry pat h ->
+        if not (pattern-matches-host (mux-pattern-host pat) host) then
+          scan-entries rest method host rsegs best allowed
+        else case match-segments (mux-pattern-segments pat) rsegs Nil of
+          None -> scan-entries rest method host rsegs best allowed
+          Some params ->
+            let pm = mux-pattern-method pat in
+            if pattern-matches-method pm method then
+              let next-best = choose-more-specific best pat h params in
+              scan-entries rest method host rsegs next-best allowed
+            else
+              let next-allowed = add-allowed-method pm allowed in
+              scan-entries rest method host rsegs best next-allowed
+
+  -- | Pick the more specific of the current best match and a new candidate match.
+  choose-more-specific :: forall a. Option (MuxPattern, a, List (String, String)) -> MuxPattern -> a -> List (String, String) -> Option (MuxPattern, a, List (String, String))
+  choose-more-specific current pat h params = case current of
+    None -> Some (pat, h, params)
+    Some prev -> case prev of
+      (prev-pat, prev-h, prev-params) -> case mux-pattern-compare pat prev-pat of
+        PatMoreSpecific -> Some (pat, h, params)
+        _ -> current
+
+  -- | Record an allowed method from a non-matching-method route (adding HEAD whenever GET is allowed).
+  add-allowed-method :: String -> List String -> List String
+  add-allowed-method pm allowed =
+    if pm == "" then allowed
+    else if pm == method-get then Cons method-head (Cons method-get allowed)
+    else Cons pm allowed
+
+  -- | Sort and deduplicate a list of HTTP method names lexicographically.
+  sort-dedup-methods :: List String -> List String
+  sort-dedup-methods xs = sort-methods-acc xs Nil
+
+  -- | Insertion sort with deduplication for HTTP method names.
+  sort-methods-acc :: List String -> List String -> List String
+  sort-methods-acc xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> sort-methods-acc rest (insert-method-uniq x acc)
+
+  -- | Insert a method name into a sorted, duplicate-free list.
+  insert-method-uniq :: String -> List String -> List String
+  insert-method-uniq x ys = case ys of
+    Nil -> Cons x Nil
+    Cons y rest ->
+      let cmp = bytes-compare (string-to-bytes x) (string-to-bytes y) in
+      if eq-i64 cmp 0 then ys
+      else if lt-i64 cmp 0 then Cons x ys
+      else Cons y (insert-method-uniq x rest)
+
+  -- | Format a list of allowed methods as a standard HTTP Allow header value.
+  mux-allow-header :: List String -> String
+  mux-allow-header methods = string-join (sort-dedup-methods methods) ", "

@@ -1,7 +1,7 @@
 -- | PNG images: decode every color type, bit depth and interlace method into rasters, and encode rasters.
 -- Decoding verifies the signature and every chunk CRC, joins the IDAT stream
 -- and inflates it, then reverses each scanline's filter in place: Up adds the
--- prior row eight bytes at a time in SIMD lanes, and Sub reconstructs eight
+-- prior row sixteen bytes at a time in SIMD lanes, and Sub reconstructs sixteen
 -- bytes per step with a lane-shift prefix scan specialized to the pixel size;
 -- Average and Paeth depend on the byte to their left and run bytewise with a
 -- branchless Paeth predictor. Samples below eight bits are widened (gray scaled
@@ -20,6 +20,7 @@ module Image.Png where
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (simd-u8x16-add, wrapping-shl-u128, wrapping-shr-u128, wrapping-u128-to-u64, u64-to-u128)
   import Text.Checksum
   import Text.Zlib
 
@@ -283,7 +284,7 @@ module Image.Png where
   -- | Dispatch one row's filter.
   unfilter :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool -> Nat -> Unit
   unfilter raw row rb bpp kind has-prior prior =
-    if kind == 1 then sub-row raw row rb bpp 0
+    if kind == 1 then sub-row raw row rb bpp 0 0
     else if kind == 2 then (if has-prior then up-row raw row prior rb 0 else ())
     else if kind == 3 then average-row raw row prior rb bpp has-prior 0
     else if kind == 4 then paeth-row raw row prior rb bpp has-prior 0
@@ -293,25 +294,20 @@ module Image.Png where
   put :: Bytes -> Nat -> Nat -> Unit
   put raw i v = let b = nat-rem v 256 in if i < bytes-len raw && b < 256 then bytes-set raw i b else ()
 
-  -- | Sub: eight bytes per SIMD step for the common pixel sizes, then bytewise.
-  sub-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
-  sub-row raw row rb bpp i =
-    if i + 8 <= rb && row + i + 8 <= bytes-len raw && (bpp == 1 || bpp == 2 || bpp == 3 || bpp == 4 || bpp == 6 || bpp == 8) then
-      let previous = if i >= 8 then word-at raw (minus (row + i) 8) else 0 in
-      let word = sub-word bpp (bytes-read-le64 raw (row + i)) previous in
-      let stored = bytes-write-le64 raw (row + i) word in
-      sub-row raw row rb bpp (i + 8)
+  -- | Sub: sixteen bytes per SIMD step for the common pixel sizes, then bytewise.
+  sub-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> U64 -> Unit
+  sub-row raw row rb bpp i prev =
+    if i + 16 <= rb && row + i + 16 <= bytes-len raw && (bpp == 1 || bpp == 2 || bpp == 3 || bpp == 4 || bpp == 6 || bpp == 8) then
+      let out = sub-word16 bpp (bytes-load-u128 raw (row + i)) prev in
+      let stored = bytes-store-u128 raw (row + i) out in
+      sub-row raw row rb bpp (i + 16) (wrapping-u128-to-u64 (wrapping-shr-u128 out 64))
     else sub-bytes raw row rb bpp i
 
-  -- | An eight-byte little-endian word, or zero when it does not fit.
-  word-at :: Bytes -> Nat -> U64
-  word-at raw pos = if pos + 8 <= bytes-len raw then bytes-read-le64 raw pos else 0
-
-  -- | Select the specialized Sub kernel.
-  sub-word :: Nat -> U64 -> U64 -> U64
-  sub-word bpp word previous =
-    if bpp == 1 then sub1 word previous else if bpp == 2 then sub2 word previous else if bpp == 3 then sub3 word previous
-    else if bpp == 4 then sub4 word previous else if bpp == 6 then sub6 word previous else sub8 word previous
+  -- | Select the specialized sixteen-byte Sub kernel.
+  sub-word16 :: Nat -> U128 -> U64 -> U128
+  sub-word16 bpp chunk prev =
+    if bpp == 1 then sub1 chunk prev else if bpp == 2 then sub2 chunk prev else if bpp == 3 then sub3 chunk prev
+    else if bpp == 4 then sub4 chunk prev else if bpp == 6 then sub6 chunk prev else sub8 chunk prev
 
   -- | Sub for the remaining bytes.
   sub-bytes :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
@@ -319,13 +315,15 @@ module Image.Png where
     if i >= rb then ()
     else let w = put raw (row + i) (at raw (row + i) + (if i >= bpp then at raw (minus (row + i) bpp) else 0)) in sub-bytes raw row rb bpp (i + 1)
 
-  -- | Up: add the prior row eight bytes at a time, then bytewise.
+  -- | Up: add the prior row sixteen bytes at a time in SIMD lanes, then bytewise.
   up-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
   up-row raw row prior rb i =
-    if i + 8 <= rb && row + i + 8 <= bytes-len raw && prior + i + 8 <= bytes-len raw then
-      let w = bytes-write-le64 raw (row + i) (add-bytes (bytes-read-le64 raw (row + i)) (bytes-read-le64 raw (prior + i))) in
-      up-row raw row prior rb (i + 8)
-    else if i < rb then let w = put raw (row + i) (at raw (row + i) + at raw (prior + i)) in up-row raw row prior rb (i + 1)
+    if i + 16 <= rb && row + i + 16 <= bytes-len raw && prior + i + 16 <= bytes-len raw then
+      let w = bytes-store-u128 raw (row + i) (simd-u8x16-add (bytes-load-u128 raw (row + i)) (bytes-load-u128 raw (prior + i))) in
+      up-row raw row prior rb (i + 16)
+    else if i < rb && row + i < bytes-len raw && prior + i < bytes-len raw then
+      let w = bytes-set-u8 raw (row + i) (wrapping-add-u8 (bytes-get-u8 raw (row + i)) (bytes-get-u8 raw (prior + i))) in
+      up-row raw row prior rb (i + 1)
     else ()
 
   -- | Average: add the floor of the mean of the left and prior bytes.
@@ -358,16 +356,6 @@ module Image.Png where
   -- | Absolute difference.
   distance :: Nat -> Nat -> Nat
   distance x y = if x >= y then x - y else y - x
-
-  -- | Byte-wise sum of two words in SIMD lanes, wrapping each byte.
-  prim add-bytes :: U64 -> U64 -> U64 where
-    llvm {
-      %a = bitcast i64 %0 to <8 x i8>
-      %b = bitcast i64 %1 to <8 x i8>
-      %s = add <8 x i8> %a, %b
-      %value = bitcast <8 x i8> %s to i64
-      ret i64 %value
-    }
 
   -- | Copy or expand each reconstructed row into the raster.
   place-rows :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
@@ -584,183 +572,48 @@ module Image.Png where
       let guess = if kind == 1 then a else if kind == 2 then b else if kind == 3 then nat-div (a + b) 2 else if kind == 4 then predictor a b c else 0 in
       let w = set-byte out (i + 1) (nat-rem (minus (x + 256) guess) 256) in
       residuals pixels row prior rb bpp kind out (i + 1)
-  -- | Reconstruct eight Sub-filtered bytes with 1-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub1 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
-      %v2 = add <8 x i8> %v1, %s1
-      %s2 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v2, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v3 = add <8 x i8> %v2, %s2
-      %w = bitcast <8 x i8> %v3 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
-      %v2 = add <8 x i8> %v1, %s1
-      %s2 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v2, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v3 = add <8 x i8> %v2, %s2
-      %w = bitcast <8 x i8> %v3 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 1-byte pixels, given the previous eight reconstructed bytes.
+  sub1 :: U128 -> U64 -> U128
+  sub1 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 (wrapping-shr-u64 prev 56)) in
+    let v1 = simd-u8x16-add v0 (wrapping-shl-u128 v0 8) in
+    let v2 = simd-u8x16-add v1 (wrapping-shl-u128 v1 16) in
+    let v3 = simd-u8x16-add v2 (wrapping-shl-u128 v2 32) in
+    simd-u8x16-add v3 (wrapping-shl-u128 v3 64)
 
-  -- | Reconstruct eight Sub-filtered bytes with 2-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub2 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v2 = add <8 x i8> %v1, %s1
-      %w = bitcast <8 x i8> %v2 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v2 = add <8 x i8> %v1, %s1
-      %w = bitcast <8 x i8> %v2 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 2-byte pixels, given the previous eight reconstructed bytes.
+  sub2 :: U128 -> U64 -> U128
+  sub2 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 (wrapping-shr-u64 prev 48)) in
+    let v1 = simd-u8x16-add v0 (wrapping-shl-u128 v0 16) in
+    let v2 = simd-u8x16-add v1 (wrapping-shl-u128 v1 32) in
+    simd-u8x16-add v2 (wrapping-shl-u128 v2 64)
 
-  -- | Reconstruct eight Sub-filtered bytes with 3-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub3 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
-      %v2 = add <8 x i8> %v1, %s1
-      %w = bitcast <8 x i8> %v2 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12>
-      %v1 = add <8 x i8> %v0, %s0
-      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
-      %v2 = add <8 x i8> %v1, %s1
-      %w = bitcast <8 x i8> %v2 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 3-byte pixels, given the previous eight reconstructed bytes.
+  sub3 :: U128 -> U64 -> U128
+  sub3 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 (wrapping-shr-u64 prev 40)) in
+    let v1 = simd-u8x16-add v0 (wrapping-shl-u128 v0 24) in
+    let v2 = simd-u8x16-add v1 (wrapping-shl-u128 v1 48) in
+    simd-u8x16-add v2 (wrapping-shl-u128 v2 96)
 
-  -- | Reconstruct eight Sub-filtered bytes with 4-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub4 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 12, i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v1 = add <8 x i8> %v0, %s0
-      %w = bitcast <8 x i8> %v1 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 12, i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
-      %v1 = add <8 x i8> %v0, %s0
-      %w = bitcast <8 x i8> %v1 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 4-byte pixels, given the previous eight reconstructed bytes.
+  sub4 :: U128 -> U64 -> U128
+  sub4 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 (wrapping-shr-u64 prev 32)) in
+    let v1 = simd-u8x16-add v0 (wrapping-shl-u128 v0 32) in
+    simd-u8x16-add v1 (wrapping-shl-u128 v1 64)
 
-  -- | Reconstruct eight Sub-filtered bytes with 6-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub6 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
-      %v1 = add <8 x i8> %v0, %s0
-      %w = bitcast <8 x i8> %v1 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 0, i32 0>
-      %v0 = add <8 x i8> %x, %c
-      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
-      %v1 = add <8 x i8> %v0, %s0
-      %w = bitcast <8 x i8> %v1 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 6-byte pixels, given the previous eight reconstructed bytes.
+  sub6 :: U128 -> U64 -> U128
+  sub6 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 (wrapping-shr-u64 prev 16)) in
+    let v1 = simd-u8x16-add v0 (wrapping-shl-u128 v0 48) in
+    simd-u8x16-add v1 (wrapping-shl-u128 v1 96)
 
-  -- | Reconstruct eight Sub-filtered bytes with 8-byte pixels, given the previous eight reconstructed
-  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
-  prim sub8 :: U64 -> U64 -> U64 where
-    llvm {
-      %x = bitcast i64 %0 to <8 x i8>
-      %p = bitcast i64 %1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %v0 = add <8 x i8> %x, %c
-      %w = bitcast <8 x i8> %v0 to i64
-      %value = or i64 %w, 0
-      ret i64 %value
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %x = bitcast i64 %in0 to <8 x i8>
-      %p = bitcast i64 %in1 to <8 x i8>
-      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %v0 = add <8 x i8> %x, %c
-      %w = bitcast <8 x i8> %v0 to i64
-      %value = call i64 @llvm.bswap.i64(i64 %w)
-      ret i64 %value
-    } when endian big
+  -- | Reconstruct sixteen Sub-filtered bytes with 8-byte pixels, given the previous eight reconstructed bytes.
+  sub8 :: U128 -> U64 -> U128
+  sub8 x prev =
+    let v0 = simd-u8x16-add x (u64-to-u128 prev) in
+    simd-u8x16-add v0 (wrapping-shl-u128 v0 64)
 

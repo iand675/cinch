@@ -4,7 +4,7 @@ ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD la
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.MlKem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.MlKem/source/">View source</a><a href="/packages/search/?q=%2BCrypto.MlKem">Search module</a><a href="/reference-sources/Crypto.MlKem.cinch" download="Crypto.MlKem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
+**Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -17,7 +17,7 @@ re-encrypt to itself yields a pseudorandom rejection key instead, selected
 in constant time. Encapsulation keys from outside are checked for
 coefficients outside the field. Polynomials are immutable values of
 thirty-two 128-bit lanes of eight coefficients; transforms, products,
-compression and sampling run as generated branch-free lane kernels with
+compression and sampling run as portable branch-free 128-bit SIMD lane ops with
 exact arithmetic modulo q = 3329. Effect.Crypto draws seeds and randomness
 from the operating system.
 

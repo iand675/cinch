@@ -4,7 +4,7 @@ Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffe
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Base32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Base32/source/">View source</a><a href="/packages/search/?q=%2BText.Base32">Search module</a><a href="/reference-sources/Text.Base32.cinch" download="Text.Base32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
@@ -13,8 +13,8 @@ Fixed-alphabet text conveniences accept uppercase symbols and return atomic
 errors. Configurable byte APIs preserve complete output before a later error,
 count positions in original bytes and provide persistent encoder/decoder state.
 CR and LF are ignored. Final lengths, padding and trailing data are validated;
-unused low symbol bits are discarded. Complete quanta use inline LLVM SIMD
-and SWAR; custom lookup tables are private, immutable copies of caller bytes.
+unused low symbol bits are discarded. Complete quanta use portable 128-bit
+SIMD and SWAR; custom lookup tables are private, immutable copies of caller bytes.
 
 </details>
 
@@ -35,7 +35,7 @@ The fixed 32-symbol alphabet for a Base32 encoding.
 </article>
 
 <article class="doc-entry" id="t-Base32ConfigError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32ConfigError</strong></code><span class="doc-sig-links"><a href="#t-Base32ConfigError" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L450" title="View source at line 450">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32ConfigError</strong></code><span class="doc-sig-links"><a href="#t-Base32ConfigError" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L411" title="View source at line 411">Source</a></span></div>
 <div class="doc-body">
 
 Invalid alphabet or padding configuration; construction never changes caller storage.
@@ -45,7 +45,7 @@ Invalid alphabet or padding configuration; construction never changes caller sto
 </article>
 
 <article class="doc-entry" id="t-Base32Decoder">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Decoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Decoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L714" title="View source at line 714">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Decoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Decoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L680" title="View source at line 680">Source</a></span></div>
 <div class="doc-body">
 
 Persistent decoding continuation with a packed unfinished quantum and sticky failure.
@@ -54,7 +54,7 @@ Persistent decoding continuation with a packed unfinished quantum and sticky fai
 </article>
 
 <article class="doc-entry" id="t-Base32Encoder">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L690" title="View source at line 690">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L656" title="View source at line 656">Source</a></span></div>
 <div class="doc-body">
 
 Persistent encoding continuation owning fewer than five pending input bytes.
@@ -63,7 +63,7 @@ Persistent encoding continuation owning fewer than five pending input bytes.
 </article>
 
 <article class="doc-entry" id="t-Base32Encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoding</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L445" title="View source at line 445">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoding</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L406" title="View source at line 406">Source</a></span></div>
 <div class="doc-body">
 
 An immutable byte alphabet, inverse lookup and optional one-byte padding policy.
@@ -83,7 +83,7 @@ Malformed input for the fixed-alphabet text conveniences; errors carry no partia
 </article>
 
 <article class="doc-entry" id="t-Base32InputError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32InputError</strong></code><span class="doc-sig-links"><a href="#t-Base32InputError" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L657" title="View source at line 657">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32InputError</strong></code><span class="doc-sig-links"><a href="#t-Base32InputError" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L623" title="View source at line 623">Source</a></span></div>
 <div class="doc-body">
 
 Invalid encoded bytes, an incomplete final quantum, or insufficient destination capacity.
@@ -96,7 +96,7 @@ Input positions count original bytes, including ignored CR and LF.
 # Values
 
 <article class="doc-entry" id="v-base32-config-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-config-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-config-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L463" title="View source at line 463">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-config-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-config-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L424" title="View source at line 424">Source</a></span></div>
 <div class="doc-body">
 
 Describe the precise alphabet offset or rejected padding value.
@@ -114,7 +114,7 @@ Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowe
 </article>
 
 <article class="doc-entry" id="v-base32-decode-append">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L831" title="View source at line 831">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L817" title="View source at line 817">Source</a></span></div>
 <div class="doc-body">
 
 Append completed decoded bytes to a copied prefix, retaining a later malformed-input error.
@@ -123,7 +123,7 @@ Append completed decoded bytes to a copied prefix, retaining a later malformed-i
 </article>
 
 <article class="doc-entry" id="v-base32-decode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-decode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L821" title="View source at line 821">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-decode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L807" title="View source at line 807">Source</a></span></div>
 <div class="doc-body">
 
 Decode complete bytes atomically; use the prefix API when malformed-input progress is needed.
@@ -132,7 +132,7 @@ Decode complete bytes atomically; use the prefix API when malformed-input progre
 </article>
 
 <article class="doc-entry" id="v-base32-decode-into">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L838" title="View source at line 838">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L824" title="View source at line 824">Source</a></span></div>
 <div class="doc-body">
 
 Decode into a checked destination and return progress plus a possible input error.
@@ -143,7 +143,7 @@ copying, so overlap is safe and valid padding never requires excess capacity.
 </article>
 
 <article class="doc-entry" id="v-base32-decode-prefix">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L815" title="View source at line 815">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-prefix" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L801" title="View source at line 801">Source</a></span></div>
 <div class="doc-body">
 
 Decode bytes with precise original offsets and retain all preceding complete output on error.
@@ -152,7 +152,7 @@ Decode bytes with precise original offsets and retain all preceding complete out
 </article>
 
 <article class="doc-entry" id="v-base32-decode-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L827" title="View source at line 827">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L813" title="View source at line 813">Source</a></span></div>
 <div class="doc-body">
 
 Decode UTF-8 text while preserving complete output and counting original UTF-8 byte offsets.
@@ -161,7 +161,7 @@ Decode UTF-8 text while preserving complete output and counting original UTF-8 b
 </article>
 
 <article class="doc-entry" id="v-base32-decoded-length">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-decoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L563" title="View source at line 563">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-decoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L524" title="View source at line 524">Source</a></span></div>
 <div class="doc-body">
 
 Maximum decoded byte count from an encoded byte count; this does not validate input.
@@ -171,7 +171,7 @@ Newlines and padding can make the actual result shorter than this capacity bound
 </article>
 
 <article class="doc-entry" id="v-base32-decoder">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a></code><span class="doc-sig-links"><a href="#v-base32-decoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L719" title="View source at line 719">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a></code><span class="doc-sig-links"><a href="#v-base32-decoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L685" title="View source at line 685">Source</a></span></div>
 <div class="doc-body">
 
 Begin a strict byte decoder. CR/LF are ignored; padding and final lengths are validated.
@@ -180,7 +180,7 @@ Begin a strict byte decoder. CR/LF are ignored; padding and final lengths are va
 </article>
 
 <article class="doc-entry" id="v-base32-decoder-error">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code><span class="doc-sig-links"><a href="#v-base32-decoder-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L723" title="View source at line 723">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code><span class="doc-sig-links"><a href="#v-base32-decoder-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L689" title="View source at line 689">Source</a></span></div>
 <div class="doc-body">
 
 Observe a sticky feed failure while retaining any output returned with that feed.
@@ -189,7 +189,7 @@ Observe a sticky feed failure while retaining any output returned with that feed
 </article>
 
 <article class="doc-entry" id="v-base32-decoder-feed">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-feed" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L728" title="View source at line 728">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-feed" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L694" title="View source at line 694">Source</a></span></div>
 <div class="doc-body">
 
 Emit complete quanta, preserving their output alongside a later sticky decoding failure.
@@ -199,7 +199,7 @@ An incomplete padded quantum is held until every required pad is validated.
 </article>
 
 <article class="doc-entry" id="v-base32-decoder-finish">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-finish" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L801" title="View source at line 801">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-finish" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L787" title="View source at line 787">Source</a></span></div>
 <div class="doc-body">
 
 Validate EOF and render an allowed unpadded tail. Lengths 1, 3 and 6 are rejected.
@@ -218,7 +218,7 @@ Encode with the selected alphabet and enough equals signs to complete an eight-c
 </article>
 
 <article class="doc-entry" id="v-base32-encode-append">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L647" title="View source at line 647">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L613" title="View source at line 613">Source</a></span></div>
 <div class="doc-body">
 
 Append encoded bytes to a copied prefix without mutating or retaining either caller buffer.
@@ -227,7 +227,7 @@ Append encoded bytes to a copied prefix without mutating or retaining either cal
 </article>
 
 <article class="doc-entry" id="v-base32-encode-bytes">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L637" title="View source at line 637">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-bytes" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L603" title="View source at line 603">Source</a></span></div>
 <div class="doc-body">
 
 Encode directly into fresh byte storage; arbitrary alphabet and padding bytes are preserved.
@@ -236,7 +236,7 @@ Encode directly into fresh byte storage; arbitrary alphabet and padding bytes ar
 </article>
 
 <article class="doc-entry" id="v-base32-encode-into">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L681" title="View source at line 681">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encode-into" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L647" title="View source at line 647">Source</a></span></div>
 <div class="doc-body">
 
 Encode into a complete checked destination interval, returning the written byte count.
@@ -246,7 +246,7 @@ Capacity is checked before mutation; a source snapshot makes overlap safe.
 </article>
 
 <article class="doc-entry" id="v-base32-encode-text">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-encode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L643" title="View source at line 643">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-encode-text" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L609" title="View source at line 609">Source</a></span></div>
 <div class="doc-body">
 
 Encode as text only when the exact encoded bytes form valid UTF-8.
@@ -255,7 +255,7 @@ Encode as text only when the exact encoded bytes form valid UTF-8.
 </article>
 
 <article class="doc-entry" id="v-base32-encoded-length">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L556" title="View source at line 556">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoded-length" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L517" title="View source at line 517">Source</a></span></div>
 <div class="doc-body">
 
 Exact encoded byte count for an input length, including the selected padding policy.
@@ -264,7 +264,7 @@ Exact encoded byte count for an input length, including the selected padding pol
 </article>
 
 <article class="doc-entry" id="v-base32-encoder">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a></code><span class="doc-sig-links"><a href="#v-base32-encoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L695" title="View source at line 695">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a></code><span class="doc-sig-links"><a href="#v-base32-encoder" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L661" title="View source at line 661">Source</a></span></div>
 <div class="doc-body">
 
 Begin an independent encoding; finish explicitly to emit its final short quantum.
@@ -273,7 +273,7 @@ Begin an independent encoding; finish explicitly to emit its final short quantum
 </article>
 
 <article class="doc-entry" id="v-base32-encoder-feed">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-encoder-feed" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L699" title="View source at line 699">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-encoder-feed" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L665" title="View source at line 665">Source</a></span></div>
 <div class="doc-body">
 
 Emit all complete five-byte quanta, retaining only a copied tail of at most four bytes.
@@ -282,7 +282,7 @@ Emit all complete five-byte quanta, retaining only a copied tail of at most four
 </article>
 
 <article class="doc-entry" id="v-base32-encoder-finish">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoder-finish" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L710" title="View source at line 710">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoder-finish" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L676" title="View source at line 676">Source</a></span></div>
 <div class="doc-body">
 
 Render the final short quantum and selected padding without changing the retained state.
@@ -291,7 +291,7 @@ Render the final short quantum and selected padding without changing the retaine
 </article>
 
 <article class="doc-entry" id="v-base32-encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L495" title="View source at line 495">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L456" title="View source at line 456">Source</a></span></div>
 <div class="doc-body">
 
 Validate 32 distinct non-newline bytes and create an independent padded encoding.
@@ -302,7 +302,7 @@ select another padding byte or no padding before requiring an invertible tail.
 </article>
 
 <article class="doc-entry" id="v-base32-encoding-alphabet">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-alphabet</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-alphabet" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L515" title="View source at line 515">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-alphabet</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-alphabet" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L476" title="View source at line 476">Source</a></span></div>
 <div class="doc-body">
 
 Return a fresh complete alphabet buffer, including for custom non-UTF-8 alphabets.
@@ -311,7 +311,7 @@ Return a fresh complete alphabet buffer, including for custom non-UTF-8 alphabet
 </article>
 
 <article class="doc-entry" id="v-base32-encoding-padding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-padding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-padding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L523" title="View source at line 523">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-padding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-padding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L484" title="View source at line 484">Source</a></span></div>
 <div class="doc-body">
 
 Observe the optional padding byte; None selects an unpadded encoding.
@@ -320,7 +320,7 @@ Observe the optional padding byte; None selects an unpadded encoding.
 </article>
 
 <article class="doc-entry" id="v-base32-hex-encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-hex-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-hex-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L476" title="View source at line 476">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-hex-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-hex-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L437" title="View source at line 437">Source</a></span></div>
 <div class="doc-body">
 
 The extended-hex uppercase byte alphabet with equals-sign padding.
@@ -329,7 +329,7 @@ The extended-hex uppercase byte alphabet with equals-sign padding.
 </article>
 
 <article class="doc-entry" id="v-base32-input-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L673" title="View source at line 673">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L639" title="View source at line 639">Source</a></span></div>
 <div class="doc-body">
 
 Describe original-byte decoding failures or the complete required destination capacity.
@@ -338,7 +338,7 @@ Describe original-byte decoding failures or the complete required destination ca
 </article>
 
 <article class="doc-entry" id="v-base32-input-error-offset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L666" title="View source at line 666">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-offset" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L632" title="View source at line 632">Source</a></span></div>
 <div class="doc-body">
 
 Original input position associated with a malformed quantum; capacity errors return zero.
@@ -365,7 +365,7 @@ Encode with the selected alphabet and no padding. The output length is ceil(8 * 
 </article>
 
 <article class="doc-entry" id="v-base32-standard-encoding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-standard-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-standard-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L472" title="View source at line 472">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-standard-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-standard-encoding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L433" title="View source at line 433">Source</a></span></div>
 <div class="doc-body">
 
 The standard uppercase byte alphabet with equals-sign padding.
@@ -374,7 +374,7 @@ The standard uppercase byte alphabet with equals-sign padding.
 </article>
 
 <article class="doc-entry" id="v-base32-with-padding">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-with-padding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-with-padding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L542" title="View source at line 542">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-with-padding</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-with-padding" title="Permalink">#</a><a href="/packages/stdlib/Text.Base32/source/#L503" title="View source at line 503">Source</a></span></div>
 <div class="doc-body">
 
 Copy an encoding with validated one-byte padding, or disable padding with None.

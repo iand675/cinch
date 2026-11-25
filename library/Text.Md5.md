@@ -4,19 +4,18 @@ MD5 for legacy interoperability, with persistent states, little-endian digests a
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Md5</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Md5/source/">View source</a><a href="/packages/search/?q=%2BText.Md5">Search module</a><a href="/reference-sources/Text.Md5.cinch" download="Text.Md5.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
 MD5 digests, persistent streaming states and binary checkpoints.
 MD5 is broken for collision resistance: use it only to interoperate with
 existing formats and protocols, never for signatures or integrity checks.
-The algorithm's rounds are strictly sequential, so compression is one
-private primitive per ordered round with native rotates rather than SIMD.
-Updates read exact 64-byte blocks while retaining their input owner and copy
-pending tails into private storage. Retaining a state branches the
-computation. Digest words and the length field use little-endian order as
-the algorithm defines; checkpoint fields use network order.
+Compression loads checked 64-byte little-endian blocks directly from the input
+buffer and evaluates all sixty-four sequential rounds in registers with native
+rotates. Updates copy pending tails into private storage. Retaining a state
+branches the computation. Digest words and the length field use little-endian
+order as the algorithm defines; checkpoint fields use network order.
 
 </details>
 
@@ -36,7 +35,7 @@ An immutable wrapping byte count, copied partial block and chaining value.
 </article>
 
 <article class="doc-entry" id="t-Md5StateError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Md5StateError</strong></code><span class="doc-sig-links"><a href="#t-Md5StateError" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L219" title="View source at line 219">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Md5StateError</strong></code><span class="doc-sig-links"><a href="#t-Md5StateError" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L183" title="View source at line 183">Source</a></span></div>
 <div class="doc-body">
 
 A checkpoint's identifier or exact byte length is invalid.
@@ -75,7 +74,7 @@ Initial state with no pending bytes.
 </article>
 
 <article class="doc-entry" id="v-md5-state-append">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-append</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-append" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L163" title="View source at line 163">Source</a></span></div>
 <div class="doc-body">
 
 Append the digest to a copied prefix, preserving the state and caller buffer.
@@ -84,7 +83,7 @@ Append the digest to a copied prefix, preserving the state and caller buffer.
 </article>
 
 <article class="doc-entry" id="v-md5-state-append-save">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-append-save</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-append-save" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-append-save</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-append-save" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L179" title="View source at line 179">Source</a></span></div>
 <div class="doc-body">
 
 Append the complete checkpoint to a copied prefix without mutating either input.
@@ -93,7 +92,7 @@ Append the complete checkpoint to a copied prefix without mutating either input.
 </article>
 
 <article class="doc-entry" id="v-md5-state-block-size">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-md5-state-block-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-md5-state-block-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L116" title="View source at line 116">Source</a></span></div>
 <div class="doc-body">
 
 Compression block size in bytes, always 64.
@@ -102,7 +101,7 @@ Compression block size in bytes, always 64.
 </article>
 
 <article class="doc-entry" id="v-md5-state-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5StateError" title="Text.Md5.Md5StateError">Md5StateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-md5-state-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L226" title="View source at line 226">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5StateError" title="Text.Md5.Md5StateError">Md5StateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-md5-state-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L190" title="View source at line 190">Source</a></span></div>
 <div class="doc-body">
 
 Render identifier errors or complete required and actual checkpoint byte lengths.
@@ -111,7 +110,7 @@ Render identifier errors or complete required and actual checkpoint byte lengths
 </article>
 
 <article class="doc-entry" id="v-md5-state-load">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-load</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5StateError" title="Text.Md5.Md5StateError">Md5StateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a></code><span class="doc-sig-links"><a href="#v-md5-state-load" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L237" title="View source at line 237">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-load</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5StateError" title="Text.Md5.Md5StateError">Md5StateError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a></code><span class="doc-sig-links"><a href="#v-md5-state-load" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L201" title="View source at line 201">Source</a></span></div>
 <div class="doc-body">
 
 Restore every chaining and count bit, copying only the live partial block into private storage.
@@ -121,7 +120,7 @@ Identifier checks precede exact-size checks; unused tail bytes are ignored and s
 </article>
 
 <article class="doc-entry" id="v-md5-state-reset">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-reset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a></code><span class="doc-sig-links"><a href="#v-md5-state-reset" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-reset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a></code><span class="doc-sig-links"><a href="#v-md5-state-reset" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L108" title="View source at line 108">Source</a></span></div>
 <div class="doc-body">
 
 Return the initial state, preserving the supplied state.
@@ -130,7 +129,7 @@ Return the initial state, preserving the supplied state.
 </article>
 
 <article class="doc-entry" id="v-md5-state-save">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-save</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-save" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-save</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-save" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L168" title="View source at line 168">Source</a></span></div>
 <div class="doc-body">
 
 Return 92 checkpoint bytes: ASCII md5, version byte 1, chaining words, zero-padded tail and count.
@@ -140,7 +139,7 @@ Every numeric field uses network order.
 </article>
 
 <article class="doc-entry" id="v-md5-state-size">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-md5-state-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-size</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-md5-state-size" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L112" title="View source at line 112">Source</a></span></div>
 <div class="doc-body">
 
 Digest size in bytes, always 16.
@@ -149,7 +148,7 @@ Digest size in bytes, always 16.
 </article>
 
 <article class="doc-entry" id="v-md5-state-sum">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-sum</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-sum" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">md5-state-sum</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Md5/#t-Md5State" title="Text.Md5.Md5State">Md5State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-md5-state-sum" title="Permalink">#</a><a href="/packages/stdlib/Text.Md5/source/#L158" title="View source at line 158">Source</a></span></div>
 <div class="doc-body">
 
 Return the digest in fresh storage without changing the state.

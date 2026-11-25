@@ -1,0 +1,651 @@
+-- | Immutable in-memory test filesystem and conformance verification suite.
+-- Models slash-separated relative paths, automatic parent directory synthesis,
+-- lexical directory listings, shell-pattern globbing, subtree projection,
+-- stream opening, and full structural conformance checks.
+module Effect.Test.Fs where
+
+  import Algebra.Semigroup
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Map
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Stream
+  import Text.Path
+
+  export fs-mode-dir, fs-valid-path
+  export MapFile, map-file, map-dir, map-file-data, map-file-mode, map-file-mod-time, map-file-is-dir
+  export MapFileInfo, file-info-name, file-info-size, file-info-mode, file-info-mod-time, file-info-is-dir
+  export MapDirEntry, dir-entry-name, dir-entry-is-dir, dir-entry-type, dir-entry-info
+  export MapFsError, FsInvalidPath, FsNotFound, FsIsDirectory, FsNotDirectory, FsBadPattern, map-fs-error-message
+  export MapFs, map-fs-empty, map-fs-from-list, map-fs-insert
+  export map-fs-read-file, map-fs-stat, map-fs-read-dir, map-fs-glob, map-fs-sub, map-fs-open-reader
+  export test-fs
+
+  -- | Mode bit marking a directory entry (bit 31, matching POSIX/virtual filesystem directory flag).
+  fs-mode-dir :: U32
+  fs-mode-dir = 2147483648
+
+  -- | Default mode for synthesized directories (directory bit plus 0555 permissions).
+  synthesized-dir-mode :: U32
+  synthesized-dir-mode = 2147484013
+
+  -- | A single file or explicit directory stored in a MapFs.
+  data MapFile where
+    -- | File payload bytes, mode bits, modification timestamp in Unix seconds, and directory flag.
+    MapFile :: Bytes -> U32 -> I64 -> Bool -> MapFile
+
+  -- | Construct a regular MapFile with default mode and zero modification time.
+  map-file :: Bytes -> MapFile
+  map-file content = MapFile (copy-bytes content) 0 0 False
+
+  -- | Construct an explicit empty directory MapFile with the given permission bits and timestamp.
+  map-dir :: U32 -> I64 -> MapFile
+  map-dir mode mod-time = MapFile (bytes-new 0) (bit-or-u32 mode fs-mode-dir) mod-time True
+
+  -- | Read a fresh copy of the payload bytes stored in a MapFile.
+  map-file-data :: MapFile -> Bytes
+  map-file-data f = case f of MapFile d _ _ _ -> copy-bytes d
+
+  -- | Return the mode bits of a MapFile.
+  map-file-mode :: MapFile -> U32
+  map-file-mode f = case f of MapFile _ m _ _ -> m
+
+  -- | Return the modification timestamp of a MapFile.
+  map-file-mod-time :: MapFile -> I64
+  map-file-mod-time f = case f of MapFile _ _ t _ -> t
+
+  -- | Report whether a MapFile represents a directory via its flag or directory mode bit.
+  map-file-is-dir :: MapFile -> Bool
+  map-file-is-dir f = case f of
+    MapFile _ m _ flag -> flag || ne-u32 (bit-and-u32 m fs-mode-dir) 0
+
+  -- | Metadata describing a file or directory within a MapFs.
+  data MapFileInfo where
+    -- | Base name, byte size (zero for directories), mode bits, modification time, and directory flag.
+    MapFileInfo :: String -> Nat -> U32 -> I64 -> Bool -> MapFileInfo
+
+  -- | Return the base name of the described entry, or "." for the root directory.
+  file-info-name :: MapFileInfo -> String
+  file-info-name info = case info of MapFileInfo n _ _ _ _ -> n
+
+  -- | Return the payload size in bytes (zero for directories).
+  file-info-size :: MapFileInfo -> Nat
+  file-info-size info = case info of MapFileInfo _ s _ _ _ -> s
+
+  -- | Return the mode bits recorded for the entry.
+  file-info-mode :: MapFileInfo -> U32
+  file-info-mode info = case info of MapFileInfo _ _ m _ _ -> m
+
+  -- | Return the modification timestamp recorded for the entry.
+  file-info-mod-time :: MapFileInfo -> I64
+  file-info-mod-time info = case info of MapFileInfo _ _ _ t _ -> t
+
+  -- | Report whether the described entry is a directory.
+  file-info-is-dir :: MapFileInfo -> Bool
+  file-info-is-dir info = case info of MapFileInfo _ _ _ _ d -> d
+
+  -- | A single entry returned by map-fs-read-dir.
+  data MapDirEntry where
+    -- | Entry base name, directory flag, type mode bits, and full metadata.
+    MapDirEntry :: String -> Bool -> U32 -> MapFileInfo -> MapDirEntry
+
+  -- | Return the base name of a directory entry.
+  dir-entry-name :: MapDirEntry -> String
+  dir-entry-name entry = case entry of MapDirEntry n _ _ _ -> n
+
+  -- | Report whether a directory entry refers to a subdirectory.
+  dir-entry-is-dir :: MapDirEntry -> Bool
+  dir-entry-is-dir entry = case entry of MapDirEntry _ d _ _ -> d
+
+  -- | Return the file type mode bits for a directory entry.
+  dir-entry-type :: MapDirEntry -> U32
+  dir-entry-type entry = case entry of MapDirEntry _ _ t _ -> t
+
+  -- | Return the full MapFileInfo associated with a directory entry.
+  dir-entry-info :: MapDirEntry -> MapFileInfo
+  dir-entry-info entry = case entry of MapDirEntry _ _ _ info -> info
+
+  -- | Named errors returned by MapFs operations.
+  data MapFsError where
+    -- | The supplied path violated relative slash-separated path rules.
+    FsInvalidPath :: String -> MapFsError
+    -- | No file or synthesized directory existed at the given path.
+    FsNotFound :: String -> MapFsError
+    -- | A file-only operation was invoked on a directory.
+    FsIsDirectory :: String -> MapFsError
+    -- | A directory-only operation was invoked on a regular file.
+    FsNotDirectory :: String -> MapFsError
+    -- | A glob pattern had invalid shell-pattern syntax.
+    FsBadPattern :: String -> MapFsError
+
+  -- | Render a human-readable diagnostic for a MapFsError.
+  map-fs-error-message :: MapFsError -> String
+  map-fs-error-message err = case err of
+    FsInvalidPath p -> "invalid path: " <> p
+    FsNotFound p -> "file does not exist: " <> p
+    FsIsDirectory p -> "is a directory: " <> p
+    FsNotDirectory p -> "not a directory: " <> p
+    FsBadPattern pat -> "syntax error in pattern: " <> pat
+
+  -- | An immutable in-memory filesystem keyed by slash-separated relative paths.
+  data MapFs where
+    -- | Ordered map from relative path strings to snapshotted MapFile values.
+    MapFs :: Map String MapFile -> MapFs
+
+  -- | Copy an entire byte buffer into fresh owned storage.
+  copy-bytes :: Bytes -> Bytes
+  copy-bytes input =
+    let n = bytes-len input in
+    let out = bytes-new n in
+    let copied = bytes-copy-range out input 0 0 n in
+    out
+
+  -- | Snapshot a MapFile so external buffer mutations cannot alter stored filesystem state.
+  snapshot-file :: MapFile -> MapFile
+  snapshot-file f = case f of
+    MapFile d m t flag ->
+      let dir-flag = flag || ne-u32 (bit-and-u32 m fs-mode-dir) 0 in
+      let eff-mode = if dir-flag then bit-or-u32 m fs-mode-dir else m in
+      MapFile (copy-bytes d) eff-mode t dir-flag
+
+  -- | Create an empty in-memory filesystem containing only the synthesized root directory ".".
+  map-fs-empty :: MapFs
+  map-fs-empty = MapFs map-empty
+
+  -- | Insert or replace a single path entry in a MapFs, snapshotting its byte payload.
+  map-fs-insert :: MapFs -> String -> MapFile -> MapFs
+  map-fs-insert fs path file = case fs of
+    MapFs m -> MapFs (map-insert path (snapshot-file file) m)
+
+  -- | Construct a MapFs from a list of (path, file) pairs, keeping later entries on duplicate keys.
+  map-fs-from-list :: List (String, MapFile) -> MapFs
+  map-fs-from-list entries = insert-pairs map-fs-empty entries
+
+  -- | Insert a list of path-file pairs left-to-right into a MapFs.
+  insert-pairs :: MapFs -> List (String, MapFile) -> MapFs
+  insert-pairs fs entries = case entries of
+    Nil -> fs
+    Cons pair rest -> case pair of
+      (k, v) -> insert-pairs (map-fs-insert fs k v) rest
+
+  -- | Find the next slash byte at or after pos, or return len if none exists.
+  find-slash :: Bytes -> Nat -> Nat -> Nat
+  find-slash raw pos len =
+    if pos < len && pos < bytes-len raw then
+      if bytes-get raw pos == 47 then pos
+      else find-slash raw (pos + 1) len
+    else len
+
+  -- | Find the last slash byte strictly before end, or None if no slash exists.
+  find-last-slash :: Bytes -> Nat -> Option Nat
+  find-last-slash raw end =
+    if end == 0 then None
+    else
+      let prev = end - 1 in
+      if prev < bytes-len raw then
+        if bytes-get raw prev == 47 then Some prev
+        else find-last-slash raw prev
+      else None
+
+  -- | Extract a valid UTF-8 byte interval as a String.
+  slice-string :: Bytes -> Nat -> Nat -> String
+  slice-string raw start end =
+    if start <= end && end <= bytes-len raw then
+      let len = end - start in
+      let out = bytes-new len in
+      let copied = bytes-copy-range out raw 0 start len in
+      case string-from-bytes out of
+        Some s -> s
+        None -> empty-string
+    else empty-string
+
+  -- | Check whether raw starts with prefix-bytes followed by at least one byte.
+  bytes-has-prefix :: Bytes -> Bytes -> Bool
+  bytes-has-prefix raw prefix =
+    let plen = bytes-len prefix in
+    if plen <= bytes-len raw then bytes-prefix-eq raw prefix 0 plen
+    else False
+
+  -- | Compare the first count bytes of two buffers for equality.
+  bytes-prefix-eq :: Bytes -> Bytes -> Nat -> Nat -> Bool
+  bytes-prefix-eq a b i count =
+    if i >= count then True
+    else if i < bytes-len a && i < bytes-len b then
+      if bytes-get a i == bytes-get b i then bytes-prefix-eq a b (i + 1) count
+      else False
+    else False
+
+  -- | Validate a relative slash-separated filesystem path.
+  -- "." is valid for the root directory; empty paths, leading or trailing slashes,
+  -- empty segments ("//"), and "." or ".." components are rejected.
+  fs-valid-path :: String -> Bool
+  fs-valid-path name =
+    if name == "." then True
+    else
+      let raw = string-to-bytes name in
+      let len = bytes-len raw in
+      if len == 0 then False
+      else valid-path-from raw 0 len
+
+  -- | Validate each slash-delimited path element starting at pos.
+  valid-path-from :: Bytes -> Nat -> Nat -> Bool
+  valid-path-from raw pos len =
+    let slash = find-slash raw pos len in
+    let seg-len = if pos <= slash then slash - pos else 0 in
+    if seg-len == 0 then False
+    else if seg-len == 1 && pos < bytes-len raw && bytes-get raw pos == 46 then False
+    else if seg-len == 2 && pos + 1 < bytes-len raw && bytes-get raw pos == 46 && bytes-get raw (pos + 1) == 46 then False
+    else if slash >= len then True
+    else if slash + 1 >= len then False
+    else valid-path-from raw (slash + 1) len
+
+  -- | Compute the base name of a valid relative path ("." stays ".").
+  entry-base-name :: String -> String
+  entry-base-name path =
+    if path == "." then "."
+    else path-base path
+
+  -- | Build MapFileInfo from an explicit stored MapFile and its path.
+  info-from-file :: String -> MapFile -> MapFileInfo
+  info-from-file path f =
+    let is-dir = map-file-is-dir f in
+    let size = if not is-dir then bytes-len (map-file-data f) else 0 in
+    MapFileInfo (entry-base-name path) size (map-file-mode f) (map-file-mod-time f) is-dir
+
+  -- | Build MapFileInfo for a synthesized directory.
+  synthesized-dir-info :: String -> MapFileInfo
+  synthesized-dir-info name = MapFileInfo name 0 synthesized-dir-mode 0 True
+
+  -- | Build a MapDirEntry from its MapFileInfo.
+  dir-entry-from-info :: MapFileInfo -> MapDirEntry
+  dir-entry-from-info info =
+    let is-dir = file-info-is-dir info in
+    let type-bits = if is-dir then fs-mode-dir else 0 in
+    MapDirEntry (file-info-name info) is-dir type-bits info
+
+  -- | Check whether any stored key lies strictly beneath prefix (which ends with "/").
+  has-child-with-prefix :: List (String, MapFile) -> Bytes -> Bool
+  has-child-with-prefix pairs prefix = case pairs of
+    Nil -> False
+    Cons pair rest -> case pair of
+      (k, _) ->
+        let kb = string-to-bytes k in
+        if bytes-len kb > bytes-len prefix && bytes-has-prefix kb prefix then True
+        else has-child-with-prefix rest prefix
+
+  -- | Inspect metadata for a file or directory, synthesizing parent directories automatically.
+  map-fs-stat :: MapFs -> String -> Result MapFsError MapFileInfo
+  map-fs-stat fs path =
+    if not (fs-valid-path path) then Err (FsInvalidPath path)
+    else case fs of
+      MapFs m -> case map-lookup path m of
+        Some f -> Ok (info-from-file path f)
+        None ->
+          if path == "." then Ok (synthesized-dir-info ".")
+          else
+            let prefix = string-to-bytes (path <> "/") in
+            if has-child-with-prefix (map-to-list m) prefix then
+              Ok (synthesized-dir-info (entry-base-name path))
+            else Err (FsNotFound path)
+
+  -- | Read the complete byte contents of a regular file.
+  map-fs-read-file :: MapFs -> String -> Result MapFsError Bytes
+  map-fs-read-file fs path =
+    if not (fs-valid-path path) then Err (FsInvalidPath path)
+    else case fs of
+      MapFs m -> case map-lookup path m of
+        Some f ->
+          if map-file-is-dir f then Err (FsIsDirectory path)
+          else Ok (map-file-data f)
+        None ->
+          if path == "." then Err (FsIsDirectory ".")
+          else
+            let prefix = string-to-bytes (path <> "/") in
+            if has-child-with-prefix (map-to-list m) prefix then Err (FsIsDirectory path)
+            else Err (FsNotFound path)
+
+  -- | Open a regular file in a MapFs as an Effect.Stream ByteReader.
+  map-fs-open-reader :: forall r. using (io :: Io r) => MapFs -> String -> Result MapFsError (ByteReader r)
+  map-fs-open-reader fs path = case map-fs-read-file fs path of
+    Err e -> Err e
+    Ok content -> Ok (reader-from-bytes content)
+
+  -- | List direct children of a directory in ascending lexical order, deduplicating synthesized subdirectories.
+  map-fs-read-dir :: MapFs -> String -> Result MapFsError (List MapDirEntry)
+  map-fs-read-dir fs dir =
+    if not (fs-valid-path dir) then Err (FsInvalidPath dir)
+    else case map-fs-stat fs dir of
+      Err e -> Err e
+      Ok info ->
+        if not (file-info-is-dir info) then Err (FsNotDirectory dir)
+        else case fs of
+          MapFs m ->
+            let prefix = if dir == "." then empty-string else dir <> "/" in
+            let prefix-bytes = string-to-bytes prefix in
+            let entries-map = collect-dir-entries (map-to-list m) prefix-bytes map-empty in
+            Ok (map-values entries-map)
+
+  -- | Fold all map entries into a deduplicated direct-child map where explicit entries override synthesized ones.
+  collect-dir-entries :: List (String, MapFile) -> Bytes -> Map String MapDirEntry -> Map String MapDirEntry
+  collect-dir-entries pairs prefix acc = case pairs of
+    Nil -> acc
+    Cons pair rest -> case pair of
+      (k, f) ->
+        if k == "." then collect-dir-entries rest prefix acc
+        else
+          let kb = string-to-bytes k in
+          let plen = bytes-len prefix in
+          if bytes-len kb > plen && bytes-has-prefix kb prefix then
+            let klen = bytes-len kb in
+            let slash = find-slash kb plen klen in
+            if slash >= klen then
+              let name = slice-string kb plen klen in
+              let entry = dir-entry-from-info (info-from-file k f) in
+              collect-dir-entries rest prefix (map-insert name entry acc)
+            else
+              let elem = slice-string kb plen slash in
+              case map-lookup elem acc of
+                Some _ -> collect-dir-entries rest prefix acc
+                None ->
+                  let entry = dir-entry-from-info (synthesized-dir-info elem) in
+                  collect-dir-entries rest prefix (map-insert elem entry acc)
+          else collect-dir-entries rest prefix acc
+
+  -- | Project a subdirectory of a MapFs into a new MapFs rooted at that directory.
+  map-fs-sub :: MapFs -> String -> Result MapFsError MapFs
+  map-fs-sub fs dir =
+    if not (fs-valid-path dir) then Err (FsInvalidPath dir)
+    else if dir == "." then Ok fs
+    else case map-fs-stat fs dir of
+      Err e -> Err e
+      Ok info ->
+        if not (file-info-is-dir info) then Err (FsNotDirectory dir)
+        else case fs of
+          MapFs m ->
+            let prefix = string-to-bytes (dir <> "/") in
+            Ok (extract-sub-entries (map-to-list m) dir prefix map-fs-empty)
+
+  -- | Copy entries belonging to the projected directory with the leading directory prefix removed.
+  extract-sub-entries :: List (String, MapFile) -> String -> Bytes -> MapFs -> MapFs
+  extract-sub-entries pairs dir prefix acc = case pairs of
+    Nil -> acc
+    Cons pair rest -> case pair of
+      (k, f) ->
+        if k == dir then extract-sub-entries rest dir prefix (map-fs-insert acc "." f)
+        else
+          let kb = string-to-bytes k in
+          let plen = bytes-len prefix in
+          if bytes-len kb > plen && bytes-has-prefix kb prefix then
+            let sub-path = slice-string kb plen (bytes-len kb) in
+            extract-sub-entries rest dir prefix (map-fs-insert acc sub-path f)
+          else extract-sub-entries rest dir prefix acc
+
+  -- | Report whether a pattern string contains any shell-pattern metacharacter.
+  has-glob-meta :: String -> Bool
+  has-glob-meta pattern =
+    let raw = string-to-bytes pattern in
+    has-meta-from raw 0 (bytes-len raw)
+
+  -- | Scan bytes for *, ?, [, or \.
+  has-meta-from :: Bytes -> Nat -> Nat -> Bool
+  has-meta-from raw i len =
+    if i >= len || i >= bytes-len raw then False
+    else
+      let b = bytes-get raw i in
+      if b == 42 || b == 63 || b == 91 || b == 92 then True
+      else has-meta-from raw (i + 1) len
+
+  -- | Split a glob pattern at its final slash into cleaned directory and file pattern components.
+  split-glob-pattern :: String -> (String, String)
+  split-glob-pattern pattern =
+    let raw = string-to-bytes pattern in
+    let len = bytes-len raw in
+    case find-last-slash raw len of
+      None -> (".", pattern)
+      Some idx ->
+        let dir-part = if idx == 0 then "/" else slice-string raw 0 idx in
+        let file-part = if idx + 1 <= len then slice-string raw (idx + 1) len else empty-string in
+        (dir-part, file-part)
+
+  -- | Find all paths in a MapFs matching a shell pattern in ascending lexical order.
+  map-fs-glob :: MapFs -> String -> Result MapFsError (List String)
+  map-fs-glob fs pattern =
+    case path-pattern pattern of
+      Err _ -> Err (FsBadPattern pattern)
+      Ok _ ->
+        if not (has-glob-meta pattern) then
+          case map-fs-stat fs pattern of
+            Ok _ -> Ok (Cons pattern Nil)
+            Err _ -> Ok Nil
+        else
+          case split-glob-pattern pattern of
+            (dir, file-pat) ->
+              if not (has-glob-meta dir) then
+                glob-in-dir fs dir file-pat
+              else
+                case map-fs-glob fs dir of
+                  Err e -> Err e
+                  Ok dirs -> glob-in-dirs fs dirs file-pat Nil
+
+  -- | Match a compiled single-segment pattern against direct children of dir.
+  glob-in-dir :: MapFs -> String -> String -> Result MapFsError (List String)
+  glob-in-dir fs dir file-pat =
+    case path-pattern file-pat of
+      Err _ -> Err (FsBadPattern file-pat)
+      Ok compiled ->
+        case map-fs-read-dir fs dir of
+          Err _ -> Ok Nil
+          Ok entries -> Ok (filter-dir-matches dir compiled entries Nil)
+
+  -- | Filter directory entries matching a compiled segment pattern and prepend dir when not ".".
+  filter-dir-matches :: String -> PathPattern -> List MapDirEntry -> List String -> List String
+  filter-dir-matches dir compiled entries acc = case entries of
+    Nil -> reverse acc
+    Cons entry rest ->
+      let name = dir-entry-name entry in
+      if path-pattern-match compiled name then
+        let full = if dir == "." then name else dir <> "/" <> name in
+        filter-dir-matches dir compiled rest (Cons full acc)
+      else filter-dir-matches dir compiled rest acc
+
+  -- | Collect matches across multiple matched parent directories while preserving lexical order.
+  glob-in-dirs :: MapFs -> List String -> String -> List String -> Result MapFsError (List String)
+  glob-in-dirs fs dirs file-pat acc = case dirs of
+    Nil -> Ok acc
+    Cons d rest ->
+      case glob-in-dir fs d file-pat of
+        Err e -> Err e
+        Ok matches -> glob-in-dirs fs rest file-pat (acc <> matches)
+
+  -- | Run structural conformance checks on a MapFs and verify expected paths.
+  -- If expected is empty, the filesystem must contain no entries beneath root ".".
+  -- Otherwise, every listed path must exist and pass metadata, listing, read, glob,
+  -- subtree, and invalid-path rejection checks.
+  test-fs :: MapFs -> List String -> Result (List String) Unit
+  test-fs fs expected =
+    let errs0 = check-raw-keys fs Nil in
+    let errs1 = check-invalid-paths fs errs0 in
+    let errs2 = check-root-and-walk fs expected errs1 in
+    case errs2 of
+      Nil -> Ok ()
+      _ -> Err errs2
+
+  -- | Verify that every raw map key stored in a MapFs is a valid relative path.
+  check-raw-keys :: MapFs -> List String -> List String
+  check-raw-keys fs errs = case fs of
+    MapFs m -> check-raw-key-list (map-keys m) errs
+
+  -- | Accumulate errors for any invalid stored map key.
+  check-raw-key-list :: List String -> List String -> List String
+  check-raw-key-list keys errs = case keys of
+    Nil -> errs
+    Cons k rest ->
+      let next = if fs-valid-path k then errs else errs <> Cons ("invalid stored path: " <> k) Nil in
+      check-raw-key-list rest next
+
+  -- | Canonical invalid path cases that every filesystem operation must reject.
+  invalid-path-cases :: List String
+  invalid-path-cases =
+    Cons ""
+      (Cons "/"
+        (Cons ".."
+          (Cons "/a"
+            (Cons "a/"
+              (Cons "a//b"
+                (Cons "a/./b"
+                  (Cons "a/../b"
+                    (Cons "./a"
+                      (Cons "../a" Nil)))))))))
+
+  -- | Confirm that invalid paths are rejected by stat, read-file, read-dir, and sub.
+  check-invalid-paths :: MapFs -> List String -> List String
+  check-invalid-paths fs errs = check-invalid-list fs invalid-path-cases errs
+
+  -- | Test each invalid path sample against all path-accepting operations.
+  check-invalid-list :: MapFs -> List String -> List String -> List String
+  check-invalid-list fs paths errs = case paths of
+    Nil -> errs
+    Cons p rest ->
+      let e1 = case map-fs-stat fs p of
+            Err (FsInvalidPath _) -> errs
+            _ -> errs <> Cons ("stat accepted invalid path: " <> p) Nil in
+      let e2 = case map-fs-read-file fs p of
+            Err (FsInvalidPath _) -> e1
+            _ -> e1 <> Cons ("read-file accepted invalid path: " <> p) Nil in
+      let e3 = case map-fs-read-dir fs p of
+            Err (FsInvalidPath _) -> e2
+            _ -> e2 <> Cons ("read-dir accepted invalid path: " <> p) Nil in
+      let e4 = case map-fs-sub fs p of
+            Err (FsInvalidPath _) -> e3
+            _ -> e3 <> Cons ("sub accepted invalid path: " <> p) Nil in
+      check-invalid-list fs rest e4
+
+  -- | Verify root ".", walk the full directory tree, and check expected file presence.
+  check-root-and-walk :: MapFs -> List String -> List String -> List String
+  check-root-and-walk fs expected errs =
+    case map-fs-stat fs "." of
+      Err e -> errs <> Cons ("stat root failed: " <> map-fs-error-message e) Nil
+      Ok root-info ->
+        let e1 = if file-info-is-dir root-info then errs else errs <> Cons "root . is not a directory" Nil in
+        let e2 = if file-info-name root-info == "." then e1 else e1 <> Cons "root . info name mismatch" Nil in
+        let e3 = case map-fs-read-file fs "." of
+              Err (FsIsDirectory _) -> e2
+              _ -> e2 <> Cons "read-file on root . did not report directory error" Nil in
+        case walk-dir fs "." map-empty e3 of
+          (found, e4) -> check-expected-files fs expected found e4
+
+  -- | Walk a directory recursively, validating ordering, Stat/ReadDir consistency, file reads, and Sub.
+  walk-dir :: MapFs -> String -> Map String Bool -> List String -> (Map String Bool, List String)
+  walk-dir fs dir found errs =
+    case map-fs-read-dir fs dir of
+      Err e -> (found, errs <> Cons ("read-dir " <> dir <> " failed: " <> map-fs-error-message e) Nil)
+      Ok entries ->
+        let e1 = check-sub-consistency fs dir entries errs in
+        let e2 = check-dir-order dir entries None e1 in
+        walk-entries fs dir entries found e2
+
+  -- | Verify that map-fs-sub on dir succeeds and produces identical root directory entries.
+  check-sub-consistency :: MapFs -> String -> List MapDirEntry -> List String -> List String
+  check-sub-consistency fs dir entries errs =
+    case map-fs-sub fs dir of
+      Err e -> errs <> Cons ("sub " <> dir <> " failed: " <> map-fs-error-message e) Nil
+      Ok sub-fs ->
+        case map-fs-read-dir sub-fs "." of
+          Err e -> errs <> Cons ("sub " <> dir <> " read-dir . failed: " <> map-fs-error-message e) Nil
+          Ok sub-entries ->
+            if entry-names-equal entries sub-entries then errs
+            else errs <> Cons ("sub " <> dir <> " entries differ from read-dir") Nil
+
+  -- | Check whether two directory entry lists have identical names and directory flags in order.
+  entry-names-equal :: List MapDirEntry -> List MapDirEntry -> Bool
+  entry-names-equal xs ys = case (xs, ys) of
+    (Nil, Nil) -> True
+    (Cons a ra, Cons b rb) ->
+      if dir-entry-name a == dir-entry-name b && dir-entry-is-dir a == dir-entry-is-dir b then
+        entry-names-equal ra rb
+      else False
+    _ -> False
+
+  -- | Verify strict ascending lexical order and disallow "." or ".." entry names.
+  check-dir-order :: String -> List MapDirEntry -> Option String -> List String -> List String
+  check-dir-order dir entries prev errs = case entries of
+    Nil -> errs
+    Cons entry rest ->
+      let name = dir-entry-name entry in
+      let e1 = if name == "." || name == ".." || name == "" then
+                 errs <> Cons ("illegal entry name in " <> dir <> ": " <> name) Nil
+               else errs in
+      let e2 = case prev of
+            None -> e1
+            Some p ->
+              if p < name then e1
+              else e1 <> Cons ("directory " <> dir <> " not sorted: " <> p <> " >= " <> name) Nil in
+      check-dir-order dir rest (Some name) e2
+
+  -- | Validate each child entry and recurse into subdirectories.
+  walk-entries :: MapFs -> String -> List MapDirEntry -> Map String Bool -> List String -> (Map String Bool, List String)
+  walk-entries fs dir entries found errs = case entries of
+    Nil -> (found, errs)
+    Cons entry rest ->
+      let name = dir-entry-name entry in
+      let full = if dir == "." then name else dir <> "/" <> name in
+      let found1 = map-insert full True found in
+      let e1 = check-entry-consistency fs full entry errs in
+      if dir-entry-is-dir entry then
+        case walk-dir fs full found1 e1 of
+          (found2, e2) -> walk-entries fs dir rest found2 e2
+      else walk-entries fs dir rest found1 e1
+
+  -- | Check that Stat, ReadFile, ReadDir, and Glob agree with a directory entry's metadata.
+  check-entry-consistency :: MapFs -> String -> MapDirEntry -> List String -> List String
+  check-entry-consistency fs full entry errs =
+    let info = dir-entry-info entry in
+    let e0 = if dir-entry-name entry == file-info-name info && dir-entry-is-dir entry == file-info-is-dir info then errs
+             else errs <> Cons ("dir-entry info mismatch: " <> full) Nil in
+    case map-fs-stat fs full of
+      Err e -> e0 <> Cons ("stat " <> full <> " failed: " <> map-fs-error-message e) Nil
+      Ok st ->
+        let e1 = if file-info-name st == file-info-name info && file-info-size st == file-info-size info && file-info-is-dir st == file-info-is-dir info && eq-u32 (file-info-mode st) (file-info-mode info) then e0
+                 else e0 <> Cons ("stat differs from dir-entry: " <> full) Nil in
+        if dir-entry-is-dir entry then
+          case map-fs-read-file fs full of
+            Err (FsIsDirectory _) -> e1
+            _ -> e1 <> Cons ("read-file on directory succeeded: " <> full) Nil
+        else
+          let e2 = case map-fs-read-dir fs full of
+                Err (FsNotDirectory _) -> e1
+                _ -> e1 <> Cons ("read-dir on file succeeded: " <> full) Nil in
+          let e3 = case map-fs-read-file fs full of
+                Err e -> e2 <> Cons ("read-file " <> full <> " failed: " <> map-fs-error-message e) Nil
+                Ok content ->
+                  if bytes-len content == file-info-size st then e2
+                  else e2 <> Cons ("read-file length mismatch: " <> full) Nil in
+          if has-glob-meta full then e3
+          else case map-fs-glob fs full of
+            Ok (Cons matched Nil) ->
+              if matched == full then e3
+              else e3 <> Cons ("glob mismatch for " <> full) Nil
+            _ -> e3 <> Cons ("glob failed to find " <> full) Nil
+
+  -- | Verify expected files exist, or require an empty tree when expected is empty.
+  check-expected-files :: MapFs -> List String -> Map String Bool -> List String -> List String
+  check-expected-files fs expected found errs = case expected of
+    Nil ->
+      if map-is-empty found then errs
+      else errs <> Cons "expected empty file system but found files" Nil
+    _ -> check-expected-list expected found errs
+
+  -- | Verify every expected path was discovered during the full filesystem walk.
+  check-expected-list :: List String -> Map String Bool -> List String -> List String
+  check-expected-list expected found errs = case expected of
+    Nil -> errs
+    Cons path rest ->
+      let next = case map-lookup path found of
+            Some _ -> errs
+            None -> errs <> Cons ("expected but not found: " <> path) Nil in
+      check-expected-list rest found next

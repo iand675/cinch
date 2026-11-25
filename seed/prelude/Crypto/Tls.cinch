@@ -1,0 +1,2668 @@
+-- | Pure sans-I/O TLS 1.3 (RFC 8446) client and server state machines, key schedule,
+-- record AEAD protection, certificate chain and signature verification, ALPN, SNI,
+-- HelloRetryRequest, KeyUpdate, and clean close_notify alerts.
+--
+-- Supports all three RFC 8446 mandatory cipher suites (`TLS_AES_128_GCM_SHA256`,
+-- `TLS_AES_256_GCM_SHA384`, `TLS_CHACHA20_POLY1305_SHA256`), both X25519 and P-256
+-- ephemeral ECDH key exchange, and Ed25519, ECDSA P-256, and RSA-PSS (SHA-256/384/512)
+-- certificate authentication over `Crypto.X509`.
+--
+-- All state transitions are pure and immutable; callers supply explicit entropy and
+-- timestamps and drive network I/O externally (see `Effect.Tls` for sockets).
+module Crypto.Tls where
+
+  import Crypto.Aes
+  import Crypto.ChaCha20Poly1305
+  import Crypto.Cipher
+  import Crypto.ConstantTime
+  import Crypto.Ecdsa
+  import Crypto.Ed25519
+  import Crypto.Hmac
+  import Crypto.Kdf
+  import Crypto.P256
+  import Crypto.Rsa
+  import Crypto.X25519
+  import Crypto.X509
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.NetIp
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Pem
+  import Text.Sha256
+  import Text.Sha512
+
+  export TlsVersion, Tls13, tls-version-id, tls-version-name, tls-version-equal
+  export TlsCipherSuite, TlsAes128GcmSha256, TlsAes256GcmSha384, TlsChacha20Poly1305Sha256
+  export tls-cipher-suite-id, tls-cipher-suite-from-id, tls-cipher-suite-name, tls-cipher-suite-equal
+  export TlsCurve, CurveX25519, CurveP256, tls-curve-id, tls-curve-from-id, tls-curve-equal
+  export TlsSignatureScheme, SigRsaPssRsaeSha256, SigRsaPssRsaeSha384, SigRsaPssRsaeSha512, SigEcdsaSecp256r1Sha256, SigEd25519
+  export tls-signature-scheme-id, tls-signature-scheme-from-id, tls-signature-scheme-equal
+  export TlsAlert, AlertCloseNotify, AlertUnexpectedMessage, AlertBadRecordMac, AlertRecordOverflow, AlertHandshakeFailure, AlertBadCertificate, AlertUnsupportedCertificate, AlertCertificateExpired, AlertCertificateUnknown, AlertIllegalParameter, AlertUnknownCa, AlertDecodeError, AlertDecryptError, AlertProtocolVersion, AlertInsufficientSecurity, AlertInternalError, AlertUserCanceled, AlertMissingExtension, AlertUnsupportedExtension, AlertUnrecognizedName, AlertCertificateRequired, AlertNoApplicationProtocol, AlertOther
+  export tls-alert-code, tls-alert-from-code, tls-alert-message
+  export TlsError, TlsProtocolError, TlsAlertReceived, TlsBadRecordMac, TlsRecordOverflow, TlsUnsupportedVersion, TlsNoCommonCipherSuite, TlsNoCommonCurve, TlsNoCommonSignatureScheme, TlsBadSignature, TlsVerifyDataMismatch, TlsCertVerifyFailed, TlsInvalidConfig, TlsInvalidEntropy, TlsHandshakeNotComplete, TlsConnectionClosed, TlsKeyExchangeFailed
+  export tls-error-message, tls-error-alert
+  export TlsCertificate, tls-certificate, tls-certificate-chain, tls-certificate-key, tls-load-x509-key-pair
+  export TlsConfig, tls-config-default, tls-config-with-server-name, tls-config-with-roots, tls-config-with-insecure-skip-verify, tls-config-with-certificate, tls-config-with-cipher-suites, tls-config-with-curves, tls-config-with-alpn, tls-config-with-now
+  export tls-config-server-name, tls-config-roots, tls-config-insecure-skip-verify, tls-config-certificate, tls-config-cipher-suites, tls-config-curves, tls-config-alpn, tls-config-now
+  export TlsConnectionState, tls-state-version, tls-state-cipher-suite, tls-state-server-name, tls-state-negotiated-protocol, tls-state-peer-certificates, tls-state-handshake-complete, tls-state-peer-closed
+  export tls-hkdf-extract, tls-hkdf-expand-label, tls-derive-secret, tls-traffic-keys, tls-finished-verify-data, tls-record-nonce, tls-record-seal, tls-record-open, tls-update-traffic-secret, tls-export-keying-material
+  export TlsOutput, tls-out-state, tls-out-wire, tls-out-data, tls-out-eof
+  export TlsClient, tls-client-start, tls-client-feed, tls-client-send, tls-client-key-update, tls-client-close, tls-client-state, tls-client-handshake-complete, tls-client-export-keying-material
+  export TlsServer, tls-server-new, tls-server-feed, tls-server-send, tls-server-key-update, tls-server-close, tls-server-state, tls-server-handshake-complete, tls-server-export-keying-material
+
+  -- ---------------------------------------------------------------------
+  -- Protocol identifiers: versions, cipher suites, curves, signature schemes.
+  -- ---------------------------------------------------------------------
+
+  -- | Supported TLS protocol versions.
+  data TlsVersion where
+    -- | TLS 1.3 (RFC 8446, wire code `0x0304`).
+    Tls13 :: TlsVersion
+
+  -- | Return the 16-bit wire identifier of a `TlsVersion`.
+  tls-version-id :: TlsVersion -> Nat
+  tls-version-id v = case v of
+    Tls13 -> 772
+
+  -- | Return the standard display name of a `TlsVersion`.
+  tls-version-name :: TlsVersion -> String
+  tls-version-name v = case v of
+    Tls13 -> "TLS 1.3"
+
+  -- | Return `True` when two `TlsVersion` values are equal.
+  tls-version-equal :: TlsVersion -> TlsVersion -> Bool
+  tls-version-equal a b = tls-version-id a == tls-version-id b
+
+  -- | TLS 1.3 AEAD and hash cipher suites (RFC 8446 section B.4).
+  data TlsCipherSuite where
+    -- | `TLS_AES_128_GCM_SHA256` (`0x1301`).
+    TlsAes128GcmSha256 :: TlsCipherSuite
+    -- | `TLS_AES_256_GCM_SHA384` (`0x1302`).
+    TlsAes256GcmSha384 :: TlsCipherSuite
+    -- | `TLS_CHACHA20_POLY1305_SHA256` (`0x1303`).
+    TlsChacha20Poly1305Sha256 :: TlsCipherSuite
+
+  -- | Return the 16-bit wire identifier of a `TlsCipherSuite`.
+  tls-cipher-suite-id :: TlsCipherSuite -> Nat
+  tls-cipher-suite-id suite = case suite of
+    TlsAes128GcmSha256 -> 4865
+    TlsAes256GcmSha384 -> 4866
+    TlsChacha20Poly1305Sha256 -> 4867
+
+  -- | Decode a 16-bit wire identifier into a supported `TlsCipherSuite`.
+  tls-cipher-suite-from-id :: Nat -> Option TlsCipherSuite
+  tls-cipher-suite-from-id code =
+    if code == 4865 then Some TlsAes128GcmSha256
+    else if code == 4866 then Some TlsAes256GcmSha384
+    else if code == 4867 then Some TlsChacha20Poly1305Sha256
+    else None
+
+  -- | Return the IANA standard name of a `TlsCipherSuite`.
+  tls-cipher-suite-name :: TlsCipherSuite -> String
+  tls-cipher-suite-name suite = case suite of
+    TlsAes128GcmSha256 -> "TLS_AES_128_GCM_SHA256"
+    TlsAes256GcmSha384 -> "TLS_AES_256_GCM_SHA384"
+    TlsChacha20Poly1305Sha256 -> "TLS_CHACHA20_POLY1305_SHA256"
+
+  -- | Return `True` when two `TlsCipherSuite` values are equal.
+  tls-cipher-suite-equal :: TlsCipherSuite -> TlsCipherSuite -> Bool
+  tls-cipher-suite-equal a b = tls-cipher-suite-id a == tls-cipher-suite-id b
+
+  -- | Named elliptic curves supported for TLS 1.3 ECDHE key exchange.
+  data TlsCurve where
+    -- | X25519 (`0x001d`).
+    CurveX25519 :: TlsCurve
+    -- | NIST P-256 / `secp256r1` (`0x0017`).
+    CurveP256 :: TlsCurve
+
+  -- | Return the 16-bit NamedGroup wire identifier of a `TlsCurve`.
+  tls-curve-id :: TlsCurve -> Nat
+  tls-curve-id curve = case curve of
+    CurveX25519 -> 29
+    CurveP256 -> 23
+
+  -- | Decode a 16-bit NamedGroup wire identifier into a supported `TlsCurve`.
+  tls-curve-from-id :: Nat -> Option TlsCurve
+  tls-curve-from-id code =
+    if code == 29 then Some CurveX25519
+    else if code == 23 then Some CurveP256
+    else None
+
+  -- | Return `True` when two `TlsCurve` values are equal.
+  tls-curve-equal :: TlsCurve -> TlsCurve -> Bool
+  tls-curve-equal a b = tls-curve-id a == tls-curve-id b
+
+  -- | TLS 1.3 `SignatureScheme` values supported for `CertificateVerify`.
+  data TlsSignatureScheme where
+    -- | RSASSA-PSS with SHA-256 and `rsaEncryption` key (`0x0804`).
+    SigRsaPssRsaeSha256 :: TlsSignatureScheme
+    -- | RSASSA-PSS with SHA-384 and `rsaEncryption` key (`0x0805`).
+    SigRsaPssRsaeSha384 :: TlsSignatureScheme
+    -- | RSASSA-PSS with SHA-512 and `rsaEncryption` key (`0x0806`).
+    SigRsaPssRsaeSha512 :: TlsSignatureScheme
+    -- | ECDSA on NIST P-256 with SHA-256 (`0x0403`).
+    SigEcdsaSecp256r1Sha256 :: TlsSignatureScheme
+    -- | PureEd25519 (`0x0807`).
+    SigEd25519 :: TlsSignatureScheme
+
+  -- | Return the 16-bit wire identifier of a `TlsSignatureScheme`.
+  tls-signature-scheme-id :: TlsSignatureScheme -> Nat
+  tls-signature-scheme-id scheme = case scheme of
+    SigRsaPssRsaeSha256 -> 2052
+    SigRsaPssRsaeSha384 -> 2053
+    SigRsaPssRsaeSha512 -> 2054
+    SigEcdsaSecp256r1Sha256 -> 1027
+    SigEd25519 -> 2055
+
+  -- | Decode a 16-bit wire identifier into a supported `TlsSignatureScheme`.
+  tls-signature-scheme-from-id :: Nat -> Option TlsSignatureScheme
+  tls-signature-scheme-from-id code =
+    if code == 2052 then Some SigRsaPssRsaeSha256
+    else if code == 2053 then Some SigRsaPssRsaeSha384
+    else if code == 2054 then Some SigRsaPssRsaeSha512
+    else if code == 1027 then Some SigEcdsaSecp256r1Sha256
+    else if code == 2055 then Some SigEd25519
+    else None
+
+  -- | Return `True` when two `TlsSignatureScheme` values are equal.
+  tls-signature-scheme-equal :: TlsSignatureScheme -> TlsSignatureScheme -> Bool
+  tls-signature-scheme-equal a b = tls-signature-scheme-id a == tls-signature-scheme-id b
+
+  -- ---------------------------------------------------------------------
+  -- Alerts and structured errors.
+  -- ---------------------------------------------------------------------
+
+  -- | TLS 1.3 alert descriptions (RFC 8446 section 6).
+  data TlsAlert where
+    -- | Graceful stream shutdown (`0`).
+    AlertCloseNotify :: TlsAlert
+    -- | Unexpected record or handshake message (`10`).
+    AlertUnexpectedMessage :: TlsAlert
+    -- | AEAD authentication failure (`20`).
+    AlertBadRecordMac :: TlsAlert
+    -- | Record exceeded RFC 8446 size limits (`22`).
+    AlertRecordOverflow :: TlsAlert
+    -- | Negotiating acceptable security parameters failed (`40`).
+    AlertHandshakeFailure :: TlsAlert
+    -- | Peer certificate was malformed or invalid (`42`).
+    AlertBadCertificate :: TlsAlert
+    -- | Peer certificate type is not supported (`43`).
+    AlertUnsupportedCertificate :: TlsAlert
+    -- | Peer certificate is expired or not yet valid (`45`).
+    AlertCertificateExpired :: TlsAlert
+    -- | Unspecified certificate issue (`46`).
+    AlertCertificateUnknown :: TlsAlert
+    -- | Field value violated protocol constraints (`47`).
+    AlertIllegalParameter :: TlsAlert
+    -- | Peer certificate chain did not anchor to a trusted root (`48`).
+    AlertUnknownCa :: TlsAlert
+    -- | Wire message could not be decoded (`50`).
+    AlertDecodeError :: TlsAlert
+    -- | Handshake cryptographic verification failed (`51`).
+    AlertDecryptError :: TlsAlert
+    -- | Peer requested an unsupported TLS version (`70`).
+    AlertProtocolVersion :: TlsAlert
+    -- | Security requirements were not met (`71`).
+    AlertInsufficientSecurity :: TlsAlert
+    -- | Internal state or cryptographic failure (`80`).
+    AlertInternalError :: TlsAlert
+    -- | Handshake canceled by peer (`90`).
+    AlertUserCanceled :: TlsAlert
+    -- | Required TLS 1.3 extension was absent (`109`).
+    AlertMissingExtension :: TlsAlert
+    -- | Unsolicited or unsupported extension was present (`110`).
+    AlertUnsupportedExtension :: TlsAlert
+    -- | Requested SNI host was not recognized (`112`).
+    AlertUnrecognizedName :: TlsAlert
+    -- | Required client certificate was omitted (`116`).
+    AlertCertificateRequired :: TlsAlert
+    -- | No mutually supported ALPN protocol was found (`120`).
+    AlertNoApplicationProtocol :: TlsAlert
+    -- | Any other 8-bit alert description code.
+    AlertOther :: Nat -> TlsAlert
+
+  -- | Return the 8-bit wire code of a `TlsAlert`.
+  tls-alert-code :: TlsAlert -> Nat
+  tls-alert-code alert = case alert of
+    AlertCloseNotify -> 0
+    AlertUnexpectedMessage -> 10
+    AlertBadRecordMac -> 20
+    AlertRecordOverflow -> 22
+    AlertHandshakeFailure -> 40
+    AlertBadCertificate -> 42
+    AlertUnsupportedCertificate -> 43
+    AlertCertificateExpired -> 45
+    AlertCertificateUnknown -> 46
+    AlertIllegalParameter -> 47
+    AlertUnknownCa -> 48
+    AlertDecodeError -> 50
+    AlertDecryptError -> 51
+    AlertProtocolVersion -> 70
+    AlertInsufficientSecurity -> 71
+    AlertInternalError -> 80
+    AlertUserCanceled -> 90
+    AlertMissingExtension -> 109
+    AlertUnsupportedExtension -> 110
+    AlertUnrecognizedName -> 112
+    AlertCertificateRequired -> 116
+    AlertNoApplicationProtocol -> 120
+    AlertOther n -> nat-rem n 256
+
+  -- | Decode an 8-bit wire alert description code into a `TlsAlert`.
+  tls-alert-from-code :: Nat -> TlsAlert
+  tls-alert-from-code code =
+    if code == 0 then AlertCloseNotify
+    else if code == 10 then AlertUnexpectedMessage
+    else if code == 20 then AlertBadRecordMac
+    else if code == 22 then AlertRecordOverflow
+    else if code == 40 then AlertHandshakeFailure
+    else if code == 42 then AlertBadCertificate
+    else if code == 43 then AlertUnsupportedCertificate
+    else if code == 45 then AlertCertificateExpired
+    else if code == 46 then AlertCertificateUnknown
+    else if code == 47 then AlertIllegalParameter
+    else if code == 48 then AlertUnknownCa
+    else if code == 50 then AlertDecodeError
+    else if code == 51 then AlertDecryptError
+    else if code == 70 then AlertProtocolVersion
+    else if code == 71 then AlertInsufficientSecurity
+    else if code == 80 then AlertInternalError
+    else if code == 90 then AlertUserCanceled
+    else if code == 109 then AlertMissingExtension
+    else if code == 110 then AlertUnsupportedExtension
+    else if code == 112 then AlertUnrecognizedName
+    else if code == 116 then AlertCertificateRequired
+    else if code == 120 then AlertNoApplicationProtocol
+    else AlertOther code
+
+  -- | Render a readable name for a `TlsAlert`.
+  tls-alert-message :: TlsAlert -> String
+  tls-alert-message alert = case alert of
+    AlertCloseNotify -> "close notify"
+    AlertUnexpectedMessage -> "unexpected message"
+    AlertBadRecordMac -> "bad record MAC"
+    AlertRecordOverflow -> "record overflow"
+    AlertHandshakeFailure -> "handshake failure"
+    AlertBadCertificate -> "bad certificate"
+    AlertUnsupportedCertificate -> "unsupported certificate"
+    AlertCertificateExpired -> "certificate expired"
+    AlertCertificateUnknown -> "certificate unknown"
+    AlertIllegalParameter -> "illegal parameter"
+    AlertUnknownCa -> "unknown CA"
+    AlertDecodeError -> "decode error"
+    AlertDecryptError -> "decrypt error"
+    AlertProtocolVersion -> "protocol version"
+    AlertInsufficientSecurity -> "insufficient security"
+    AlertInternalError -> "internal error"
+    AlertUserCanceled -> "user canceled"
+    AlertMissingExtension -> "missing extension"
+    AlertUnsupportedExtension -> "unsupported extension"
+    AlertUnrecognizedName -> "unrecognized name"
+    AlertCertificateRequired -> "certificate required"
+    AlertNoApplicationProtocol -> "no application protocol"
+    AlertOther n -> string-concat "alert " (nat-to-string n)
+
+  -- | Structured errors returned by TLS 1.3 key schedule, record, and handshake operations.
+  data TlsError where
+    -- | Wire protocol or state machine violation with corresponding TLS alert.
+    TlsProtocolError :: TlsAlert -> String -> TlsError
+    -- | Fatal or unrecognized alert received from the remote peer.
+    TlsAlertReceived :: TlsAlert -> TlsError
+    -- | Record AEAD authentication failed or tag was invalid.
+    TlsBadRecordMac :: TlsError
+    -- | Record payload or ciphertext exceeded RFC 8446 length limits.
+    TlsRecordOverflow :: Nat -> TlsError
+    -- | Peer did not negotiate TLS 1.3.
+    TlsUnsupportedVersion :: TlsError
+    -- | Client and server share no supported TLS 1.3 cipher suite.
+    TlsNoCommonCipherSuite :: TlsError
+    -- | Client and server share no supported ECDHE named group.
+    TlsNoCommonCurve :: TlsError
+    -- | Client and server share no compatible certificate signature scheme.
+    TlsNoCommonSignatureScheme :: TlsError
+    -- | Peer `CertificateVerify` signature verification failed.
+    TlsBadSignature :: TlsError
+    -- | Peer `Finished` verify_data did not match expected HMAC.
+    TlsVerifyDataMismatch :: TlsError
+    -- | X.509 certificate parsing or chain/hostname verification failed.
+    TlsCertVerifyFailed :: X509Error -> TlsError
+    -- | Invalid TLS configuration (such as missing server certificate or empty lists).
+    TlsInvalidConfig :: String -> TlsError
+    -- | Caller provided fewer than 32 bytes of random entropy.
+    TlsInvalidEntropy :: Nat -> TlsError
+    -- | Operation requires a completed handshake.
+    TlsHandshakeNotComplete :: TlsError
+    -- | Operation attempted after local close_notify shutdown.
+    TlsConnectionClosed :: TlsError
+    -- | ECDHE key generation or shared secret computation failed.
+    TlsKeyExchangeFailed :: String -> TlsError
+
+  -- | Render a readable diagnostic for a `TlsError`.
+  tls-error-message :: TlsError -> String
+  tls-error-message err = case err of
+    TlsProtocolError alert msg -> string-concat "tls: " (string-concat (tls-alert-message alert) (string-concat ": " msg))
+    TlsAlertReceived alert -> string-concat "tls: peer alert: " (tls-alert-message alert)
+    TlsBadRecordMac -> "tls: bad record MAC"
+    TlsRecordOverflow n -> string-concat "tls: record overflow (" (string-concat (nat-to-string n) " bytes)")
+    TlsUnsupportedVersion -> "tls: peer does not support TLS 1.3"
+    TlsNoCommonCipherSuite -> "tls: no common TLS 1.3 cipher suite"
+    TlsNoCommonCurve -> "tls: no common ECDHE key exchange group"
+    TlsNoCommonSignatureScheme -> "tls: no common signature scheme"
+    TlsBadSignature -> "tls: invalid CertificateVerify signature"
+    TlsVerifyDataMismatch -> "tls: invalid Finished verify_data"
+    TlsCertVerifyFailed xe -> string-concat "tls: certificate verification failed: " (x509-error-message xe)
+    TlsInvalidConfig msg -> string-concat "tls: invalid configuration: " msg
+    TlsInvalidEntropy n -> string-concat "tls: expected at least 32 entropy bytes, got " (nat-to-string n)
+    TlsHandshakeNotComplete -> "tls: handshake not complete"
+    TlsConnectionClosed -> "tls: connection closed"
+    TlsKeyExchangeFailed msg -> string-concat "tls: key exchange failed: " msg
+
+  -- | Map a `TlsError` to the RFC 8446 alert description suitable for notifying a peer.
+  tls-error-alert :: TlsError -> TlsAlert
+  tls-error-alert err = case err of
+    TlsProtocolError alert _ -> alert
+    TlsAlertReceived alert -> alert
+    TlsBadRecordMac -> AlertBadRecordMac
+    TlsRecordOverflow _ -> AlertRecordOverflow
+    TlsUnsupportedVersion -> AlertProtocolVersion
+    TlsNoCommonCipherSuite -> AlertHandshakeFailure
+    TlsNoCommonCurve -> AlertHandshakeFailure
+    TlsNoCommonSignatureScheme -> AlertHandshakeFailure
+    TlsBadSignature -> AlertDecryptError
+    TlsVerifyDataMismatch -> AlertDecryptError
+    TlsCertVerifyFailed xe -> alert-for-x509 xe
+    TlsInvalidConfig _ -> AlertInternalError
+    TlsInvalidEntropy _ -> AlertInternalError
+    TlsHandshakeNotComplete -> AlertUnexpectedMessage
+    TlsConnectionClosed -> AlertCloseNotify
+    TlsKeyExchangeFailed _ -> AlertIllegalParameter
+
+  -- | Map an `X509Error` to the closest RFC 8446 certificate alert description.
+  alert-for-x509 :: X509Error -> TlsAlert
+  alert-for-x509 xe = case xe of
+    X509Expired -> AlertCertificateExpired
+    X509UnknownAuthority -> AlertUnknownCa
+    X509UnsupportedAlgorithm -> AlertUnsupportedCertificate
+    _ -> AlertBadCertificate
+
+  -- ---------------------------------------------------------------------
+  -- Certificates, configuration, and connection state.
+  -- ---------------------------------------------------------------------
+
+  -- | A leaf certificate chain paired with its private signing key.
+  data TlsCertificate where
+    -- | Certificate chain (leaf first, optional intermediates following) and private key.
+    MkTlsCertificate :: List Certificate -> PrivateKey -> TlsCertificate
+
+  -- | Construct a `TlsCertificate` from a certificate chain (leaf first) and private key.
+  tls-certificate :: List Certificate -> PrivateKey -> TlsCertificate
+  tls-certificate chain priv = MkTlsCertificate chain priv
+
+  -- | Return the certificate chain (leaf first) of a `TlsCertificate`.
+  tls-certificate-chain :: TlsCertificate -> List Certificate
+  tls-certificate-chain tc = case tc of
+    MkTlsCertificate chain _ -> chain
+
+  -- | Return the private signing key of a `TlsCertificate`.
+  tls-certificate-key :: TlsCertificate -> PrivateKey
+  tls-certificate-key tc = case tc of
+    MkTlsCertificate _ priv -> priv
+
+  -- | Parse a PEM-encoded certificate chain and PEM-encoded private key into a `TlsCertificate`.
+  tls-load-x509-key-pair :: Bytes -> Bytes -> Result TlsError TlsCertificate
+  tls-load-x509-key-pair cert-pem key-pem = case parse-certificates-pem cert-pem of
+    Err xe -> Err (TlsCertVerifyFailed xe)
+    Ok chain -> case chain of
+      Nil -> Err (TlsInvalidConfig "certificate PEM contains no certificates")
+      Cons leaf _ -> case decode-private-key-pem key-pem of
+        Err e -> Err e
+        Ok priv ->
+          if public-key-equal (cert-public-key leaf) (public-key-of priv) then
+            Ok (MkTlsCertificate chain priv)
+          else Err (TlsInvalidConfig "private key does not match leaf certificate public key")
+
+  -- | Decode a PEM private key block (PKCS#8, SEC 1 EC, or PKCS#1 RSA).
+  decode-private-key-pem :: Bytes -> Result TlsError PrivateKey
+  decode-private-key-pem raw = case pem-decode raw of
+    (None, _) -> Err (TlsInvalidConfig "private key PEM contains no PEM block")
+    (Some blk, rest) ->
+      let btype = (case string-from-bytes (pem-block-type blk) of Some s -> s; None -> "") in
+      let der = pem-block-bytes blk in
+      if btype == "PRIVATE KEY" then
+        case parse-pkcs8-private-key der of
+          Ok k -> Ok k
+          Err xe -> Err (TlsCertVerifyFailed xe)
+      else if btype == "EC PRIVATE KEY" then
+        case parse-ec-private-key der of
+          Ok k -> Ok (PrivP256 k)
+          Err xe -> Err (TlsCertVerifyFailed xe)
+      else if btype == "RSA PRIVATE KEY" then
+        case parse-pkcs1-private-key der of
+          Ok k -> Ok (PrivRsa k)
+          Err xe -> Err (TlsCertVerifyFailed xe)
+      else if bytes-len rest > 0 then decode-private-key-pem rest
+      else Err (TlsInvalidConfig (string-concat "unsupported private key PEM block: " btype))
+
+  -- | Configuration for TLS 1.3 client and server handshakes.
+  data TlsConfig where
+    -- | Server name (SNI/hostname), root CA pool, insecure-skip-verify flag, optional identity certificate, cipher suites, curves, ALPN protocols, and current Unix timestamp.
+    MkTlsConfig :: String -> CertPool -> Bool -> Option TlsCertificate -> List TlsCipherSuite -> List TlsCurve -> List String -> I64 -> TlsConfig
+
+  -- | Default TLS 1.3 configuration with all three RFC 8446 cipher suites, X25519 and P-256, and strict certificate verification.
+  tls-config-default :: TlsConfig
+  tls-config-default =
+    MkTlsConfig
+      ""
+      cert-pool-new
+      False
+      None
+      [TlsAes128GcmSha256, TlsAes256GcmSha384, TlsChacha20Poly1305Sha256]
+      [CurveX25519, CurveP256]
+      Nil
+      0
+
+  -- | Set the expected server hostname (used for SNI when non-IP and X.509 hostname verification).
+  tls-config-with-server-name :: String -> TlsConfig -> TlsConfig
+  tls-config-with-server-name name cfg = case cfg of
+    MkTlsConfig _ roots skip cert suites curves alpn now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Set the trusted root CA `CertPool` used to verify peer certificates.
+  tls-config-with-roots :: CertPool -> TlsConfig -> TlsConfig
+  tls-config-with-roots roots cfg = case cfg of
+    MkTlsConfig name _ skip cert suites curves alpn now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Enable or disable certificate chain and hostname verification (testing only).
+  tls-config-with-insecure-skip-verify :: Bool -> TlsConfig -> TlsConfig
+  tls-config-with-insecure-skip-verify skip cfg = case cfg of
+    MkTlsConfig name roots _ cert suites curves alpn now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Attach a local certificate chain and private key (required for servers, optional for mTLS clients).
+  tls-config-with-certificate :: TlsCertificate -> TlsConfig -> TlsConfig
+  tls-config-with-certificate cert cfg = case cfg of
+    MkTlsConfig name roots skip _ suites curves alpn now ->
+      MkTlsConfig name roots skip (Some cert) suites curves alpn now
+
+  -- | Override the ordered list of allowed TLS 1.3 cipher suites.
+  tls-config-with-cipher-suites :: List TlsCipherSuite -> TlsConfig -> TlsConfig
+  tls-config-with-cipher-suites suites cfg = case cfg of
+    MkTlsConfig name roots skip cert _ curves alpn now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Override the ordered list of allowed ECDHE curves.
+  tls-config-with-curves :: List TlsCurve -> TlsConfig -> TlsConfig
+  tls-config-with-curves curves cfg = case cfg of
+    MkTlsConfig name roots skip cert suites _ alpn now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Set the ordered list of supported ALPN application protocols (e.g. `["h2", "http/1.1"]`).
+  tls-config-with-alpn :: List String -> TlsConfig -> TlsConfig
+  tls-config-with-alpn alpn cfg = case cfg of
+    MkTlsConfig name roots skip cert suites curves _ now ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Set the verification wall-clock timestamp in Unix seconds.
+  tls-config-with-now :: I64 -> TlsConfig -> TlsConfig
+  tls-config-with-now now cfg = case cfg of
+    MkTlsConfig name roots skip cert suites curves alpn _ ->
+      MkTlsConfig name roots skip cert suites curves alpn now
+
+  -- | Return the configured server name.
+  tls-config-server-name :: TlsConfig -> String
+  tls-config-server-name cfg = case cfg of MkTlsConfig name _ _ _ _ _ _ _ -> name
+
+  -- | Return the configured root CA pool.
+  tls-config-roots :: TlsConfig -> CertPool
+  tls-config-roots cfg = case cfg of MkTlsConfig _ roots _ _ _ _ _ _ -> roots
+
+  -- | Return whether certificate verification is skipped.
+  tls-config-insecure-skip-verify :: TlsConfig -> Bool
+  tls-config-insecure-skip-verify cfg = case cfg of MkTlsConfig _ _ skip _ _ _ _ _ -> skip
+
+  -- | Return the configured local certificate chain and key, if any.
+  tls-config-certificate :: TlsConfig -> Option TlsCertificate
+  tls-config-certificate cfg = case cfg of MkTlsConfig _ _ _ cert _ _ _ _ -> cert
+
+  -- | Return the configured list of cipher suites.
+  tls-config-cipher-suites :: TlsConfig -> List TlsCipherSuite
+  tls-config-cipher-suites cfg = case cfg of MkTlsConfig _ _ _ _ suites _ _ _ -> suites
+
+  -- | Return the configured list of ECDHE curves.
+  tls-config-curves :: TlsConfig -> List TlsCurve
+  tls-config-curves cfg = case cfg of MkTlsConfig _ _ _ _ _ curves _ _ -> curves
+
+  -- | Return the configured list of ALPN protocols.
+  tls-config-alpn :: TlsConfig -> List String
+  tls-config-alpn cfg = case cfg of MkTlsConfig _ _ _ _ _ _ alpn _ -> alpn
+
+  -- | Return the configured Unix timestamp in seconds.
+  tls-config-now :: TlsConfig -> I64
+  tls-config-now cfg = case cfg of MkTlsConfig _ _ _ _ _ _ _ now -> now
+
+  -- | Snapshot of negotiated parameters for a TLS 1.3 connection.
+  data TlsConnectionState where
+    -- | Version, cipher suite, server name, ALPN protocol, peer certificates, handshake-complete flag, peer-closed flag.
+    MkTlsConnectionState :: TlsVersion -> TlsCipherSuite -> String -> String -> List Certificate -> Bool -> Bool -> TlsConnectionState
+
+  -- | Return the negotiated TLS version.
+  tls-state-version :: TlsConnectionState -> TlsVersion
+  tls-state-version st = case st of MkTlsConnectionState v _ _ _ _ _ _ -> v
+
+  -- | Return the negotiated cipher suite.
+  tls-state-cipher-suite :: TlsConnectionState -> TlsCipherSuite
+  tls-state-cipher-suite st = case st of MkTlsConnectionState _ s _ _ _ _ _ -> s
+
+  -- | Return the SNI server name negotiated or requested on the connection.
+  tls-state-server-name :: TlsConnectionState -> String
+  tls-state-server-name st = case st of MkTlsConnectionState _ _ n _ _ _ _ -> n
+
+  -- | Return the negotiated ALPN protocol, or empty string if none was negotiated.
+  tls-state-negotiated-protocol :: TlsConnectionState -> String
+  tls-state-negotiated-protocol st = case st of MkTlsConnectionState _ _ _ p _ _ _ -> p
+
+  -- | Return the peer's presented certificate chain (leaf first).
+  tls-state-peer-certificates :: TlsConnectionState -> List Certificate
+  tls-state-peer-certificates st = case st of MkTlsConnectionState _ _ _ _ cs _ _ -> cs
+
+  -- | Return `True` once the TLS 1.3 handshake has completed.
+  tls-state-handshake-complete :: TlsConnectionState -> Bool
+  tls-state-handshake-complete st = case st of MkTlsConnectionState _ _ _ _ _ done _ -> done
+
+  -- | Return `True` once the remote peer has sent `close_notify`.
+  tls-state-peer-closed :: TlsConnectionState -> Bool
+  tls-state-peer-closed st = case st of MkTlsConnectionState _ _ _ _ _ _ eof -> eof
+
+  -- | Output produced by feeding incoming wire bytes into a client or server state machine.
+  data TlsOutput a where
+    -- | Updated state, wire bytes to transmit, decrypted application bytes received, and whether peer sent `close_notify`.
+    MkTlsOutput :: a -> Bytes -> Bytes -> Bool -> TlsOutput a
+
+  -- | Extract the updated state machine from a `TlsOutput`.
+  tls-out-state :: forall a. TlsOutput a -> a
+  tls-out-state o = case o of MkTlsOutput st _ _ _ -> st
+
+  -- | Extract outbound TLS wire bytes to send to the peer from a `TlsOutput`.
+  tls-out-wire :: forall a. TlsOutput a -> Bytes
+  tls-out-wire o = case o of MkTlsOutput _ wire _ _ -> wire
+
+  -- | Extract decrypted application payload bytes received from the peer from a `TlsOutput`.
+  tls-out-data :: forall a. TlsOutput a -> Bytes
+  tls-out-data o = case o of MkTlsOutput _ _ app _ -> app
+
+  -- | Return `True` if the peer has sent `close_notify`.
+  tls-out-eof :: forall a. TlsOutput a -> Bool
+  tls-out-eof o = case o of MkTlsOutput _ _ _ eof -> eof
+
+  -- ---------------------------------------------------------------------
+  -- Byte, integer, and list helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Empty byte buffer with unrefined `Bytes` type.
+  empty-bytes :: Bytes
+  empty-bytes = bytes-new 0
+
+  -- | Read a byte at index `i`, or `0` past the end.
+  at :: Bytes -> Nat -> Nat
+  at buf i = if i < bytes-len buf then bytes-get buf i else 0
+
+  -- | Copy slice `[start, stop)` into a fresh byte buffer.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let len = stop - start in
+      let out = bytes-new len in
+      let u = bytes-copy-range out buf 0 start len in
+      out
+    else bytes-new 0
+
+  -- | Saturating natural subtraction.
+  sub-sat :: Nat -> Nat -> Nat
+  sub-sat a b = if b <= a then a - b else 0
+
+  -- | Convert a natural number modulo 256 to `U8`.
+  nat-u8 :: Nat -> U8
+  nat-u8 n = wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))
+
+  -- | Encode a single byte from a natural value modulo 256.
+  u8-byte :: Nat -> Bytes
+  u8-byte n = bytes-from-u8s [nat-u8 n]
+
+  -- | Encode a 16-bit big-endian unsigned integer.
+  u16-be :: Nat -> Bytes
+  u16-be n = bytes-from-u8s [nat-u8 (nat-div n 256), nat-u8 n]
+
+  -- | Encode a 24-bit big-endian unsigned integer.
+  u24-be :: Nat -> Bytes
+  u24-be n = bytes-from-u8s [nat-u8 (nat-div n 65536), nat-u8 (nat-div n 256), nat-u8 n]
+
+  -- | Encode a 64-bit big-endian unsigned integer.
+  u64-be :: Nat -> Bytes
+  u64-be n =
+    let out = bytes-new 8 in
+    let u = put-u64-be out 7 n in
+    out
+
+  -- | Fill big-endian bytes of a 64-bit value from least-significant to most-significant.
+  put-u64-be :: Bytes -> Nat -> Nat -> Unit
+  put-u64-be out idx v =
+    let s = if idx < bytes-len out then bytes-set out idx (nat-rem v 256) else () in
+    if idx == 0 then ()
+    else put-u64-be out (sub-sat idx 1) (nat-div v 256)
+
+  -- | Decode a 16-bit big-endian unsigned integer at offset `pos`.
+  read-u16-be :: Bytes -> Nat -> Nat
+  read-u16-be buf pos = nat-add (nat-mul (at buf pos) 256) (at buf (pos + 1))
+
+  -- | Decode a 24-bit big-endian unsigned integer at offset `pos`.
+  read-u24-be :: Bytes -> Nat -> Nat
+  read-u24-be buf pos =
+    nat-add (nat-mul (at buf pos) 65536) (nat-add (nat-mul (at buf (pos + 1)) 256) (at buf (pos + 2)))
+
+  -- | Prefix `b` with an 8-bit big-endian length.
+  vec-u8 :: Bytes -> Bytes
+  vec-u8 b = bytes-concat [u8-byte (bytes-len b), b]
+
+  -- | Prefix `b` with a 16-bit big-endian length.
+  vec-u16 :: Bytes -> Bytes
+  vec-u16 b = bytes-concat [u16-be (bytes-len b), b]
+
+  -- | Prefix `b` with a 24-bit big-endian length.
+  vec-u24 :: Bytes -> Bytes
+  vec-u24 b = bytes-concat [u24-be (bytes-len b), b]
+
+  -- | Exact byte-buffer equality.
+  bytes-eq :: Bytes -> Bytes -> Bool
+  bytes-eq a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Check whether a `Nat` appears in a `List Nat`.
+  nat-in-list :: Nat -> List Nat -> Bool
+  nat-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if h == x then True else nat-in-list x t
+
+  -- | Check whether a `String` appears in a `List String`.
+  str-in-list :: String -> List String -> Bool
+  str-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if h == x then True else str-in-list x t
+
+  -- | Check whether a `TlsCipherSuite` appears in a list.
+  suite-in-list :: TlsCipherSuite -> List TlsCipherSuite -> Bool
+  suite-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if tls-cipher-suite-equal h x then True else suite-in-list x t
+
+  -- | Check whether a `TlsCurve` appears in a list.
+  curve-in-list :: TlsCurve -> List TlsCurve -> Bool
+  curve-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if tls-curve-equal h x then True else curve-in-list x t
+
+  -- | Check whether a `TlsSignatureScheme` appears in a list.
+  scheme-in-list :: TlsSignatureScheme -> List TlsSignatureScheme -> Bool
+  scheme-in-list x xs = case xs of
+    Nil -> False
+    Cons h t -> if tls-signature-scheme-equal h x then True else scheme-in-list x t
+
+  -- | Reverse a list tail-recursively.
+  rev-acc :: forall a. List a -> List a -> List a
+  rev-acc xs acc = case xs of
+    Nil -> acc
+    Cons h t -> rev-acc t (Cons h acc)
+
+  -- | Reverse a list.
+  rev-list :: forall a. List a -> List a
+  rev-list xs = rev-acc xs Nil
+
+  -- | Concatenate byte chunks in order.
+  join2 :: Bytes -> Bytes -> Bytes
+  join2 a b =
+    if bytes-len a == 0 then b
+    else if bytes-len b == 0 then a
+    else bytes-concat [a, b]
+
+  -- | Return `True` if `host` is a literal IPv4 or IPv6 address (which RFC 6066 excludes from SNI).
+  is-ip-literal :: String -> Bool
+  is-ip-literal host = case parse-addr host of
+    Ok _ -> True
+    Err _ -> False
+
+  -- ---------------------------------------------------------------------
+  -- RFC 8446 section 7.1 Key Schedule (SHA-256 and SHA-384).
+  -- ---------------------------------------------------------------------
+
+  -- | Return `True` if the cipher suite uses SHA-384 rather than SHA-256.
+  suite-is-sha384 :: TlsCipherSuite -> Bool
+  suite-is-sha384 suite = case suite of
+    TlsAes256GcmSha384 -> True
+    _ -> False
+
+  -- | Return the digest length in bytes (32 for SHA-256, 48 for SHA-384).
+  suite-hash-len :: TlsCipherSuite -> Nat
+  suite-hash-len suite = if suite-is-sha384 suite then 48 else 32
+
+  -- | Return the AEAD symmetric key length in bytes (16 for AES-128-GCM, 32 otherwise).
+  suite-key-len :: TlsCipherSuite -> Nat
+  suite-key-len suite = case suite of
+    TlsAes128GcmSha256 -> 16
+    TlsAes256GcmSha384 -> 32
+    TlsChacha20Poly1305Sha256 -> 32
+
+  -- | Compute the transcript hash using the cipher suite's hash function.
+  suite-hash :: TlsCipherSuite -> Bytes -> Bytes
+  suite-hash suite msg =
+    if suite-is-sha384 suite then sha384-sum msg else sha256-sum msg
+
+  -- | RFC 2104 HMAC-SHA-384 with 128-byte block size.
+  hmac-sha384 :: Bytes -> Bytes -> Bytes
+  hmac-sha384 key message =
+    let k = if bytes-len key > 128 then sha384-sum key else key in
+    let inner = xor-pad128 k 54 in
+    let outer = xor-pad128 k 92 in
+    sha384-sum (bytes-concat [outer, sha384-sum (bytes-concat [inner, message])])
+
+  -- | Produce a 128-byte zero-padded key block XORed with constant byte `c`.
+  xor-pad128 :: Bytes -> Nat -> Bytes
+  xor-pad128 key c =
+    let out = bytes-new 128 in
+    let u = xor-pad128-from key (nat-u8 c) out 0 in
+    out
+
+  -- | Tail-recursive XOR fill for a 128-byte HMAC pad block.
+  xor-pad128-from :: Bytes -> U8 -> Bytes -> Nat -> Unit
+  xor-pad128-from key cu out i =
+    if i >= 128 then ()
+    else
+      let v = u8-to-nat (bit-xor-u8 (nat-u8 (at key i)) cu) in
+      let s = if i < bytes-len out then bytes-set out i v else () in
+      xor-pad128-from key cu out (i + 1)
+
+  -- | Compute HMAC using the cipher suite's hash function.
+  suite-hmac :: TlsCipherSuite -> Bytes -> Bytes -> Bytes
+  suite-hmac suite key msg =
+    if suite-is-sha384 suite then hmac-sha384 key msg
+    else hmac-tag (hmac-key HmacSha256 key) msg
+
+  -- | Return the `KdfPrf` matching a TLS 1.3 cipher suite.
+  suite-kdf-prf :: TlsCipherSuite -> KdfPrf
+  suite-kdf-prf suite =
+    if suite-is-sha384 suite then
+      case kdf-prf 48 hmac-sha384 of
+        Some p -> p
+        None -> kdf-hmac-sha256
+    else kdf-hmac-sha256
+
+  -- | RFC 5869 `HKDF-Extract(salt, ikm)` using the cipher suite's hash function.
+  tls-hkdf-extract :: TlsCipherSuite -> Bytes -> Bytes -> Bytes
+  tls-hkdf-extract suite salt ikm =
+    if bytes-len salt == 0 then suite-hmac suite (bytes-new (suite-hash-len suite)) ikm
+    else suite-hmac suite salt ikm
+
+  -- | RFC 8446 section 7.1 `HKDF-Expand-Label(secret, label, context, length)`.
+  tls-hkdf-expand-label :: TlsCipherSuite -> Bytes -> String -> Bytes -> Nat -> Result TlsError Bytes
+  tls-hkdf-expand-label suite secret label context out-len =
+    let full-label = string-to-bytes (string-concat "tls13 " label) in
+    if bytes-len full-label > 255 || bytes-len context > 255 || out-len > 65535 then
+      Err (TlsProtocolError AlertInternalError "HKDF label or context exceeds RFC 8446 bounds")
+    else
+      let info = bytes-concat [u16-be out-len, vec-u8 full-label, vec-u8 context] in
+      case hkdf-expand (suite-kdf-prf suite) secret info out-len of
+        Ok out -> Ok out
+        Err _ -> Err (TlsProtocolError AlertInternalError "HKDF-Expand failed")
+
+  -- | RFC 8446 section 7.1 `Derive-Secret(secret, label, transcript_hash)`.
+  tls-derive-secret :: TlsCipherSuite -> Bytes -> String -> Bytes -> Result TlsError Bytes
+  tls-derive-secret suite secret label transcript-hash =
+    tls-hkdf-expand-label suite secret label transcript-hash (suite-hash-len suite)
+
+  -- | Derive the `(key, iv)` pair from a TLS 1.3 traffic secret (RFC 8446 section 7.3).
+  tls-traffic-keys :: TlsCipherSuite -> Bytes -> Result TlsError (Bytes, Bytes)
+  tls-traffic-keys suite secret =
+    let empty = bytes-new 0 in
+    case tls-hkdf-expand-label suite secret "key" empty (suite-key-len suite) of
+      Err e -> Err e
+      Ok k -> case tls-hkdf-expand-label suite secret "iv" empty 12 of
+        Err e -> Err e
+        Ok iv -> Ok (k, iv)
+
+  -- | Compute the RFC 8446 section 4.4.4 `Finished` verify_data from a traffic secret and transcript hash.
+  tls-finished-verify-data :: TlsCipherSuite -> Bytes -> Bytes -> Result TlsError Bytes
+  tls-finished-verify-data suite base-secret transcript-hash =
+    case tls-hkdf-expand-label suite base-secret "finished" (bytes-new 0) (suite-hash-len suite) of
+      Err e -> Err e
+      Ok fin-key -> Ok (suite-hmac suite fin-key transcript-hash)
+
+  -- | Advance an application traffic secret via `HKDF-Expand-Label(secret, "traffic upd", "", Hash.length)`.
+  tls-update-traffic-secret :: TlsCipherSuite -> Bytes -> Result TlsError Bytes
+  tls-update-traffic-secret suite secret =
+    tls-hkdf-expand-label suite secret "traffic upd" (bytes-new 0) (suite-hash-len suite)
+
+  -- | Derive RFC 8446 section 7.5 TLS-Exporter keying material from an exporter master secret.
+  tls-export-keying-material :: TlsCipherSuite -> Bytes -> String -> Bytes -> Nat -> Result TlsError Bytes
+  tls-export-keying-material suite exporter-secret label context out-len =
+    let empty-hash = suite-hash suite (bytes-new 0) in
+    case tls-hkdf-expand-label suite exporter-secret label empty-hash (suite-hash-len suite) of
+      Err e -> Err e
+      Ok derived ->
+        let ctx-hash = suite-hash suite context in
+        tls-hkdf-expand-label suite derived "exporter" ctx-hash out-len
+
+  -- | Derive the handshake secret and both handshake traffic secrets from an ECDHE shared secret and `H(CH..SH)`.
+  derive-handshake-secrets :: TlsCipherSuite -> Bytes -> Bytes -> Result TlsError (Bytes, Bytes, Bytes)
+  derive-handshake-secrets suite shared-secret ch-sh-hash =
+    let zeros = bytes-new (suite-hash-len suite) in
+    let empty-hash = suite-hash suite (bytes-new 0) in
+    let early = tls-hkdf-extract suite zeros zeros in
+    case tls-derive-secret suite early "derived" empty-hash of
+      Err e -> Err e
+      Ok derived-early ->
+        let hs = tls-hkdf-extract suite derived-early shared-secret in
+        case tls-derive-secret suite hs "c hs traffic" ch-sh-hash of
+          Err e -> Err e
+          Ok c-hs -> case tls-derive-secret suite hs "s hs traffic" ch-sh-hash of
+            Err e -> Err e
+            Ok s-hs -> Ok (hs, c-hs, s-hs)
+
+  -- | Derive the master secret, client/server application traffic secrets, and exporter master secret.
+  derive-application-secrets :: TlsCipherSuite -> Bytes -> Bytes -> Result TlsError (Bytes, Bytes, Bytes, Bytes)
+  derive-application-secrets suite hs-secret ch-sf-hash =
+    let zeros = bytes-new (suite-hash-len suite) in
+    let empty-hash = suite-hash suite (bytes-new 0) in
+    case tls-derive-secret suite hs-secret "derived" empty-hash of
+      Err e -> Err e
+      Ok derived-hs ->
+        let master = tls-hkdf-extract suite derived-hs zeros in
+        case tls-derive-secret suite master "c ap traffic" ch-sf-hash of
+          Err e -> Err e
+          Ok c-ap -> case tls-derive-secret suite master "s ap traffic" ch-sf-hash of
+            Err e -> Err e
+            Ok s-ap -> case tls-derive-secret suite master "exp master" ch-sf-hash of
+              Err e -> Err e
+              Ok exp-master -> Ok (master, c-ap, s-ap, exp-master)
+
+  -- ---------------------------------------------------------------------
+  -- RFC 8446 section 5.2 & 5.3 Record AEAD protection.
+  -- ---------------------------------------------------------------------
+
+  -- | Compute the 12-byte per-record AEAD nonce by XORing the static IV with the big-endian sequence number.
+  tls-record-nonce :: Bytes -> Nat -> Bytes
+  tls-record-nonce iv seq =
+    let seq-be = u64-be seq in
+    let out = bytes-new 12 in
+    let u = fill-nonce out iv seq-be 0 in
+    out
+
+  -- | Fill the 12-byte record nonce.
+  fill-nonce :: Bytes -> Bytes -> Bytes -> Nat -> Unit
+  fill-nonce out iv seq-be i =
+    if i >= 12 then ()
+    else
+      let v = (if i < 4 then at iv i
+        else u8-to-nat (bit-xor-u8 (nat-u8 (at iv i)) (nat-u8 (at seq-be (sub-sat i 4))))) in
+      let s = if i < bytes-len out then bytes-set out i (nat-rem v 256) else () in
+      fill-nonce out iv seq-be (i + 1)
+
+  -- | Active AEAD traffic key state for one direction (read or write).
+  data TlsTrafficCipher where
+    -- | Unencrypted plaintext mode before handshake keys are installed.
+    TrafficPlain :: TlsTrafficCipher
+    -- | Active TLS 1.3 AEAD state: suite, traffic secret, key, cached GCM (if AES), IV, and 64-bit sequence number.
+    TrafficAead :: TlsCipherSuite -> Bytes -> Bytes -> Option Gcm -> Bytes -> Nat -> TlsTrafficCipher
+
+  -- | Construct an active `TlsTrafficCipher` from a cipher suite and traffic secret.
+  make-traffic-cipher :: TlsCipherSuite -> Bytes -> Result TlsError TlsTrafficCipher
+  make-traffic-cipher suite secret = case tls-traffic-keys suite secret of
+    Err e -> Err e
+    Ok (key, iv) -> case suite of
+      TlsChacha20Poly1305Sha256 -> Ok (TrafficAead suite secret key None iv 0)
+      _ -> case aes-key key of
+        Err _ -> Err (TlsProtocolError AlertInternalError "invalid AES traffic key length")
+        Ok ak -> Ok (TrafficAead suite secret key (Some (gcm (aes-cipher ak))) iv 0)
+
+  -- | Advance a `TlsTrafficCipher` via RFC 8446 section 7.2 key update, resetting sequence number to 0.
+  update-traffic-cipher :: TlsTrafficCipher -> Result TlsError TlsTrafficCipher
+  update-traffic-cipher tc = case tc of
+    TrafficPlain -> Err (TlsProtocolError AlertInternalError "cannot update plaintext traffic state")
+    TrafficAead suite secret _ _ _ _ -> case tls-update-traffic-secret suite secret of
+      Err e -> Err e
+      Ok next-secret -> make-traffic-cipher suite next-secret
+
+  -- | Seal an inner plaintext with a cached `TlsTrafficCipher`, returning the updated cipher and wire record.
+  seal-with-cipher :: TlsTrafficCipher -> Nat -> Bytes -> Result TlsError (TlsTrafficCipher, Bytes)
+  seal-with-cipher tc inner-type plaintext = case tc of
+    TrafficPlain -> Err (TlsProtocolError AlertInternalError "encrypt requested in plaintext state")
+    TrafficAead suite secret key maybe-gcm iv seq ->
+      if bytes-len plaintext > 16384 then Err (TlsRecordOverflow (bytes-len plaintext))
+      else
+        let inner = bytes-concat [plaintext, u8-byte inner-type] in
+        let ct-len = bytes-len inner + 16 in
+        let aad = bytes-concat [bytes-from-u8s [23, 3, 3], u16-be ct-len] in
+        let nonce = tls-record-nonce iv seq in
+        case aead-seal-cached suite key maybe-gcm nonce inner aad of
+          Err e -> Err e
+          Ok ct ->
+            let next-tc = TrafficAead suite secret key maybe-gcm iv (seq + 1) in
+            Ok (next-tc, bytes-concat [aad, ct])
+
+  -- | Open a single encrypted TLS record body (5-byte header `aad` + ciphertext) using a cached `TlsTrafficCipher`.
+  open-with-cipher :: TlsTrafficCipher -> Bytes -> Bytes -> Result TlsError (TlsTrafficCipher, Nat, Bytes)
+  open-with-cipher tc aad ct = case tc of
+    TrafficPlain -> Err (TlsProtocolError AlertInternalError "decrypt requested in plaintext state")
+    TrafficAead suite secret key maybe-gcm iv seq ->
+      if bytes-len ct < 17 then Err TlsBadRecordMac
+      else if bytes-len ct > 16640 then Err (TlsRecordOverflow (bytes-len ct))
+      else
+        let nonce = tls-record-nonce iv seq in
+        case aead-open-cached suite key maybe-gcm nonce ct aad of
+          Err e -> Err e
+          Ok inner -> case unpad-inner-plaintext inner of
+            Err e -> Err e
+            Ok (inner-type, content) ->
+              if bytes-len content > 16384 then Err (TlsRecordOverflow (bytes-len content))
+              else
+                let next-tc = TrafficAead suite secret key maybe-gcm iv (seq + 1) in
+                Ok (next-tc, inner-type, content)
+
+  -- | Encrypt plaintext under the cached AEAD primitive.
+  aead-seal-cached :: TlsCipherSuite -> Bytes -> Option Gcm -> Bytes -> Bytes -> Bytes -> Result TlsError Bytes
+  aead-seal-cached suite key maybe-gcm nonce pt aad = case suite of
+    TlsChacha20Poly1305Sha256 -> case chacha20poly1305-seal key nonce pt aad of
+      Ok ct -> Ok ct
+      Err _ -> Err (TlsProtocolError AlertInternalError "ChaCha20-Poly1305 seal failed")
+    _ -> case maybe-gcm of
+      Some g -> case gcm-seal g nonce pt aad of
+        Ok ct -> Ok ct
+        Err _ -> Err (TlsProtocolError AlertInternalError "AES-GCM seal failed")
+      None -> Err (TlsProtocolError AlertInternalError "missing AES-GCM state")
+
+  -- | Decrypt ciphertext under the cached AEAD primitive.
+  aead-open-cached :: TlsCipherSuite -> Bytes -> Option Gcm -> Bytes -> Bytes -> Bytes -> Result TlsError Bytes
+  aead-open-cached suite key maybe-gcm nonce ct aad = case suite of
+    TlsChacha20Poly1305Sha256 -> case chacha20poly1305-open key nonce ct aad of
+      Ok pt -> Ok pt
+      Err _ -> Err TlsBadRecordMac
+    _ -> case maybe-gcm of
+      Some g -> case gcm-open g nonce ct aad of
+        Ok pt -> Ok pt
+        Err _ -> Err TlsBadRecordMac
+      None -> Err (TlsProtocolError AlertInternalError "missing AES-GCM state")
+
+  -- | Strip RFC 8446 section 5.4 trailing zero padding and extract `(inner_content_type, content)`.
+  unpad-inner-plaintext :: Bytes -> Result TlsError (Nat, Bytes)
+  unpad-inner-plaintext inner =
+    let n = bytes-len inner in
+    if n == 0 then Err (TlsProtocolError AlertUnexpectedMessage "empty TLSInnerPlaintext")
+    else find-inner-type inner (sub-sat n 1)
+
+  -- | Scan backward past zero padding bytes to locate the inner content type byte.
+  find-inner-type :: Bytes -> Nat -> Result TlsError (Nat, Bytes)
+  find-inner-type inner idx =
+    let b = at inner idx in
+    if b /= 0 then Ok (b, slice inner 0 idx)
+    else if idx == 0 then Err (TlsProtocolError AlertUnexpectedMessage "all-zero TLSInnerPlaintext")
+    else find-inner-type inner (sub-sat idx 1)
+
+  -- | Seal a single TLS 1.3 encrypted record from explicit key, IV, sequence number, inner content type, and plaintext.
+  tls-record-seal :: TlsCipherSuite -> Bytes -> Bytes -> Nat -> Nat -> Bytes -> Result TlsError Bytes
+  tls-record-seal suite key iv seq inner-type plaintext =
+    case build-one-shot-cipher suite key iv seq of
+      Err e -> Err e
+      Ok tc -> case seal-with-cipher tc inner-type plaintext of
+        Err e -> Err e
+        Ok (_, wire) -> Ok wire
+
+  -- | Open a single TLS 1.3 encrypted record (5-byte header + ciphertext + tag), returning `(inner_content_type, plaintext)`.
+  tls-record-open :: TlsCipherSuite -> Bytes -> Bytes -> Nat -> Bytes -> Result TlsError (Nat, Bytes)
+  tls-record-open suite key iv seq wire =
+    if bytes-len wire < 22 then Err (TlsProtocolError AlertDecodeError "encrypted record too short")
+    else if at wire 0 /= 23 then Err (TlsProtocolError AlertUnexpectedMessage "expected application_data outer record type")
+    else if at wire 1 /= 3 || at wire 2 /= 3 then Err (TlsProtocolError AlertIllegalParameter "invalid outer record version")
+    else
+      let declared = read-u16-be wire 3 in
+      let body-len = sub-sat (bytes-len wire) 5 in
+      if declared /= body-len then Err (TlsProtocolError AlertDecodeError "record length mismatch")
+      else case build-one-shot-cipher suite key iv seq of
+        Err e -> Err e
+        Ok tc -> case open-with-cipher tc (slice wire 0 5) (slice wire 5 (bytes-len wire)) of
+          Err e -> Err e
+          Ok (_, inner-type, content) -> Ok (inner-type, content)
+
+  -- | Build a one-shot `TlsTrafficCipher` for standalone `tls-record-seal` / `tls-record-open`.
+  build-one-shot-cipher :: TlsCipherSuite -> Bytes -> Bytes -> Nat -> Result TlsError TlsTrafficCipher
+  build-one-shot-cipher suite key iv seq =
+    if bytes-len key /= suite-key-len suite || bytes-len iv /= 12 then
+      Err (TlsInvalidConfig "invalid traffic key or IV length")
+    else case suite of
+      TlsChacha20Poly1305Sha256 -> Ok (TrafficAead suite (bytes-new 0) key None iv seq)
+      _ -> case aes-key key of
+        Err _ -> Err (TlsInvalidConfig "invalid AES key")
+        Ok ak -> Ok (TrafficAead suite (bytes-new 0) key (Some (gcm (aes-cipher ak))) iv seq)
+
+  -- | Seal an arbitrary-length payload into one or more `<= 16384`-byte encrypted TLS records.
+  seal-chunked :: TlsTrafficCipher -> Nat -> Bytes -> Result TlsError (TlsTrafficCipher, Bytes)
+  seal-chunked tc inner-type payload =
+    if bytes-len payload == 0 then
+      if inner-type == 23 then Ok (tc, bytes-new 0)
+      else seal-with-cipher tc inner-type payload
+    else seal-chunked-loop tc inner-type payload 0 Nil
+
+  -- | Return the smaller of two natural numbers.
+  min-nat :: Nat -> Nat -> Nat
+  min-nat a b = if a <= b then a else b
+
+  -- | Tail-recursive chunked record encryption loop.
+  seal-chunked-loop :: TlsTrafficCipher -> Nat -> Bytes -> Nat -> List Bytes -> Result TlsError (TlsTrafficCipher, Bytes)
+  seal-chunked-loop tc inner-type payload pos acc =
+    let total = bytes-len payload in
+    if pos >= total then Ok (tc, bytes-concat (rev-list acc))
+    else
+      let rem = sub-sat total pos in
+      let take = min-nat rem 16384 in
+      let chunk = slice payload pos (pos + take) in
+      case seal-with-cipher tc inner-type chunk of
+        Err e -> Err e
+        Ok (next-tc, rec) -> seal-chunked-loop next-tc inner-type payload (pos + take) (Cons rec acc)
+
+  -- ---------------------------------------------------------------------
+  -- Deterministic entropy expansion & ephemeral ECDHE key pairs.
+  -- ---------------------------------------------------------------------
+
+  -- | Derive `len` independent pseudorandom bytes for `label` from caller-provided entropy (at least 32 bytes).
+  derive-entropy :: Bytes -> String -> Nat -> Result TlsError Bytes
+  derive-entropy seed label len =
+    if bytes-len seed < 32 then Err (TlsInvalidEntropy (bytes-len seed))
+    else
+      let prk = tls-hkdf-extract TlsAes128GcmSha256 (string-to-bytes "cinch-tls13-entropy") seed in
+      case hkdf-expand kdf-hmac-sha256 prk (string-to-bytes label) len of
+        Ok out -> Ok out
+        Err _ -> Err (TlsProtocolError AlertInternalError "entropy expansion failed")
+
+  -- | Ephemeral ECDHE key pair for X25519 or P-256.
+  data TlsKeyPair where
+    -- | Ephemeral X25519 key pair.
+    KeyPairX25519 :: X25519PrivateKey -> TlsKeyPair
+    -- | Ephemeral NIST P-256 key pair.
+    KeyPairP256 :: P256PrivateKey -> TlsKeyPair
+
+  -- | Return the `TlsCurve` of an ephemeral key pair.
+  keypair-curve :: TlsKeyPair -> TlsCurve
+  keypair-curve kp = case kp of
+    KeyPairX25519 _ -> CurveX25519
+    KeyPairP256 _ -> CurveP256
+
+  -- | Return the TLS 1.3 `key_exchange` wire bytes of an ephemeral key pair (32 bytes for X25519, 65 for P-256).
+  keypair-public-bytes :: TlsKeyPair -> Bytes
+  keypair-public-bytes kp = case kp of
+    KeyPairX25519 priv -> x25519-public-key priv
+    KeyPairP256 priv -> p256-public-key-bytes (p256-public-key-of priv)
+
+  -- | Generate an ephemeral key pair for `curve` from 32 random bytes.
+  generate-keypair :: TlsCurve -> Bytes -> Result TlsError TlsKeyPair
+  generate-keypair curve raw32 = case curve of
+    CurveX25519 -> case x25519-private-key raw32 of
+      Ok kp -> Ok (KeyPairX25519 kp)
+      Err _ -> Err (TlsKeyExchangeFailed "X25519 key generation failed")
+    CurveP256 -> case p256-private-key raw32 of
+      Ok kp -> Ok (KeyPairP256 kp)
+      Err _ ->
+        let reduced = p256-scalar-reduce raw32 in
+        let safe = if p256-scalar-is-zero reduced then bytes-concat [bytes-new 31, bytes-from-u8s [1]] else p256-scalar-bytes reduced in
+        case p256-private-key safe of
+          Ok kp -> Ok (KeyPairP256 kp)
+          Err _ -> Err (TlsKeyExchangeFailed "P-256 key generation failed")
+
+  -- | Compute the ECDHE shared secret with a peer's `key_exchange` bytes.
+  keypair-ecdh :: TlsKeyPair -> Bytes -> Result TlsError Bytes
+  keypair-ecdh kp peer-bytes = case kp of
+    KeyPairX25519 priv -> case x25519-shared priv peer-bytes of
+      Ok ss -> Ok ss
+      Err xe -> Err (TlsKeyExchangeFailed (x25519-error-message xe))
+    KeyPairP256 priv -> case p256-public-key peer-bytes of
+      Err pe -> Err (TlsKeyExchangeFailed (p256-error-message pe))
+      Ok peer-pub -> case p256-ecdh priv peer-pub of
+        Ok ss -> Ok ss
+        Err pe -> Err (TlsKeyExchangeFailed (p256-error-message pe))
+
+  -- | Generate initial ephemeral key pairs for a list of configured curves.
+  generate-keypairs :: List TlsCurve -> Bytes -> String -> List TlsKeyPair -> Result TlsError (List TlsKeyPair)
+  generate-keypairs curves seed tag acc = case curves of
+    Nil -> Ok (rev-list acc)
+    Cons c rest ->
+      let label = string-concat tag (nat-to-string (tls-curve-id c)) in
+      case derive-entropy seed label 32 of
+        Err e -> Err e
+        Ok raw -> case generate-keypair c raw of
+          Err e -> Err e
+          Ok kp -> generate-keypairs rest seed tag (Cons kp acc)
+
+  -- | Look up a key pair by curve in a list.
+  find-keypair :: TlsCurve -> List TlsKeyPair -> Option TlsKeyPair
+  find-keypair curve kps = case kps of
+    Nil -> None
+    Cons kp rest -> if tls-curve-equal (keypair-curve kp) curve then Some kp else find-keypair curve rest
+
+  -- ---------------------------------------------------------------------
+  -- CertificateVerify signing & verification (RFC 8446 section 4.4.3).
+  -- ---------------------------------------------------------------------
+
+  -- | Default ordered list of supported signature schemes advertised in `signature_algorithms`.
+  default-signature-schemes :: List TlsSignatureScheme
+  default-signature-schemes =
+    [SigEd25519, SigEcdsaSecp256r1Sha256, SigRsaPssRsaeSha256, SigRsaPssRsaeSha384, SigRsaPssRsaeSha512]
+
+  -- | Build the RFC 8446 section 4.4.3 signed content: 64 spaces || context || 0x00 || transcript_hash.
+  cert-verify-content :: Bool -> Bytes -> Bytes
+  cert-verify-content is-server transcript-hash =
+    let spaces = bytes-repeat 64 (bytes-from-u8s [32]) in
+    let ctx = string-to-bytes (if is-server then "TLS 1.3, server CertificateVerify" else "TLS 1.3, client CertificateVerify") in
+    bytes-concat [spaces, ctx, bytes-from-u8s [0], transcript-hash]
+
+  -- | Return the preferred signature schemes compatible with a `PrivateKey`.
+  schemes-for-private-key :: PrivateKey -> List TlsSignatureScheme
+  schemes-for-private-key priv = case priv of
+    PrivEd25519 _ -> [SigEd25519]
+    PrivP256 _ -> [SigEcdsaSecp256r1Sha256]
+    PrivRsa _ -> [SigRsaPssRsaeSha256, SigRsaPssRsaeSha384, SigRsaPssRsaeSha512]
+    PrivX25519 _ -> Nil
+
+  -- | Select the first signature scheme compatible with `priv` that also appears in `peer-offered`.
+  choose-signature-scheme :: PrivateKey -> List TlsSignatureScheme -> Option TlsSignatureScheme
+  choose-signature-scheme priv peer-offered =
+    first-matching-scheme (schemes-for-private-key priv) peer-offered
+
+  -- | Find the first scheme in `mine` also in `offered`.
+  first-matching-scheme :: List TlsSignatureScheme -> List TlsSignatureScheme -> Option TlsSignatureScheme
+  first-matching-scheme mine offered = case mine of
+    Nil -> None
+    Cons s rest ->
+      if scheme-in-list s offered then Some s
+      else first-matching-scheme rest offered
+
+  -- | Sign a `CertificateVerify` transcript hash with `priv` under `scheme`.
+  sign-cert-verify :: PrivateKey -> TlsSignatureScheme -> Bool -> Bytes -> Bytes -> Result TlsError Bytes
+  sign-cert-verify priv scheme is-server transcript-hash salt-seed =
+    let content = cert-verify-content is-server transcript-hash in
+    case (priv, scheme) of
+      (PrivEd25519 k, SigEd25519) -> Ok (ed25519-sign k content)
+      (PrivP256 k, SigEcdsaSecp256r1Sha256) ->
+        case ecdsa-sign-der-hedged k (sha256-sum content) (slice salt-seed 0 32) of
+          Ok sig -> Ok sig
+          Err _ -> Err (TlsProtocolError AlertInternalError "ECDSA signing failed")
+      (PrivRsa k, SigRsaPssRsaeSha256) ->
+        case rsa-sign-pss k RsaSha256 (sha256-sum content) PssSaltEqualsHash (slice salt-seed 0 32) of
+          Ok sig -> Ok sig
+          Err _ -> Err (TlsProtocolError AlertInternalError "RSA-PSS-SHA256 signing failed")
+      (PrivRsa k, SigRsaPssRsaeSha384) ->
+        case rsa-sign-pss k RsaSha384 (sha384-sum content) PssSaltEqualsHash (slice salt-seed 0 48) of
+          Ok sig -> Ok sig
+          Err _ -> Err (TlsProtocolError AlertInternalError "RSA-PSS-SHA384 signing failed")
+      (PrivRsa k, SigRsaPssRsaeSha512) ->
+        case rsa-sign-pss k RsaSha512 (sha512-sum content) PssSaltEqualsHash (slice salt-seed 0 64) of
+          Ok sig -> Ok sig
+          Err _ -> Err (TlsProtocolError AlertInternalError "RSA-PSS-SHA512 signing failed")
+      _ -> Err TlsNoCommonSignatureScheme
+
+  -- | Verify a peer's `CertificateVerify` signature against its leaf certificate public key.
+  verify-cert-verify :: PublicKey -> TlsSignatureScheme -> Bool -> Bytes -> Bytes -> Bool
+  verify-cert-verify pub scheme is-server transcript-hash sig =
+    let content = cert-verify-content is-server transcript-hash in
+    case (pub, scheme) of
+      (PubEd25519 k, SigEd25519) -> ed25519-verify (ed25519-public-key-bytes k) content sig
+      (PubP256 k, SigEcdsaSecp256r1Sha256) -> ecdsa-verify-der k (sha256-sum content) sig
+      (PubRsa k, SigRsaPssRsaeSha256) ->
+        case rsa-verify-pss k RsaSha256 (sha256-sum content) sig PssSaltEqualsHash of
+          Ok _ -> True
+          Err _ -> False
+      (PubRsa k, SigRsaPssRsaeSha384) ->
+        case rsa-verify-pss k RsaSha384 (sha384-sum content) sig PssSaltEqualsHash of
+          Ok _ -> True
+          Err _ -> False
+      (PubRsa k, SigRsaPssRsaeSha512) ->
+        case rsa-verify-pss k RsaSha512 (sha512-sum content) sig PssSaltEqualsHash of
+          Ok _ -> True
+          Err _ -> False
+      _ -> False
+
+  -- ---------------------------------------------------------------------
+  -- Wire encoding helpers for records, handshake messages, and extensions.
+  -- ---------------------------------------------------------------------
+
+  -- | Special 32-byte `ServerHello.random` identifying a `HelloRetryRequest` (RFC 8446 section 4.1.3).
+  hrr-magic :: Bytes
+  hrr-magic = bytes-from-u8s [207, 33, 173, 116, 229, 154, 97, 17, 190, 29, 140, 2, 30, 101, 184, 145, 194, 162, 17, 22, 122, 187, 140, 94, 7, 158, 9, 226, 200, 168, 51, 156]
+
+  -- | Frame a TLS handshake message: `msg_type (1) || length (3) || body`.
+  make-handshake-msg :: Nat -> Bytes -> Bytes
+  make-handshake-msg msg-type body = bytes-concat [u8-byte msg-type, u24-be (bytes-len body), body]
+
+  -- | Frame a plaintext TLS record: `content_type (1) || 0x03 || ver_lo || length (2) || payload`.
+  make-plain-record :: Nat -> Nat -> Bytes -> Bytes
+  make-plain-record ctype ver-lo payload =
+    bytes-concat [bytes-from-u8s [nat-u8 ctype, 3, nat-u8 ver-lo], u16-be (bytes-len payload), payload]
+
+  -- | Middlebox compatibility dummy `ChangeCipherSpec` record (`14 03 03 00 01 01`).
+  dummy-ccs-record :: Bytes
+  dummy-ccs-record = bytes-from-u8s [20, 3, 3, 0, 1, 1]
+
+  -- | Encode a single TLS extension: `ext_type (2) || len (2) || body`.
+  make-ext :: Nat -> Bytes -> Bytes
+  make-ext ext-type body = bytes-concat [u16-be ext-type, vec-u16 body]
+
+  -- | Encode the SNI `server_name` extension (`0x0000`) for a DNS hostname.
+  encode-sni-ext :: String -> Bytes
+  encode-sni-ext host =
+    let host-bytes = string-to-bytes host in
+    let entry = bytes-concat [bytes-from-u8s [0], vec-u16 host-bytes] in
+    make-ext 0 (vec-u16 entry)
+
+  -- | Encode the ALPN extension (`0x0010`) from a non-empty list of protocol names.
+  encode-alpn-ext :: List String -> Bytes
+  encode-alpn-ext protos =
+    let body = encode-alpn-entries protos Nil in
+    make-ext 16 (vec-u16 body)
+
+  -- | Encode length-prefixed ALPN protocol names.
+  encode-alpn-entries :: List String -> List Bytes -> Bytes
+  encode-alpn-entries protos acc = case protos of
+    Nil -> bytes-concat (rev-list acc)
+    Cons p rest -> encode-alpn-entries rest (Cons (vec-u8 (string-to-bytes p)) acc)
+
+  -- | Encode a list of 16-bit IDs prefixed by a 16-bit byte length.
+  encode-u16-list :: List Nat -> List Bytes -> Bytes
+  encode-u16-list ids acc = case ids of
+    Nil -> vec-u16 (bytes-concat (rev-list acc))
+    Cons n rest -> encode-u16-list rest (Cons (u16-be n) acc)
+
+  -- | Encode ClientHello `supported_groups` extension (`0x000a`).
+  encode-supported-groups-ext :: List TlsCurve -> Bytes
+  encode-supported-groups-ext curves = make-ext 10 (encode-u16-list (map-curve-ids curves Nil) Nil)
+
+  -- | Map curves to their 16-bit wire identifiers.
+  map-curve-ids :: List TlsCurve -> List Nat -> List Nat
+  map-curve-ids cs acc = case cs of
+    Nil -> rev-list acc
+    Cons c rest -> map-curve-ids rest (Cons (tls-curve-id c) acc)
+
+  -- | Encode `signature_algorithms` extension (`0x000d`).
+  encode-sig-algs-ext :: List TlsSignatureScheme -> Bytes
+  encode-sig-algs-ext schemes = make-ext 13 (encode-u16-list (map-scheme-ids schemes Nil) Nil)
+
+  -- | Map signature schemes to their 16-bit wire identifiers.
+  map-scheme-ids :: List TlsSignatureScheme -> List Nat -> List Nat
+  map-scheme-ids ss acc = case ss of
+    Nil -> rev-list acc
+    Cons s rest -> map-scheme-ids rest (Cons (tls-signature-scheme-id s) acc)
+
+  -- | Map cipher suites to their 16-bit wire identifiers.
+  map-suite-ids :: List TlsCipherSuite -> List Nat -> List Nat
+  map-suite-ids ss acc = case ss of
+    Nil -> rev-list acc
+    Cons s rest -> map-suite-ids rest (Cons (tls-cipher-suite-id s) acc)
+
+  -- | Encode ClientHello `supported_versions` extension (`0x002b`) advertising TLS 1.3 only.
+  encode-ch-supported-versions-ext :: Bytes
+  encode-ch-supported-versions-ext = make-ext 43 (bytes-from-u8s [2, 3, 4])
+
+  -- | Encode ServerHello `supported_versions` extension (`0x002b`) selecting TLS 1.3.
+  encode-sh-supported-versions-ext :: Bytes
+  encode-sh-supported-versions-ext = make-ext 43 (bytes-from-u8s [3, 4])
+
+  -- | Encode ClientHello `key_share` extension (`0x0033`) from ephemeral key pairs.
+  encode-ch-key-share-ext :: List TlsKeyPair -> Bytes
+  encode-ch-key-share-ext kps = make-ext 51 (vec-u16 (encode-key-share-entries kps Nil))
+
+  -- | Encode individual `KeyShareEntry` elements.
+  encode-key-share-entries :: List TlsKeyPair -> List Bytes -> Bytes
+  encode-key-share-entries kps acc = case kps of
+    Nil -> bytes-concat (rev-list acc)
+    Cons kp rest ->
+      let entry = bytes-concat [u16-be (tls-curve-id (keypair-curve kp)), vec-u16 (keypair-public-bytes kp)] in
+      encode-key-share-entries rest (Cons entry acc)
+
+  -- | Encode ServerHello `key_share` extension (`0x0033`) for one selected key pair.
+  encode-sh-key-share-ext :: TlsKeyPair -> Bytes
+  encode-sh-key-share-ext kp =
+    make-ext 51 (bytes-concat [u16-be (tls-curve-id (keypair-curve kp)), vec-u16 (keypair-public-bytes kp)])
+
+  -- | Encode HelloRetryRequest `key_share` extension (`0x0033`) naming the requested curve.
+  encode-hrr-key-share-ext :: TlsCurve -> Bytes
+  encode-hrr-key-share-ext curve = make-ext 51 (u16-be (tls-curve-id curve))
+
+  -- | Build a TLS 1.3 `ClientHello` handshake message.
+  build-client-hello :: TlsConfig -> Bytes -> Bytes -> List TlsKeyPair -> Bytes
+  build-client-hello cfg ch-random session-id kps =
+    let sni = tls-config-server-name cfg in
+    let suites = tls-config-cipher-suites cfg in
+    let curves = tls-config-curves cfg in
+    let alpn = tls-config-alpn cfg in
+    let sni-ext = if bytes-len (string-to-bytes sni) > 0 && not (is-ip-literal sni) then [encode-sni-ext sni] else Nil in
+    let alpn-ext = case alpn of Nil -> Nil; Cons _ _ -> [encode-alpn-ext alpn] in
+    let exts = bytes-concat [
+      bytes-concat sni-ext,
+      encode-ch-supported-versions-ext,
+      encode-supported-groups-ext curves,
+      encode-sig-algs-ext default-signature-schemes,
+      encode-ch-key-share-ext kps,
+      bytes-concat alpn-ext
+    ] in
+    let body = bytes-concat [
+      bytes-from-u8s [3, 3],
+      ch-random,
+      vec-u8 session-id,
+      encode-u16-list (map-suite-ids suites Nil) Nil,
+      bytes-from-u8s [1, 0],
+      vec-u16 exts
+    ] in
+    make-handshake-msg 1 body
+
+  -- | Build a TLS 1.3 `ServerHello` (or `HelloRetryRequest`) handshake message.
+  build-server-hello :: Bytes -> Bytes -> TlsCipherSuite -> Bytes -> Bytes
+  build-server-hello sh-random session-id suite exts =
+    let body = bytes-concat [
+      bytes-from-u8s [3, 3],
+      sh-random,
+      vec-u8 session-id,
+      u16-be (tls-cipher-suite-id suite),
+      bytes-from-u8s [0],
+      vec-u16 exts
+    ] in
+    make-handshake-msg 2 body
+
+  -- | Build an `EncryptedExtensions` handshake message (with optional ALPN selection).
+  build-encrypted-extensions :: String -> Bytes
+  build-encrypted-extensions negotiated-alpn =
+    let exts = if bytes-len (string-to-bytes negotiated-alpn) > 0 then encode-alpn-ext [negotiated-alpn] else empty-bytes in
+    make-handshake-msg 8 (vec-u16 exts)
+
+  -- | Build a TLS 1.3 `Certificate` handshake message from a request context and certificate list.
+  build-certificate-msg :: Bytes -> List Certificate -> Bytes
+  build-certificate-msg ctx certs =
+    let entries = encode-cert-entries certs Nil in
+    make-handshake-msg 11 (bytes-concat [vec-u8 ctx, vec-u24 entries])
+
+  -- | Encode individual `CertificateEntry` values (DER cert with empty extension list).
+  encode-cert-entries :: List Certificate -> List Bytes -> Bytes
+  encode-cert-entries certs acc = case certs of
+    Nil -> bytes-concat (rev-list acc)
+    Cons c rest ->
+      let entry = bytes-concat [vec-u24 (cert-raw c), bytes-from-u8s [0, 0]] in
+      encode-cert-entries rest (Cons entry acc)
+
+  -- | Build a TLS 1.3 `CertificateVerify` handshake message.
+  build-cert-verify-msg :: TlsSignatureScheme -> Bytes -> Bytes
+  build-cert-verify-msg scheme sig =
+    make-handshake-msg 15 (bytes-concat [u16-be (tls-signature-scheme-id scheme), vec-u16 sig])
+
+  -- | Build a TLS 1.3 `Finished` handshake message.
+  build-finished-msg :: Bytes -> Bytes
+  build-finished-msg verify-data = make-handshake-msg 20 verify-data
+
+  -- | Build a TLS 1.3 `KeyUpdate` handshake message (`request_update`: `1` or `0`).
+  build-key-update-msg :: Bool -> Bytes
+  build-key-update-msg request-update =
+    make-handshake-msg 24 (bytes-from-u8s [if request-update then 1 else 0])
+
+  -- ---------------------------------------------------------------------
+  -- Wire parsing helpers for extensions and handshake messages.
+  -- ---------------------------------------------------------------------
+
+  -- | Raw parsed TLS extension `(ext_type, ext_data)`.
+  data RawExt where
+    -- | 16-bit extension type and raw payload bytes.
+    MkRawExt :: Nat -> Bytes -> RawExt
+
+  -- | Parse a TLS extension list block (already stripped of its outer 2-byte length), rejecting duplicates.
+  parse-extensions :: Bytes -> Result TlsError (List RawExt)
+  parse-extensions buf = parse-ext-loop buf 0 Nil Nil
+
+  -- | Tail-recursive extension parser checking bounds and duplicate extension types.
+  parse-ext-loop :: Bytes -> Nat -> List Nat -> List RawExt -> Result TlsError (List RawExt)
+  parse-ext-loop buf pos seen acc =
+    let n = bytes-len buf in
+    if pos == n then Ok (rev-list acc)
+    else if pos + 4 > n then Err (TlsProtocolError AlertDecodeError "truncated extension header")
+    else
+      let etype = read-u16-be buf pos in
+      let elen = read-u16-be buf (pos + 2) in
+      let end = pos + 4 + elen in
+      if end > n then Err (TlsProtocolError AlertDecodeError "truncated extension payload")
+      else if nat-in-list etype seen then Err (TlsProtocolError AlertIllegalParameter "duplicate extension")
+      else parse-ext-loop buf end (Cons etype seen) (Cons (MkRawExt etype (slice buf (pos + 4) end)) acc)
+
+  -- | Look up an extension payload by 16-bit type ID.
+  find-ext :: Nat -> List RawExt -> Option Bytes
+  find-ext etype exts = case exts of
+    Nil -> None
+    Cons (MkRawExt t d) rest -> if t == etype then Some d else find-ext etype rest
+
+  -- | Parse a sequence of 16-bit unsigned integers from a length-prefixed buffer.
+  parse-u16-vec :: Bytes -> Result TlsError (List Nat)
+  parse-u16-vec buf =
+    if bytes-len buf < 2 then Err (TlsProtocolError AlertDecodeError "truncated u16 vector length")
+    else
+      let vlen = read-u16-be buf 0 in
+      if vlen + 2 /= bytes-len buf || nat-rem vlen 2 /= 0 then
+        Err (TlsProtocolError AlertDecodeError "malformed u16 vector")
+      else parse-u16-items buf 2 (2 + vlen) Nil
+
+  -- | Tail-recursive u16 item decoder.
+  parse-u16-items :: Bytes -> Nat -> Nat -> List Nat -> Result TlsError (List Nat)
+  parse-u16-items buf pos end acc =
+    if pos >= end then Ok (rev-list acc)
+    else parse-u16-items buf (pos + 2) end (Cons (read-u16-be buf pos) acc)
+
+  -- | Parse the SNI `server_name` extension payload into an optional hostname string.
+  parse-sni-ext :: Bytes -> Result TlsError String
+  parse-sni-ext buf =
+    if bytes-len buf < 2 then Err (TlsProtocolError AlertDecodeError "truncated SNI list")
+    else
+      let llen = read-u16-be buf 0 in
+      if llen + 2 /= bytes-len buf || llen == 0 then Err (TlsProtocolError AlertDecodeError "malformed SNI list")
+      else parse-sni-entries buf 2 (2 + llen)
+
+  -- | Scan SNI entries for `host_name(0)`.
+  parse-sni-entries :: Bytes -> Nat -> Nat -> Result TlsError String
+  parse-sni-entries buf pos end =
+    if pos == end then Ok ""
+    else if pos + 3 > end then Err (TlsProtocolError AlertDecodeError "truncated SNI entry")
+    else
+      let ntype = at buf pos in
+      let nlen = read-u16-be buf (pos + 1) in
+      let next = pos + 3 + nlen in
+      if next > end || nlen == 0 then Err (TlsProtocolError AlertDecodeError "invalid SNI entry length")
+      else if ntype == 0 then
+        case string-from-bytes (slice buf (pos + 3) next) of
+          Some s -> Ok s
+          None -> Err (TlsProtocolError AlertIllegalParameter "non-UTF-8 SNI hostname")
+      else parse-sni-entries buf next end
+
+  -- | Parse the ALPN extension payload (`0x0010`) into a list of protocol strings.
+  parse-alpn-ext :: Bytes -> Result TlsError (List String)
+  parse-alpn-ext buf =
+    if bytes-len buf < 2 then Err (TlsProtocolError AlertDecodeError "truncated ALPN list")
+    else
+      let llen = read-u16-be buf 0 in
+      if llen + 2 /= bytes-len buf || llen == 0 then Err (TlsProtocolError AlertDecodeError "malformed ALPN list")
+      else parse-alpn-entries buf 2 (2 + llen) Nil
+
+  -- | Tail-recursive ALPN protocol string parser.
+  parse-alpn-entries :: Bytes -> Nat -> Nat -> List String -> Result TlsError (List String)
+  parse-alpn-entries buf pos end acc =
+    if pos == end then Ok (rev-list acc)
+    else
+      let plen = at buf pos in
+      let next = pos + 1 + plen in
+      if plen == 0 || next > end then Err (TlsProtocolError AlertDecodeError "malformed ALPN entry")
+      else case string-from-bytes (slice buf (pos + 1) next) of
+        None -> Err (TlsProtocolError AlertIllegalParameter "non-UTF-8 ALPN protocol")
+        Some s -> parse-alpn-entries buf next end (Cons s acc)
+
+  -- | Parse a ClientHello `supported_versions` extension (`0x002b`) and check whether `0x0304` is offered.
+  parse-ch-supported-versions :: Bytes -> Result TlsError Bool
+  parse-ch-supported-versions buf =
+    if bytes-len buf < 3 then Err (TlsProtocolError AlertDecodeError "truncated supported_versions")
+    else
+      let vlen = at buf 0 in
+      if vlen + 1 /= bytes-len buf || nat-rem vlen 2 /= 0 || vlen == 0 then
+        Err (TlsProtocolError AlertDecodeError "malformed supported_versions")
+      else Ok (has-u16-in-slice buf 1 (1 + vlen) 772)
+
+  -- | Check whether a 16-bit value appears in a byte slice of u16s.
+  has-u16-in-slice :: Bytes -> Nat -> Nat -> Nat -> Bool
+  has-u16-in-slice buf pos end needle =
+    if pos + 2 > end then False
+    else if read-u16-be buf pos == needle then True
+    else has-u16-in-slice buf (pos + 2) end needle
+
+  -- | Parsed key share entry `(group_id, key_exchange_bytes)`.
+  data RawKeyShare where
+    -- | 16-bit NamedGroup ID and raw key exchange bytes.
+    MkRawKeyShare :: Nat -> Bytes -> RawKeyShare
+
+  -- | Parse ClientHello `key_share` extension (`0x0033`).
+  parse-ch-key-shares :: Bytes -> Result TlsError (List RawKeyShare)
+  parse-ch-key-shares buf =
+    if bytes-len buf < 2 then Err (TlsProtocolError AlertDecodeError "truncated client key_share")
+    else
+      let llen = read-u16-be buf 0 in
+      if llen + 2 /= bytes-len buf then Err (TlsProtocolError AlertDecodeError "malformed client key_share length")
+      else parse-key-share-loop buf 2 (2 + llen) Nil Nil
+
+  -- | Tail-recursive ClientHello `KeyShareEntry` parser rejecting duplicate groups.
+  parse-key-share-loop :: Bytes -> Nat -> Nat -> List Nat -> List RawKeyShare -> Result TlsError (List RawKeyShare)
+  parse-key-share-loop buf pos end seen acc =
+    if pos == end then Ok (rev-list acc)
+    else if pos + 4 > end then Err (TlsProtocolError AlertDecodeError "truncated KeyShareEntry")
+    else
+      let gid = read-u16-be buf pos in
+      let klen = read-u16-be buf (pos + 2) in
+      let next = pos + 4 + klen in
+      if next > end || klen == 0 then Err (TlsProtocolError AlertDecodeError "invalid KeyShareEntry length")
+      else if nat-in-list gid seen then Err (TlsProtocolError AlertIllegalParameter "duplicate key_share group")
+      else parse-key-share-loop buf next end (Cons gid seen) (Cons (MkRawKeyShare gid (slice buf (pos + 4) next)) acc)
+
+  -- | Parse a TLS 1.3 `Certificate` message body into `(context, certificates)`.
+  parse-certificate-msg :: Bytes -> Result TlsError (Bytes, List Certificate)
+  parse-certificate-msg body =
+    if bytes-len body < 4 then Err (TlsProtocolError AlertDecodeError "truncated Certificate message")
+    else
+      let ctx-len = at body 0 in
+      let list-hdr = 1 + ctx-len in
+      if list-hdr + 3 > bytes-len body then Err (TlsProtocolError AlertDecodeError "truncated Certificate context")
+      else
+        let ctx = slice body 1 list-hdr in
+        let list-len = read-u24-be body list-hdr in
+        let start = list-hdr + 3 in
+        if start + list-len /= bytes-len body then Err (TlsProtocolError AlertDecodeError "malformed Certificate list length")
+        else case parse-cert-entries body start (start + list-len) Nil of
+          Err e -> Err e
+          Ok certs -> Ok (ctx, certs)
+
+  -- | Tail-recursive `CertificateEntry` parser.
+  parse-cert-entries :: Bytes -> Nat -> Nat -> List Certificate -> Result TlsError (List Certificate)
+  parse-cert-entries body pos end acc =
+    if pos == end then Ok (rev-list acc)
+    else if pos + 3 > end then Err (TlsProtocolError AlertDecodeError "truncated CertificateEntry length")
+    else
+      let clen = read-u24-be body pos in
+      let cend = pos + 3 + clen in
+      if clen == 0 || cend + 2 > end then Err (TlsProtocolError AlertDecodeError "truncated CertificateEntry")
+      else
+        let ext-len = read-u16-be body cend in
+        let next = cend + 2 + ext-len in
+        if next > end then Err (TlsProtocolError AlertDecodeError "truncated CertificateEntry extensions")
+        else case parse-certificate (slice body (pos + 3) cend) of
+          Err xe -> Err (TlsCertVerifyFailed xe)
+          Ok cert -> parse-cert-entries body next end (Cons cert acc)
+
+  -- | Parse a `CertificateVerify` message body into `(scheme, signature_bytes)`.
+  parse-cert-verify-msg :: Bytes -> Result TlsError (TlsSignatureScheme, Bytes)
+  parse-cert-verify-msg body =
+    if bytes-len body < 4 then Err (TlsProtocolError AlertDecodeError "truncated CertificateVerify")
+    else
+      let scheme-id = read-u16-be body 0 in
+      let slen = read-u16-be body 2 in
+      if 4 + slen /= bytes-len body || slen == 0 then Err (TlsProtocolError AlertDecodeError "malformed CertificateVerify length")
+      else case tls-signature-scheme-from-id scheme-id of
+        None -> Err TlsNoCommonSignatureScheme
+        Some scheme -> Ok (scheme, slice body 4 (4 + slen))
+
+  -- | Parse a `CertificateRequest` message body into `(context, offered_schemes)`.
+  parse-cert-request-msg :: Bytes -> Result TlsError (Bytes, List TlsSignatureScheme)
+  parse-cert-request-msg body =
+    if bytes-len body < 3 then Err (TlsProtocolError AlertDecodeError "truncated CertificateRequest")
+    else
+      let ctx-len = at body 0 in
+      let ext-pos = 1 + ctx-len in
+      if ext-pos + 2 > bytes-len body then Err (TlsProtocolError AlertDecodeError "truncated CertificateRequest extensions")
+      else
+        let ctx = slice body 1 ext-pos in
+        let ext-len = read-u16-be body ext-pos in
+        if ext-pos + 2 + ext-len /= bytes-len body then Err (TlsProtocolError AlertDecodeError "malformed CertificateRequest extensions")
+        else case parse-extensions (slice body (ext-pos + 2) (ext-pos + 2 + ext-len)) of
+          Err e -> Err e
+          Ok exts -> case find-ext 13 exts of
+            None -> Err (TlsProtocolError AlertMissingExtension "CertificateRequest missing signature_algorithms")
+            Some sig-buf -> case parse-u16-vec sig-buf of
+              Err e -> Err e
+              Ok ids -> Ok (ctx, decode-schemes ids Nil)
+
+  -- | Convert a list of 16-bit wire IDs into supported `TlsSignatureScheme` values, ignoring unknown IDs.
+  decode-schemes :: List Nat -> List TlsSignatureScheme -> List TlsSignatureScheme
+  decode-schemes ids acc = case ids of
+    Nil -> rev-list acc
+    Cons n rest -> case tls-signature-scheme-from-id n of
+      Some s -> decode-schemes rest (Cons s acc)
+      None -> decode-schemes rest acc
+
+  -- | Validate a `NewSessionTicket` message body structure (RFC 8446 section 4.6.1).
+  validate-new-session-ticket :: Bytes -> Result TlsError Unit
+  validate-new-session-ticket body =
+    let n = bytes-len body in
+    if n < 13 then Err (TlsProtocolError AlertDecodeError "truncated NewSessionTicket")
+    else
+      let nonce-len = at body 8 in
+      let tkt-pos = 9 + nonce-len in
+      if tkt-pos + 2 > n then Err (TlsProtocolError AlertDecodeError "truncated NewSessionTicket nonce")
+      else
+        let tkt-len = read-u16-be body tkt-pos in
+        let ext-pos = tkt-pos + 2 + tkt-len in
+        if tkt-len == 0 || ext-pos + 2 > n then Err (TlsProtocolError AlertDecodeError "truncated NewSessionTicket ticket")
+        else
+          let ext-len = read-u16-be body ext-pos in
+          if ext-pos + 2 + ext-len /= n then Err (TlsProtocolError AlertDecodeError "malformed NewSessionTicket extensions")
+          else Ok ()
+
+  -- | Add a list of intermediate certificates to a `CertPool`.
+  pool-add-all :: CertPool -> List Certificate -> CertPool
+  pool-add-all pool certs = case certs of
+    Nil -> pool
+    Cons c rest -> pool-add-all (cert-pool-add pool c) rest
+
+  -- | Verify a server certificate chain according to `TlsConfig`.
+  verify-server-cert-chain :: TlsConfig -> List Certificate -> Result TlsError Unit
+  verify-server-cert-chain cfg certs =
+    if tls-config-insecure-skip-verify cfg then Ok ()
+    else case certs of
+      Nil -> Err (TlsProtocolError AlertBadCertificate "empty server certificate chain")
+      Cons leaf intermediates ->
+        let base-opts = verify-options-new (tls-config-roots cfg) (tls-config-now cfg) in
+        let with-inters = verify-with-intermediates base-opts (pool-add-all cert-pool-new intermediates) in
+        let with-eku = verify-with-key-usages with-inters [ExtKeyUsageServerAuth] in
+        let sni = tls-config-server-name cfg in
+        let opts = if bytes-len (string-to-bytes sni) > 0 then verify-with-dns-name with-eku sni else with-eku in
+        case verify-certificate opts leaf of
+          Ok _ -> Ok ()
+          Err xe -> Err (TlsCertVerifyFailed xe)
+
+  -- ---------------------------------------------------------------------
+  -- Sans-I/O TLS 1.3 Client State Machine.
+  -- ---------------------------------------------------------------------
+
+  -- | Handshake phase of a TLS 1.3 client.
+  data ClientPhase where
+    -- | Waiting for `ServerHello` (or `HelloRetryRequest`).
+    ClientWaitServerHello :: ClientPhase
+    -- | Waiting for encrypted `EncryptedExtensions`.
+    ClientWaitEncryptedExtensions :: ClientPhase
+    -- | Waiting for `CertificateRequest` or `Certificate`.
+    ClientWaitCertOrRequest :: ClientPhase
+    -- | Waiting for `Certificate` (after receiving `CertificateRequest`).
+    ClientWaitCert :: ClientPhase
+    -- | Waiting for `CertificateVerify`.
+    ClientWaitCertVerify :: ClientPhase
+    -- | Waiting for server `Finished`.
+    ClientWaitFinished :: ClientPhase
+    -- | Handshake completed; exchanging application data.
+    ClientEstablished :: ClientPhase
+    -- | Local side sent `close_notify`.
+    ClientClosed :: ClientPhase
+
+  -- | Handshake cryptographic context carried by a `TlsClient`.
+  data ClientCrypto where
+    -- | Entropy seed, CH random, session ID, offered key pairs, HRR done flag, negotiated suite, HS secret, client HS traffic secret, server HS traffic secret, exporter master secret, optional client cert request context and offered schemes.
+    MkClientCrypto :: Bytes -> Bytes -> Bytes -> List TlsKeyPair -> Bool -> TlsCipherSuite -> Bytes -> Bytes -> Bytes -> Bytes -> Option (Bytes, List TlsSignatureScheme) -> ClientCrypto
+
+  -- | Immutable sans-I/O TLS 1.3 client state machine.
+  data TlsClient where
+    -- | Config, phase, crypto context, read cipher, write cipher, raw RX buffer, handshake reassembly buffer, transcript bytes, negotiated ALPN, peer certificates, peer-closed flag.
+    MkTlsClient :: TlsConfig -> ClientPhase -> ClientCrypto -> TlsTrafficCipher -> TlsTrafficCipher -> Bytes -> Bytes -> Bytes -> String -> List Certificate -> Bool -> TlsClient
+
+  -- | Return `True` if a `TlsClient` has completed the TLS 1.3 handshake.
+  tls-client-handshake-complete :: TlsClient -> Bool
+  tls-client-handshake-complete cli = case cli of
+    MkTlsClient _ phase _ _ _ _ _ _ _ _ _ -> case phase of
+      ClientEstablished -> True
+      ClientClosed -> True
+      _ -> False
+
+  -- | Inspect the negotiated `TlsConnectionState` of a `TlsClient`.
+  tls-client-state :: TlsClient -> TlsConnectionState
+  tls-client-state cli = case cli of
+    MkTlsClient cfg phase crypto _ _ _ _ _ alpn peer-certs eof ->
+      case crypto of
+        MkClientCrypto _ _ _ _ _ suite _ _ _ _ _ ->
+          MkTlsConnectionState Tls13 suite (tls-config-server-name cfg) alpn peer-certs (tls-client-handshake-complete cli) eof
+
+  -- | Export RFC 8446 section 7.5 keying material from an established `TlsClient`.
+  tls-client-export-keying-material :: TlsClient -> String -> Bytes -> Nat -> Result TlsError Bytes
+  tls-client-export-keying-material cli label context out-len =
+    if not (tls-client-handshake-complete cli) then Err TlsHandshakeNotComplete
+    else case cli of
+      MkTlsClient _ _ (MkClientCrypto _ _ _ _ _ suite _ _ _ exp-secret _) _ _ _ _ _ _ _ _ ->
+        tls-export-keying-material suite exp-secret label context out-len
+
+  -- | Start a new TLS 1.3 client handshake using `cfg` and at least 32 bytes of `entropy`, returning `(client, client_hello_wire_bytes)`.
+  tls-client-start :: TlsConfig -> Bytes -> Result TlsError (TlsClient, Bytes)
+  tls-client-start cfg entropy =
+    case tls-config-cipher-suites cfg of
+      Nil -> Err (TlsInvalidConfig "cipher suites list cannot be empty")
+      Cons default-suite _ -> case tls-config-curves cfg of
+        Nil -> Err (TlsInvalidConfig "curves list cannot be empty")
+        Cons first-curve _ -> case derive-entropy entropy "ch-random" 32 of
+          Err e -> Err e
+          Ok ch-rand -> case derive-entropy entropy "ch-session" 32 of
+            Err e -> Err e
+            Ok sess-id -> case generate-keypairs [first-curve] entropy "cli-kp-" Nil of
+              Err e -> Err e
+              Ok kps ->
+                let ch = build-client-hello cfg ch-rand sess-id kps in
+                let rec = make-plain-record 22 1 ch in
+                let empty = bytes-new 0 in
+                let crypto = MkClientCrypto entropy ch-rand sess-id kps False default-suite empty empty empty empty None in
+                let cli = MkTlsClient cfg ClientWaitServerHello crypto TrafficPlain TrafficPlain empty empty ch "" Nil False in
+                Ok (cli, rec)
+
+  -- | Encrypt application data for transmission by an established `TlsClient`.
+  tls-client-send :: TlsClient -> Bytes -> Result TlsError (TlsClient, Bytes)
+  tls-client-send cli payload = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof -> case phase of
+      ClientEstablished -> case seal-chunked wr 23 payload of
+        Err e -> Err e
+        Ok (wr2, wire) -> Ok (MkTlsClient cfg phase crypto rd wr2 rx hs tr alpn certs eof, wire)
+      ClientClosed -> Err TlsConnectionClosed
+      _ -> Err TlsHandshakeNotComplete
+
+  -- | Initiate a TLS 1.3 `KeyUpdate` from an established `TlsClient` and advance its write keys.
+  tls-client-key-update :: TlsClient -> Bool -> Result TlsError (TlsClient, Bytes)
+  tls-client-key-update cli request-update = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof -> case phase of
+      ClientEstablished ->
+        let ku = build-key-update-msg request-update in
+        case seal-with-cipher wr 22 ku of
+          Err e -> Err e
+          Ok (wr1, wire) -> case update-traffic-cipher wr1 of
+            Err e -> Err e
+            Ok wr2 -> Ok (MkTlsClient cfg phase crypto rd wr2 rx hs tr alpn certs eof, wire)
+      ClientClosed -> Err TlsConnectionClosed
+      _ -> Err TlsHandshakeNotComplete
+
+  -- | Emit an encrypted `close_notify` alert from a `TlsClient` and mark it closed.
+  tls-client-close :: TlsClient -> Result TlsError (TlsClient, Bytes)
+  tls-client-close cli = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof -> case phase of
+      ClientClosed -> Ok (cli, bytes-new 0)
+      ClientEstablished ->
+        case seal-with-cipher wr 21 (bytes-from-u8s [1, 0]) of
+          Err e -> Err e
+          Ok (wr2, wire) -> Ok (MkTlsClient cfg ClientClosed crypto rd wr2 rx hs tr alpn certs eof, wire)
+      _ ->
+        let wire = make-plain-record 21 3 (bytes-from-u8s [1, 0]) in
+        Ok (MkTlsClient cfg ClientClosed crypto rd wr rx hs tr alpn certs eof, wire)
+
+  -- | Feed incoming wire bytes into a `TlsClient`, processing all complete TLS records.
+  tls-client-feed :: TlsClient -> Bytes -> Result TlsError (TlsOutput TlsClient)
+  tls-client-feed cli incoming = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      let cli0 = MkTlsClient cfg phase crypto rd wr (join2 rx incoming) hs tr alpn certs eof in
+      client-record-loop cli0 Nil Nil
+
+  -- | Tail-recursive client record extraction and dispatch loop.
+  client-record-loop :: TlsClient -> List Bytes -> List Bytes -> Result TlsError (TlsOutput TlsClient)
+  client-record-loop cli wire-acc app-acc = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      let n = bytes-len rx in
+      if n < 5 then
+        Ok (MkTlsOutput cli (bytes-concat (rev-list wire-acc)) (bytes-concat (rev-list app-acc)) eof)
+      else
+        let rtype = at rx 0 in
+        let ver-hi = at rx 1 in
+        let rlen = read-u16-be rx 3 in
+        let rec-end = 5 + rlen in
+        if ver-hi /= 3 then Err (TlsProtocolError AlertProtocolVersion "invalid record major version")
+        else if rlen > 16640 then Err (TlsRecordOverflow rlen)
+        else if rec-end > n then
+          Ok (MkTlsOutput cli (bytes-concat (rev-list wire-acc)) (bytes-concat (rev-list app-acc)) eof)
+        else
+          let hdr = slice rx 0 5 in
+          let body = slice rx 5 rec-end in
+          let rx-rest = slice rx rec-end n in
+          let cli1 = MkTlsClient cfg phase crypto rd wr rx-rest hs tr alpn certs eof in
+          case client-handle-record cli1 rtype hdr body of
+            Err e -> Err e
+            Ok (cli2, w-out, a-out) ->
+              let w-acc2 = if bytes-len w-out > 0 then Cons w-out wire-acc else wire-acc in
+              let a-acc2 = if bytes-len a-out > 0 then Cons a-out app-acc else app-acc in
+              client-record-loop cli2 w-acc2 a-acc2
+
+  -- | Handle one complete TLS record on the client.
+  client-handle-record :: TlsClient -> Nat -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes, Bytes)
+  client-handle-record cli rtype hdr body = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      if rtype == 20 then
+        -- Middlebox compatibility ChangeCipherSpec (RFC 8446 section 5)
+        if tls-client-handshake-complete cli then
+          Err (TlsProtocolError AlertUnexpectedMessage "ChangeCipherSpec after handshake")
+        else if bytes-len body == 1 && at body 0 == 1 then
+          Ok (cli, bytes-new 0, bytes-new 0)
+        else Err (TlsProtocolError AlertUnexpectedMessage "malformed ChangeCipherSpec")
+      else case rd of
+        TrafficPlain ->
+          if bytes-len body > 16384 then Err (TlsRecordOverflow (bytes-len body))
+          else if rtype == 21 then client-handle-alert cli body
+          else if rtype == 22 then client-feed-handshake cli body
+          else Err (TlsProtocolError AlertUnexpectedMessage "unexpected plaintext record type")
+        TrafficAead _ _ _ _ _ _ ->
+          if rtype == 21 && not (tls-client-handshake-complete cli) then
+            -- Peer may send a cleartext fatal alert during handshake
+            client-handle-alert cli body
+          else if rtype /= 23 then
+            Err (TlsProtocolError AlertUnexpectedMessage "expected encrypted application_data record")
+          else case open-with-cipher rd hdr body of
+            Err e -> Err e
+            Ok (rd2, inner-type, content) ->
+              let cli2 = MkTlsClient cfg phase crypto rd2 wr rx hs tr alpn certs eof in
+              if inner-type == 21 then client-handle-alert cli2 content
+              else if inner-type == 22 then client-feed-handshake cli2 content
+              else if inner-type == 23 then
+                if tls-client-handshake-complete cli2 then
+                  Ok (cli2, bytes-new 0, content)
+                else Err (TlsProtocolError AlertUnexpectedMessage "application data before handshake complete")
+              else Err (TlsProtocolError AlertUnexpectedMessage "unknown inner record content type")
+
+  -- | Process a 2-byte TLS alert payload on the client.
+  client-handle-alert :: TlsClient -> Bytes -> Result TlsError (TlsClient, Bytes, Bytes)
+  client-handle-alert cli body =
+    if bytes-len body /= 2 then Err (TlsProtocolError AlertDecodeError "alert record must be 2 bytes")
+    else
+      let desc = tls-alert-from-code (at body 1) in
+      case desc of
+        AlertCloseNotify -> case cli of
+          MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs _ ->
+            Ok (MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs True, bytes-new 0, bytes-new 0)
+        AlertUserCanceled -> Ok (cli, bytes-new 0, bytes-new 0)
+        _ -> Err (TlsAlertReceived desc)
+
+  -- | Append handshake bytes to the client reassembly buffer and process all complete handshake messages.
+  client-feed-handshake :: TlsClient -> Bytes -> Result TlsError (TlsClient, Bytes, Bytes)
+  client-feed-handshake cli chunk = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      if bytes-len chunk == 0 then Err (TlsProtocolError AlertUnexpectedMessage "empty handshake fragment")
+      else
+        let cli1 = MkTlsClient cfg phase crypto rd wr rx (join2 hs chunk) tr alpn certs eof in
+        client-hs-loop cli1 Nil
+
+  -- | Tail-recursive client handshake message parser and dispatcher.
+  client-hs-loop :: TlsClient -> List Bytes -> Result TlsError (TlsClient, Bytes, Bytes)
+  client-hs-loop cli wire-acc = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      let n = bytes-len hs in
+      if n < 4 then Ok (cli, bytes-concat (rev-list wire-acc), bytes-new 0)
+      else
+        let mtype = at hs 0 in
+        let mlen = read-u24-be hs 1 in
+        let mend = 4 + mlen in
+        if mend > n then Ok (cli, bytes-concat (rev-list wire-acc), bytes-new 0)
+        else
+          let raw-msg = slice hs 0 mend in
+          let body = slice hs 4 mend in
+          let hs-rest = slice hs mend n in
+          let cli1 = MkTlsClient cfg phase crypto rd wr rx hs-rest tr alpn certs eof in
+          case client-handle-hs-msg cli1 mtype raw-msg body of
+            Err e -> Err e
+            Ok (cli2, w-out) ->
+              let w-acc2 = if bytes-len w-out > 0 then Cons w-out wire-acc else wire-acc in
+              client-hs-loop cli2 w-acc2
+
+  -- | Dispatch one complete TLS 1.3 handshake message on the client.
+  client-handle-hs-msg :: TlsClient -> Nat -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-handle-hs-msg cli mtype raw-msg body = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof -> case phase of
+      ClientWaitServerHello ->
+        if mtype /= 2 then Err (TlsProtocolError AlertUnexpectedMessage "expected ServerHello")
+        else if bytes-len hs /= 0 then Err (TlsProtocolError AlertUnexpectedMessage "trailing handshake data after ServerHello")
+        else client-on-server-hello cli raw-msg body
+      ClientWaitEncryptedExtensions ->
+        if mtype /= 8 then Err (TlsProtocolError AlertUnexpectedMessage "expected EncryptedExtensions")
+        else client-on-encrypted-extensions cli raw-msg body
+      ClientWaitCertOrRequest ->
+        if mtype == 13 then client-on-cert-request cli raw-msg body
+        else if mtype == 11 then client-on-certificate cli raw-msg body
+        else Err (TlsProtocolError AlertUnexpectedMessage "expected Certificate or CertificateRequest")
+      ClientWaitCert ->
+        if mtype /= 11 then Err (TlsProtocolError AlertUnexpectedMessage "expected Certificate")
+        else client-on-certificate cli raw-msg body
+      ClientWaitCertVerify ->
+        if mtype /= 15 then Err (TlsProtocolError AlertUnexpectedMessage "expected CertificateVerify")
+        else client-on-cert-verify cli raw-msg body
+      ClientWaitFinished ->
+        if mtype /= 20 then Err (TlsProtocolError AlertUnexpectedMessage "expected server Finished")
+        else if bytes-len hs /= 0 then Err (TlsProtocolError AlertUnexpectedMessage "trailing handshake data after Finished")
+        else client-on-finished cli raw-msg body
+      ClientEstablished ->
+        if mtype == 4 then
+          case validate-new-session-ticket body of
+            Err e -> Err e
+            Ok _ -> Ok (cli, bytes-new 0)
+        else if mtype == 24 then client-on-key-update cli body
+        else Err (TlsProtocolError AlertUnexpectedMessage "unexpected post-handshake message")
+      ClientClosed ->
+        if mtype == 4 then Ok (cli, bytes-new 0)
+        else Err (TlsProtocolError AlertUnexpectedMessage "handshake message after close")
+
+  -- | Handle `ServerHello` or `HelloRetryRequest` on the client.
+  client-on-server-hello :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-server-hello cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto _ _ rx hs tr alpn certs eof -> case crypto of
+      MkClientCrypto seed ch-rand sess-id kps hrr-done _ _ _ _ _ _ ->
+        let n = bytes-len body in
+        if n < 38 then Err (TlsProtocolError AlertDecodeError "truncated ServerHello")
+        else if at body 0 /= 3 || at body 1 /= 3 then Err (TlsProtocolError AlertProtocolVersion "invalid ServerHello legacy_version")
+        else
+          let sh-rand = slice body 2 34 in
+          let sid-len = at body 34 in
+          let cs-pos = 35 + sid-len in
+          if cs-pos + 5 > n then Err (TlsProtocolError AlertDecodeError "truncated ServerHello fields")
+          else
+            let sh-sid = slice body 35 cs-pos in
+            let cs-id = read-u16-be body cs-pos in
+            let comp = at body (cs-pos + 2) in
+            let ext-len = read-u16-be body (cs-pos + 3) in
+            if cs-pos + 5 + ext-len /= n then Err (TlsProtocolError AlertDecodeError "malformed ServerHello extensions")
+            else if not (bytes-eq sh-sid sess-id) then Err (TlsProtocolError AlertIllegalParameter "ServerHello session ID mismatch")
+            else if comp /= 0 then Err (TlsProtocolError AlertIllegalParameter "non-zero compression method")
+            else case tls-cipher-suite-from-id cs-id of
+              None -> Err TlsNoCommonCipherSuite
+              Some suite ->
+                if not (suite-in-list suite (tls-config-cipher-suites cfg)) then Err TlsNoCommonCipherSuite
+                else case parse-extensions (slice body (cs-pos + 5) n) of
+                  Err e -> Err e
+                  Ok exts -> case find-ext 43 exts of
+                    None -> Err TlsUnsupportedVersion
+                    Some sv ->
+                      if bytes-len sv /= 2 || at sv 0 /= 3 || at sv 1 /= 4 then Err TlsUnsupportedVersion
+                      else if bytes-eq sh-rand hrr-magic then
+                        client-on-hrr cfg crypto rx hs tr alpn certs eof raw-msg suite exts
+                      else case find-ext 51 exts of
+                        None -> Err (TlsProtocolError AlertMissingExtension "ServerHello missing key_share")
+                        Some ks-buf ->
+                          if bytes-len ks-buf < 4 then Err (TlsProtocolError AlertDecodeError "truncated ServerHello key_share")
+                          else
+                            let gid = read-u16-be ks-buf 0 in
+                            let klen = read-u16-be ks-buf 2 in
+                            if 4 + klen /= bytes-len ks-buf then Err (TlsProtocolError AlertDecodeError "malformed ServerHello key_share")
+                            else case tls-curve-from-id gid of
+                              None -> Err TlsNoCommonCurve
+                              Some curve -> case find-keypair curve kps of
+                                None -> Err (TlsProtocolError AlertIllegalParameter "server chose unoffered key_share group")
+                                Some my-kp -> case keypair-ecdh my-kp (slice ks-buf 4 (4 + klen)) of
+                                  Err e -> Err e
+                                  Ok shared ->
+                                    let tr2 = join2 tr raw-msg in
+                                    let h-ch-sh = suite-hash suite tr2 in
+                                    case derive-handshake-secrets suite shared h-ch-sh of
+                                      Err e -> Err e
+                                      Ok (hs-sec, c-hs, s-hs) -> case make-traffic-cipher suite s-hs of
+                                        Err e -> Err e
+                                        Ok rd-hs -> case make-traffic-cipher suite c-hs of
+                                          Err e -> Err e
+                                          Ok wr-hs ->
+                                            let crypto2 = MkClientCrypto seed ch-rand sess-id kps hrr-done suite hs-sec c-hs s-hs (bytes-new 0) None in
+                                            let cli2 = MkTlsClient cfg ClientWaitEncryptedExtensions crypto2 rd-hs wr-hs rx hs tr2 alpn certs eof in
+                                            Ok (cli2, bytes-new 0)
+
+  -- | Handle a `HelloRetryRequest` on the client: replace transcript with synthetic `message_hash` and send `ClientHello2`.
+  client-on-hrr :: TlsConfig -> ClientCrypto -> Bytes -> Bytes -> Bytes -> String -> List Certificate -> Bool -> Bytes -> TlsCipherSuite -> List RawExt -> Result TlsError (TlsClient, Bytes)
+  client-on-hrr cfg crypto rx hs tr alpn certs eof raw-hrr suite exts = case crypto of
+    MkClientCrypto seed ch-rand sess-id _ hrr-done _ _ _ _ _ _ ->
+      if hrr-done then Err (TlsProtocolError AlertUnexpectedMessage "second HelloRetryRequest received")
+      else case find-ext 51 exts of
+        None -> Err (TlsProtocolError AlertMissingExtension "HelloRetryRequest missing key_share")
+        Some ks-buf ->
+          if bytes-len ks-buf /= 2 then Err (TlsProtocolError AlertDecodeError "malformed HelloRetryRequest key_share")
+          else case tls-curve-from-id (read-u16-be ks-buf 0) of
+            None -> Err TlsNoCommonCurve
+            Some curve ->
+              if not (curve-in-list curve (tls-config-curves cfg)) then Err TlsNoCommonCurve
+              else case derive-entropy seed (string-concat "cli-hrr-" (nat-to-string (tls-curve-id curve))) 32 of
+                Err e -> Err e
+                Ok raw32 -> case generate-keypair curve raw32 of
+                  Err e -> Err e
+                  Ok kp ->
+                    let ch1-hash = suite-hash suite tr in
+                    let synth = make-handshake-msg 254 ch1-hash in
+                    let ch2 = build-client-hello cfg ch-rand sess-id [kp] in
+                    let tr2 = bytes-concat [synth, raw-hrr, ch2] in
+                    let wire = bytes-concat [if bytes-len sess-id > 0 then dummy-ccs-record else empty-bytes, make-plain-record 22 3 ch2] in
+                    let crypto2 = MkClientCrypto seed ch-rand sess-id [kp] True suite (bytes-new 0) (bytes-new 0) (bytes-new 0) (bytes-new 0) None in
+                    let cli2 = MkTlsClient cfg ClientWaitServerHello crypto2 TrafficPlain TrafficPlain rx hs tr2 alpn certs eof in
+                    Ok (cli2, wire)
+
+  -- | Handle `EncryptedExtensions` on the client.
+  client-on-encrypted-extensions :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-encrypted-extensions cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto rd wr rx hs tr _ certs eof ->
+      if bytes-len body < 2 then Err (TlsProtocolError AlertDecodeError "truncated EncryptedExtensions")
+      else
+        let ext-len = read-u16-be body 0 in
+        if 2 + ext-len /= bytes-len body then Err (TlsProtocolError AlertDecodeError "malformed EncryptedExtensions length")
+        else case parse-extensions (slice body 2 (2 + ext-len)) of
+          Err e -> Err e
+          Ok exts -> case validate-ee-extensions cfg exts "" of
+            Err e -> Err e
+            Ok negotiated-alpn ->
+              let cli2 = MkTlsClient cfg ClientWaitCertOrRequest crypto rd wr rx hs (join2 tr raw-msg) negotiated-alpn certs eof in
+              Ok (cli2, bytes-new 0)
+
+  -- | Validate `EncryptedExtensions` entries and extract any negotiated ALPN protocol.
+  validate-ee-extensions :: TlsConfig -> List RawExt -> String -> Result TlsError String
+  validate-ee-extensions cfg exts alpn = case exts of
+    Nil -> Ok alpn
+    Cons (MkRawExt etype edata) rest ->
+      if etype == 0 then
+        if bytes-len edata /= 0 then Err (TlsProtocolError AlertIllegalParameter "non-empty server_name in EncryptedExtensions")
+        else validate-ee-extensions cfg rest alpn
+      else if etype == 16 then
+        case parse-alpn-ext edata of
+          Err e -> Err e
+          Ok protos -> case protos of
+            Cons chosen Nil ->
+              if str-in-list chosen (tls-config-alpn cfg) then validate-ee-extensions cfg rest chosen
+              else Err (TlsProtocolError AlertIllegalParameter "server selected unoffered ALPN protocol")
+            _ -> Err (TlsProtocolError AlertIllegalParameter "server ALPN must contain exactly one protocol")
+      else if etype == 10 then
+        -- RFC 8446 section 4.2.7 allows server to send supported_groups in EncryptedExtensions
+        validate-ee-extensions cfg rest alpn
+      else Err (TlsProtocolError AlertUnsupportedExtension "unsolicited extension in EncryptedExtensions")
+
+  -- | Handle optional `CertificateRequest` (mTLS) on the client.
+  client-on-cert-request :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-cert-request cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto rd wr rx hs tr alpn certs eof -> case crypto of
+      MkClientCrypto seed ch-rand sess-id kps hrr suite hs-sec c-hs s-hs exp-sec _ ->
+        case parse-cert-request-msg body of
+          Err e -> Err e
+          Ok (req-ctx, req-schemes) ->
+            let crypto2 = MkClientCrypto seed ch-rand sess-id kps hrr suite hs-sec c-hs s-hs exp-sec (Some (req-ctx, req-schemes)) in
+            let cli2 = MkTlsClient cfg ClientWaitCert crypto2 rd wr rx hs (join2 tr raw-msg) alpn certs eof in
+            Ok (cli2, bytes-new 0)
+
+  -- | Handle server `Certificate` message on the client.
+  client-on-certificate :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-certificate cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto rd wr rx hs tr alpn _ eof ->
+      case parse-certificate-msg body of
+        Err e -> Err e
+        Ok (ctx, peer-certs) ->
+          if bytes-len ctx /= 0 then Err (TlsProtocolError AlertIllegalParameter "non-empty context in server Certificate")
+          else case peer-certs of
+            Nil -> Err (TlsProtocolError AlertDecodeError "empty server certificate list")
+            Cons _ _ -> case verify-server-cert-chain cfg peer-certs of
+              Err e -> Err e
+              Ok _ ->
+                let cli2 = MkTlsClient cfg ClientWaitCertVerify crypto rd wr rx hs (join2 tr raw-msg) alpn peer-certs eof in
+                Ok (cli2, bytes-new 0)
+
+  -- | Handle server `CertificateVerify` message on the client.
+  client-on-cert-verify :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-cert-verify cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto rd wr rx hs tr alpn peer-certs eof -> case crypto of
+      MkClientCrypto _ _ _ _ _ suite _ _ _ _ _ -> case peer-certs of
+        Nil -> Err (TlsProtocolError AlertInternalError "missing leaf certificate")
+        Cons leaf _ -> case parse-cert-verify-msg body of
+          Err e -> Err e
+          Ok (scheme, sig) ->
+            let th = suite-hash suite tr in
+            if not (verify-cert-verify (cert-public-key leaf) scheme True th sig) then Err TlsBadSignature
+            else
+              let cli2 = MkTlsClient cfg ClientWaitFinished crypto rd wr rx hs (join2 tr raw-msg) alpn peer-certs eof in
+              Ok (cli2, bytes-new 0)
+
+  -- | Handle server `Finished` message on the client, emit client Finished flight, and switch to application traffic keys.
+  client-on-finished :: TlsClient -> Bytes -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-finished cli raw-msg body = case cli of
+    MkTlsClient cfg _ crypto _ wr-hs rx hs tr alpn peer-certs eof -> case crypto of
+      MkClientCrypto seed ch-rand sess-id kps hrr suite hs-sec c-hs s-hs _ cert-req ->
+        let th-before-sf = suite-hash suite tr in
+        case tls-finished-verify-data suite s-hs th-before-sf of
+          Err e -> Err e
+          Ok expected-vd ->
+            if not (constant-bytes-equal expected-vd body) then Err TlsVerifyDataMismatch
+            else
+              let tr-sf = join2 tr raw-msg in
+              let h-ch-sf = suite-hash suite tr-sf in
+              case derive-application-secrets suite hs-sec h-ch-sf of
+                Err e -> Err e
+                Ok (_, c-ap, s-ap, exp-master) ->
+                  case build-client-auth-flight cfg seed cert-req suite tr-sf of
+                    Err e -> Err e
+                    Ok (auth-msgs, tr-after-auth) ->
+                      let th-cf = suite-hash suite tr-after-auth in
+                      case tls-finished-verify-data suite c-hs th-cf of
+                        Err e -> Err e
+                        Ok cli-vd ->
+                          let cf-msg = build-finished-msg cli-vd in
+                          let tr-final = join2 tr-after-auth cf-msg in
+                          let hs-flight = join2 auth-msgs cf-msg in
+                          case seal-chunked wr-hs 22 hs-flight of
+                            Err e -> Err e
+                            Ok (_, enc-flight) -> case make-traffic-cipher suite s-ap of
+                              Err e -> Err e
+                              Ok rd-ap -> case make-traffic-cipher suite c-ap of
+                                Err e -> Err e
+                                Ok wr-ap ->
+                                  let ccs = if bytes-len sess-id > 0 && not hrr then dummy-ccs-record else empty-bytes in
+                                  let out-wire = join2 ccs enc-flight in
+                                  let crypto2 = MkClientCrypto seed ch-rand sess-id kps hrr suite hs-sec c-hs s-hs exp-master None in
+                                  let cli2 = MkTlsClient cfg ClientEstablished crypto2 rd-ap wr-ap rx hs tr-final alpn peer-certs eof in
+                                  Ok (cli2, out-wire)
+
+  -- | Build optional client `Certificate` + `CertificateVerify` messages if the server sent `CertificateRequest`.
+  build-client-auth-flight :: TlsConfig -> Bytes -> Option (Bytes, List TlsSignatureScheme) -> TlsCipherSuite -> Bytes -> Result TlsError (Bytes, Bytes)
+  build-client-auth-flight cfg seed cert-req suite tr-sf = case cert-req of
+    None -> Ok (bytes-new 0, tr-sf)
+    Some (req-ctx, req-schemes) -> case tls-config-certificate cfg of
+      None ->
+        let empty-cert = build-certificate-msg req-ctx Nil in
+        Ok (empty-cert, join2 tr-sf empty-cert)
+      Some tc ->
+        let chain = tls-certificate-chain tc in
+        let priv = tls-certificate-key tc in
+        case choose-signature-scheme priv req-schemes of
+          None ->
+            let empty-cert = build-certificate-msg req-ctx Nil in
+            Ok (empty-cert, join2 tr-sf empty-cert)
+          Some scheme ->
+            let cert-msg = build-certificate-msg req-ctx chain in
+            let tr1 = join2 tr-sf cert-msg in
+            case derive-entropy seed "cli-cv-salt" 64 of
+              Err e -> Err e
+              Ok salt -> case sign-cert-verify priv scheme False (suite-hash suite tr1) salt of
+                Err e -> Err e
+                Ok sig ->
+                  let cv-msg = build-cert-verify-msg scheme sig in
+                  Ok (join2 cert-msg cv-msg, join2 tr1 cv-msg)
+
+  -- | Handle post-handshake `KeyUpdate` on the client (RFC 8446 section 4.6.3).
+  client-on-key-update :: TlsClient -> Bytes -> Result TlsError (TlsClient, Bytes)
+  client-on-key-update cli body = case cli of
+    MkTlsClient cfg phase crypto rd wr rx hs tr alpn certs eof ->
+      if bytes-len body /= 1 then Err (TlsProtocolError AlertDecodeError "KeyUpdate must be 1 byte")
+      else
+        let req = at body 0 in
+        if req > 1 then Err (TlsProtocolError AlertIllegalParameter "invalid KeyUpdate request_update value")
+        else case update-traffic-cipher rd of
+          Err e -> Err e
+          Ok rd2 ->
+            if req == 0 then
+              Ok (MkTlsClient cfg phase crypto rd2 wr rx hs tr alpn certs eof, bytes-new 0)
+            else
+              let reply = build-key-update-msg False in
+              case seal-with-cipher wr 22 reply of
+                Err e -> Err e
+                Ok (wr1, wire) -> case update-traffic-cipher wr1 of
+                  Err e -> Err e
+                  Ok wr2 -> Ok (MkTlsClient cfg phase crypto rd2 wr2 rx hs tr alpn certs eof, wire)
+
+  -- ---------------------------------------------------------------------
+  -- Sans-I/O TLS 1.3 Server State Machine.
+  -- ---------------------------------------------------------------------
+
+  -- | Handshake phase of a TLS 1.3 server.
+  data ServerPhase where
+    -- | Waiting for initial `ClientHello`.
+    ServerWaitClientHello :: ServerPhase
+    -- | Waiting for second `ClientHello` after sending `HelloRetryRequest`.
+    ServerWaitClientHello2 :: ServerPhase
+    -- | Waiting for encrypted client `Finished`.
+    ServerWaitClientFinished :: ServerPhase
+    -- | Handshake completed; exchanging application data.
+    ServerEstablished :: ServerPhase
+    -- | Local side sent `close_notify`.
+    ServerClosed :: ServerPhase
+
+  -- | Handshake cryptographic context carried by a `TlsServer`.
+  data ServerCrypto where
+    -- | Entropy seed, HRR selected curve (if any), negotiated cipher suite, client HS traffic secret, client AP traffic secret, exporter master secret, echoed session ID.
+    MkServerCrypto :: Bytes -> Option TlsCurve -> TlsCipherSuite -> Bytes -> Bytes -> Bytes -> Bytes -> ServerCrypto
+
+  -- | Immutable sans-I/O TLS 1.3 server state machine.
+  data TlsServer where
+    -- | Config, phase, crypto context, read cipher, write cipher, raw RX buffer, handshake reassembly buffer, transcript bytes, client SNI, negotiated ALPN, peer-closed flag.
+    MkTlsServer :: TlsConfig -> ServerPhase -> ServerCrypto -> TlsTrafficCipher -> TlsTrafficCipher -> Bytes -> Bytes -> Bytes -> String -> String -> Bool -> TlsServer
+
+  -- | Return `True` if a `TlsServer` has completed the TLS 1.3 handshake.
+  tls-server-handshake-complete :: TlsServer -> Bool
+  tls-server-handshake-complete srv = case srv of
+    MkTlsServer _ phase _ _ _ _ _ _ _ _ _ -> case phase of
+      ServerEstablished -> True
+      ServerClosed -> True
+      _ -> False
+
+  -- | Inspect the negotiated `TlsConnectionState` of a `TlsServer`.
+  tls-server-state :: TlsServer -> TlsConnectionState
+  tls-server-state srv = case srv of
+    MkTlsServer _ _ crypto _ _ _ _ _ sni alpn eof -> case crypto of
+      MkServerCrypto _ _ suite _ _ _ _ ->
+        MkTlsConnectionState Tls13 suite sni alpn Nil (tls-server-handshake-complete srv) eof
+
+  -- | Export RFC 8446 section 7.5 keying material from an established `TlsServer`.
+  tls-server-export-keying-material :: TlsServer -> String -> Bytes -> Nat -> Result TlsError Bytes
+  tls-server-export-keying-material srv label context out-len =
+    if not (tls-server-handshake-complete srv) then Err TlsHandshakeNotComplete
+    else case srv of
+      MkTlsServer _ _ (MkServerCrypto _ _ suite _ _ exp-secret _) _ _ _ _ _ _ _ _ ->
+        tls-export-keying-material suite exp-secret label context out-len
+
+  -- | Create a new sans-I/O TLS 1.3 server ready to accept a `ClientHello`.
+  tls-server-new :: TlsConfig -> Bytes -> Result TlsError TlsServer
+  tls-server-new cfg entropy =
+    if bytes-len entropy < 32 then Err (TlsInvalidEntropy (bytes-len entropy))
+    else case tls-config-certificate cfg of
+      None -> Err (TlsInvalidConfig "TLS server requires a certificate and private key")
+      Some tc -> case tls-certificate-chain tc of
+        Nil -> Err (TlsInvalidConfig "TLS server certificate chain cannot be empty")
+        Cons _ _ -> case tls-config-cipher-suites cfg of
+          Nil -> Err (TlsInvalidConfig "cipher suites list cannot be empty")
+          Cons default-suite _ -> case tls-config-curves cfg of
+            Nil -> Err (TlsInvalidConfig "curves list cannot be empty")
+            Cons _ _ ->
+              let empty = bytes-new 0 in
+              let crypto = MkServerCrypto entropy None default-suite empty empty empty empty in
+              Ok (MkTlsServer cfg ServerWaitClientHello crypto TrafficPlain TrafficPlain empty empty empty "" "" False)
+
+  -- | Encrypt application data for transmission by an established `TlsServer`.
+  tls-server-send :: TlsServer -> Bytes -> Result TlsError (TlsServer, Bytes)
+  tls-server-send srv payload = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof -> case phase of
+      ServerEstablished -> case seal-chunked wr 23 payload of
+        Err e -> Err e
+        Ok (wr2, wire) -> Ok (MkTlsServer cfg phase crypto rd wr2 rx hs tr sni alpn eof, wire)
+      ServerClosed -> Err TlsConnectionClosed
+      _ -> Err TlsHandshakeNotComplete
+
+  -- | Initiate a TLS 1.3 `KeyUpdate` from an established `TlsServer` and advance its write keys.
+  tls-server-key-update :: TlsServer -> Bool -> Result TlsError (TlsServer, Bytes)
+  tls-server-key-update srv request-update = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof -> case phase of
+      ServerEstablished ->
+        let ku = build-key-update-msg request-update in
+        case seal-with-cipher wr 22 ku of
+          Err e -> Err e
+          Ok (wr1, wire) -> case update-traffic-cipher wr1 of
+            Err e -> Err e
+            Ok wr2 -> Ok (MkTlsServer cfg phase crypto rd wr2 rx hs tr sni alpn eof, wire)
+      ServerClosed -> Err TlsConnectionClosed
+      _ -> Err TlsHandshakeNotComplete
+
+  -- | Emit an encrypted `close_notify` alert from a `TlsServer` and mark it closed.
+  tls-server-close :: TlsServer -> Result TlsError (TlsServer, Bytes)
+  tls-server-close srv = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof -> case phase of
+      ServerClosed -> Ok (srv, bytes-new 0)
+      ServerEstablished ->
+        case seal-with-cipher wr 21 (bytes-from-u8s [1, 0]) of
+          Err e -> Err e
+          Ok (wr2, wire) -> Ok (MkTlsServer cfg ServerClosed crypto rd wr2 rx hs tr sni alpn eof, wire)
+      _ ->
+        let wire = make-plain-record 21 3 (bytes-from-u8s [1, 0]) in
+        Ok (MkTlsServer cfg ServerClosed crypto rd wr rx hs tr sni alpn eof, wire)
+
+  -- | Feed incoming wire bytes into a `TlsServer`, processing all complete TLS records.
+  tls-server-feed :: TlsServer -> Bytes -> Result TlsError (TlsOutput TlsServer)
+  tls-server-feed srv incoming = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      let srv0 = MkTlsServer cfg phase crypto rd wr (join2 rx incoming) hs tr sni alpn eof in
+      server-record-loop srv0 Nil Nil
+
+  -- | Tail-recursive server record extraction and dispatch loop.
+  server-record-loop :: TlsServer -> List Bytes -> List Bytes -> Result TlsError (TlsOutput TlsServer)
+  server-record-loop srv wire-acc app-acc = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      let n = bytes-len rx in
+      if n < 5 then
+        Ok (MkTlsOutput srv (bytes-concat (rev-list wire-acc)) (bytes-concat (rev-list app-acc)) eof)
+      else
+        let rtype = at rx 0 in
+        let ver-hi = at rx 1 in
+        let rlen = read-u16-be rx 3 in
+        let rec-end = 5 + rlen in
+        if ver-hi /= 3 then Err (TlsProtocolError AlertProtocolVersion "invalid record major version")
+        else if rlen > 16640 then Err (TlsRecordOverflow rlen)
+        else if rec-end > n then
+          Ok (MkTlsOutput srv (bytes-concat (rev-list wire-acc)) (bytes-concat (rev-list app-acc)) eof)
+        else
+          let hdr = slice rx 0 5 in
+          let body = slice rx 5 rec-end in
+          let rx-rest = slice rx rec-end n in
+          let srv1 = MkTlsServer cfg phase crypto rd wr rx-rest hs tr sni alpn eof in
+          case server-handle-record srv1 rtype hdr body of
+            Err e -> Err e
+            Ok (srv2, w-out, a-out) ->
+              let w-acc2 = if bytes-len w-out > 0 then Cons w-out wire-acc else wire-acc in
+              let a-acc2 = if bytes-len a-out > 0 then Cons a-out app-acc else app-acc in
+              server-record-loop srv2 w-acc2 a-acc2
+
+  -- | Handle one complete TLS record on the server.
+  server-handle-record :: TlsServer -> Nat -> Bytes -> Bytes -> Result TlsError (TlsServer, Bytes, Bytes)
+  server-handle-record srv rtype hdr body = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      if rtype == 20 then
+        if tls-server-handshake-complete srv then
+          Err (TlsProtocolError AlertUnexpectedMessage "ChangeCipherSpec after handshake")
+        else if bytes-len body == 1 && at body 0 == 1 then
+          Ok (srv, bytes-new 0, bytes-new 0)
+        else Err (TlsProtocolError AlertUnexpectedMessage "malformed ChangeCipherSpec")
+      else case rd of
+        TrafficPlain ->
+          if bytes-len body > 16384 then Err (TlsRecordOverflow (bytes-len body))
+          else if rtype == 21 then server-handle-alert srv body
+          else if rtype == 22 then server-feed-handshake srv body
+          else Err (TlsProtocolError AlertUnexpectedMessage "unexpected plaintext record type")
+        TrafficAead _ _ _ _ _ _ ->
+          if rtype == 21 && not (tls-server-handshake-complete srv) then
+            server-handle-alert srv body
+          else if rtype /= 23 then
+            Err (TlsProtocolError AlertUnexpectedMessage "expected encrypted application_data record")
+          else case open-with-cipher rd hdr body of
+            Err e -> Err e
+            Ok (rd2, inner-type, content) ->
+              let srv2 = MkTlsServer cfg phase crypto rd2 wr rx hs tr sni alpn eof in
+              if inner-type == 21 then server-handle-alert srv2 content
+              else if inner-type == 22 then server-feed-handshake srv2 content
+              else if inner-type == 23 then
+                if tls-server-handshake-complete srv2 then
+                  Ok (srv2, bytes-new 0, content)
+                else Err (TlsProtocolError AlertUnexpectedMessage "application data before handshake complete")
+              else Err (TlsProtocolError AlertUnexpectedMessage "unknown inner record content type")
+
+  -- | Process a 2-byte TLS alert payload on the server.
+  server-handle-alert :: TlsServer -> Bytes -> Result TlsError (TlsServer, Bytes, Bytes)
+  server-handle-alert srv body =
+    if bytes-len body /= 2 then Err (TlsProtocolError AlertDecodeError "alert record must be 2 bytes")
+    else
+      let desc = tls-alert-from-code (at body 1) in
+      case desc of
+        AlertCloseNotify -> case srv of
+          MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn _ ->
+            Ok (MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn True, bytes-new 0, bytes-new 0)
+        AlertUserCanceled -> Ok (srv, bytes-new 0, bytes-new 0)
+        _ -> Err (TlsAlertReceived desc)
+
+  -- | Append handshake bytes to the server reassembly buffer and process all complete messages.
+  server-feed-handshake :: TlsServer -> Bytes -> Result TlsError (TlsServer, Bytes, Bytes)
+  server-feed-handshake srv chunk = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      if bytes-len chunk == 0 then Err (TlsProtocolError AlertUnexpectedMessage "empty handshake fragment")
+      else
+        let srv1 = MkTlsServer cfg phase crypto rd wr rx (join2 hs chunk) tr sni alpn eof in
+        server-hs-loop srv1 Nil
+
+  -- | Tail-recursive server handshake message parser and dispatcher.
+  server-hs-loop :: TlsServer -> List Bytes -> Result TlsError (TlsServer, Bytes, Bytes)
+  server-hs-loop srv wire-acc = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      let n = bytes-len hs in
+      if n < 4 then Ok (srv, bytes-concat (rev-list wire-acc), bytes-new 0)
+      else
+        let mtype = at hs 0 in
+        let mlen = read-u24-be hs 1 in
+        let mend = 4 + mlen in
+        if mend > n then Ok (srv, bytes-concat (rev-list wire-acc), bytes-new 0)
+        else
+          let raw-msg = slice hs 0 mend in
+          let body = slice hs 4 mend in
+          let hs-rest = slice hs mend n in
+          let srv1 = MkTlsServer cfg phase crypto rd wr rx hs-rest tr sni alpn eof in
+          case server-handle-hs-msg srv1 mtype raw-msg body of
+            Err e -> Err e
+            Ok (srv2, w-out) ->
+              let w-acc2 = if bytes-len w-out > 0 then Cons w-out wire-acc else wire-acc in
+              server-hs-loop srv2 w-acc2
+
+  -- | Dispatch one complete TLS 1.3 handshake message on the server.
+  server-handle-hs-msg :: TlsServer -> Nat -> Bytes -> Bytes -> Result TlsError (TlsServer, Bytes)
+  server-handle-hs-msg srv mtype raw-msg body = case srv of
+    MkTlsServer _ phase _ _ _ _ hs _ _ _ _ -> case phase of
+      ServerWaitClientHello ->
+        if mtype /= 1 then Err (TlsProtocolError AlertUnexpectedMessage "expected ClientHello")
+        else if bytes-len hs /= 0 then Err (TlsProtocolError AlertUnexpectedMessage "trailing handshake data after ClientHello")
+        else server-on-client-hello srv raw-msg body False
+      ServerWaitClientHello2 ->
+        if mtype /= 1 then Err (TlsProtocolError AlertUnexpectedMessage "expected second ClientHello after HelloRetryRequest")
+        else if bytes-len hs /= 0 then Err (TlsProtocolError AlertUnexpectedMessage "trailing handshake data after ClientHello2")
+        else server-on-client-hello srv raw-msg body True
+      ServerWaitClientFinished ->
+        if mtype /= 20 then Err (TlsProtocolError AlertUnexpectedMessage "expected client Finished")
+        else if bytes-len hs /= 0 then Err (TlsProtocolError AlertUnexpectedMessage "trailing handshake data after client Finished")
+        else server-on-client-finished srv raw-msg body
+      ServerEstablished ->
+        if mtype == 24 then server-on-key-update srv body
+        else Err (TlsProtocolError AlertUnexpectedMessage "unexpected post-handshake message on server")
+      ServerClosed -> Err (TlsProtocolError AlertUnexpectedMessage "handshake message after server close")
+
+  -- | Parsed fields of a TLS 1.3 `ClientHello` needed for server parameter selection.
+  data ParsedClientHello where
+    -- | Session ID, offered cipher suite IDs, SNI, ALPN protocols, supported group IDs, signature schemes, key shares.
+    MkParsedCh :: Bytes -> List Nat -> String -> List String -> List Nat -> List TlsSignatureScheme -> List RawKeyShare -> ParsedClientHello
+
+  -- | Parse a TLS 1.3 `ClientHello` body.
+  parse-client-hello :: Bytes -> Result TlsError ParsedClientHello
+  parse-client-hello body =
+    let n = bytes-len body in
+    if n < 39 then Err (TlsProtocolError AlertDecodeError "truncated ClientHello")
+    else if at body 0 /= 3 || at body 1 /= 3 then Err (TlsProtocolError AlertProtocolVersion "invalid ClientHello legacy_version")
+    else
+      let sid-len = at body 34 in
+      let cs-pos = 35 + sid-len in
+      if sid-len > 32 || cs-pos + 2 > n then Err (TlsProtocolError AlertDecodeError "malformed ClientHello session_id")
+      else
+        let sess-id = slice body 35 cs-pos in
+        let cs-len = read-u16-be body cs-pos in
+        let comp-pos = cs-pos + 2 + cs-len in
+        if cs-len == 0 || nat-rem cs-len 2 /= 0 || comp-pos + 1 > n then
+          Err (TlsProtocolError AlertDecodeError "malformed ClientHello cipher_suites")
+        else
+          let comp-len = at body comp-pos in
+          let ext-pos = comp-pos + 1 + comp-len in
+          if comp-len == 0 || ext-pos + 2 > n then
+            Err (TlsProtocolError AlertDecodeError "malformed ClientHello compression_methods")
+          else if not (has-byte-in-slice body (comp-pos + 1) ext-pos 0) then
+            Err (TlsProtocolError AlertIllegalParameter "ClientHello missing null compression")
+          else
+            let ext-len = read-u16-be body ext-pos in
+            if ext-pos + 2 + ext-len /= n then
+              Err (TlsProtocolError AlertDecodeError "malformed ClientHello extensions length")
+            else case parse-u16-items body (cs-pos + 2) comp-pos Nil of
+              Err e -> Err e
+              Ok cs-ids -> case parse-extensions (slice body (ext-pos + 2) n) of
+                Err e -> Err e
+                Ok exts -> extract-ch-extensions sess-id cs-ids exts
+
+  -- | Check whether a byte value appears in `buf[pos..end)`.
+  has-byte-in-slice :: Bytes -> Nat -> Nat -> Nat -> Bool
+  has-byte-in-slice buf pos end needle =
+    if pos >= end then False
+    else if at buf pos == needle then True
+    else has-byte-in-slice buf (pos + 1) end needle
+
+  -- | Validate and extract TLS 1.3 extensions from a parsed `ClientHello`.
+  extract-ch-extensions :: Bytes -> List Nat -> List RawExt -> Result TlsError ParsedClientHello
+  extract-ch-extensions sess-id cs-ids exts =
+    case find-ext 43 exts of
+      None -> Err TlsUnsupportedVersion
+      Some sv-buf -> case parse-ch-supported-versions sv-buf of
+        Err e -> Err e
+        Ok has13 ->
+          if not has13 then Err TlsUnsupportedVersion
+          else case find-ext 10 exts of
+            None -> Err (TlsProtocolError AlertMissingExtension "ClientHello missing supported_groups")
+            Some sg-buf -> case parse-u16-vec sg-buf of
+              Err e -> Err e
+              Ok group-ids -> case find-ext 13 exts of
+                None -> Err (TlsProtocolError AlertMissingExtension "ClientHello missing signature_algorithms")
+                Some sa-buf -> case parse-u16-vec sa-buf of
+                  Err e -> Err e
+                  Ok sig-ids -> case find-ext 51 exts of
+                    None -> Err (TlsProtocolError AlertMissingExtension "ClientHello missing key_share")
+                    Some ks-buf -> case parse-ch-key-shares ks-buf of
+                      Err e -> Err e
+                      Ok kshares ->
+                        let sni-res = (case find-ext 0 exts of
+                          None -> Ok ""
+                          Some b -> parse-sni-ext b) in
+                        case sni-res of
+                          Err e -> Err e
+                          Ok sni ->
+                            let alpn-res = (case find-ext 16 exts of
+                              None -> Ok Nil
+                              Some b -> parse-alpn-ext b) in
+                            case alpn-res of
+                              Err e -> Err e
+                              Ok alpn -> Ok (MkParsedCh sess-id cs-ids sni alpn group-ids (decode-schemes sig-ids Nil) kshares)
+
+  -- | Select the first cipher suite in server preference order offered by the client.
+  select-cipher-suite :: List TlsCipherSuite -> List Nat -> Option TlsCipherSuite
+  select-cipher-suite mine offered-ids = case mine of
+    Nil -> None
+    Cons s rest ->
+      if nat-in-list (tls-cipher-suite-id s) offered-ids then Some s
+      else select-cipher-suite rest offered-ids
+
+  -- | Select the first mutually supported ALPN protocol in server preference order, or `""` if none.
+  select-alpn :: List String -> List String -> String
+  select-alpn mine offered = case mine of
+    Nil -> ""
+    Cons p rest ->
+      if str-in-list p offered then p
+      else select-alpn rest offered
+
+  -- | Find a client key share matching one of the server's preferred curves.
+  select-key-share :: List TlsCurve -> List RawKeyShare -> Option (TlsCurve, Bytes)
+  select-key-share my-curves shares = case my-curves of
+    Nil -> None
+    Cons c rest -> case find-raw-key-share (tls-curve-id c) shares of
+      Some peer-bytes -> Some (c, peer-bytes)
+      None -> select-key-share rest shares
+
+  -- | Look up a `RawKeyShare` by 16-bit group ID.
+  find-raw-key-share :: Nat -> List RawKeyShare -> Option Bytes
+  find-raw-key-share gid shares = case shares of
+    Nil -> None
+    Cons (MkRawKeyShare g b) rest -> if g == gid then Some b else find-raw-key-share gid rest
+
+  -- | Select the first curve in server preference order offered in client `supported_groups`.
+  select-supported-curve :: List TlsCurve -> List Nat -> Option TlsCurve
+  select-supported-curve my-curves group-ids = case my-curves of
+    Nil -> None
+    Cons c rest ->
+      if nat-in-list (tls-curve-id c) group-ids then Some c
+      else select-supported-curve rest group-ids
+
+  -- | Process `ClientHello` (initial or post-HRR) on the server and emit either `HelloRetryRequest` or the full server flight.
+  server-on-client-hello :: TlsServer -> Bytes -> Bytes -> Bool -> Result TlsError (TlsServer, Bytes)
+  server-on-client-hello srv raw-ch body is-second = case srv of
+    MkTlsServer cfg _ crypto _ _ rx hs tr _ _ eof -> case crypto of
+      MkServerCrypto seed hrr-curve prev-suite _ _ _ prev-sid ->
+        case tls-config-certificate cfg of
+          None -> Err (TlsInvalidConfig "missing server certificate")
+          Some tc -> case parse-client-hello body of
+            Err e -> Err e
+            Ok (MkParsedCh sess-id cs-ids sni client-alpn group-ids sig-schemes kshares) ->
+              case select-cipher-suite (tls-config-cipher-suites cfg) cs-ids of
+                None -> Err TlsNoCommonCipherSuite
+                Some suite ->
+                  if is-second && (not (tls-cipher-suite-equal suite prev-suite) || not (bytes-eq sess-id prev-sid)) then
+                    Err (TlsProtocolError AlertIllegalParameter "ClientHello2 parameters inconsistent with HelloRetryRequest")
+                  else case choose-signature-scheme (tls-certificate-key tc) sig-schemes of
+                    None -> Err TlsNoCommonSignatureScheme
+                    Some sig-scheme ->
+                      let negotiated-alpn = select-alpn (tls-config-alpn cfg) client-alpn in
+                      let share-choice = (case hrr-curve of
+                        Some wanted -> select-key-share [wanted] kshares
+                        None -> select-key-share (tls-config-curves cfg) kshares) in
+                      case share-choice of
+                        Some (curve, peer-pub) ->
+                          server-complete-flight cfg seed rx hs (join2 tr raw-ch) eof tc suite curve peer-pub sig-scheme sess-id sni negotiated-alpn is-second
+                        None ->
+                          if is-second then Err TlsNoCommonCurve
+                          else case select-supported-curve (tls-config-curves cfg) group-ids of
+                            None -> Err TlsNoCommonCurve
+                            Some wanted ->
+                              let hrr-exts = bytes-concat [encode-sh-supported-versions-ext, encode-hrr-key-share-ext wanted] in
+                              let hrr-msg = build-server-hello hrr-magic sess-id suite hrr-exts in
+                              let synth = make-handshake-msg 254 (suite-hash suite raw-ch) in
+                              let tr-hrr = join2 synth hrr-msg in
+                              let ccs = if bytes-len sess-id > 0 then dummy-ccs-record else empty-bytes in
+                              let wire = join2 (make-plain-record 22 3 hrr-msg) ccs in
+                              let crypto2 = MkServerCrypto seed (Some wanted) suite (bytes-new 0) (bytes-new 0) (bytes-new 0) sess-id in
+                              let srv2 = MkTlsServer cfg ServerWaitClientHello2 crypto2 TrafficPlain TrafficPlain rx hs tr-hrr sni negotiated-alpn eof in
+                              Ok (srv2, wire)
+
+  -- | Build and encrypt the server's TLS 1.3 handshake flight (`SH`, `EE`, `Cert`, `CV`, `Finished`).
+  server-complete-flight :: TlsConfig -> Bytes -> Bytes -> Bytes -> Bytes -> Bool -> TlsCertificate -> TlsCipherSuite -> TlsCurve -> Bytes -> TlsSignatureScheme -> Bytes -> String -> String -> Bool -> Result TlsError (TlsServer, Bytes)
+  server-complete-flight cfg seed rx hs tr-ch eof tc suite curve peer-pub sig-scheme sess-id sni alpn after-hrr =
+    case derive-entropy seed "srv-sh-random" 32 of
+      Err e -> Err e
+      Ok sh-rand -> case derive-entropy seed (string-concat "srv-kp-" (nat-to-string (tls-curve-id curve))) 32 of
+        Err e -> Err e
+        Ok kp-raw -> case generate-keypair curve kp-raw of
+          Err e -> Err e
+          Ok srv-kp -> case keypair-ecdh srv-kp peer-pub of
+            Err e -> Err e
+            Ok shared ->
+              let sh-exts = bytes-concat [encode-sh-supported-versions-ext, encode-sh-key-share-ext srv-kp] in
+              let sh-msg = build-server-hello sh-rand sess-id suite sh-exts in
+              let tr-sh = join2 tr-ch sh-msg in
+              case derive-handshake-secrets suite shared (suite-hash suite tr-sh) of
+                Err e -> Err e
+                Ok (hs-sec, c-hs, s-hs) -> case make-traffic-cipher suite s-hs of
+                  Err e -> Err e
+                  Ok wr-hs -> case make-traffic-cipher suite c-hs of
+                    Err e -> Err e
+                    Ok rd-hs ->
+                      let ee-msg = build-encrypted-extensions alpn in
+                      let cert-msg = build-certificate-msg (bytes-new 0) (tls-certificate-chain tc) in
+                      let tr-cert = bytes-concat [tr-sh, ee-msg, cert-msg] in
+                      case derive-entropy seed "srv-cv-salt" 64 of
+                        Err e -> Err e
+                        Ok salt -> case sign-cert-verify (tls-certificate-key tc) sig-scheme True (suite-hash suite tr-cert) salt of
+                          Err e -> Err e
+                          Ok sig ->
+                            let cv-msg = build-cert-verify-msg sig-scheme sig in
+                            let tr-cv = join2 tr-cert cv-msg in
+                            case tls-finished-verify-data suite s-hs (suite-hash suite tr-cv) of
+                              Err e -> Err e
+                              Ok srv-vd ->
+                                let sf-msg = build-finished-msg srv-vd in
+                                let tr-sf = join2 tr-cv sf-msg in
+                                case derive-application-secrets suite hs-sec (suite-hash suite tr-sf) of
+                                  Err e -> Err e
+                                  Ok (_, c-ap, s-ap, exp-master) ->
+                                    let enc-hs-payload = bytes-concat [ee-msg, cert-msg, cv-msg, sf-msg] in
+                                    case seal-chunked wr-hs 22 enc-hs-payload of
+                                      Err e -> Err e
+                                      Ok (_, enc-flight) -> case make-traffic-cipher suite s-ap of
+                                        Err e -> Err e
+                                        Ok wr-ap ->
+                                          let ccs = if bytes-len sess-id > 0 && not after-hrr then dummy-ccs-record else empty-bytes in
+                                          let wire = bytes-concat [make-plain-record 22 3 sh-msg, ccs, enc-flight] in
+                                          let crypto2 = MkServerCrypto seed None suite c-hs c-ap exp-master sess-id in
+                                          let srv2 = MkTlsServer cfg ServerWaitClientFinished crypto2 rd-hs wr-ap rx hs tr-sf sni alpn eof in
+                                          Ok (srv2, wire)
+
+  -- | Verify client `Finished` on the server and install client application read keys.
+  server-on-client-finished :: TlsServer -> Bytes -> Bytes -> Result TlsError (TlsServer, Bytes)
+  server-on-client-finished srv raw-msg body = case srv of
+    MkTlsServer cfg _ crypto _ wr-ap rx hs tr sni alpn eof -> case crypto of
+      MkServerCrypto seed hrr suite c-hs c-ap exp-master sess-id ->
+        case tls-finished-verify-data suite c-hs (suite-hash suite tr) of
+          Err e -> Err e
+          Ok expected-vd ->
+            if not (constant-bytes-equal expected-vd body) then Err TlsVerifyDataMismatch
+            else case make-traffic-cipher suite c-ap of
+              Err e -> Err e
+              Ok rd-ap ->
+                let crypto2 = MkServerCrypto seed hrr suite c-hs c-ap exp-master sess-id in
+                let srv2 = MkTlsServer cfg ServerEstablished crypto2 rd-ap wr-ap rx hs (join2 tr raw-msg) sni alpn eof in
+                Ok (srv2, bytes-new 0)
+
+  -- | Handle post-handshake `KeyUpdate` on the server (RFC 8446 section 4.6.3).
+  server-on-key-update :: TlsServer -> Bytes -> Result TlsError (TlsServer, Bytes)
+  server-on-key-update srv body = case srv of
+    MkTlsServer cfg phase crypto rd wr rx hs tr sni alpn eof ->
+      if bytes-len body /= 1 then Err (TlsProtocolError AlertDecodeError "KeyUpdate must be 1 byte")
+      else
+        let req = at body 0 in
+        if req > 1 then Err (TlsProtocolError AlertIllegalParameter "invalid KeyUpdate request_update value")
+        else case update-traffic-cipher rd of
+          Err e -> Err e
+          Ok rd2 ->
+            if req == 0 then
+              Ok (MkTlsServer cfg phase crypto rd2 wr rx hs tr sni alpn eof, bytes-new 0)
+            else
+              let reply = build-key-update-msg False in
+              case seal-with-cipher wr 22 reply of
+                Err e -> Err e
+                Ok (wr1, wire) -> case update-traffic-cipher wr1 of
+                  Err e -> Err e
+                  Ok wr2 -> Ok (MkTlsServer cfg phase crypto rd2 wr2 rx hs tr sni alpn eof, wire)

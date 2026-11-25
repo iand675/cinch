@@ -250,6 +250,18 @@ impl Checker {
                 if function.params.len() != args.len() { return None }
                 return comparison_primitive(op, &args);
             }
+            if function.meta.prim_body {
+                if function.params.len() != args.len() { return None }
+                if let Some(plan) = self.prims.iter().find(|p| p.unit == id.0) {
+                    if let Some((ty, op)) = prim_plan_cmp_op(plan) {
+                        return comparison_primitive(PrimOp::Cmp { ty, op }, &args);
+                    }
+                    if prim_plan_is_value_preserving_cast(plan) && args.len() == 1 {
+                        return Some(args[0].clone());
+                    }
+                }
+                return None;
+            }
         }
         // These are checked pure bodies retained before runtime lowering,
         // with their real parameter identities. No names or class slots
@@ -308,11 +320,15 @@ impl Checker {
                 match self.read_comparison_core(condition, locals, fuel, visiting)? {
                     R::Bool(true) => return self.read_comparison_core(&yes.body, locals, fuel, visiting),
                     R::Bool(false) => return self.read_comparison_core(&no.body, locals, fuel, visiting),
-                    R::Predicate(..) => {
+                    R::Predicate(cmp, ty, a, b) => {
                         let yes = self.read_comparison_core(&yes.body, locals, fuel, visiting)?;
                         let no = self.read_comparison_core(&no.body, locals, fuel, visiting)?;
-                        if yes != no { return None }
-                        yes
+                        match (yes, no) {
+                            (R::Bool(false), R::Bool(true)) => R::Predicate(negate_comparison(cmp), ty, a, b),
+                            (R::Bool(true), R::Bool(false)) => R::Predicate(cmp, ty, a, b),
+                            (yes, no) if yes == no => yes,
+                            _ => return None,
+                        }
                     }
                     _ => return None,
                 }
@@ -394,14 +410,127 @@ fn comparison_primitive(op: PrimOp, arguments: &[ComparisonReading]) -> Option<C
         (PrimOp::Cmp { ty: Scalar::I64, op }, [R::Ordering(ty, a, b), R::Word(0)]) => Some(R::Predicate(cmp(op), ty.clone(), *a, *b)),
         (PrimOp::Cmp { ty: Scalar::I64, op }, [R::Word(0), R::Ordering(ty, a, b)]) => Some(R::Predicate(reverse_comparison(cmp(op)), ty.clone(), *a, *b)),
         (PrimOp::Cmp { ty, op }, [R::Argument(a, Ty::Prim(left)), R::Argument(b, Ty::Prim(right))])
-            if (ty.is_int_like() || ty == Scalar::Char) && ty == *left && ty == *right => Some(R::Predicate(cmp(op), Ty::Prim(ty), *a, *b)),
+            if (ty.is_int_like() || ty == Scalar::Char)
+                && left == right
+                && (ty == *left
+                    || (*left == Scalar::Char && !ty.is_signed() && ty.width() >= 32)
+                    || (*left == Scalar::Usize && !ty.is_signed() && ty.width() >= 64)
+                    || (*left == Scalar::Isize && ty.is_signed() && ty.width() >= 64)) =>
+        {
+            Some(R::Predicate(cmp(op), Ty::Prim(*left), *a, *b))
+        }
         (PrimOp::NotBool, [R::Predicate(cmp, ty, a, b)]) => Some(R::Predicate(negate_comparison(*cmp), ty.clone(), *a, *b)),
         (PrimOp::NotBool, [R::Bool(value)]) => Some(R::Bool(!value)),
         _ => None,
     }
 }
 
+/// Structurally recognize a pure 2-arg inline LLVM comparison fragment
+/// (`%c = icmp <pred> i<N> %0, %1; %r = zext i1 %c to i8; ret i8 %r`).
+fn prim_plan_cmp_op(plan: &crate::core::PrimPlan) -> Option<(Scalar, CmpOp)> {
+    use crate::core::PrimAbiTy;
+    if !plan.pure || !plan.res_bool || plan.args.len() != 2 || plan.args[0] != plan.args[1] {
+        return None;
+    }
+    let &PrimAbiTy::Int { bits, signed } = &plan.args[0] else { return None };
+    let body = plan.bodies.get(plan.selected)?;
+    if body.family != "llvm" { return None }
+    let lines: Vec<&str> = body
+        .fragment
+        .lines()
+        .map(|l| l.split(';').next().unwrap_or("").trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if lines.len() != 3 { return None }
+    let (c_var, icmp_rhs) = lines[0].split_once('=')?;
+    let c_var = c_var.trim();
+    let icmp_tokens: Vec<&str> = icmp_rhs.split_whitespace().collect();
+    let ty_str = format!("i{bits}");
+    if icmp_tokens.len() != 5
+        || icmp_tokens[0] != "icmp"
+        || icmp_tokens[2] != ty_str
+        || icmp_tokens[3].trim_end_matches(',') != "%0"
+        || icmp_tokens[4] != "%1"
+    {
+        return None;
+    }
+    let (op, pred_signed) = match icmp_tokens[1] {
+        "eq" => (CmpOp::Eq, signed),
+        "ne" => (CmpOp::Ne, signed),
+        "slt" => (CmpOp::Lt, true),
+        "sle" => (CmpOp::Le, true),
+        "sgt" => (CmpOp::Gt, true),
+        "sge" => (CmpOp::Ge, true),
+        "ult" => (CmpOp::Lt, false),
+        "ule" => (CmpOp::Le, false),
+        "ugt" => (CmpOp::Gt, false),
+        "uge" => (CmpOp::Ge, false),
+        _ => return None,
+    };
+    if pred_signed != signed { return None }
+    let (r_var, zext_rhs) = lines[1].split_once('=')?;
+    let r_var = r_var.trim();
+    let zext_tokens: Vec<&str> = zext_rhs.split_whitespace().collect();
+    if zext_tokens != ["zext", "i1", c_var, "to", "i8"] { return None }
+    let ret_tokens: Vec<&str> = lines[2].split_whitespace().collect();
+    if ret_tokens != ["ret", "i8", r_var] { return None }
+    let scalar = match (bits, signed) {
+        (8, true) => Scalar::I8,
+        (16, true) => Scalar::I16,
+        (32, true) => Scalar::I32,
+        (64, true) => Scalar::I64,
+        (128, true) => Scalar::I128,
+        (8, false) => Scalar::U8,
+        (16, false) => Scalar::U16,
+        (32, false) => Scalar::U32,
+        (64, false) => Scalar::U64,
+        (128, false) => Scalar::U128,
+        _ => return None,
+    };
+    Some((scalar, op))
+}
+
+/// Structurally recognize a pure 1-arg value-preserving identity or widening
+/// inline LLVM fragment (`ret i<N> %0`, or `zext`/`sext` of `%0` to a wider int).
+fn prim_plan_is_value_preserving_cast(plan: &crate::core::PrimPlan) -> bool {
+    use crate::core::PrimAbiTy;
+    if !plan.pure || plan.res_bool || plan.args.len() != 1 { return false }
+    let (&PrimAbiTy::Int { bits: src_bits, signed: src_signed }, &PrimAbiTy::Int { bits: dst_bits, signed: dst_signed }) =
+        (&plan.args[0], &plan.res)
+    else { return false };
+    if dst_bits < src_bits || src_signed != dst_signed { return false }
+    let Some(body) = plan.bodies.get(plan.selected) else { return false };
+    if body.family != "llvm" { return false }
+    let lines: Vec<&str> = body
+        .fragment
+        .lines()
+        .map(|l| l.split(';').next().unwrap_or("").trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let src_ty = format!("i{src_bits}");
+    let dst_ty = format!("i{dst_bits}");
+    if lines.len() == 1 && src_bits == dst_bits {
+        let toks: Vec<&str> = lines[0].split_whitespace().collect();
+        return toks == ["ret", dst_ty.as_str(), "%0"];
+    }
+    if lines.len() == 2 && dst_bits > src_bits {
+        let Some((r_var, cast_rhs)) = lines[0].split_once('=') else { return false };
+        let r_var = r_var.trim();
+        let cast_op = if src_signed { "sext" } else { "zext" };
+        let cast_toks: Vec<&str> = cast_rhs.split_whitespace().collect();
+        let ret_toks: Vec<&str> = lines[1].split_whitespace().collect();
+        return cast_toks == [cast_op, src_ty.as_str(), "%0", "to", dst_ty.as_str()]
+            && ret_toks == ["ret", dst_ty.as_str(), r_var];
+    }
+    false
+}
+
 impl Checker {
+    fn prim_plan_total_op(&self, unit: &str) -> Option<crate::total::Op> {
+        let plan = self.prims.iter().find(|p| p.unit == unit)?;
+        let (Scalar::I64, op) = prim_plan_cmp_op(plan)? else { return None };
+        total_primitive(PrimOp::Cmp { ty: Scalar::I64, op })
+    }
     fn total_sort(&self, ty: &Ty, seen: &mut Vec<Ty>) -> Option<crate::total::Sort> {
         use crate::total::Sort;
         Some(match ty {
@@ -439,7 +568,10 @@ impl Checker {
     }
     fn checked_total_bodies(&self) -> crate::total::CheckedGraph {
         let mut primitives: std::collections::BTreeMap<String, crate::total::Op> = self.fns.iter().filter_map(|function| {
-            let operation = total_primitive(function.prim?)?;
+            let operation = function
+                .prim
+                .and_then(total_primitive)
+                .or_else(|| function.meta.prim_body.then(|| self.prim_plan_total_op(&function.id.0)).flatten())?;
             if function.params.len() != operation.signature().0.len() { return None }
             Some((function.id.0.clone(), operation))
         }).collect();
@@ -448,8 +580,12 @@ impl Checker {
         // values still have real ABI-checked bodies even when no ordinary
         // function keeps a call edge to the primitive wrapper.
         for value in self.qualified.values() {
-            let ValueKind::Prim(primitive) = &value.kind else { continue };
-            let Some(operation) = total_primitive(*primitive) else { continue };
+            let operation = match &value.kind {
+                ValueKind::Prim(primitive) => total_primitive(*primitive),
+                ValueKind::PrimDecl { unit, .. } => self.prim_plan_total_op(unit),
+                _ => None,
+            };
+            let Some(operation) = operation else { continue };
             let identity = fn_id(&value.module, &value.name).0;
             let parameters = operation.signature().0.to_vec();
             let definition = crate::total::Definition {
@@ -487,7 +623,7 @@ fn total_primitive(primitive: PrimOp) -> Option<crate::total::Op> {
         PrimOp::Int(IntOp::Cmp) => Op::IntCmp,
         PrimOp::Int(IntOp::FromNat) => Op::IntFromNat,
         PrimOp::Int(IntOp::FromI64) => Op::IntFromI64,
-        PrimOp::Bytes(BytesOp::Len) => Op::BytesLen,
+        PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64) => Op::BytesLen,
         PrimOp::Cmp { ty: Scalar::I64, op } => match op {
             CmpOp::Eq => Op::I64Eq, CmpOp::Ne => Op::I64Ne,
             CmpOp::Lt => Op::I64Lt, CmpOp::Le => Op::I64Le,
@@ -581,6 +717,11 @@ impl TotalProducer<'_> {
             P::Bool(value) => E::Bool(*value),
             P::Primitive(op, arguments) => E::Primitive(*op, self.arguments(arguments)?),
             P::Call(target, arguments) => {
+                if let Some(&op) = self.primitives.get(target) {
+                    if arguments.len() == op.signature().0.len() {
+                        return Some(E::Primitive(op, self.arguments(arguments)?));
+                    }
+                }
                 self.definition(target)?;
                 E::Call { target: target.clone(), arguments: self.arguments(arguments)? }
             }
@@ -843,7 +984,7 @@ impl Checker {
                     ECore::Global(id, actuals) if actuals.is_empty() => self.fns.iter().find(|f| f.id == *id).and_then(|f| f.prim),
                     _ => None,
                 };
-                if primitive == Some(PrimOp::Bytes(BytesOp::Len)) && arguments.len() == 1 {
+                if matches!(primitive, Some(PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64))) && arguments.len() == 1 {
                     let ECore::Var(local) = arguments[0] else { return None };
                     let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
                     let ty = self.uni.zonk(&scheme.ty);

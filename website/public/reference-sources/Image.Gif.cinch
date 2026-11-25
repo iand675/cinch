@@ -19,6 +19,7 @@ module Image.Gif where
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (simd-u8x16-splat, simd-u8x16-cmplt, simd-u8x16-movemask)
   import Image.Raster
   import Text.Lzw
   import Text.Show (nat-to-string)
@@ -425,14 +426,33 @@ module Image.Gif where
 
   -- | Whether every index is below the palette size: sixteen bytes per step, then single bytes.
   indices-below :: Bytes -> Nat -> Bool
-  indices-below indices n = below-from indices n 0
+  indices-below indices n =
+    if n >= 256 then True
+    else if n == 0 then bytes-len indices == 0
+    else below-vec indices (wrapping-i64-to-u8 (nat-to-i64 n)) 0
 
-  -- | Check from an offset.
-  below-from :: Bytes -> Nat -> Nat -> Bool
-  below-from indices n i =
-    if i + 16 <= bytes-len indices then
-      (if n <= 256 && hold indices (max16 (bytes-data indices) (nat-to-i64 i)) < nat-to-i64 n then below-from indices n (i + 16) else n > 256)
-    else if i < bytes-len indices then (if bytes-get indices i < n then below-from indices n (i + 1) else False)
+  -- | Validate sixteen-byte chunks using portable SIMD comparisons, then finish the scalar tail.
+  below-vec :: Bytes -> U8 -> I64 -> Bool
+  below-vec indices limit i =
+    let n = bytes-len-i64 indices in
+    if 16 <= n && 0 <= i then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let ni = nat-from-i64 i in
+        if ni <= nn - 16 then
+          if eq-u32 (simd-u8x16-movemask (simd-u8x16-cmplt (bytes-load-u128-at indices i) (simd-u8x16-splat limit))) 65535 then
+            below-vec indices limit (wrapping-add-i64 i 16)
+          else False
+        else below-tail indices limit i
+      else below-tail indices limit i
+    else below-tail indices limit i
+
+  -- | Validate remaining bytes one at a time.
+  below-tail :: Bytes -> U8 -> I64 -> Bool
+  below-tail indices limit i =
+    if 0 <= i && i < bytes-len-i64 indices then
+      if lt-u8 (bytes-get-u8-at indices i) limit then below-tail indices limit (wrapping-add-i64 i 1)
+      else False
     else True
 
   -- | Reorder interlaced rows: passes start at rows 0, 4, 2 and 1 and step by 8, 8, 4 and 2.
@@ -656,19 +676,3 @@ module Image.Gif where
   -- | 2^n for n below 9.
   power2 :: Nat -> Nat
   power2 n = if n == 0 then 1 else 2 * power2 (n - 1)
-
-  -- | Keep a buffer alive until a raw load has completed.
-  hold :: forall a. Bytes -> a -> a
-  hold b value = case bytes-len b of
-    _ -> value
-
-  -- | The largest of the sixteen bytes at base + offset.
-  prim max16 :: I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %m = call i8 @llvm.vector.reduce.umax.v16i8(<16 x i8> %v)
-      %r = zext i8 %m to i64
-      ret i64 %r
-    }

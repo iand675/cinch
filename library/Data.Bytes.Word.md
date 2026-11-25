@@ -10,10 +10,10 @@ Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and
 
 Unaligned little-endian machine-word access to byte buffers.
 Bounds are explicit preconditions in the public signatures. Reads and writes
-access exactly the proved byte range. Private LLVM loads retain the backing
-buffer until completion; raw pointers never enter the public interface. The
-packed words feed SIMD and SWAR kernels. Wire order is independent of host
-endianness. Concurrent mutation follows the same rules as Data.Bytes.
+access exactly the proved byte range via Data.Bytes word intrinsics; raw
+pointers never enter the public interface. The packed words feed SIMD and
+SWAR kernels. Wire order is independent of host endianness. Concurrent
+mutation follows the same rules as Data.Bytes.
 
 </details>
 
@@ -33,7 +33,7 @@ Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The call
 </article>
 
 <article class="doc-entry" id="v-bytes-read-le64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-read-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-bytes-read-le64" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Word/source/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-read-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-bytes-read-le64" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Word/source/#L24" title="View source at line 24">Source</a></span></div>
 <div class="doc-body">
 
 Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
@@ -51,7 +51,7 @@ Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= byt
 </article>
 
 <article class="doc-entry" id="v-bytes-write-le64">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-write-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-write-le64" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Word/source/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-write-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U64">U64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-write-le64" title="Permalink">#</a><a href="/packages/stdlib/Data.Bytes.Word/source/#L28" title="View source at line 28">Source</a></span></div>
 <div class="doc-body">
 
 Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.

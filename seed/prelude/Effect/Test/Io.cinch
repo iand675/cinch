@@ -1,0 +1,297 @@
+-- | Stream test adapters and reader verification helpers built over Effect.Stream.
+-- Wraps ByteReader and ByteWriter values to exercise short reads, single-byte
+-- progress, lookahead EOF/error bundling, simulated timeouts, fixed errors,
+-- truncated writes, and effectful read/write logging without global state.
+module Effect.Test.Io where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Stream
+
+  export IoTestError, IoTestStreamError, IoTestContentMismatch, IoTestShortRead, IoTestExtraData, IoTestZeroReadNonEmpty
+  export io-test-error-message
+  export err-timeout, is-timeout-error
+  export one-byte-reader, half-reader, data-err-reader, timeout-reader, err-reader
+  export truncate-writer, read-logger, write-logger
+  export test-reader
+
+  -- | Named failure reported by test-reader when a reader violates stream invariants.
+  data IoTestError where
+    -- | The reader returned an unexpected stream error.
+    IoTestStreamError :: StreamError -> IoTestError
+    -- | The full bytes read differed from the expected bytes; carries expected and actual buffers.
+    IoTestContentMismatch :: Bytes -> Bytes -> IoTestError
+    -- | Input reached EOF before all expected bytes arrived; carries expected and actual lengths.
+    IoTestShortRead :: Nat -> Nat -> IoTestError
+    -- | A read after EOF returned additional bytes instead of an empty buffer.
+    IoTestExtraData :: Bytes -> IoTestError
+    -- | A zero-length read returned non-empty data.
+    IoTestZeroReadNonEmpty :: Bytes -> IoTestError
+
+  -- | Render a concise diagnostic for a reader verification failure.
+  io-test-error-message :: IoTestError -> String
+  io-test-error-message err = case err of
+    IoTestStreamError _ -> "unexpected stream error"
+    IoTestContentMismatch _ _ -> "reader content mismatch"
+    IoTestShortRead _ _ -> "reader reached EOF before expected length"
+    IoTestExtraData _ -> "reader returned data after EOF"
+    IoTestZeroReadNonEmpty _ -> "zero-length read returned non-empty data"
+
+  -- | Sentinel stream error returned by timeout-reader on its second positive read.
+  err-timeout :: StreamError
+  err-timeout = StreamEncodingError "timeout" 0 "timeout"
+
+  -- | Check whether a stream error is the simulated timeout sentinel.
+  is-timeout-error :: StreamError -> Bool
+  is-timeout-error err = case err of
+    StreamEncodingError kind _ msg -> kind == "timeout" && msg == "timeout"
+    _ -> False
+
+  -- | Copy a checked byte interval into a fresh buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes input start count =
+    if start + count <= bytes-len input then
+      let out = bytes-new count in
+      let copied = bytes-copy-range out input 0 start count in
+      out
+    else bytes-new 0
+
+  -- | Join a list of byte chunks into one contiguous buffer.
+  concat-chunks :: Nat -> List Bytes -> Bytes
+  concat-chunks total chunks =
+    let out = bytes-new total in
+    let copied = copy-chunk-list out 0 chunks in
+    out
+
+  -- | Copy each chunk into the pre-sized output buffer in order.
+  copy-chunk-list :: Bytes -> Nat -> List Bytes -> Unit
+  copy-chunk-list out pos chunks = case chunks of
+    Nil -> ()
+    Cons chunk rest ->
+      let size = bytes-len chunk in
+      if pos + size <= bytes-len out then
+        let copied = bytes-copy-range out chunk pos 0 size in
+        copy-chunk-list out (pos + size) rest
+      else ()
+
+  -- | Limit every positive read on the wrapped reader to at most one byte.
+  one-byte-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  one-byte-reader source = stream-reader (\n -> one-byte-step source n)
+
+  -- | Perform a single-byte read against the wrapped source and preserve the adapter.
+  one-byte-step :: forall r. using (io :: Io r) => ByteReader r -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  one-byte-step source n =
+    if n == 0 then (Ok (bytes-new 0), one-byte-reader source)
+    else case stream-read source 1 of
+      (res, next) -> (res, one-byte-reader next)
+
+  -- | Limit every positive read to half the requested length, rounding up so at least one byte is requested.
+  half-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  half-reader source = stream-reader (\n -> half-step source n)
+
+  -- | Request (n + 1) / 2 bytes from the underlying reader.
+  half-step :: forall r. using (io :: Io r) => ByteReader r -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  half-step source n =
+    if n == 0 then (Ok (bytes-new 0), half-reader source)
+    else
+      let req = nat-div (n + 1) 2 in
+      case stream-read source req of
+        (res, next) -> (res, half-reader next)
+
+  -- | Buffer ahead so trailing EOF or errors are observed immediately alongside the final data chunk.
+  data-err-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  data-err-reader source = data-err-state source (bytes-new 0) None False
+
+  -- | Build a lookahead reader continuation carrying buffered bytes, a pending error, and an EOF flag.
+  data-err-state :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Option StreamError -> Bool -> ByteReader r
+  data-err-state source unread pending eof =
+    stream-reader (\n -> data-err-step source unread pending eof n)
+
+  -- | Probe the underlying source once when the unread buffer has been drained so EOF or errors surface early.
+  data-err-probe :: forall r. using (io :: Io r) => ByteReader r -> Bytes ->{IO r} (Result StreamError Bytes, ByteReader r)
+  data-err-probe source chunk =
+    case stream-read source 1024 of
+      (Err e, next) -> (Ok chunk, data-err-state next (bytes-new 0) (Some e) True)
+      (Ok ahead, next) ->
+        if bytes-len ahead == 0 then (Ok chunk, data-err-state next (bytes-new 0) None True)
+        else (Ok chunk, data-err-state next ahead None False)
+
+  -- | Serve up to n bytes from buffered lookahead data, probing ahead when emptied.
+  data-err-serve :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Option StreamError -> Bool -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  data-err-serve source buf pending eof n =
+    let avail = bytes-len buf in
+    if n < avail then
+      let chunk = slice-bytes buf 0 n in
+      let rest = slice-bytes buf n (avail - n) in
+      (Ok chunk, data-err-state source rest pending eof)
+    else if eof then
+      (Ok buf, data-err-state source (bytes-new 0) pending True)
+    else
+      case pending of
+        Some e -> (Ok buf, data-err-state source (bytes-new 0) (Some e) True)
+        None -> data-err-probe source buf
+
+  -- | Advance the lookahead reader state for one requested byte count.
+  data-err-step :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Option StreamError -> Bool -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  data-err-step source unread pending eof n =
+    if n == 0 then (Ok (bytes-new 0), data-err-state source unread pending eof)
+    else if bytes-len unread > 0 then
+      data-err-serve source unread pending eof n
+    else case pending of
+      Some e -> (Err e, data-err-state source (bytes-new 0) None True)
+      None ->
+        if eof then (Ok (bytes-new 0), data-err-state source (bytes-new 0) None True)
+        else
+          let req = if n > 1024 then n else 1024 in
+          case stream-read source req of
+            (Err e, next) -> (Err e, data-err-state next (bytes-new 0) None True)
+            (Ok got, next) ->
+              if bytes-len got == 0 then (Ok (bytes-new 0), data-err-state next (bytes-new 0) None True)
+              else data-err-serve next got None False n
+
+  -- | Return err-timeout with no data on the second positive read, then delegate all subsequent reads normally.
+  timeout-reader :: forall r. using (io :: Io r) => ByteReader r -> ByteReader r
+  timeout-reader source = timeout-state source 0
+
+  -- | Track how many positive reads have occurred on a timeout-reader.
+  timeout-state :: forall r. using (io :: Io r) => ByteReader r -> Nat -> ByteReader r
+  timeout-state source count = stream-reader (\n -> timeout-step source count n)
+
+  -- | Fail with err-timeout on the second positive read and delegate otherwise.
+  timeout-step :: forall r. using (io :: Io r) => ByteReader r -> Nat -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  timeout-step source count n =
+    if n == 0 then (Ok (bytes-new 0), timeout-state source count)
+    else if count == 1 then (Err err-timeout, timeout-state source 2)
+    else
+      case stream-read source n of
+        (res, next) -> (res, timeout-state next (if count == 0 then 1 else 2))
+
+  -- | Return the supplied stream error on every positive read without producing bytes.
+  err-reader :: forall r. using (io :: Io r) => StreamError -> ByteReader r
+  err-reader err = stream-reader (\n -> err-step err n)
+
+  -- | Yield the configured error on any positive read request.
+  err-step :: forall r. using (io :: Io r) => StreamError -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  err-step err n =
+    if n == 0 then (Ok (bytes-new 0), err-reader err)
+    else (Err err, err-reader err)
+
+  -- | Forward at most limit bytes to the underlying writer, then silently accept subsequent writes.
+  truncate-writer :: forall r. using (io :: Io r) => ByteWriter r -> Nat -> ByteWriter r
+  truncate-writer sink limit = stream-writer (\chunk -> truncate-step sink limit chunk)
+
+  -- | Write the allowed prefix to the wrapped sink and report full acceptance on success.
+  truncate-step :: forall r. using (io :: Io r) => ByteWriter r -> Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriter r)
+  truncate-step sink limit chunk =
+    let total = bytes-len chunk in
+    if total == 0 then (Ok 0, truncate-writer sink limit)
+    else if limit == 0 then (Ok total, truncate-writer sink 0)
+    else
+      let take-len = if total > limit then limit else total in
+      let prefix = slice-bytes chunk 0 take-len in
+      case stream-write-all sink prefix of
+        (Err e, next) -> (Err e, truncate-writer next limit)
+        (Ok wrote, next) ->
+          let remaining = if wrote <= limit then limit - wrote else 0 in
+          (Ok total, truncate-writer next remaining)
+
+  -- | Wrap a reader and invoke the supplied effectful logger with prefix and observed bytes on every read.
+  read-logger :: forall r. using (io :: Io r) => String -> (String -> Bytes ->{IO r} Unit) -> ByteReader r -> ByteReader r
+  read-logger prefix logger source = stream-reader (\n -> read-logger-step prefix logger source n)
+
+  -- | Delegate a read and notify the logger before returning the result and advanced reader.
+  read-logger-step :: forall r. using (io :: Io r) => String -> (String -> Bytes ->{IO r} Unit) -> ByteReader r -> Nat ->{IO r} (Result StreamError Bytes, ByteReader r)
+  read-logger-step prefix logger source n =
+    case stream-read source n of
+      (Err e, next) ->
+        let logged = logger prefix (bytes-new 0) in
+        (Err e, read-logger prefix logger next)
+      (Ok got, next) ->
+        let logged = logger prefix got in
+        (Ok got, read-logger prefix logger next)
+
+  -- | Wrap a writer and invoke the supplied effectful logger with prefix and accepted bytes on every write.
+  write-logger :: forall r. using (io :: Io r) => String -> (String -> Bytes ->{IO r} Unit) -> ByteWriter r -> ByteWriter r
+  write-logger prefix logger sink = stream-writer (\chunk -> write-logger-step prefix logger sink chunk)
+
+  -- | Delegate a write and log the accepted prefix before returning the result and advanced writer.
+  write-logger-step :: forall r. using (io :: Io r) => String -> (String -> Bytes ->{IO r} Unit) -> ByteWriter r -> Bytes ->{IO r} (Result StreamError Nat, ByteWriter r)
+  write-logger-step prefix logger sink chunk =
+    case stream-write sink chunk of
+      (Err e, next) ->
+        let logged = logger prefix (bytes-new 0) in
+        (Err e, write-logger prefix logger next)
+      (Ok wrote, next) ->
+        let accepted = slice-bytes chunk 0 wrote in
+        let logged = logger prefix accepted in
+        (Ok wrote, write-logger prefix logger next)
+
+  -- | Verify that a reader yields the expected bytes across zero-length reads, small reads, varied chunk sizes, and repeated EOF reads.
+  test-reader :: forall r. using (io :: Io r) => ByteReader r -> Bytes ->{IO r} Result IoTestError Unit
+  test-reader source expected =
+    case stream-read source 0 of
+      (Err e, _) -> Err (IoTestStreamError e)
+      (Ok z, r1) ->
+        if bytes-len z /= 0 then Err (IoTestZeroReadNonEmpty z)
+        else
+          let want-len = bytes-len expected in
+          if want-len == 0 then check-eof-idempotent r1 2
+          else test-reader-loop r1 expected 0 Nil 0
+
+  -- | Choose varied positive request sizes (1, 2, 0-probe + 3, 5, 11, 64, 1024) to exercise short and large reads.
+  test-chunk-size :: Nat -> Nat
+  test-chunk-size step =
+    if step == 0 then 1
+    else if step == 1 then 2
+    else if step == 2 then 3
+    else if step == 3 then 5
+    else if step == 4 then 11
+    else if step == 5 then 64
+    else 1024
+
+  -- | Drain the reader using varied chunk sizes, checking an interleaved zero-length read and final content match.
+  test-reader-loop :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> List Bytes -> Nat ->{IO r} Result IoTestError Unit
+  test-reader-loop source expected total acc step =
+    if step == 2 then
+      case stream-read source 0 of
+        (Err e, _) -> Err (IoTestStreamError e)
+        (Ok z, r1) ->
+          if bytes-len z /= 0 then Err (IoTestZeroReadNonEmpty z)
+          else test-reader-read r1 expected total acc step
+    else test-reader-read source expected total acc step
+
+  -- | Perform one positive read step in the verification loop.
+  test-reader-read :: forall r. using (io :: Io r) => ByteReader r -> Bytes -> Nat -> List Bytes -> Nat ->{IO r} Result IoTestError Unit
+  test-reader-read source expected total acc step =
+    let req = test-chunk-size step in
+    case stream-read source req of
+      (Err e, _) -> Err (IoTestStreamError e)
+      (Ok chunk, next) ->
+        let got = bytes-len chunk in
+        if got == 0 then
+          let actual = concat-chunks total (reverse acc) in
+          if total < bytes-len expected then Err (IoTestShortRead (bytes-len expected) total)
+          else if eq-i64 (bytes-compare actual expected) 0 then check-eof-idempotent next 2
+          else Err (IoTestContentMismatch expected actual)
+        else
+          test-reader-loop next expected (total + got) (Cons chunk acc) (step + 1)
+
+  -- | Confirm that zero-length and positive reads after EOF consistently return empty buffers without errors.
+  check-eof-idempotent :: forall r. using (io :: Io r) => ByteReader r -> Nat ->{IO r} Result IoTestError Unit
+  check-eof-idempotent source remaining =
+    if remaining == 0 then Ok ()
+    else case stream-read source 0 of
+      (Err e, _) -> Err (IoTestStreamError e)
+      (Ok z, r1) ->
+        if bytes-len z /= 0 then Err (IoTestZeroReadNonEmpty z)
+        else case stream-read r1 (if remaining == 2 then 1 else 10) of
+          (Err e, _) -> Err (IoTestStreamError e)
+          (Ok extra, r2) ->
+            if bytes-len extra /= 0 then Err (IoTestExtraData extra)
+            else check-eof-idempotent r2 (remaining - 1)

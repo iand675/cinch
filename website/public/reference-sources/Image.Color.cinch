@@ -417,296 +417,118 @@ module Image.Color where
         else nearest tail query (index + 1) distance (Some (index, candidate))
       else nearest tail query (index + 1) best selected
 
+  -- | Clamp a signed 32-bit value to the inclusive range [lo, hi].
+  clamp-i32 :: I32 -> I32 -> I32 -> I32
+  clamp-i32 x lo hi = if lt-i32 x lo then lo else if gt-i32 x hi then hi else x
+
   -- | Expand four packed bytes to sixteen-bit lanes by exact byte duplication.
-  prim expand8 :: U64 -> U64 where
-    llvm {
-      %low = trunc i64 %0 to i32
-      %bytes = bitcast i32 %low to <4 x i8>
-      %wide = zext <4 x i8> %bytes to <4 x i16>
-      %expanded = mul <4 x i16> %wide, <i16 257, i16 257, i16 257, i16 257>
-      %result = bitcast <4 x i16> %expanded to i64
-      ret i64 %result
-    }
+  expand8 :: U64 -> U64
+  expand8 w =
+    let lo16 = bit-and-u64 w 65535 in
+    let hi16 = bit-and-u64 w 4294901760 in
+    let s1 = bit-or-u64 lo16 (wrapping-shl-u64 hi16 16) in
+    let ev = bit-and-u64 s1 1095216660735 in
+    let od = bit-and-u64 s1 280375465148160 in
+    let s2 = bit-or-u64 ev (wrapping-shl-u64 od 8) in
+    bit-or-u64 s2 (wrapping-shl-u64 s2 8)
 
   -- | Multiply straight RGB by alpha with exact truncating division; alpha stays unchanged.
-  prim premultiply :: U64 -> U64 where
-    llvm {
-      %lanes = bitcast i64 %0 to <4 x i16>
-      %wide = zext <4 x i16> %lanes to <4 x i32>
-      %alphawide = lshr i64 %0, 48
-      %alpha = trunc i64 %alphawide to i32
-      %seed = insertelement <4 x i32> undef, i32 %alpha, i32 0
-      %factor = shufflevector <4 x i32> %seed, <4 x i32> undef, <4 x i32> zeroinitializer
-      %product = mul <4 x i32> %wide, %factor
-      %scaled = udiv <4 x i32> %product, <i32 65535, i32 65535, i32 65535, i32 65535>
-      %narrow = trunc <4 x i32> %scaled to <4 x i16>
-      %packed = bitcast <4 x i16> %narrow to i64
-      %rgb = and i64 %packed, 281474976710655
-      %originalalpha = and i64 %0, -281474976710656
-      %result = or i64 %rgb, %originalalpha
-      ret i64 %result
-    }
+  premultiply :: U64 -> U64
+  premultiply w =
+    let a16 = short-at w 48 in
+    let a = u16-to-u32 a16 in
+    let r = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 0)) a) 65535) in
+    let g = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 16)) a) 65535) in
+    let b = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 32)) a) 65535) in
+    pack16 r g b a16
 
   -- | Unpremultiply bounded channels; zero alpha leaves the input for explicit caller policy.
-  prim unpremultiply :: U64 -> U64 where
-    llvm {
-      %lanes = bitcast i64 %0 to <4 x i16>
-      %wide = zext <4 x i16> %lanes to <4 x i32>
-      %alphawide = lshr i64 %0, 48
-      %alpha = trunc i64 %alphawide to i32
-      %zero = icmp eq i32 %alpha, 0
-      %divisor = select i1 %zero, i32 1, i32 %alpha
-      %seed = insertelement <4 x i32> undef, i32 %divisor, i32 0
-      %factor = shufflevector <4 x i32> %seed, <4 x i32> undef, <4 x i32> zeroinitializer
-      %product = mul <4 x i32> %wide, <i32 65535, i32 65535, i32 65535, i32 65535>
-      %scaled = udiv <4 x i32> %product, %factor
-      %narrow = trunc <4 x i32> %scaled to <4 x i16>
-      %packed = bitcast <4 x i16> %narrow to i64
-      %rgb = and i64 %packed, 281474976710655
-      %originalalpha = and i64 %0, -281474976710656
-      %result = or i64 %rgb, %originalalpha
-      %selected = select i1 %zero, i64 %0, i64 %result
-      ret i64 %selected
-    }
+  unpremultiply :: U64 -> U64
+  unpremultiply w =
+    let a16 = short-at w 48 in
+    let a = u16-to-u32 a16 in
+    if a /= 0 then
+      let r = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 0)) 65535) a) in
+      let g = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 16)) 65535) a) in
+      let b = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (u16-to-u32 (short-at w 32)) 65535) a) in
+      pack16 r g b a16
+    else w
 
   -- | Accumulate exact grayscale coefficients and rounding within the proved32-bit bound.
-  prim gray-sum :: U64 -> U32 where
-    llvm {
-      %shift0 = lshr i64 %0, 0
-      %lane0 = trunc i64 %shift0 to i16
-      %wide0 = zext i16 %lane0 to i32
-      %shift1 = lshr i64 %0, 16
-      %lane1 = trunc i64 %shift1 to i16
-      %wide1 = zext i16 %lane1 to i32
-      %shift2 = lshr i64 %0, 32
-      %lane2 = trunc i64 %shift2 to i16
-      %wide2 = zext i16 %lane2 to i32
-      %shift3 = lshr i64 %0, 48
-      %lane3 = trunc i64 %shift3 to i16
-      %wide3 = zext i16 %lane3 to i32
-      %r = mul i32 %wide0, 19595
-      %g = mul i32 %wide1, 38470
-      %b = mul i32 %wide2, 7471
-      %rg = add i32 %r, %g
-      %rgb = add i32 %rg, %b
-      %rounded = add i32 %rgb, 32768
-      ret i32 %rounded
-    }
+  gray-sum :: U64 -> U32
+  gray-sum w =
+    let r = wrapping-mul-u32 (u16-to-u32 (short-at w 0)) 19595 in
+    let g = wrapping-mul-u32 (u16-to-u32 (short-at w 16)) 38470 in
+    let b = wrapping-mul-u32 (u16-to-u32 (short-at w 32)) 7471 in
+    wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 r g) b) 32768
 
   -- | Convert packed luma/chroma directly to saturated16-bit RGB with full fixed-point precision.
-  prim ycbcr16 :: U64 -> U64 where
-    llvm {
-      %shift0 = lshr i64 %0, 0
-      %lane0 = trunc i64 %shift0 to i8
-      %wide0 = zext i8 %lane0 to i32
-      %shift1 = lshr i64 %0, 8
-      %lane1 = trunc i64 %shift1 to i8
-      %wide1 = zext i8 %lane1 to i32
-      %shift2 = lshr i64 %0, 16
-      %lane2 = trunc i64 %shift2 to i8
-      %wide2 = zext i8 %lane2 to i32
-      %shift3 = lshr i64 %0, 24
-      %lane3 = trunc i64 %shift3 to i8
-      %wide3 = zext i8 %lane3 to i32
-      %yy = mul i32 %wide0, 65793
-      %cb = sub i32 %wide1, 128
-      %cr = sub i32 %wide2, 128
-      %rcr = mul i32 %cr, 91881
-      %rterm = add i32 %yy, %rcr
-      %gcb = mul i32 %cb, 22554
-      %gcr = mul i32 %cr, 46802
-      %gterms = add i32 %gcb, %gcr
-      %gterm = sub i32 %yy, %gterms
-      %bcb = mul i32 %cb, 116130
-      %bterm = add i32 %yy, %bcb
-      %r = ashr i32 %rterm, 8
-      %negative_r = icmp slt i32 %r, 0
-      %low_r = select i1 %negative_r, i32 0, i32 %r
-      %large_r = icmp sgt i32 %low_r, 65535
-      %clip_r = select i1 %large_r, i32 65535, i32 %low_r
-      %g = ashr i32 %gterm, 8
-      %negative_g = icmp slt i32 %g, 0
-      %low_g = select i1 %negative_g, i32 0, i32 %g
-      %large_g = icmp sgt i32 %low_g, 65535
-      %clip_g = select i1 %large_g, i32 65535, i32 %low_g
-      %b = ashr i32 %bterm, 8
-      %negative_b = icmp slt i32 %b, 0
-      %low_b = select i1 %negative_b, i32 0, i32 %b
-      %large_b = icmp sgt i32 %low_b, 65535
-      %clip_b = select i1 %large_b, i32 65535, i32 %low_b
-      %outwide0 = zext i32 %clip_r to i64
-      %outshift0 = shl i64 %outwide0, 0
-      %outwide1 = zext i32 %clip_g to i64
-      %outshift1 = shl i64 %outwide1, 16
-      %outwide2 = zext i32 %clip_b to i64
-      %outshift2 = shl i64 %outwide2, 32
-      %outsum1 = or i64 %outshift0, %outshift1
-      %outsum2 = or i64 %outsum1, %outshift2
-      %opaque = or i64 %outsum2, 18446462598732840960
-      ret i64 %opaque
-    }
+  ycbcr16 :: U64 -> U64
+  ycbcr16 w =
+    let yy = wrapping-mul-i32 (u8-to-i32 (byte-at w 0)) 65793 in
+    let cb = wrapping-sub-i32 (u8-to-i32 (byte-at w 8)) 128 in
+    let cr = wrapping-sub-i32 (u8-to-i32 (byte-at w 16)) 128 in
+    let rterm = wrapping-add-i32 yy (wrapping-mul-i32 cr 91881) in
+    let gterm = wrapping-sub-i32 yy (wrapping-add-i32 (wrapping-mul-i32 cb 22554) (wrapping-mul-i32 cr 46802)) in
+    let bterm = wrapping-add-i32 yy (wrapping-mul-i32 cb 116130) in
+    let r = wrapping-i32-to-u16 (clamp-i32 (wrapping-shr-i32 rterm 8) 0 65535) in
+    let g = wrapping-i32-to-u16 (clamp-i32 (wrapping-shr-i32 gterm 8) 0 65535) in
+    let b = wrapping-i32-to-u16 (clamp-i32 (wrapping-shr-i32 bterm 8) 0 65535) in
+    pack16 r g b 65535
 
   -- | Convert8-bit RGB to fixed-point luma/chroma with explicit saturated rounding.
-  prim rgb-ycbcr :: U64 -> U64 where
-    llvm {
-      %shift0 = lshr i64 %0, 0
-      %lane0 = trunc i64 %shift0 to i8
-      %wide0 = zext i8 %lane0 to i32
-      %shift1 = lshr i64 %0, 8
-      %lane1 = trunc i64 %shift1 to i8
-      %wide1 = zext i8 %lane1 to i32
-      %shift2 = lshr i64 %0, 16
-      %lane2 = trunc i64 %shift2 to i8
-      %wide2 = zext i8 %lane2 to i32
-      %shift3 = lshr i64 %0, 24
-      %lane3 = trunc i64 %shift3 to i8
-      %wide3 = zext i8 %lane3 to i32
-      %yr = mul i32 %wide0, 19595
-      %yg = mul i32 %wide1, 38470
-      %yb = mul i32 %wide2, 7471
-      %yrg = add i32 %yr, %yg
-      %yrgb = add i32 %yrg, %yb
-      %yround = add i32 %yrgb, 32768
-      %y = ashr i32 %yround, 16
-      %cbr = mul i32 %wide0, -11056
-      %cbg = mul i32 %wide1, -21712
-      %cbb = mul i32 %wide2, 32768
-      %cbrg = add i32 %cbr, %cbg
-      %cbrgb = add i32 %cbrg, %cbb
-      %cbround = add i32 %cbrgb, 8421376
-      %cb = ashr i32 %cbround, 16
-      %crr = mul i32 %wide0, 32768
-      %crg = mul i32 %wide1, -27440
-      %crb = mul i32 %wide2, -5328
-      %crrg = add i32 %crr, %crg
-      %crrgb = add i32 %crrg, %crb
-      %crround = add i32 %crrgb, 8421376
-      %cr = ashr i32 %crround, 16
-      %negative_y = icmp slt i32 %y, 0
-      %low_y = select i1 %negative_y, i32 0, i32 %y
-      %large_y = icmp sgt i32 %low_y, 255
-      %clip_y = select i1 %large_y, i32 255, i32 %low_y
-      %negative_cb = icmp slt i32 %cb, 0
-      %low_cb = select i1 %negative_cb, i32 0, i32 %cb
-      %large_cb = icmp sgt i32 %low_cb, 255
-      %clip_cb = select i1 %large_cb, i32 255, i32 %low_cb
-      %negative_cr = icmp slt i32 %cr, 0
-      %low_cr = select i1 %negative_cr, i32 0, i32 %cr
-      %large_cr = icmp sgt i32 %low_cr, 255
-      %clip_cr = select i1 %large_cr, i32 255, i32 %low_cr
-      %outwide0 = zext i32 %clip_y to i64
-      %outshift0 = shl i64 %outwide0, 0
-      %outwide1 = zext i32 %clip_cb to i64
-      %outshift1 = shl i64 %outwide1, 8
-      %outwide2 = zext i32 %clip_cr to i64
-      %outshift2 = shl i64 %outwide2, 16
-      %outsum1 = or i64 %outshift0, %outshift1
-      %outsum2 = or i64 %outsum1, %outshift2
-      ret i64 %outsum2
-    }
+  rgb-ycbcr :: U64 -> U64
+  rgb-ycbcr w =
+    let r = u8-to-i32 (byte-at w 0) in
+    let g = u8-to-i32 (byte-at w 8) in
+    let b = u8-to-i32 (byte-at w 16) in
+    let ysum = wrapping-add-i32 (wrapping-add-i32 (wrapping-add-i32 (wrapping-mul-i32 r 19595) (wrapping-mul-i32 g 38470)) (wrapping-mul-i32 b 7471)) 32768 in
+    let cbsum = wrapping-add-i32 (wrapping-add-i32 (wrapping-add-i32 (wrapping-mul-i32 r (-11056)) (wrapping-mul-i32 g (-21712))) (wrapping-mul-i32 b 32768)) 8421376 in
+    let crsum = wrapping-add-i32 (wrapping-add-i32 (wrapping-add-i32 (wrapping-mul-i32 r 32768) (wrapping-mul-i32 g (-27440))) (wrapping-mul-i32 b (-5328))) 8421376 in
+    let y = wrapping-i32-to-u8 (clamp-i32 (wrapping-shr-i32 ysum 16) 0 255) in
+    let cb = wrapping-i32-to-u8 (clamp-i32 (wrapping-shr-i32 cbsum 16) 0 255) in
+    let cr = wrapping-i32-to-u8 (clamp-i32 (wrapping-shr-i32 crsum 16) 0 255) in
+    pack8 y cb cr 0
+
+  -- | Return the larger of two unsigned 32-bit values.
+  max-u32 :: U32 -> U32 -> U32
+  max-u32 a b = if gt-u32 a b then a else b
 
   -- | Convert RGB through its maximum channel, keeping all-black division explicitly guarded.
-  prim rgb-cmyk :: U64 -> U64 where
-    llvm {
-      %shift0 = lshr i64 %0, 0
-      %lane0 = trunc i64 %shift0 to i8
-      %wide0 = zext i8 %lane0 to i32
-      %shift1 = lshr i64 %0, 8
-      %lane1 = trunc i64 %shift1 to i8
-      %wide1 = zext i8 %lane1 to i32
-      %shift2 = lshr i64 %0, 16
-      %lane2 = trunc i64 %shift2 to i8
-      %wide2 = zext i8 %lane2 to i32
-      %shift3 = lshr i64 %0, 24
-      %lane3 = trunc i64 %shift3 to i8
-      %wide3 = zext i8 %lane3 to i32
-      %rg = icmp ugt i32 %wide0, %wide1
-      %maxrg = select i1 %rg, i32 %wide0, i32 %wide1
-      %rgb = icmp ugt i32 %maxrg, %wide2
-      %white = select i1 %rgb, i32 %maxrg, i32 %wide2
-      %zero = icmp eq i32 %white, 0
-      %divisor = select i1 %zero, i32 1, i32 %white
-      %rdiff = sub i32 %white, %wide0
-      %gdiff = sub i32 %white, %wide1
-      %bdiff = sub i32 %white, %wide2
-      %rmul = mul i32 %rdiff, 255
-      %gmul = mul i32 %gdiff, 255
-      %bmul = mul i32 %bdiff, 255
-      %c = udiv i32 %rmul, %divisor
-      %m = udiv i32 %gmul, %divisor
-      %y = udiv i32 %bmul, %divisor
-      %k = sub i32 255, %white
-      %outwide0 = zext i32 %c to i64
-      %outshift0 = shl i64 %outwide0, 0
-      %outwide1 = zext i32 %m to i64
-      %outshift1 = shl i64 %outwide1, 8
-      %outwide2 = zext i32 %y to i64
-      %outshift2 = shl i64 %outwide2, 16
-      %outwide3 = zext i32 %k to i64
-      %outshift3 = shl i64 %outwide3, 24
-      %outsum1 = or i64 %outshift0, %outshift1
-      %outsum2 = or i64 %outsum1, %outshift2
-      %outsum3 = or i64 %outsum2, %outshift3
-      ret i64 %outsum3
-    }
+  rgb-cmyk :: U64 -> U64
+  rgb-cmyk w =
+    let r = u8-to-u32 (byte-at w 0) in
+    let g = u8-to-u32 (byte-at w 8) in
+    let b = u8-to-u32 (byte-at w 16) in
+    let white = max-u32 (max-u32 r g) b in
+    let k = wrapping-u32-to-u8 (wrapping-sub-u32 255 white) in
+    if white /= 0 then
+      let c = wrapping-u32-to-u8 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 white r) 255) white) in
+      let m = wrapping-u32-to-u8 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 white g) 255) white) in
+      let y = wrapping-u32-to-u8 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 white b) 255) white) in
+      pack8 c m y k
+    else pack8 0 0 0 k
 
   -- | Convert ink channels through full16-bit products before any8-bit reduction.
-  prim cmyk16 :: U64 -> U64 where
-    llvm {
-      %shift0 = lshr i64 %0, 0
-      %lane0 = trunc i64 %shift0 to i8
-      %wide0 = zext i8 %lane0 to i32
-      %shift1 = lshr i64 %0, 8
-      %lane1 = trunc i64 %shift1 to i8
-      %wide1 = zext i8 %lane1 to i32
-      %shift2 = lshr i64 %0, 16
-      %lane2 = trunc i64 %shift2 to i8
-      %wide2 = zext i8 %lane2 to i32
-      %shift3 = lshr i64 %0, 24
-      %lane3 = trunc i64 %shift3 to i8
-      %wide3 = zext i8 %lane3 to i32
-      %kmul = mul i32 %wide3, 257
-      %white = sub i32 65535, %kmul
-      %inkr = mul i32 %wide0, 257
-      %inverser = sub i32 65535, %inkr
-      %productr = mul i32 %inverser, %white
-      %r = udiv i32 %productr, 65535
-      %inkg = mul i32 %wide1, 257
-      %inverseg = sub i32 65535, %inkg
-      %productg = mul i32 %inverseg, %white
-      %g = udiv i32 %productg, 65535
-      %inkb = mul i32 %wide2, 257
-      %inverseb = sub i32 65535, %inkb
-      %productb = mul i32 %inverseb, %white
-      %b = udiv i32 %productb, 65535
-      %outwide0 = zext i32 %r to i64
-      %outshift0 = shl i64 %outwide0, 0
-      %outwide1 = zext i32 %g to i64
-      %outshift1 = shl i64 %outwide1, 16
-      %outwide2 = zext i32 %b to i64
-      %outshift2 = shl i64 %outwide2, 32
-      %outsum1 = or i64 %outshift0, %outshift1
-      %outsum2 = or i64 %outsum1, %outshift2
-      %opaque = or i64 %outsum2, 18446462598732840960
-      ret i64 %opaque
-    }
+  cmyk16 :: U64 -> U64
+  cmyk16 w =
+    let white = wrapping-sub-u32 65535 (wrapping-mul-u32 (u8-to-u32 (byte-at w 24)) 257) in
+    let r = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 65535 (wrapping-mul-u32 (u8-to-u32 (byte-at w 0)) 257)) white) 65535) in
+    let g = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 65535 (wrapping-mul-u32 (u8-to-u32 (byte-at w 8)) 257)) white) 65535) in
+    let b = wrapping-u32-to-u16 (div-u32 (wrapping-mul-u32 (wrapping-sub-u32 65535 (wrapping-mul-u32 (u8-to-u32 (byte-at w 16)) 257)) white) 65535) in
+    pack16 r g b 65535
+
+  -- | Compute one channel's truncated squared 16-bit difference.
+  sq-diff-u16 :: U16 -> U16 -> U32
+  sq-diff-u16 x y =
+    let d = wrapping-sub-u32 (u16-to-u32 x) (u16-to-u32 y) in
+    wrapping-shr-u32 (wrapping-mul-u32 d d) 2
 
   -- | Sum four squared16-bit differences after per-lane truncation, without overflowing32 bits.
-  prim distance4 :: U64 -> U64 -> U32 where
-    llvm {
-      %left = bitcast i64 %0 to <4 x i16>
-      %right = bitcast i64 %1 to <4 x i16>
-      %leftwide = zext <4 x i16> %left to <4 x i32>
-      %rightwide = zext <4 x i16> %right to <4 x i32>
-      %difference = sub <4 x i32> %leftwide, %rightwide
-      %square = mul <4 x i32> %difference, %difference
-      %scaled = lshr <4 x i32> %square, <i32 2, i32 2, i32 2, i32 2>
-      %r = extractelement <4 x i32> %scaled, i32 0
-      %g = extractelement <4 x i32> %scaled, i32 1
-      %b = extractelement <4 x i32> %scaled, i32 2
-      %a = extractelement <4 x i32> %scaled, i32 3
-      %rg = add i32 %r, %g
-      %ba = add i32 %b, %a
-      %sum = add i32 %rg, %ba
-      ret i32 %sum
-    }
+  distance4 :: U64 -> U64 -> U32
+  distance4 left right =
+    let r = sq-diff-u16 (short-at left 0) (short-at right 0) in
+    let g = sq-diff-u16 (short-at left 16) (short-at right 16) in
+    let b = sq-diff-u16 (short-at left 32) (short-at right 32) in
+    let a = sq-diff-u16 (short-at left 48) (short-at right 48) in
+    wrapping-add-u32 (wrapping-add-u32 r g) (wrapping-add-u32 b a)

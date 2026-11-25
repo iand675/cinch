@@ -21,6 +21,7 @@ module Text.Xml where
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide
   import Text.Show (nat-to-string)
 
   export XmlName, xml-name, xml-name-space, xml-name-local, XmlAttr, xml-attr, xml-attr-name, xml-attr-value
@@ -536,8 +537,9 @@ module Text.Xml where
   text :: Bytes -> Nat -> Nat -> Bool -> List Bytes -> Option Bad -> Result XmlError (Bytes, Nat)
   text s i quote cdata pieces bad =
     if i + 16 <= bytes-len s then
-      (let k = i64-to-nat (hold s (text-span (bytes-data s) (nat-to-i64 i) (if quote < 256 then nat-to-i64 quote else 0))) in
-      if k > 0 then text s (i + k) quote cdata (Cons (slice s i (i + k)) pieces) bad
+      (let extra = if quote < 256 then wrapping-i64-to-u8 (nat-to-i64 quote) else (0 :: U8) in
+      let j = i64-to-nat (text-span-end s (nat-to-i64 i) extra) in
+      if j > i then text s j quote cdata (Cons (slice s i j) pieces) bad
       else text-byte s i quote cdata pieces bad)
     else text-byte s i quote cdata pieces bad
 
@@ -884,8 +886,8 @@ module Text.Xml where
   escape-from b newlines i acc =
     if i >= bytes-len b then acc
     else
-      let k = if i + 16 <= bytes-len b then i64-to-nat (hold b (escape-span (bytes-data b) (nat-to-i64 i) 0)) else plain-run b i in
-      if k > 0 then escape-from b newlines (i + k) (Cons (slice b i (i + k)) acc)
+      let j = i64-to-nat (escape-span-end b (nat-to-i64 i)) in
+      if j > i then escape-from b newlines j (Cons (slice b i j) acc)
       else
         let c = at b i in
         if c == 34 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&#34;") acc)
@@ -906,14 +908,6 @@ module Text.Xml where
   -- | The replacement character's UTF-8 bytes.
   replacement :: Unit -> Bytes
   replacement unit = bytes-from-u8s [239, 191, 189]
-
-  -- | Plain bytes at the end of the input, one at a time.
-  plain-run :: Bytes -> Nat -> Nat
-  plain-run b i = if i < bytes-len b && plain (at b i) then 1 + plain-run b (i + 1) else 0
-
-  -- | A byte that escaping leaves as it is on its own.
-  plain :: Nat -> Bool
-  plain c = c >= 32 && c < 128 && not (c == 34 || c == 39 || c == 38 || c == 60 || c == 62)
 
   -- ---------------------------------------------------------------------
   -- Element trees.
@@ -1156,16 +1150,11 @@ module Text.Xml where
     else if c < 65536 then from-list [224 + nat-div c 4096, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
     else from-list [240 + nat-div c 262144, 128 + nat-rem (nat-div c 4096) 64, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
 
-  -- | Keep a buffer alive until a raw load has completed.
-  hold :: forall a. Bytes -> a -> a
-  hold b value = case bytes-len b of
-    _ -> value
-
   -- | A non-negative machine count as a natural number.
   i64-to-nat :: I64 -> Nat
   i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
 
-  -- Generated XML kernels: name-character classes and sixteen-byte span scanners.
+  -- XML name-character classes and sixteen-byte span scanners.
 
   -- | Whether a code point may start an XML name.
   name-first :: Nat -> Bool
@@ -2119,65 +2108,68 @@ module Text.Xml where
                 else
                   c >= 12540 && c <= 12542
 
-  -- | Leading plain text bytes among the sixteen at base + offset (16 when all are). Stops at
-  -- controls other than tab and line feed, non-ASCII bytes, '<', '&', carriage return, ']' and one
-  -- extra byte (an attribute's quote, or 0 for none).
-  prim text-span :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %a0 = icmp ne <16 x i8> %v, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %k0 = and <16 x i1> %low, %a0
-      %a1 = icmp ne <16 x i8> %v, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %k1 = and <16 x i1> %k0, %a1
-      %s1 = or <16 x i1> %s0, %k1
-      %hi = icmp uge <16 x i8> %v, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
-      %s2 = or <16 x i1> %s1, %hi
-      %t0 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %u0 = or <16 x i1> %s2, %t0
-      %t1 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %u1 = or <16 x i1> %u0, %t1
-      %t2 = icmp eq <16 x i8> %v, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
-      %u2 = or <16 x i1> %u1, %t2
-      %pick = select <16 x i1> %u2, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Advance past plain XML text bytes sixteen bytes at a time, stopping at controls other than tab
+  -- and line feed, non-ASCII bytes, '<', '&', ']' and one extra byte (an attribute quote, or 0 for none).
+  text-span-end :: Bytes -> I64 -> U8 -> I64
+  text-span-end s i extra =
+    let n = bytes-len-i64 s in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at s i in
+          let is-extra = simd-u8x16-cmpeq v (simd-u8x16-splat extra) in
+          let is-low = simd-u8x16-cmplt v (simd-u8x16-splat 32) in
+          let is-tab = simd-u8x16-cmpeq v (simd-u8x16-splat 9) in
+          let is-lf = simd-u8x16-cmpeq v (simd-u8x16-splat 10) in
+          let is-ctl = bit-and-u128 is-low (bit-not-u128 (bit-or-u128 is-tab is-lf)) in
+          let is-hi = simd-u8x16-cmpgt v (simd-u8x16-splat 127) in
+          let is-lt = simd-u8x16-cmpeq v (simd-u8x16-splat 60) in
+          let is-amp = simd-u8x16-cmpeq v (simd-u8x16-splat 38) in
+          let is-rb = simd-u8x16-cmpeq v (simd-u8x16-splat 93) in
+          let stop = bit-or-u128 (bit-or-u128 (bit-or-u128 is-extra is-ctl) (bit-or-u128 is-hi is-lt)) (bit-or-u128 is-amp is-rb) in
+          let mask = simd-u8x16-movemask stop in
+          if eq-u32 mask 0 then text-span-end s (wrapping-add-i64 i 16) extra
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else i
+      else i
+    else i
 
-  -- | Leading bytes that escaping leaves unchanged among the sixteen at base + offset (16 when all
-  -- are). Stops at every control, non-ASCII bytes, the quotes, '&', '<', '>' and one extra byte.
-  prim escape-span :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %s1 = or <16 x i1> %s0, %low
-      %hi = icmp uge <16 x i8> %v, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
-      %s2 = or <16 x i1> %s1, %hi
-      %t0 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %u0 = or <16 x i1> %s2, %t0
-      %t1 = icmp eq <16 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %u1 = or <16 x i1> %u0, %t1
-      %t2 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %u2 = or <16 x i1> %u1, %t2
-      %t3 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %u3 = or <16 x i1> %u2, %t3
-      %t4 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %u4 = or <16 x i1> %u3, %t4
-      %pick = select <16 x i1> %u4, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Advance past bytes that XML escaping leaves unchanged, sixteen bytes at a time with a scalar tail.
+  -- Stops at controls, non-ASCII bytes, quotes, '&', '<' and '>'.
+  escape-span-end :: Bytes -> I64 -> I64
+  escape-span-end b i =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at b i in
+          let is-low = simd-u8x16-cmplt v (simd-u8x16-splat 32) in
+          let is-hi = simd-u8x16-cmpgt v (simd-u8x16-splat 127) in
+          let is-dq = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+          let is-sq = simd-u8x16-cmpeq v (simd-u8x16-splat 39) in
+          let is-amp = simd-u8x16-cmpeq v (simd-u8x16-splat 38) in
+          let is-lt = simd-u8x16-cmpeq v (simd-u8x16-splat 60) in
+          let is-gt = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+          let stop = bit-or-u128 (bit-or-u128 (bit-or-u128 is-low is-hi) (bit-or-u128 is-dq is-sq)) (bit-or-u128 (bit-or-u128 is-amp is-lt) is-gt) in
+          let mask = simd-u8x16-movemask stop in
+          if eq-u32 mask 0 then escape-span-end b (wrapping-add-i64 i 16)
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else escape-span-tail b i
+      else escape-span-tail b i
+    else escape-span-tail b i
+
+  -- | Scalar tail for bytes that XML escaping leaves unchanged.
+  escape-span-tail :: Bytes -> I64 -> I64
+  escape-span-tail b i =
+    if 0 <= i && i < bytes-len-i64 b then
+      let c = bytes-get-u8-at b i in
+      if ge-u8 c 32 && lt-u8 c 128 && ne-u8 c 34 && ne-u8 c 39 && ne-u8 c 38 && ne-u8 c 60 && ne-u8 c 62 then
+        escape-span-tail b (wrapping-add-i64 i 1)
+      else i
+    else i

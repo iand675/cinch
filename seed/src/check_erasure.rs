@@ -95,7 +95,10 @@ impl Checker {
         let unsupported = || Error::at(span, format!(
             "an erased proof let must terminate: {} has no checked termination argument", id.0));
         if let Some(unit) = self.fns.iter().find(|unit| unit.id == *id) {
-            if unit.ctor.is_some() || unit.prim.is_some_and(|op| total_primitive(op).is_some()) {
+            if unit.ctor.is_some()
+                || unit.prim.is_some_and(|op| total_primitive(op).is_some())
+                || (unit.meta.prim_body && self.prims.iter().any(|p| p.unit == unit.id.0 && p.pure))
+            {
                 return Ok(());
             }
         }

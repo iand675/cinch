@@ -102,14 +102,48 @@ def prepare(work: Path, vectors: Path, stream_source: Path | None = None, text_s
     return {name: count for name, (_, count) in cases.items()}, ordered
 
 
-def build_fixture(work: Path, clang: str) -> dict:
-    """Compile a scalar reference fixture against the actual checked SIMD body."""
-    source = (work / 'Text.QuotedPrintable.cinch').read_text()
-    match = re.search(r'prim raw16 .*?llvm\s*\{(.*?)\}\s*when endian little', source, re.S)
-    if not match:
-        raise RuntimeError('missing selected little-endian classifier body')
+def build_fixture(work: Path, clang: str, compiler: Path | None = None) -> dict:
+    """Compile a scalar reference fixture against the actual pure-Cinch SIMD classifier."""
+    cinch = compiler or (ROOT / 'seed/target/release/cinch')
+    probe = work / '_fixture_probe'
+    probe.mkdir(parents=True, exist_ok=True)
+    for src_path in work.glob('*.cinch'):
+        shutil.copyfile(src_path, probe / src_path.name)
+    qp_path = probe / 'Text.QuotedPrintable.cinch'
+    qp_src = qp_path.read_text()
+    if 'classify-sixteen-mask ::' not in qp_src:
+        raise RuntimeError('missing selected pure-Cinch classifier body')
+    qp_src = re.sub(r'^(\s*export\s+)', r'\1classify-sixteen-mask, ', qp_src, count=1, flags=re.M)
+    qp_path.write_text(qp_src)
+    (probe / 'Main.cinch').write_text(
+        '-- | Root pure-Cinch Text.QuotedPrintable SIMD kernel for foreign-object oracle verification.\n'
+        'module Main where\n'
+        '  import Data.Machine\n'
+        '  import Data.Wide\n'
+        '  import Text.QuotedPrintable\n'
+        '  -- | Keep pure-Cinch classify-sixteen-mask reachable in emitted LLVM IR.\n'
+        '  main :: Int\n'
+        '  main = int-from-i64 (u32-to-i64 (classify-sixteen-mask 0 0))\n'
+    )
+    raw_ir = probe / 'probe.ll'
+    run([str(cinch), 'emit-ir', str(probe / 'Main.cinch'), '-o', str(raw_ir)], probe, env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
+    ir = raw_ir.read_text()
+    ir = re.sub(r'^define (?!internal )', 'define internal ', ir, flags=re.M)
+    ir = re.sub(r'^@llvm\.global_ctors = .*\n?', '', ir, flags=re.M)
+    ir = re.sub(r'^(@(?:"[^"]+"|[A-Za-z0-9_.$#-]+) = )(?!private |internal |external |appending |unnamed_addr )', r'\1internal ', ir, flags=re.M)
+    ir = ir.replace('define internal i32 @main(', 'define internal i32 @__qp_probe_main(')
+    trampoline = (
+        '\ndefine i32 @qp_fixture_classify16(i64 %0, i64 %1, i8 %2) {\n'
+        '  %lo = zext i64 %0 to i128\n'
+        '  %hi = zext i64 %1 to i128\n'
+        '  %sh = shl i128 %hi, 64\n'
+        '  %v = or i128 %lo, %sh\n'
+        '  %r = call i32 @"Text.QuotedPrintable.classify-sixteen-mask"(i128 %v, i8 %2)\n'
+        '  ret i32 %r\n'
+        '}\n'
+    )
     kernel = work / 'classifier.ll'
-    kernel.write_text('define i32 @qp_fixture_classify16(i64 %0, i64 %1, i8 %2) {\n' + match.group(1) + '\n}\n')
+    kernel.write_text(ir + trampoline)
     fixture = ROOT / 'tooling/data/quoted-printable-fixture.c'
     for src, obj in [(kernel, work / 'classifier.o'), (fixture, work / 'fixture.o')]:
         run([clang, '-O2', '-c', str(src), '-o', str(obj)], work)

@@ -27,6 +27,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const COMPLEX: &str = include_str!("../prelude/Data/Complex.cinch");
+const FLOAT: &str = include_str!("../prelude/Data/Float.cinch");
 
 fn run_main(name: &str, main_src: &str) -> i32 {
     static N: AtomicUsize = AtomicUsize::new(0);
@@ -38,6 +39,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
+    std::fs::write(dir.join("Data.Float.cinch"), FLOAT).expect("write Float");
     std::fs::write(dir.join("Complex.cinch"), COMPLEX).expect("write Complex");
     std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main");
     match common::drive(Mode::Run, &dir, "Main.cinch", None) {

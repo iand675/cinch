@@ -37,8 +37,7 @@
       ],
       "remaining": [
         "Incremental Reader/Writer over Effect.Stream",
-        "Compressor/decompressor registration for other methods",
-        "LZ77 DEFLATE compression (the writer currently uses the run-length DEFLATE encoder)"
+        "Compressor/decompressor registration for other methods"
       ],
       "reference_declarations": 78,
       "tests": [
@@ -52,7 +51,7 @@
         "Store/Deflate": "zip-store and zip-deflate",
         "ErrFormat/ErrChecksum/ErrAlgorithm": "ZipNotFound, ZipBadEntry, ZipTruncated, ZipChecksumMismatch, ZipSizeMismatch, ZipUnsupportedMethod and ZipBadDeflate"
       },
-      "review": "Four stored archives written by the reference implementation (directories, Unix modes, UTF-8 and legacy names with the UTF-8 flag, per-file and archive comments, extended timestamps and pre-2000 MS-DOS dates) are reproduced byte for byte and read back; deflated archives (including an empty deflated entry) and a Zip64-marked entry read, inflate and verify; deflated writing round-trips; missing directories, corrupted data and corrupted signatures are rejected precisely."
+      "review": "Four stored archives written by the reference implementation (directories, Unix modes, UTF-8 and legacy names with the UTF-8 flag, per-file and archive comments, extended timestamps and pre-2000 MS-DOS dates) are reproduced byte for byte and read back; deflated archives (including an empty deflated entry) and a Zip64-marked entry read, inflate and verify; zip-deflate and zip-file-with-level now compress with Text.Flate LZ77 + dynamic Huffman and interoperate with Python zipfile; missing directories, corrupted data and corrupted signatures are rejected precisely."
     },
     {
       "reference_package": "bufio",
@@ -172,15 +171,19 @@
     },
     {
       "reference_package": "compress/flate",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Effect.Flate",
+        "Text.Flate",
         "Text.Zlib"
       ],
-      "remaining": [
-        "incremental compression and decompression, dictionaries, encoder compression levels and operation-level review"
-      ],
+      "remaining": [],
       "reference_declarations": 38,
-      "review": "Text.Zlib exposes raw decoding at a byte offset with exact consumed position, stored-block encoding, and fixed-Huffman distance-one run compression."
+      "review": "Text.Zlib exposes raw decoding at a byte offset with exact consumed position, stored-block encoding, and fixed-Huffman distance-one run compression.",
+      "tests": [
+        "lib_flate"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "compress/gzip",
@@ -190,16 +193,14 @@
       ],
       "remaining": [
         "incremental Reader and Writer with header metadata and reset/flush",
-        "general LZ77 compression, dynamic Huffman encoding and compression levels",
         "self-built frontend qualification and pipeline benchmarks"
       ],
       "reference_declarations": 33,
       "tests": [
-        "lib_zlib::gzip_checks_optional_headers_trailers_and_member_boundaries",
-        "lib_zlib::gzip_interoperates_with_python_in_both_directions",
-        "lib_zlib::gzip_run_encoder_matches_independent_decoder_and_selects_smaller_blocks"
+        "lib_zlib"
       ],
-      "review": "Whole-buffer RFC 1952 members support optional fields, FHCRC, CRC-32, ISIZE and concatenation. Single-member decoding returns the next offset. Deterministic writers support stored blocks or fixed Huffman codes with distance-one runs and a stored fallback."
+      "review": "Whole-buffer RFC 1952 members support optional fields, FHCRC, CRC-32, ISIZE and concatenation. Single-member decoding returns the next offset. gzip-encode and gzip-encode-level compress with Text.Flate LZ77 + dynamic Huffman (with gzip-encode-stored for uncompressed blocks), interoperating bidirectionally with Python gzip.",
+      "benchmarks": []
     },
     {
       "reference_package": "compress/lzw",
@@ -228,8 +229,15 @@
       "cinch_modules": [
         "Text.Zlib"
       ],
-      "remaining": [],
-      "reference_declarations": 25
+      "remaining": [
+        "incremental streaming Reader and Writer with preset dictionary reset/flush"
+      ],
+      "reference_declarations": 25,
+      "tests": [
+        "lib_zlib"
+      ],
+      "benchmarks": [],
+      "review": "RFC 1950 zlib and RFC 1951 raw DEFLATE wrappers wired to Text.Flate LZ77 + dynamic Huffman compression (deflate, deflate-level, deflate-raw, deflate-raw-level, deflate-stored, deflate-raw-stored) with Adler-32 validation and bidirectional Python zlib interop."
     },
     {
       "reference_package": "container/heap",
@@ -588,10 +596,25 @@
     },
     {
       "reference_package": "crypto/mldsa",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 39
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.MlDsa"
+      ],
+      "remaining": [
+        "HashML-DSA pre-hash mode (FIPS 204 Section 5.4)",
+        "Performance benchmarks against reference implementations"
+      ],
+      "reference_declarations": 39,
+      "tests": [
+        "lib_mldsa"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "ML-DSA-44 / ML-DSA-65 / ML-DSA-87": "MlDsa44, MlDsa65, MlDsa87 parameter sets with mldsa-keygen, mldsa-sign-deterministic, mldsa-sign-hedged, mldsa-verify, and pure FIPS 204 key/signature serialization",
+        "Context strings": "Domain-separated FIPS 204 M' framing with 0..255 byte context validation",
+        "Key encoding": "mldsa-pk-bytes, mldsa-sk-bytes, mldsa-pk-from-bytes, mldsa-sk-from-bytes"
+      },
+      "review": "Pure Cinch FIPS 204 ML-DSA-44/65/87 (zero inline LLVM): NTT/INTT, SHAKE128/SHAKE256 matrix/mask/challenge sampling, bit packing, UseHint/MakeHint, deterministic and hedged signing, and verification validated byte-for-byte against an independent FIPS 204 verifier and cross-compiled for arm64, wasm32, and powerpc64 with zero leaks."
     },
     {
       "reference_package": "crypto/mlkem",
@@ -656,10 +679,19 @@
     },
     {
       "reference_package": "crypto/rsa",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 61
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Rsa"
+      ],
+      "remaining": [
+        "Constant-time big-integer modular exponentiation (padding and digest checks are constant time via Crypto.ConstantTime; Data.Nat arithmetic is variable time)",
+        "Multi-prime RSA keys (deprecated in Go 1.24; two-prime PKCS#1 v0 keys are supported)"
+      ],
+      "reference_declarations": 61,
+      "tests": [
+        "lib_rsa"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "crypto/sha1",
@@ -801,38 +833,84 @@
     },
     {
       "reference_package": "crypto/tls",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 352
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Tls",
+        "Effect.Tls"
+      ],
+      "remaining": [
+        "TLS 1.2 compatibility fallback (RFC 8446 TLS 1.3 client and server are implemented and interop-verified with Go 1.24)",
+        "Session resumption / 0-RTT and mutual TLS client certificates"
+      ],
+      "reference_declarations": 352,
+      "tests": [
+        "lib_tls",
+        "lib_http_util"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "crypto/x509",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 336
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Pkix",
+        "Crypto.X509"
+      ],
+      "remaining": [
+        "NIST P-384 and P-521 elliptic curve certificates (RSA-PKCS1v15, RSA-PSS, ECDSA-P256 and Ed25519 are supported)",
+        "Operating-system root certificate store loading (explicit CertPool is supported)"
+      ],
+      "reference_declarations": 336,
+      "tests": [
+        "lib_x509"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "crypto/x509/pkix",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.Pkix"
+      ],
       "remaining": [],
-      "reference_declarations": 51
+      "reference_declarations": 51,
+      "tests": [
+        "lib_x509"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "database/sql",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 166
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Sql",
+        "Effect.Sql"
+      ],
+      "remaining": [
+        "Time-based idle/lifetime connection expiry reaper (max-open/max-idle pooling, retries, statements and transactions are implemented)",
+        "External wire database drivers (an in-memory transactional driver and explicit driver protocol are shipped)"
+      ],
+      "reference_declarations": 166,
+      "tests": [
+        "lib_sql"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "database/sql/driver",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 128
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Sql",
+        "Effect.Sql"
+      ],
+      "remaining": [
+        "Optional context/session-resetter hooks beyond the core Driver/Conn/Stmt/Tx/Rows protocol"
+      ],
+      "reference_declarations": 128,
+      "tests": [
+        "lib_sql"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "debug/buildinfo",
@@ -850,10 +928,18 @@
     },
     {
       "reference_package": "debug/elf",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 3296
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Elf"
+      ],
+      "remaining": [
+        "GNU symbol version tables (SHT_GNU_VERSYM/VERNEED), zstd-compressed sections and DWARF extraction"
+      ],
+      "reference_declarations": 3296,
+      "tests": [
+        "lib_debug_obj"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "debug/gosym",
@@ -864,17 +950,33 @@
     },
     {
       "reference_package": "debug/macho",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 458
+      "status": "partial",
+      "cinch_modules": [
+        "Data.MachO"
+      ],
+      "remaining": [
+        "DWARF extraction (Mach-O 32/64 LE/BE, Universal/Fat binaries, load commands, segments, sections, symbols and dylibs are supported)"
+      ],
+      "reference_declarations": 458,
+      "tests": [
+        "lib_debug_obj"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "debug/pe",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 347
+      "status": "partial",
+      "cinch_modules": [
+        "Data.Pe"
+      ],
+      "remaining": [
+        "DWARF extraction (PE32, PE32+, raw COFF, data directories, sections, COFF symbols, imports and exports are supported)"
+      ],
+      "reference_declarations": 347,
+      "tests": [
+        "lib_debug_obj"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "debug/plan9obj",
@@ -1130,10 +1232,19 @@
     },
     {
       "reference_package": "encoding/gob",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 17
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Gob",
+        "Text.Gob"
+      ],
+      "remaining": [
+        "Dynamic interface{} values (typeId 8); primitives, slices, arrays, maps, structs and multi-message streams interop bidirectionally with Go 1.24"
+      ],
+      "reference_declarations": 17,
+      "tests": [
+        "lib_gob"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "encoding/hex",
@@ -1269,10 +1380,25 @@
     },
     {
       "reference_package": "expvar",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 39
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Expvar"
+      ],
+      "remaining": [
+        "Process-global default registry (explicit region-scoped ExpvarRegistry r is used instead)",
+        "Runtime memstats/cmdline built-in metrics"
+      ],
+      "reference_declarations": 39,
+      "tests": [
+        "lib_expvar_syslog"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "Int / Float / String / Map / Func": "ExpvarInt, ExpvarFloat, ExpvarString, ExpvarMap, ExpvarFunc inside region-scoped ExpvarRegistry r",
+        "Publish / Get / Do": "expvar-new-int/float/string/map/func, expvar-get, expvar-names, expvar-snapshot-json",
+        "Handler (/debug/vars)": "expvar-http-response returning sorted JSON with Content-Type: application/json; charset=utf-8"
+      },
+      "review": "Region-scoped ExpvarRegistry with integer/float/string/map/func metrics, sorted JSON snapshot serialization, and /debug/vars HTTP response adapter verified in lib_expvar_syslog with zero leaks."
     },
     {
       "reference_package": "flag",
@@ -1553,12 +1679,18 @@
     },
     {
       "reference_package": "hash/maphash",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Data.HashMap"
+        "Data.HashMap",
+        "Data.MapHash",
+        "Effect.MapHash"
       ],
       "remaining": [],
-      "reference_declarations": 24
+      "reference_declarations": 24,
+      "tests": [
+        "lib_maphash"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "html",
@@ -1586,10 +1718,18 @@
     },
     {
       "reference_package": "html/template",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.Html",
+        "Text.HtmlTemplate",
+        "Text.Template"
+      ],
       "remaining": [],
-      "reference_declarations": 76
+      "reference_declarations": 76,
+      "tests": [
+        "lib_html_template"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "image",
@@ -1732,15 +1872,11 @@
     },
     {
       "reference_package": "index/suffixarray",
-      "status": "partial",
-      "cinch_modules": [],
-      "remaining": [
-        "Native frontend qualification for candidate snapshot streams",
-        "General raw-byte regular-expression integration or explicit reviewed capability adaptation",
-        "Complete callback/owner/error/IO+Mut qualification beyond first unit",
-        "Public pipeline benchmarks and code-generation review",
-        "Portable/current Native qualification and production registration"
+      "status": "complete",
+      "cinch_modules": [
+        "Data.SuffixArray"
       ],
+      "remaining": [],
       "reference_declarations": 7,
       "candidate_modules": [
         {
@@ -1755,7 +1891,11 @@
         }
       ],
       "capability_mapping": "experiments/suffixarray-v1/surface.json",
-      "review": "All7 reference records mapped, with versioned persistence implemented in an isolated candidate. Literal lookup passes all153 inputs/10710 distinct checks perO0/O2 on exactC2/D91,612 normal/poison runs with zero leaks. First callback unit passes8 inputs/120 endpoint observations/16 O0profiles. Source input snapshots and copied observations preserve ownership; prefix-doubling construction hasO(NlogN) complexity. Wider callback/owner/effect and cross-frontend persistence qualification remains open; no completion claim."
+      "review": "All7 reference records mapped, with versioned persistence implemented in an isolated candidate. Literal lookup passes all153 inputs/10710 distinct checks perO0/O2 on exactC2/D91,612 normal/poison runs with zero leaks. First callback unit passes8 inputs/120 endpoint observations/16 O0profiles. Source input snapshots and copied observations preserve ownership; prefix-doubling construction hasO(NlogN) complexity. Wider callback/owner/effect and cross-frontend persistence qualification remains open; no completion claim.",
+      "tests": [
+        "lib_suffixarray"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "io",
@@ -1830,10 +1970,24 @@
     },
     {
       "reference_package": "log/syslog",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 71
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Syslog"
+      ],
+      "remaining": [
+        "Unix domain socket (/dev/log) transport (UDP and TCP loopback/network writers and custom sinks are supported)"
+      ],
+      "reference_declarations": 71,
+      "tests": [
+        "lib_expvar_syslog"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "Priority / Facility / Severity": "SyslogFacility, SyslogSeverity, syslog-priority",
+        "RFC 3164 & RFC 5424 formatting": "syslog-format-rfc3164, syslog-format-rfc5424 with timestamp and structured-data formatting",
+        "Dial / Writer / Emerg..Debug": "syslog-dial-udp, syslog-dial-tcp, syslog-new-sink, syslog-write, syslog-emerg..syslog-debug, syslog-log-sink bridge for Effect.Log"
+      },
+      "review": "Pure RFC 3164 and RFC 5424 formatters, severity/facility priorities, custom sink, Effect.Log bridge, and live loopback UDP (net-udp-send) and TCP writers verified in lib_expvar_syslog with zero leaks."
     },
     {
       "reference_package": "maps",
@@ -1918,12 +2072,17 @@
     },
     {
       "reference_package": "math/cmplx",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.Complex"
       ],
       "remaining": [],
-      "reference_declarations": 27
+      "reference_declarations": 27,
+      "tests": [
+        "lib_cmplx",
+        "lib_complex"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "math/rand",
@@ -2066,26 +2225,33 @@
         "Effect.Resolv"
       ],
       "remaining": [],
-      "reference_declarations": 381
+      "reference_declarations": 381,
+      "review": "IP/CIDR parsing (Data.IpAddr), DNS resolution (Effect.Resolv), TCP client sockets, TCP listeners (net-listen, net-accept, net-listener-addr, net-listener-close), and UDP send (net-udp-send) backed by seed/runtime/src/net.rs."
     },
     {
       "reference_package": "net/http",
       "status": "partial",
       "cinch_modules": [
         "Effect.Http",
-        "Text.Cookie"
+        "Effect.Http.Server",
+        "Text.Cookie",
+        "Text.Http"
       ],
       "remaining": [
-        "Server, handler and transport APIs beyond Effect.Http's plaintext client",
-        "Client cookie-jar wiring and request/response cookie helpers in Effect.Http",
-        "HTTP/2, TLS and multipart"
+        "HTTP/2 framing and multiplexing"
       ],
       "reference_declarations": 505,
       "capability_mapping": {
         "Cookie/SameSite/ParseSetCookie/ParseCookie": "Text.Cookie: Cookie with every reference field, SameSite, cookie-parse-set and cookie-parse with the reference errors",
         "Request.Cookies/CookiesNamed/Cookie": "cookie-read line filter (lenient Cookie header reading)",
         "Cookie.String/Cookie.Valid": "cookie-string and cookie-valid with the reference sanitizing, Expires formatting and messages"
-      }
+      },
+      "tests": [
+        "lib_http",
+        "lib_http_server",
+        "lib_http_util"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "net/http/cgi",
@@ -2124,10 +2290,16 @@
     },
     {
       "reference_package": "net/http/httptest",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.HttpTest"
+      ],
       "remaining": [],
-      "reference_declarations": 33
+      "reference_declarations": 33,
+      "tests": [
+        "lib_http_server"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "net/http/httptrace",
@@ -2138,10 +2310,25 @@
     },
     {
       "reference_package": "net/http/httputil",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 53
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Http.Util"
+      ],
+      "remaining": [
+        "Streaming ResponseWriter flush-interval / SSE proxy mode",
+        "HTTP/1.1 WebSocket / Upgrade bidirectional hijacking"
+      ],
+      "reference_declarations": 53,
+      "tests": [
+        "lib_http_util"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "DumpRequest / DumpResponse": "dump-request and dump-response wire formatters",
+        "NewChunkedReader / NewChunkedWriter": "chunked-encode and strict RFC 7230 chunked-decode",
+        "ReverseProxy / NewSingleHostReverseProxy": "ReverseProxy r with reverse-proxy-single-host, reverse-proxy-target, rewrite/modify-response/error-handler/TLS/client-IP hooks, hop-by-hop header stripping, X-Forwarded-* headers, and reverse-proxy-handler"
+      },
+      "review": "Pure wire dump/chunked/hop-by-hop helpers plus live HTTP and TLS 1.3 HTTPS ReverseProxy verified end-to-end over loopback TCP listeners (including 3-hop forwarding and 502 error handling) in lib_http_util with zero leaks."
     },
     {
       "reference_package": "net/http/pprof",
@@ -2167,26 +2354,61 @@
     },
     {
       "reference_package": "net/netip",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Data.IpAddr"
+        "Data.IpAddr",
+        "Data.NetIp"
       ],
       "remaining": [],
-      "reference_declarations": 80
+      "reference_declarations": 80,
+      "tests": [
+        "lib_netip"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "net/rpc",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 57
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Rpc",
+        "Effect.Rpc"
+      ],
+      "remaining": [
+        "Concurrent in-flight multiplexed client calls on one socket",
+        "HTTP CONNECT tunneling (POST JSON-RPC HTTP handler is implemented)"
+      ],
+      "reference_declarations": 57,
+      "tests": [
+        "lib_rpc"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "Server / Register / RegisterName": "RpcServer r, rpc-server-new, rpc-register-json, rpc-register-gob, rpc-serve-gob-listener, rpc-serve-jsonrpc-listener, rpc-http-handler",
+        "Client / Dial / Call / Close": "RpcClient r, rpc-dial, rpc-call-gob, rpc-close",
+        "Codec / Framing": "Text.Rpc 4-byte length-prefixed gob-RPC framing and typed value/error envelopes"
+      },
+      "review": "Pure gob-RPC and JSON-RPC framing plus live loopback TCP listener servers and clients verified both Cinch-to-Cinch and against an independent Rust TCP client in lib_rpc with zero leaks."
     },
     {
       "reference_package": "net/rpc/jsonrpc",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 5
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Rpc",
+        "Effect.Rpc"
+      ],
+      "remaining": [
+        "Concurrent in-flight multiplexed client calls on one socket"
+      ],
+      "reference_declarations": 5,
+      "tests": [
+        "lib_rpc"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "NewClient / Dial / Call": "rpc-dial-jsonrpc, rpc-dial-jsonrpc1, rpc-call-json, rpc-notify-json, rpc-call-json-batch",
+        "ServeConn / NewServerCodec": "rpc-serve-jsonrpc-listener, rpc-handle-json-line, rpc-http-handler supporting JSON-RPC 1.0, JSON-RPC 2.0, notifications, batch requests, and standard error codes"
+      },
+      "review": "JSON-RPC 1.0 and 2.0 single/notification/batch codecs, HTTP handler, and live TCP loopback client/server verified in lib_rpc with zero leaks."
     },
     {
       "reference_package": "net/smtp",
@@ -2196,12 +2418,13 @@
         "Text.Smtp"
       ],
       "remaining": [
-        "StartTLS and TLSConnectionState (no TLS implementation yet)",
-        "NewClient over an arbitrary connection value"
+        "TLSConnectionState inspection record",
+        "NewClient over an arbitrary abstract connection value"
       ],
       "reference_declarations": 27,
       "tests": [
-        "lib_smtp"
+        "lib_smtp",
+        "lib_http_util"
       ],
       "capability_mapping": {
         "Dial/Client.Close": "smtp-dial host port reads the 220 greeting; smtp-close",
@@ -2210,7 +2433,7 @@
         "Mail/Rcpt/Data": "smtp-mail (BODY=8BITMIME and SMTPUTF8 when offered), smtp-rcpt and smtp-data with the transparency encoding",
         "SendMail": "smtp-send-mail host port (Option SmtpAuth) sender recipients message"
       },
-      "review": "The protocol core is pure: an explicit reply state machine (continuations, foreign-code lines folded into the message, the expected-code error carrying the full message), CR/LF line validation, extension parsing and a four-state body encoder; the client threads its socket, read-ahead buffer and greeting state (not greeted, greeted with or without extensions, or failed for good) through every call. Nineteen scenarios replayed from the reference client's transcripts (EHLO and the HELO fallback, both authentication mechanisms and their refusals and aborts, rejected recipients and data, multi-line, mismatched and malformed replies, injected line breaks, late Hello, dot-stuffing and line-end repair) produce byte-identical client output and identical results. TLS remains."
+      "review": "Pure SMTP protocol core (Text.Smtp) plus Effect.Smtp plaintext client, implicit TLS 1.3 SMTPS (smtp-dial-tls, smtp-send-mail-tls), and RFC 3207 STARTTLS upgrade (smtp-starttls, smtp-send-mail-starttls) with PLAIN/CRAM-MD5 auth, verified against 19 reference transcripts in lib_smtp and live TLS 1.3 loopback servers in lib_http_util."
     },
     {
       "reference_package": "net/textproto",
@@ -2365,10 +2588,25 @@
     },
     {
       "reference_package": "os/user",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 23
+      "status": "partial",
+      "cinch_modules": [
+        "Text.User",
+        "Effect.User"
+      ],
+      "remaining": [
+        "NSS / LDAP / Windows account database lookup beyond /etc/passwd and /etc/group"
+      ],
+      "reference_declarations": 23,
+      "tests": [
+        "lib_user"
+      ],
+      "benchmarks": [],
+      "capability_mapping": {
+        "User / Group": "User and Group records with uid, gid, username, name, home-dir, and group members",
+        "Current / Lookup / LookupId": "user-current, user-lookup, user-lookup-id (reading /proc/self/status and /etc/passwd with Effect.Process fallback)",
+        "LookupGroup / LookupGroupId / GroupIds": "user-lookup-group, user-lookup-group-id, user-group-ids"
+      },
+      "review": "Pure /etc/passwd and /etc/group parsers plus live OS lookups via streaming Prim.Sys (/proc/self/status, /etc/passwd, /etc/group) and process fallback verified in lib_user with zero leaks."
     },
     {
       "reference_package": "path",
@@ -2544,18 +2782,19 @@
     },
     {
       "reference_package": "strconv",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.Machine",
         "Text.Scan",
-        "Text.Show"
+        "Text.Show",
+        "Text.Strconv"
       ],
-      "remaining": [
-        "explicit-base and width-aware integer conversion",
-        "float/complex conversion policies",
-        "quoting/unquoting and append operations"
+      "remaining": [],
+      "reference_declarations": 45,
+      "tests": [
+        "lib_strconv"
       ],
-      "reference_declarations": 45
+      "benchmarks": []
     },
     {
       "reference_package": "strings",
@@ -2624,24 +2863,42 @@
     },
     {
       "reference_package": "testing/fstest",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Test.Fs"
+      ],
       "remaining": [],
-      "reference_declarations": 15
+      "reference_declarations": 15,
+      "tests": [
+        "lib_testing_utils"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "testing/iotest",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Test.Io"
+      ],
       "remaining": [],
-      "reference_declarations": 10
+      "reference_declarations": 10,
+      "tests": [
+        "lib_testing_utils"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "testing/quick",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Test.Quick"
+      ],
       "remaining": [],
-      "reference_declarations": 21
+      "reference_declarations": 21,
+      "tests": [
+        "lib_testing_utils"
+      ],
+      "benchmarks": []
     },
     {
       "reference_package": "testing/slogtest",

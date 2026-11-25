@@ -4,14 +4,14 @@ PNG decoding of every color type, depth and interlace method with SIMD scanline 
 
 <div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Png</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Png/source/">View source</a><a href="/packages/search/?q=%2BImage.Png">Search module</a><a href="/reference-sources/Image.Png.cinch" download="Image.Png.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
-**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
 
 <details class="doc-notes"><summary>Module notes</summary>
 
 PNG images: decode every color type, bit depth and interlace method into rasters, and encode rasters.
 Decoding verifies the signature and every chunk CRC, joins the IDAT stream
 and inflates it, then reverses each scanline's filter in place: Up adds the
-prior row eight bytes at a time in SIMD lanes, and Sub reconstructs eight
+prior row sixteen bytes at a time in SIMD lanes, and Sub reconstructs sixteen
 bytes per step with a lane-shift prefix scan specialized to the pixel size;
 Average and Paeth depend on the byte to their left and run bytewise with a
 branchless Paeth predictor. Samples below eight bits are widened (gray scaled
@@ -29,7 +29,7 @@ of absolute signed residuals.
 # Types
 
 <article class="doc-entry" id="t-PngError">
-<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PngError</strong></code><span class="doc-sig-links"><a href="#t-PngError" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PngError</strong></code><span class="doc-sig-links"><a href="#t-PngError" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L31" title="View source at line 31">Source</a></span></div>
 <div class="doc-body">
 
 A malformed or unsupported PNG file.
@@ -41,7 +41,7 @@ A malformed or unsupported PNG file.
 # Values
 
 <article class="doc-entry" id="v-png-config">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-PixelFormat" title="Image.Raster.PixelFormat">PixelFormat</a>)</code><span class="doc-sig-links"><a href="#v-png-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-config</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-PixelFormat" title="Image.Raster.PixelFormat">PixelFormat</a>)</code><span class="doc-sig-links"><a href="#v-png-config" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L103" title="View source at line 103">Source</a></span></div>
 <div class="doc-body">
 
 Read only the header: width, height and the raster format decoding would produce, without inflating
@@ -51,7 +51,7 @@ image data. Transparency is taken into account when a tRNS chunk precedes the fi
 </article>
 
 <article class="doc-entry" id="v-png-decode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-png-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-decode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a></code><span class="doc-sig-links"><a href="#v-png-decode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L91" title="View source at line 91">Source</a></span></div>
 <div class="doc-body">
 
 Decode a complete PNG file.
@@ -60,7 +60,7 @@ Decode a complete PNG file.
 </article>
 
 <article class="doc-entry" id="v-png-encode">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-png-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L473" title="View source at line 473">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Raster/#t-Raster" title="Image.Raster.Raster">Raster</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-png-encode" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L461" title="View source at line 461">Source</a></span></div>
 <div class="doc-body">
 
 Encode a raster as a non-interlaced PNG.
@@ -69,7 +69,7 @@ Encode a raster as a non-interlaced PNG.
 </article>
 
 <article class="doc-entry" id="v-png-error-message">
-<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-png-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">png-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Image.Png/#t-PngError" title="Image.Png.PngError">PngError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-png-error-message" title="Permalink">#</a><a href="/packages/stdlib/Image.Png/source/#L46" title="View source at line 46">Source</a></span></div>
 <div class="doc-body">
 
 Render a PNG error.
