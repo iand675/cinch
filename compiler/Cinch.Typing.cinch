@@ -1008,7 +1008,7 @@ module Cinch.Typing where
     CScope sp ty region evidence callback -> use-count-once interrupted id callback
     CPrimitive sp ty op (CArgument at cell (CArgument bt callback (CArgumentsEnd end))) | (op == "memo-init") ->
       use-count-sequence (use-count interrupted id cell) (use-count-choice (Some (0, 0)) (use-count-once interrupted id callback))
-    CPrimitive sp ty op (CArgument at callback (CArgumentsEnd end)) | same op "thunk-delay" ->
+    CPrimitive sp ty op (CArgument at callback (CArgumentsEnd end)) | op == "thunk-delay" ->
       use-count-choice (Some (0, 0)) (use-count-once interrupted id callback)
     CSpawn sp ty token callback ->
       use-count-after interrupted token (use-count interrupted id token) (use-count-once interrupted id callback)

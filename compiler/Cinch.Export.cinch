@@ -5,7 +5,7 @@ module Cinch.Export where
   import Algebra.Semigroup
   import Cinch.Check (CheckedProgram)
   import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, module-decls, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
-  import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-temporal, TemporalRow, temporal-row-definition, temporal-row-name, temporal-row-kind, temporal-row-formula, temporal-row-assumptions, temporal-row-result, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, TemporalRow, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
   import Cinch.Logical (specification-names)
   import Cinch.Core (CoreEffect, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-method-total-function, core-definition-closed)
@@ -1318,7 +1318,7 @@ module Cinch.Export where
             (attach-optional-field "promoted_ctors" pc-rows
               (attach-optional-field "data_param_kinds" pk-rows
                 (attach-optional-field "promoted_fns" pf-rows base-exports)))) in
-    let contract-rows = module-contract-facts mod-name (elaboration-temporal typed) in
+    let contract-rows = module-contract-facts mod-name typed.temporal in
     attach-optional-field "prim_proofs" pp-rows
       (JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
         (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
@@ -1339,30 +1339,30 @@ module Cinch.Export where
     [] -> JArrEnd
     row : rest ->
       let more = module-contract-facts mod-name rest in
-      let def-id = temporal-display-identity (temporal-row-definition row) in
+      let def-id = temporal-display-identity row.row-definition in
       if (nominal-owner def-id) == mod-name then
         let short = (case foreign-drop-prefix (unpack (string-concat mod-name ".")) (unpack def-id) of
               Some local -> pack local
               None -> def-id) in
-        JArr (JObj "assumptions" (sorted-strings (strings (temporal-row-assumptions row)))
-          (JObj "formula" (JStr (temporal-row-formula row))
-            (JObj "kind" (JStr (temporal-row-kind row))
+        JArr (JObj "assumptions" (sorted-strings (strings row.row-assumptions))
+          (JObj "formula" (JStr row.row-formula)
+            (JObj "kind" (JStr row.row-kind)
               (JObj "name" (JStr short) JObjEnd)))) more
       else more
   checked-temporal-rows :: CheckedProgram -> Json
   checked-temporal-rows checked =
-    JObj "contracts" (temporal-manifest-rows (elaboration-temporal checked.elaboration)) JObjEnd
+    JObj "contracts" (temporal-manifest-rows checked.elaboration.temporal) JObjEnd
   temporal-manifest-rows :: List TemporalRow -> Json
   temporal-manifest-rows rows = case rows of
     [] -> JArrEnd
     row : rest ->
-      let def-id = temporal-display-identity (temporal-row-definition row) in
-      JArr (JObj "assumptions" (strings (temporal-row-assumptions row))
-        (JObj "contract" (JStr (temporal-row-name row))
+      let def-id = temporal-display-identity row.row-definition in
+      JArr (JObj "assumptions" (strings row.row-assumptions)
+        (JObj "contract" (JStr row.row-name)
           (JObj "definition" (JStr def-id)
-            (JObj "formula" (JStr (temporal-row-formula row))
-              (JObj "kind" (JStr (temporal-row-kind row))
-                (JObj "result" (JStr (temporal-row-result row)) JObjEnd))))))
+            (JObj "formula" (JStr row.row-formula)
+              (JObj "kind" (JStr row.row-kind)
+                (JObj "result" (JStr row.row-result) JObjEnd))))))
         (temporal-manifest-rows rest)
   source-hash :: Bytes -> Json -> Result String String
   source-hash source context = case (field "source_start" context, field "source_end" context) of

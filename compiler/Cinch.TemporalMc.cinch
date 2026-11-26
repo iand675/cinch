@@ -9,10 +9,10 @@ module Cinch.TemporalMc where
   import Cinch.ExportType (export-global)
   import Cinch.Guarded (guarded-reading)
   import Cinch.Index (IndexTerm, IInteger, IBound)
-  import Cinch.Instance (CoreInstance, instance-scheme, instance-fields, find-instance, field-at, dictionary-field-definition)
+  import Cinch.Instance (CoreInstance, find-instance, field-at)
   import Cinch.Nominal (global-data-bool-not, global-data-core-some, global-data-core-none, global-data-core-cons, global-data-core-nil)
   import Cinch.Proof (Arithmetic, AInteger)
-  import Cinch.Report (Diagnostic, MkDiagnostic)
+  import Cinch.Report (Diagnostic)
   import Cinch.Total (total-decimal-value)
   import Cinch.TotalSemantics (total-numeric-operation, total-numeric-comparison, arithmetic-constant)
   import Cinch.Type (UType, UCon, UApp, UFun, UFunEff, UTuple, UArg, UEnd, URefine, UCompare, UPropAnd, UIndex, UIndexPromote, UIndexForget, UBound, Kind, KType, Scheme, MkScheme, scheme-body, scheme-arity, mono, type-text)
@@ -156,7 +156,7 @@ module Cinch.TemporalMc where
   cat parts = string-concat-all parts
 
   mc-diag :: Span -> String -> Diagnostic
-  mc-diag sp msg = MkDiagnostic "bootstrap.temporal.mc" sp msg
+  mc-diag sp msg = Diagnostic { rung = "cinch.temporal.mc", span = sp, message = msg }
 
   has-str :: String -> List String -> Bool
   has-str x xs = case xs of
@@ -236,7 +236,7 @@ module Cinch.TemporalMc where
   mc-find-def :: String -> List CoreDefinition -> Option CoreDefinition
   mc-find-def name defs = case defs of
     Nil -> None
-    Cons first rest -> if same (core-name first) name then Some first else mc-find-def name rest
+    Cons first rest -> if same (first.name) name then Some first else mc-find-def name rest
 
   mc-match-pattern :: CorePattern -> McValue -> McValue -> McMatch
   mc-match-pattern pat val env = case pat of
@@ -287,14 +287,14 @@ module Cinch.TemporalMc where
 
   mc-eval-def :: McContext -> Option (String, CoreInstance) -> CoreDefinition -> List McValue -> Nat -> Result String (McValue, Nat)
   mc-eval-def ctx self def args fuel =
-    mc-eval-clauses ctx self (core-name def) (core-clauses def) args fuel
+    mc-eval-clauses ctx self (def.name) (def.clauses) args fuel
 
   mc-eval-clauses :: McContext -> Option (String, CoreInstance) -> String -> List CoreClause -> List McValue -> Nat -> Result String (McValue, Nat)
   mc-eval-clauses ctx self name clauses args fuel =
     if fuel == 0 then Err (cat ["temporal model checker exhausted evaluation fuel in `", short-ident name, "`"])
     else case clauses of
       Nil -> Err (cat ["no clause matched `", short-ident name, "` during temporal model checking"])
-      Cons (MkCoreClause sp pats body) rest -> case mc-match-patterns pats args McEnvEnd of
+      Cons (CoreClause sp pats body) rest -> case mc-match-patterns pats args McEnvEnd of
         McMatchOk env -> mc-eval-term ctx self env body (fuel - 1)
         McMatchFail -> mc-eval-clauses ctx self name rest args (fuel - 1)
         McMatchErr msg -> Err msg
@@ -327,10 +327,10 @@ module Cinch.TemporalMc where
       else mc-eval-ctor ty name args fuel
     else case ctx of
       MkMcContext home defs datas instances scope _ -> case mc-find-def name defs of
-        Some def -> case core-clauses def of
-          Cons (MkCoreClause sp pats body) rest | list-length args < list-length pats ->
+        Some def -> case def.clauses of
+          Cons (CoreClause sp pats body) rest | list-length args < list-length pats ->
             Ok (McCallable name role ty (mc-fields-from-list args), fuel)
-          Cons (MkCoreClause sp pats body) rest | list-length args > list-length pats ->
+          Cons (CoreClause sp pats body) rest | list-length args > list-length pats ->
             let (direct, extra) = split-at-nat (list-length pats) args in
             (case mc-eval-def ctx self def direct fuel of
               Err msg -> Err msg
@@ -422,12 +422,12 @@ module Cinch.TemporalMc where
             (CEGiven sp ty gname, Some (sym, dict)) | same gname sym -> Some dict
             other -> None) in
       case dict-opt of
-        Some dict -> case field-at slot (instance-fields dict) of
+        Some dict -> case field-at slot (dict.fields) of
           Some field ->
-            let def = dictionary-field-definition field in
-            (case core-givens def of
-              [given] -> mc-eval-clauses ctx (Some (given-symbol given, dict)) (core-name def) (core-clauses def) vals fuel
-              Nil -> mc-eval-clauses ctx self (core-name def) (core-clauses def) vals fuel
+            let def = field.field-definition in
+            (case def.givens of
+              [given] -> mc-eval-clauses ctx (Some (given.symbol, dict)) (def.name) (def.clauses) vals fuel
+              Nil -> mc-eval-clauses ctx self (def.name) (def.clauses) vals fuel
               other -> mc-eval-builtin-method mname vals fuel)
           None -> mc-eval-builtin-method mname vals fuel
         None -> case arg-terms of
@@ -648,7 +648,7 @@ module Cinch.TemporalMc where
     Nil -> Some Nil
     Cons c rest -> case core-constructor-fields c of
       Nil -> case nullary-ctor-names rest of
-        Some more -> Some (Cons (core-constructor-name c) more)
+        Some more -> Some (Cons (c.constructor-name) more)
         None -> None
       other -> None
 
@@ -657,7 +657,7 @@ module Cinch.TemporalMc where
   has-ord-instance-for wanted instances = case instances of
     Nil -> False
     Cons inst rest ->
-      if scheme-is-ord-for wanted (scheme-body (instance-scheme inst)) then True
+      if scheme-is-ord-for wanted (scheme-body (inst.scheme)) then True
       else has-ord-instance-for wanted rest
 
   scheme-is-ord-for :: String -> UType -> Bool
@@ -904,8 +904,8 @@ module Cinch.TemporalMc where
 
   -- Analyze an action's CoreDefinition to find read/written state record slots.
   analyze-action-footprint :: String -> CoreDefinition -> Footprint
-  analyze-action-footprint state-ctor def = case core-clauses def of
-    [MkCoreClause sp pats body] -> case last-pattern-id pats of
+  analyze-action-footprint state-ctor def = case def.clauses of
+    [CoreClause sp pats body] -> case last-pattern-id pats of
       None -> FootprintOpaque
       Some state-id -> walk-footprint state-id state-ctor hash-map-empty body (FootprintKnown Nil Nil)
     other -> FootprintOpaque
@@ -1016,7 +1016,7 @@ module Cinch.TemporalMc where
   state-record-ctor state-ty datas = case state-ty of
     UCon name _ -> case find-core-data name datas of
       Some dt -> case core-data-constructors dt of
-        [ctor] -> Some (core-constructor-name ctor)
+        [ctor] -> Some (ctor.constructor-name)
         other -> None
       None -> None
     other -> None

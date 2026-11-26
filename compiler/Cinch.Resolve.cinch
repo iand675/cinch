@@ -1412,7 +1412,7 @@ module Cinch.Resolve where
     Nil -> (Nil, Nil)
     Cons name rest -> case rename-visible-names sp visible role rest of
       (more, errors) -> case visible-lookup name visible of
-        Some binding -> (Cons (binding-symbol binding) more, errors)
+        Some binding -> (Cons (binding.symbol) more, errors)
         None -> (Cons name more, fail sp (cat ["unknown ", role, " `", name, "`"]) <> errors)
 
   -- The scope a contract's formulas read: the target definition's

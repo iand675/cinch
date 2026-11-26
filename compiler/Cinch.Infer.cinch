@@ -48,7 +48,7 @@ module Cinch.Infer where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
   import Cinch.Temporal (ContractKind, Safety, Liveness, Recurrence, Stability, contract-kind-keyword, contract-kind-operator, check-contract-shape, contract-assumption-rows, contract-formula-row, contract-formula-clause, contract-kind, contract-renders-formula)
-  import Cinch.TemporalCheck (Parameter, parameter-name, parameter-id, parameter-type, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
+  import Cinch.TemporalCheck (Parameter, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
   import Cinch.TemporalMc (McContext, MkMcContext, McActionReturn, McReturnDirect, McReturnOption, McReturnList, McActionInput, MkMcActionInput, CheckedMachineInput, MkCheckedMachineInput, McFormula, McAlways, McDeadlockFree, McEventually, McLeadsTo, McRecur, McStable, CheckedMachineContract, MkCheckedMachineContract, CheckedRefinesInput, MkCheckedRefinesInput, McVerdictRow, mc-verdict-subject, mc-verdict-name, mc-verdict-kind, mc-verdict-formula, mc-verdict-assumptions, mc-verdict-result, McOutcome, mc-outcome-verdicts, mc-outcome-errors, check-temporal-machines)
 
   export needs-inference, infer-program, elaborate-program, elaborate-with-interfaces, elaborate-with-admitted-interfaces
@@ -5504,13 +5504,13 @@ module Cinch.Infer where
     Cons first rest -> first == wanted || has-nat-id wanted rest
   clock-quant-pairs :: List Quant -> Store -> (List (Nat, UType), Store)
   clock-quant-pairs qs st = case qs of
-    Nil -> (Nil, st)
-    Cons q rest ->
-      let (ty, s1) = (case quant-kind q of
+    [] -> ([], st)
+    q : rest ->
+      let (ty, s1) = (case q.kind of
             KRegion -> (UCon "Global" KRegion, st)
-            other -> fresh-meta (quant-kind q) st) in
+            other -> fresh-meta (q.kind) st) in
       case clock-quant-pairs rest s1 of
-        (more, s2) -> (Cons (quant-id q, ty) more, s2)
+        (more, s2) -> ((q.id, ty) : more, s2)
   infer-force-clock :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
   infer-force-clock classes kinds families env locals sp args st = case args of
     [arg] ->
@@ -5518,7 +5518,7 @@ module Cinch.Infer where
         (term, checked) -> case normalize checked (core-type term) of
           UForall qs inner ->
             let qlist = quants-list qs in
-            let outer = store-level checked in
+            let outer = checked.level in
             case instantiate-params True qlist (enter-level checked) of
               (rigid-pairs, opened) ->
                 let region-rids = rigid-region-ids rigid-pairs in
@@ -13567,12 +13567,12 @@ module Cinch.Infer where
   add-mc-diagnostics :: List Diagnostic -> Store -> Store
   add-mc-diagnostics diags st = case diags of
     Nil -> st
-    Cons d rest -> add-mc-diagnostics rest (add-error (diagnostic-span d) (diagnostic-message d) st)
+    Cons d rest -> add-mc-diagnostics rest (add-error (d.span) (d.message) st)
 
   convert-mc-verdicts :: List McVerdictRow -> List TemporalRow
   convert-mc-verdicts rows = case rows of
     Nil -> Nil
-    Cons r rest -> Cons (MkTemporalRow (mc-verdict-subject r) (mc-verdict-name r) (mc-verdict-kind r)
+    Cons r rest -> Cons (TemporalRow (mc-verdict-subject r) (mc-verdict-name r) (mc-verdict-kind r)
       (mc-verdict-formula r) (mc-verdict-assumptions r) (mc-verdict-result r)) (convert-mc-verdicts rest)
 
   resolve-mc-term :: List (String, Kind) -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
@@ -13610,7 +13610,7 @@ module Cinch.Infer where
       None -> check-machine-actions sp mname state-u rest core acc
         (add-error sp (string-concat-all ["machine `", source-subject mname, "` names unknown action `", source-subject sym, "`"]) st)
       Some def ->
-        let (param-tys, ret-ty) = split-fun-spine (scheme-body (core-scheme def)) Nil in
+        let (param-tys, ret-ty) = split-fun-spine (scheme-body (def.scheme)) [] in
         case split-last-type param-tys of
           None -> check-machine-actions sp mname state-u rest core acc
             (add-error sp (string-concat-all ["machine action `", source-subject sym, "` must take the state type as its last argument"]) st)
