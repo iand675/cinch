@@ -168,7 +168,7 @@ A `Producer` is not a `Stream`. Converting between them is not a type ascription
 - `Later` and `Thunk {e}` are distinct types and never convert, in either direction.
 - A `Later`-typed parameter is used at most once: `%many` is refused, and so is forcing it twice.
 - Codata values are observed by projection. Pattern matching on one is refused, and a codata value is never `Copy`, which is why a `~` memo cell cannot cache a stream.
-- Productivity is certified only by `corec`. An ordinary definition that produces codata without a guard must record the loss in its type as `{Diverge}`.
+- Productivity is certified by `corec` (syntactic guardedness) or by clocked `Later k` combinators (`laterPure`, `laterAp`, `laterFix`, `forceClock`; see [chapter 23](23-state-machines-and-model-checking.md#compositional-infinite-streams-with-clocked-later-k) and [explicit laziness, memoization, and codata](../reference/11-laziness-and-codata.md#clocked-later-k-and-compositional-guarded-recursion)). An ordinary definition that produces codata without a guard must record the loss in its type as `{Diverge}`.
 
 <span class="support-tag support-tag--planned">Coming soon</span> **coinductive equality.** Comparing two streams as equal objects needs a bisimulation proof, which relates corresponding observations under a guarded rule. That machinery is not available: two streams can be compared observation by observation for a finite prefix, or by `refl` when both sides are the same term, and no general stream equality is checked.
 

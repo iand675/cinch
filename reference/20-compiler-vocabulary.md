@@ -37,6 +37,10 @@ When a `.wit` adapter is generated, the compiler additionally synthesizes `WasiS
 | `True`, `False` | 0 | `Bool` | pure | Boolean constructors. |
 | `newIO` (`Runtime.newIO`) | 1 | `Unit -> Io r` | pure | Mints a fresh `Io r` capability token with a fresh region identity. |
 | `eval` | 1 | `forall a. Code a -> a` | pure | Evaluates a typed quotation. Requires a target profile with `allow_eval` (see [targets and components](19-targets-and-components.md)). |
+| `laterPure` | 1 | `forall (k :: Region) a. a -> Later k a` | pure | Lifts a value into the next step of logical clock `k`. |
+| `laterAp` | 2 | `forall (k :: Region) a b. Later k (a -> b) -> Later k a -> Later k b` | pure | Applicative composition under a shared logical clock `k`. |
+| `laterFix` | 1 | `forall (k :: Region) a. (Later k a -> a) -> a` | pure | Compositional guarded fixed point (Löb induction) on clock `k`. |
+| `forceClock` | 1 | `forall a. (forall (k :: Region). Later k a) -> a` | pure | Safely eliminates a universally quantified clock `k`. |
 
 ## Index and evidence values
 

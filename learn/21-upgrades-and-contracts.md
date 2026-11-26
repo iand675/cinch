@@ -186,6 +186,8 @@ Its manifest row reads `"formula": "eventually (joined)"` with `"result": "verif
 
 Recurrence follows the same discipline. `recur = (P)` over structural recursion verifies at every cycle against the decreasing argument, and the literal-ladder form is refused with `has no structural depth bound` because a chain of equalities is not a structural recursion.
 
+To check full multi-step protocols—deadlock freedom, `leads_to`, weak vs. strong fairness, symmetry reduction, and stuttering refinement (`refines`) against explicit `machine` declarations—continue to [chapter 23: state machines, fairness, and model checking](23-state-machines-and-model-checking.md).
+
 # What the compiler enforces
 
 - `upgrade Old to New` accepts exactly a migration of type `Old %1 -> New`, or a `related = Old` view across a compatible, purely additive change.

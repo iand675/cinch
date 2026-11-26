@@ -7,7 +7,7 @@ Cinch is **strict and call-by-value**, evaluating arguments left to right. Defer
 | `delay (\() -> e)`, `force t` (`%aff` / `%1`) | `Thunk {e} a` | Deferred; unshared; forcing consumes the thunk | Freed on force or when dropped |
 | `Thunk {e} a %many` | `Thunk {e} a` | Deferred; unshared; each `force` re-evaluates `e` | Freed with each copy |
 | `~name = term` in `let` or `where` | `Lazy {e} r a` | Memoized; evaluated at most once per memo group | Released at region teardown (block exit) |
-| Codata observation of type `Later a` | `Later a` | Guarded pure observation; unshared; takes no effect row | No hidden cache; guards one productive step |
+| Codata observation of type `Later a` or `Later k a` | `Later a`, `Later k a` | Guarded pure observation (optionally indexed by clock `k :: Region`); unshared; takes no effect row | No hidden cache; guards one productive step |
 
 `Thunk`, `Lazy`, and `Later` are separate type formers that never unify with one another.
 
@@ -319,6 +319,70 @@ module Main where
     let s1 = force s.tail in
     let s2 = force s1.tail in
     if s.head == 10 && s1.head == 20 && s2.head == 30 then 0 else 1
+```
+
+# Clocked `Later k` and compositional guarded recursion
+
+Plain `Later a` works with syntactic `corec`, where every recursive call must appear inside `delay (\() -> ...)` in the same definition. For compositional stream and coalgebra combinators, Cinch also supports **clocked `Later k a`**, where `k :: Region` is a logical clock indexing one guarded step.
+
+Four built-in combinators operate over clocked `Later k`:
+
+```text
+laterPure  :: forall (k :: Region) a. a -> Later k a
+laterAp    :: forall (k :: Region) a b. Later k (a -> b) -> Later k a -> Later k b
+laterFix   :: forall (k :: Region) a. (Later k a -> a) -> a
+forceClock :: forall a. (forall (k :: Region). Later k a) -> a
+```
+
+- `laterFix` provides Löb induction: a productive definition receives its own delayed continuation `self :: Later k a` without needing `corec`.
+- `laterPure` and `laterAp` give clocked `Later k` applicative composition while locking combined observations to the same clock `k`.
+- `forceClock` safely eliminates a clock when the argument is polymorphic in `k` (`forall k. Later k a`), ensuring `k` does not appear free in `a`.
+
+<!-- cinch:run exit=0 -->
+```cinch
+module Main where
+  codata CStream (k :: Region) (a :: Type) where
+    head :: a
+    tail :: Later k (CStream k a)
+
+  ones :: forall k. Unit -> CStream k Nat
+  ones u = laterFix (\self -> CStream { head = 1, tail = self })
+
+  addLater :: forall k. Later k Nat -> Later k Nat -> Later k Nat
+  addLater x y = laterAp (laterAp (laterPure (\a -> \b -> a + b)) x) y
+
+  runClosed :: (forall k. Later k Nat) -> Nat
+  runClosed lx = forceClock lx
+
+  main :: Int
+  main =
+    let s = ones () in
+    let v = runClosed (laterPure (40 + s.head)) in
+    if v == 41 then 0 else 1
+```
+
+Combining values from distinct clocks `k1` and `k2` in `laterAp` is rejected:
+
+<!-- cinch:reject contains="regions do not match" -->
+```cinch
+module Main where
+  badMix :: forall k1 k2. Later k1 (Nat -> Nat) -> Later k2 Nat -> Later k1 Nat
+  badMix lf lx = laterAp lf lx
+
+  main :: Int
+  main = 0
+```
+
+Calling `forceClock` on a `Later k a` whose clock `k` is bound in an outer scope (rather than universally quantified inside the argument) is also rejected:
+
+<!-- cinch:reject contains="forceClock requires a clock-polymorphic" -->
+```cinch
+module Main where
+  badForce :: forall k. Later k Nat -> Nat
+  badForce lx = forceClock lx
+
+  main :: Int
+  main = 0
 ```
 
 # Unproductive operations and partial streams
