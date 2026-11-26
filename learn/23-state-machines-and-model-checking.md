@@ -919,4 +919,4 @@ Symmetry reduction collapses permutations of `Node` values (such as swapping `N0
 
 </details>
 
-Next: read the exact rules in [runtime upgrades and temporal contracts](../reference/17-upgrades-and-temporal-contracts.md), or put the whole language together in the [order calculator](22-putting-it-together.md).
+Next: compose larger multi-actor models and debug them with `cinch model`, the REPL, and LSP in [chapter 24](24-composing-state-machines.md), read the [guide for TLA+ users and checkable value domains](../reference/30-tla-plus-guide-and-value-domains.md), or consult [runtime upgrades and temporal contracts](../reference/17-upgrades-and-temporal-contracts.md).

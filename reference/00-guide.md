@@ -29,7 +29,8 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 - [10 · Ownership, regions, and reclamation](10-ownership-and-memory.md) — Multiplicities (`%0`, `%1`, `%aff`, `%many`), `Copy`, borrows, and reference counting
 - [11 · Laziness, memoization, and codata](11-laziness-and-codata.md) — Thunks, `~` memo bindings, `Eval r`, `codata`, `Later`, clocked `Later k`, and `corec`
 - [13 · Structured concurrency and runtime](13-concurrency-and-runtime.md) — Scopes, `spawn`, cancellation, STM, fair `MVar`, and runtime diagnostics
-- [17 · Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) — `upgrade` migrations, `machine` model checking, fairness, `refines`, and temporal assertions
+- [17 · Runtime upgrades and temporal contracts](17-upgrades-and-temporal-contracts.md) — `upgrade` migrations, `machine` model checking, fairness, `assume`, `refines`, and temporal assertions
+- [30 · Guide for TLA+ users and checkable value domains](30-tla-plus-guide-and-value-domains.md) — TLA+ Rosetta Stone, what's the same/different/missing, and checkable state/parameter domains
 - [22 · Safety assertions, must-use, and LLVM contracts](22-safety-assertions-and-llvm.md) — Checked bounds, JPL profile, and LLVM attribute lowering
 
 ## Systems programming and optimization

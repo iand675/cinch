@@ -43,8 +43,8 @@ Any request not listed below returns JSON-RPC error `-32601` (`method not found`
 | `textDocument/didOpen` | notification | Registers the buffer and publishes diagnostics for all open documents |
 | `textDocument/didChange` | notification | Replaces the buffer with the last entry of `contentChanges` (full sync) and republishes diagnostics for all open documents |
 | `textDocument/didClose` | notification | Drops the buffer from analysis and clears its diagnostics |
-| `textDocument/hover` | request | Returns a Markdown `name :: scheme` code block, or `null` |
-| `textDocument/definition` | request | Returns a `Location` pointing to the first character of the declaration's signature line, or `null` |
+| `textDocument/hover` | request | Returns a Markdown `name :: scheme` code block (or rich state-space/contract summary for `machine` and `contract` symbols, even on failing models), or `null` |
+| `textDocument/definition` | request | Returns a `Location` pointing to the first character of the declaration's signature line (including `machine`, `contract`, `refines`, and action references), or `null` |
 | `textDocument/completion` | request | Returns `{isIncomplete: false, items}` filtered by the identifier prefix at the cursor |
 | `textDocument/semanticTokens/full` | request | Returns the delta-encoded full-document semantic token array |
 | `shutdown` | request | Marks shutdown and returns `null` |
@@ -115,6 +115,8 @@ Positions that are not a recorded declaration or reference site (such as literal
 --> {"jsonrpc": "2.0", "id": 6, "method": "textDocument/hover", "params": {"textDocument": {"uri": "file:///path/to/project/Main.cinch"}, "position": {"line": 5, "character": 12}}}
 <-- {"id": 6, "jsonrpc": "2.0", "result": null}
 ```
+
+Hovering over a `machine` or `contract` name (or a reference to a `machine` in `contract ... for M` or `refines C A`) returns a rich Markdown summary with explored state/edge counts, deadlocks, symmetry/POR statistics, action parameter domains, and per-contract `PASS`/`FAIL` verdicts—including when a contract is currently failing so you can inspect the model while fixing violations. Go-to-definition (`textDocument/definition`) resolves `machine` targets, action names in `actions`/`fair`/`strong_fair`, symmetry types, and `view`/`measure` functions.
 
 ## `textDocument/completion`
 
