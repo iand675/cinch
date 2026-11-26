@@ -19,6 +19,22 @@
     {
       "classes": "T",
       "symbol": "Data.List.Semigroup_List"
+    },
+    {
+      "classes": "",
+      "symbol": "Data.Option.SeqOption"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Result.SeqResult"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Result.SeqResult"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Result.SeqResult"
     }
   ],
   "schema": 1,
@@ -121,11 +137,35 @@
     },
     {
       "classes": "O",
+      "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.:"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.head"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.is-empty"
     },
     {
       "classes": "O",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "O",
       "symbol": "Data.List.sort-by"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.List.tail"
     },
     {
       "classes": "O",
@@ -134,6 +174,58 @@
     {
       "classes": "O",
       "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "O",
+      "symbol": "Data.Option.is-some"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-new"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-put"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Concurrent.MVar.mvar-take"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-modify"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-new"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-new-io"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-read"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-read-io"
+    },
+    {
+      "classes": "O",
+      "symbol": "Effect.Stm.tvar-write"
+    },
+    {
+      "classes": "O",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Category.Foldable.all"
     },
     {
       "classes": "OO",
@@ -152,20 +244,24 @@
       "symbol": "Data.HashMap.hash-map-lookup"
     },
     {
-      "classes": "OR",
-      "symbol": "Data.HashMap.hash-map-empty"
+      "classes": "OO",
+      "symbol": "Data.HashMap.hash-map-to-list"
     },
     {
-      "classes": "OR",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "OR",
-      "symbol": "Data.HashMap.hash-map-lookup"
+      "classes": "OO",
+      "symbol": "Data.List.foldr"
     },
     {
       "classes": "OO",
       "symbol": "Data.List.map"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.Producer.prod-take"
+    },
+    {
+      "classes": "OO",
+      "symbol": "Data.Result.option-to-result"
     },
     {
       "classes": "OO",
@@ -176,8 +272,20 @@
       "symbol": "Data.List.zip-with"
     },
     {
+      "classes": "OOO",
+      "symbol": "Data.Producer.prod-fold"
+    },
+    {
+      "classes": "OOR",
+      "symbol": "Data.Producer.prod-fold"
+    },
+    {
       "classes": "OOT",
       "symbol": "Category.Traversable.sequence-a"
+    },
+    {
+      "classes": "OOT",
+      "symbol": "Data.Result.map-err"
     },
     {
       "classes": "OOTT",
@@ -190,6 +298,26 @@
     {
       "classes": "OOTT",
       "symbol": "Category.Traversable.map-m"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Category.Foldable.all"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "OR",
+      "symbol": "Data.List.foldr"
     },
     {
       "classes": "OT",
@@ -285,30 +413,30 @@
     },
     {
       "classes": "OT",
-      "symbol": "Relation.Ord.comparing"
+      "symbol": "Data.Map.map-insert"
     },
     {
-      "classes": "R",
-      "symbol": "Data.List.is-empty"
+      "classes": "OT",
+      "symbol": "Data.Map.map-lookup"
     },
     {
-      "classes": "RT",
-      "symbol": "Data.List.map"
+      "classes": "OT",
+      "symbol": "Data.Option.map-option"
     },
     {
-      "classes": "T",
-      "symbol": "Data.List.nth"
+      "classes": "OT",
+      "symbol": "Data.Result.from-result"
     },
     {
-      "classes": "T",
-      "symbol": "Data.List.replicate"
+      "classes": "OT",
+      "symbol": "Data.Result.is-err"
     },
     {
-      "classes": "T",
-      "symbol": "Data.List.take"
+      "classes": "OT",
+      "symbol": "Data.Result.result-to-option"
     },
     {
-      "classes": "TT",
+      "classes": "OT",
       "symbol": "Relation.Ord.comparing"
     },
     {
@@ -337,11 +465,47 @@
     },
     {
       "classes": "R",
+      "symbol": "Algebra.Bits.&"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.<<"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.>>"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.^"
+    },
+    {
+      "classes": "R",
+      "symbol": "Algebra.Bits.|"
+    },
+    {
+      "classes": "R",
       "symbol": "Data.Bool.bool"
     },
     {
       "classes": "R",
+      "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "R",
       "symbol": "Data.Identity.run-identity"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.:"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.is-empty"
     },
     {
       "classes": "R",
@@ -350,6 +514,30 @@
     {
       "classes": "R",
       "symbol": "Data.List.list-length"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.List.replicate"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Option.is-none"
+    },
+    {
+      "classes": "R",
+      "symbol": "Data.Option.is-some"
+    },
+    {
+      "classes": "R",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "R",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "RO",
+      "symbol": "Effect.Stm.stm-then"
     },
     {
       "classes": "RR",
@@ -373,6 +561,10 @@
     },
     {
       "classes": "RT",
+      "symbol": "Data.List.map"
+    },
+    {
+      "classes": "RT",
       "symbol": "Data.Result.from-result"
     },
     {
@@ -381,7 +573,19 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.Enum.enum-from-to"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.Identity.run-identity"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.:"
     },
     {
       "classes": "T",
@@ -390,6 +594,10 @@
     {
       "classes": "T",
       "symbol": "Data.List.cycle"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.drop"
     },
     {
       "classes": "T",
@@ -453,11 +661,27 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.nth"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.List.nub"
     },
     {
       "classes": "T",
       "symbol": "Data.List.partition"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.replicate"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.replicate"
     },
     {
       "classes": "T",
@@ -485,7 +709,15 @@
     },
     {
       "classes": "T",
+      "symbol": "Data.List.sum-list"
+    },
+    {
+      "classes": "T",
       "symbol": "Data.List.tail"
+    },
+    {
+      "classes": "T",
+      "symbol": "Data.List.take"
     },
     {
       "classes": "T",
@@ -573,7 +805,131 @@
     },
     {
       "classes": "T",
+      "symbol": "Effect.Clock.timeout"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-length"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TBQueue.tbqueue-write"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-new-empty-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-put"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TMVar.tmvar-take"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-flush"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-is-empty"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-peek"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-unget"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.TQueue.tqueue-write"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.atomically"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.atomically-or-cancel"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.or-else"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.retry"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-modify"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-new-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-read"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-read-io"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-swap"
+    },
+    {
+      "classes": "T",
+      "symbol": "Effect.Stm.tvar-write"
+    },
+    {
+      "classes": "T",
       "symbol": "Function.Combinators.apply-n-times"
+    },
+    {
+      "classes": "T",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-empty"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-insert"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.HashMap.hash-map-lookup"
+    },
+    {
+      "classes": "TO",
+      "symbol": "Data.List.map"
     },
     {
       "classes": "TO",
@@ -590,18 +946,6 @@
     {
       "classes": "TT",
       "symbol": "Data.Const.get-const"
-    },
-    {
-      "classes": "TO",
-      "symbol": "Data.HashMap.hash-map-empty"
-    },
-    {
-      "classes": "TO",
-      "symbol": "Data.HashMap.hash-map-insert"
-    },
-    {
-      "classes": "TO",
-      "symbol": "Data.HashMap.hash-map-lookup"
     },
     {
       "classes": "TT",
@@ -781,6 +1125,14 @@
     },
     {
       "classes": "TT",
+      "symbol": "Effect.Stm.stm-map"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Effect.Stm.tvar-state"
+    },
+    {
+      "classes": "TT",
       "symbol": "Function.Combinators.apply-to"
     },
     {
@@ -798,6 +1150,10 @@
     {
       "classes": "TT",
       "symbol": "Function.Combinators.swap"
+    },
+    {
+      "classes": "TT",
+      "symbol": "Relation.Ord.comparing"
     },
     {
       "classes": "TTO",
@@ -829,6 +1185,14 @@
     },
     {
       "classes": "TTT",
+      "symbol": "Data.Producer.prod-fold"
+    },
+    {
+      "classes": "TTT",
+      "symbol": "Data.Producer.prod-map"
+    },
+    {
+      "classes": "TTT",
       "symbol": "Data.Result.either"
     },
     {
@@ -854,342 +1218,128 @@
     {
       "classes": "TTT",
       "symbol": "Function.Combinators.uncurry"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.sum-list"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.drop"
-    },
-    {
-      "classes": "R",
-      "symbol": "Algebra.Bits.|"
-    },
-    {
-      "classes": "R",
-      "symbol": "Algebra.Bits.&"
-    },
-    {
-      "classes": "R",
-      "symbol": "Algebra.Bits.<<"
-    },
-    {
-      "classes": "R",
-      "symbol": "Algebra.Bits.>>"
-    },
-    {
-      "classes": "R",
-      "symbol": "Algebra.Bits.^"
-    },
-    {
-      "classes": "O",
-      "symbol": "Data.List.nth"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.nth"
-    },
-    {
-      "classes": "T",
-      "symbol": "Data.List.replicate"
-    },
-    {
-      "classes": "O",
-      "symbol": "Data.List.head"
-    },
-    {
-      "classes": "O",
-      "symbol": "Data.List.tail"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Option.map-option"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Result.from-result"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Result.is-err"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Result.result-to-option"
-    },
-    {
-      "classes": "OOT",
-      "symbol": "Data.Result.map-err"
-    },
-    {
-      "classes": "OO",
-      "symbol": "Data.HashMap.hash-map-to-list"
-    },
-    {
-      "classes": "OOO",
-      "symbol": "Data.Producer.prod-fold"
-    },
-    {
-      "classes": "OOR",
-      "symbol": "Data.Producer.prod-fold"
-    },
-    {
-      "classes": "OO",
-      "symbol": "Data.Producer.prod-take"
-    },
-    {
-      "classes": "R",
-      "symbol": "Data.List.replicate"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Map.map-insert"
-    },
-    {
-      "classes": "OT",
-      "symbol": "Data.Map.map-lookup"
-    },
-    {
-      "classes": "TTT",
-      "symbol": "Data.Producer.prod-fold"
-    },
-    {
-      "classes": "TTT",
-      "symbol": "Data.Producer.prod-map"
-    },
-    {
-      "classes": "OO",
-      "symbol": "Data.List.foldr"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-flush"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-is-empty"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-new-io"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-peek"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-read"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-unget"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TQueue.tqueue-write"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.atomically"
-    },
-    {
-      "classes": "R",
-      "symbol": "Effect.Stm.atomically"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.atomically"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.atomically-or-cancel"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.or-else"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.retry"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Effect.Stm.stm-map"
-    },
-    {
-      "classes": "RO",
-      "symbol": "Effect.Stm.stm-then"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-modify"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-modify"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-new"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-new-io"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-new-io"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-read"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-read"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-read-io"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-read-io"
-    },
-    {
-      "classes": "TT",
-      "symbol": "Effect.Stm.tvar-state"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-swap"
-    },
-    {
-      "classes": "O",
-      "symbol": "Effect.Stm.tvar-write"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.tvar-write"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TBQueue.tbqueue-is-empty"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TBQueue.tbqueue-length"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TBQueue.tbqueue-new-io"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TBQueue.tbqueue-read"
-    },
-    {
-      "classes": "T",
-      "symbol": "Effect.Stm.TBQueue.tbqueue-write"
-    },
+    }
+  ],
+  "methods": [
     {
-      "classes": "T",
-      "symbol": "Effect.Stm.TMVar.tmvar-new-empty-io"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "O",
+      "slot": 0
     },
     {
-      "classes": "T",
-      "symbol": "Effect.Stm.TMVar.tmvar-put"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "R",
+      "slot": 0
     },
     {
-      "classes": "T",
-      "symbol": "Effect.Stm.TMVar.tmvar-take"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "T",
+      "slot": 0
     },
     {
-      "classes": "OO",
-      "symbol": "Category.Foldable.all"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OO",
+      "slot": 1
     },
     {
-      "classes": "OR",
-      "symbol": "Category.Foldable.all"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OR",
+      "slot": 1
     },
     {
-      "classes": "T",
-      "symbol": "Effect.Clock.timeout"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "OT",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-new"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RO",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-put"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RR",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Effect.Concurrent.MVar.mvar-take"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "RT",
+      "slot": 1
     },
     {
-      "classes": "R",
-      "symbol": "Data.Option.is-none"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TO",
+      "slot": 1
     },
     {
-      "classes": "R",
-      "symbol": "Data.Option.is-some"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TR",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Data.Option.is-some"
+      "class": "Effect.Sequencing.OptionSequencing",
+      "own": "TT",
+      "slot": 1
     },
     {
-      "classes": "OO",
-      "symbol": "Data.Result.option-to-result"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "O",
+      "slot": 0
     },
     {
-      "classes": "T",
-      "symbol": "Data.Enum.enum-from-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "R",
+      "slot": 0
     },
     {
-      "classes": "O",
-      "symbol": "Data.Enum.enum-from-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "T",
+      "slot": 0
     },
     {
-      "classes": "R",
-      "symbol": "Data.Enum.enum-from-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OO",
+      "slot": 1
     },
     {
-      "classes": "T",
-      "symbol": "Data.Enum.enum-from-then-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OR",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Data.Enum.enum-from-then-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "OT",
+      "slot": 1
     },
     {
-      "classes": "R",
-      "symbol": "Data.Enum.enum-from-then-to"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RO",
+      "slot": 1
     },
     {
-      "classes": "OR",
-      "symbol": "Data.List.foldr"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RR",
+      "slot": 1
     },
     {
-      "classes": "TO",
-      "symbol": "Data.List.map"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "RT",
+      "slot": 1
     },
     {
-      "classes": "T",
-      "symbol": "Function.Combinators.identity"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TO",
+      "slot": 1
     },
     {
-      "classes": "O",
-      "symbol": "Function.Combinators.identity"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TR",
+      "slot": 1
     },
     {
-      "classes": "R",
-      "symbol": "Function.Combinators.identity"
+      "class": "Effect.Sequencing.ResultSequencing",
+      "own": "TT",
+      "slot": 1
     }
   ]
 }
