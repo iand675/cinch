@@ -6,7 +6,8 @@ module Cinch.Promote where
   import Cinch.Document
   import Data.Nat (nat-from-int, nat-to-int)
   import Data.Int (int-div, int-rem)
-  import Text.Scan (string-starts-with)
+  import Data.String (string-compare, string-byte-length, string-slice)
+  import Prim.Machine (ge-i64, lt-i64)
   import Algebra.Semigroup
 
   export PBinOp, PBAdd, PBSub, PBMul, PBDiv, PBMod, PBEq, PBNe, PBLt, PBLe, PBGt, PBGe, PBAnd, PBOr, PBConcat
@@ -25,13 +26,11 @@ module Cinch.Promote where
   promoted-fn-prefix = "fn:"
 
   is-promoted-fn-name :: String -> Bool
-  is-promoted-fn-name name = string-starts-with "fn:" name
+  is-promoted-fn-name name = ge-i64 (string-compare name "fn:") 0 && lt-i64 (string-compare name "fn;") 0
 
   strip-promoted-fn-name :: String -> String
-  strip-promoted-fn-name name = case unpack name of
-    c1 : c2 : c3 : rest ->
-      if char-code c1 == 102 && char-code c2 == 110 && char-code c3 == 58 then pack rest else name
-    other -> name
+  strip-promoted-fn-name name =
+    if is-promoted-fn-name name then string-slice name 3 (string-byte-length name) else name
 
   int-to-nat-or-zero :: Int -> Nat
   int-to-nat-or-zero n = if n >= 0 then nat-from-int n else 0
@@ -195,46 +194,51 @@ module Cinch.Promote where
 
   -- Symbolic arithmetic with algebraic simplification (`m + 0 -> m`, `m * 1 -> m`, etc.).
   sym-add :: forall a. PVal a -> PVal a -> PVal a
-  sym-add a b = case (a, b) of
-    (PVNat x, PVNat y) -> PVNat (x + y)
-    (PVNat 0, y) -> y
-    (x, PVNat 0) -> x
-    (PVSymAdd x (PVNat c1), PVNat c2) -> sym-add x (PVNat (c1 + c2))
-    (PVNat c1, PVSymAdd (PVNat c2) y) -> sym-add (PVNat (c1 + c2)) y
-    other -> PVSymAdd a b
+  sym-add a b = case a of
+    PVNat x -> case b of
+      PVNat y -> PVNat (x + y)
+      PVSymAdd (PVNat c2) y -> if x == 0 then b else sym-add (PVNat (x + c2)) y
+      other -> if x == 0 then b else PVSymAdd a b
+    PVSymAdd x (PVNat c1) -> case b of
+      PVNat c2 -> if c2 == 0 then a else sym-add x (PVNat (c1 + c2))
+      other -> PVSymAdd a b
+    other -> case b of
+      PVNat 0 -> a
+      other2 -> PVSymAdd a b
 
   sym-sub :: forall a. PVal a -> PVal a -> PVal a
-  sym-sub a b = case (a, b) of
-    (PVNat x, PVNat y) -> PVNat (if x >= y then x - y else 0)
-    (x, PVNat 0) -> x
+  sym-sub a b = case b of
+    PVNat y -> case a of
+      PVNat x -> PVNat (if x >= y then x - y else 0)
+      other -> if y == 0 then a else PVSymSub a b
     other -> PVSymSub a b
 
   sym-mul :: forall a. PVal a -> PVal a -> PVal a
-  sym-mul a b = case (a, b) of
-    (PVNat x, PVNat y) -> PVNat (x * y)
-    (PVNat 0, _) -> PVNat 0
-    (_, PVNat 0) -> PVNat 0
-    (PVNat 1, y) -> y
-    (x, PVNat 1) -> x
-    other -> PVSymMul a b
+  sym-mul a b = case a of
+    PVNat x -> case b of
+      PVNat y -> PVNat (x * y)
+      other -> if x == 0 then PVNat 0 else if x == 1 then b else PVSymMul a b
+    other -> case b of
+      PVNat y -> if y == 0 then PVNat 0 else if y == 1 then a else PVSymMul a b
+      other2 -> PVSymMul a b
 
   eval-binop :: forall a. PBinOp -> PVal a -> PVal a -> Option (PVal a)
   eval-binop op a b = case op of
     PBAdd -> Some (sym-add a b)
     PBSub -> Some (sym-sub a b)
     PBMul -> Some (sym-mul a b)
-    PBDiv -> case (a, b) of
-      (PVNat x, PVNat y) | y /= 0 -> Some (PVNat (int-div x y))
+    PBDiv -> case a of
+      PVNat x -> (case b of PVNat y | y /= 0 -> Some (PVNat (int-div x y)); other -> None)
       other -> None
-    PBMod -> case (a, b) of
-      (PVNat x, PVNat y) | y /= 0 -> Some (PVNat (int-rem x y))
+    PBMod -> case a of
+      PVNat x -> (case b of PVNat y | y /= 0 -> Some (PVNat (int-rem x y)); other -> None)
       other -> None
     PBEq -> pval-eq a b
     PBNe -> case pval-eq a b of Some (PVBool eq) -> Some (PVBool (not eq)); other -> None
-    PBLt -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x < y)); other -> None
-    PBLe -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x <= y)); other -> None
-    PBGt -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x > y)); other -> None
-    PBGe -> case (a, b) of (PVNat x, PVNat y) -> Some (PVBool (x >= y)); other -> None
+    PBLt -> case a of PVNat x -> (case b of PVNat y -> Some (PVBool (x < y)); other -> None); other -> None
+    PBLe -> case a of PVNat x -> (case b of PVNat y -> Some (PVBool (x <= y)); other -> None); other -> None
+    PBGt -> case a of PVNat x -> (case b of PVNat y -> Some (PVBool (x > y)); other -> None); other -> None
+    PBGe -> case a of PVNat x -> (case b of PVNat y -> Some (PVBool (x >= y)); other -> None); other -> None
     PBAnd -> case a of
       PVBool False -> Some (PVBool False)
       PVBool True -> Some b
@@ -243,29 +247,30 @@ module Cinch.Promote where
       PVBool True -> Some (PVBool True)
       PVBool False -> Some b
       other -> None
-    PBConcat -> case (a, b) of
-      (PVStr x, PVStr y) -> Some (PVStr (x <> y))
+    PBConcat -> case a of
+      PVStr x -> (case b of PVStr y -> Some (PVStr (x <> y)); other -> None)
       other -> None
 
   pval-eq :: forall a. PVal a -> PVal a -> Option (PVal a)
-  pval-eq a b = case (a, b) of
-    (PVNat x, PVNat y) -> Some (PVBool (x == y))
-    (PVBool x, PVBool y) -> Some (PVBool ((x && y) || (not x && not y)))
-    (PVStr x, PVStr y) -> Some (PVBool (x == y))
-    (PVCon c1 fs1, PVCon c2 fs2) ->
-      if c1 /= c2 then Some (PVBool False)
-      else pval-list-eq fs1 fs2
-    (PVTuple fs1, PVTuple fs2) -> pval-list-eq fs1 fs2
+  pval-eq a b = case a of
+    PVNat x -> case b of PVNat y -> Some (PVBool (x == y)); other -> None
+    PVBool x -> case b of PVBool y -> Some (PVBool ((x && y) || (not x && not y))); other -> None
+    PVStr x -> case b of PVStr y -> Some (PVBool (x == y)); other -> None
+    PVCon c1 fs1 -> case b of
+      PVCon c2 fs2 -> if c1 /= c2 then Some (PVBool False) else pval-list-eq fs1 fs2
+      other -> None
+    PVTuple fs1 -> case b of PVTuple fs2 -> pval-list-eq fs1 fs2; other -> None
     other -> None
 
   pval-list-eq :: forall a. PValList a -> PValList a -> Option (PVal a)
-  pval-list-eq xs ys = case (xs, ys) of
-    (PVEnd, PVEnd) -> Some (PVBool True)
-    (PVArg a r1, PVArg b r2) -> case pval-eq a b of
-      Some (PVBool True) -> pval-list-eq r1 r2
-      Some (PVBool False) -> Some (PVBool False)
-      other -> None
-    other -> Some (PVBool False)
+  pval-list-eq xs ys = case xs of
+    PVEnd -> case ys of PVEnd -> Some (PVBool True); other -> Some (PVBool False)
+    PVArg a r1 -> case ys of
+      PVArg b r2 -> case pval-eq a b of
+        Some (PVBool True) -> pval-list-eq r1 r2
+        Some (PVBool False) -> Some (PVBool False)
+        other -> None
+      other -> Some (PVBool False)
 
   -- Three-way pattern match result: matched with bindings, definitely mismatched,
   -- or stuck on an opaque symbolic value.
@@ -301,13 +306,14 @@ module Cinch.Promote where
       other -> PStuck
 
   match-pat-list :: forall a. PPatList -> PValList a -> PEnv a -> MatchOutcome a
-  match-pat-list pats vals env = case (pats, vals) of
-    (PPEnd, PVEnd) -> PMatch env
-    (PPArg p pr, PVArg v vr) -> case match-pat p v env of
-      PMatch next -> match-pat-list pr vr next
-      PMismatch -> PMismatch
-      PStuck -> PStuck
-    other -> PMismatch
+  match-pat-list pats vals env = case pats of
+    PPEnd -> case vals of PVEnd -> PMatch env; other -> PMismatch
+    PPArg p pr -> case vals of
+      PVArg v vr -> case match-pat p v env of
+        PMatch next -> match-pat-list pr vr next
+        PMismatch -> PMismatch
+        PStuck -> PStuck
+      other -> PMismatch
 
   -- Fuel + depth threaded evaluation state.
   eval-promoted-call :: forall a. List PromotedFn -> String -> PValList a -> Option (PVal a)
