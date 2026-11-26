@@ -1496,3 +1496,109 @@ module Main where
         );
     }
 }
+
+#[test]
+fn persistent_proof_cache_and_replay_only_fail_closed_on_tamper() {
+    use cinch::prim_verify::{Evidence, EvidenceStore, Policy, VerificationStatus, VerifierEngine};
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cache_dir = tmp.path().join("proof-cache");
+
+    // 1. Cold build populates the disk proof cache and emits live `prim_proofs` for the prelude
+    //    as well as the user's `prim ... justify verify`.
+    let src = r#"
+module Main where
+  spec add1-spec :: U32 -> U32
+  add1-spec x = wrapping-add-u32 x 1
+
+  prim add1-cached :: U32 -> U32 spec add1-spec where
+    llvm {
+      %r = add i32 %0, 1
+      ret i32 %r
+    } justify verify
+
+  main :: Int
+  main = if add1-cached 41 == 42 then 0 else 1
+"#;
+    let warm_profile = TargetProfile {
+        proof_cache: Some(cache_dir.clone()),
+        replay_only: false,
+        ..TargetProfile::native()
+    };
+    let manifest = manifest_of("proof-cache-warm", src, &warm_profile);
+    assert!(manifest.contains("cinch-kernel-lrat@1"), "{manifest}");
+    assert!(manifest.contains("Prim.Machine.raw-sdiv-i64"), "{manifest}");
+    let cached_files: Vec<_> = std::fs::read_dir(&cache_dir)
+        .expect("cache dir created")
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .collect();
+    assert!(
+        !cached_files.is_empty(),
+        "expected cached .lrat_v1.json files in {}",
+        cache_dir.display()
+    );
+
+    // 2. Replay-only build with the populated cache succeeds with ZERO provers!
+    let replay_profile = TargetProfile {
+        proof_cache: Some(cache_dir.clone()),
+        replay_only: true,
+        ..TargetProfile::native()
+    };
+    let replay_manifest = manifest_of("proof-cache-replay", src, &replay_profile);
+    assert!(replay_manifest.contains("cinch-kernel-lrat@1"), "{replay_manifest}");
+
+    // 3. Replay-only against an empty cache directory MUST fail closed.
+    let empty_dir = tmp.path().join("empty-cache");
+    let empty_replay_profile = TargetProfile {
+        proof_cache: Some(empty_dir),
+        replay_only: true,
+        ..TargetProfile::native()
+    };
+    expect_err_profile(
+        "replay-only-empty-cache-fails",
+        src,
+        &empty_replay_profile,
+        "replay-only",
+        &[],
+    );
+
+    // 4. Tampering with a cached `.lrat_v1.json` proof file MUST fail closed in replay-only mode!
+    let mut tampered_any = false;
+    for p in &cached_files {
+        if let Ok(text) = std::fs::read_to_string(p) {
+            if let Ok(mut ev) = serde_json::from_str::<Evidence>(&text) {
+                ev.payload = "99999 0 0\n".to_string();
+                std::fs::write(p, serde_json::to_string(&ev).unwrap()).unwrap();
+                tampered_any = true;
+            }
+        }
+    }
+    assert!(tampered_any);
+    expect_err_profile(
+        "replay-only-tampered-cache-fails",
+        src,
+        &replay_profile,
+        "REJECTED",
+        &[],
+    );
+
+    // 5. Direct engine API test: replay-only engine has zero provers and rejects tampered cache.
+    let mut engine = VerifierEngine::default_engine(Policy::jpl_strict())
+        .with_store(EvidenceStore::with_disk_dir(cache_dir))
+        .with_replay_only(true);
+    assert!(engine.provers.is_empty());
+    let sems = engine.semantics_refs();
+    let bodies = cinch::prim_verify::prelude_bridge::extract_source_obligations(src, &sems)
+        .expect("parse");
+    let ob = &bodies[0].obligations[0];
+    match engine.verify(ob).status {
+        VerificationStatus::Unverified { reasons } => {
+            assert!(
+                reasons.iter().any(|r| r.contains("REJECTED") || r.contains("replay-only")),
+                "unexpected reasons: {reasons:?}"
+            );
+        }
+        other => panic!("expected fail-closed Unverified on tampered cache, got {other:?}"),
+    }
+}

@@ -65,7 +65,8 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     // until the selector decides how the selected compiler meets it.
     let TargetProfile {
         name, triple, os, arch, libc, os_version, word_size, endian, vector_shape, features,
-        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim, no_cpr: _, prim_verify,
+        fuel: _, measure: _, allow_eval, artifact, required, jpl, rc_debug, reclaim, no_cpr: _,
+        prim_verify, proof_cache, replay_only,
     } = profile;
     // Fuel and measure are upper bounds on driving. The selected compiler
     // performs no driving, so it meets every bound. Product results
@@ -146,6 +147,12 @@ pub fn profile_request(mode: Mode, stage: StageMode, profile: &TargetProfile) ->
     }
     if *prim_verify != cinch::prim_verify::PrimVerifyMode::Default {
         flags.push(format!("--prim-verify={}", prim_verify.as_str()));
+    }
+    if let Some(dir) = proof_cache {
+        flags.push(format!("--proof-cache={}", dir.display()));
+    }
+    if *replay_only {
+        flags.push("--replay-only".to_owned());
     }
     let link = (foreign_triple && matches!(mode, Mode::Build | Mode::Run)).then(|| DriverOptions {
         target: Some(host.triple.clone()), ..Default::default()

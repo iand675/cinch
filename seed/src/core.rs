@@ -4416,6 +4416,10 @@ pub struct TargetProfile {
     /// Formal verification mode for `prim ... justify verify*` declarations
     /// (`--prim-verify=default|strict|lax|off` or `CINCH_PRIM_VERIFY=...`).
     pub prim_verify: crate::prim_verify::PrimVerifyMode,
+    /// Optional content-addressed LRAT proof cache directory (`--proof-cache` or `CINCH_PROOF_CACHE`).
+    pub proof_cache: Option<std::path::PathBuf>,
+    /// Air-gapped replay-only verification (`--replay-only` or `CINCH_REPLAY_ONLY=1`).
+    pub replay_only: bool,
 }
 
 /// The build host's `(os, arch, libc)` as last-resort defaults for the
@@ -4501,6 +4505,8 @@ impl TargetProfile {
             reclaim: reclaim_from_env(),
             no_cpr: no_cpr_from_env(),
             prim_verify: crate::prim_verify::PrimVerifyMode::from_env(),
+            proof_cache: crate::prim_verify::proof_cache_dir_from_env(),
+            replay_only: crate::prim_verify::replay_only_from_env(),
         }
     }
 
@@ -4543,6 +4549,8 @@ impl TargetProfile {
             reclaim: reclaim_from_env(),
             no_cpr: no_cpr_from_env(),
             prim_verify: crate::prim_verify::PrimVerifyMode::from_env(),
+            proof_cache: crate::prim_verify::proof_cache_dir_from_env(),
+            replay_only: crate::prim_verify::replay_only_from_env(),
         }
     }
 }

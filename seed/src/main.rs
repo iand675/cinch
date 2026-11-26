@@ -385,9 +385,23 @@ fn main() {
             "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
             "--no-reclaim" => opts.no_reclaim = true,
             "--lax-prim-verify" => opts.prim_verify = Some(cinch::prim_verify::PrimVerifyMode::Lax),
+            "--replay-only" => opts.replay_only = true,
+            "--proof-cache" => {
+                i += 1;
+                match rest.get(i) {
+                    Some(path) => opts.proof_cache = Some(PathBuf::from(path)),
+                    None => {
+                        eprintln!("cinch: --proof-cache needs a directory path");
+                        exit(2);
+                    }
+                }
+            }
+            s if s.starts_with("--proof-cache=") => {
+                opts.proof_cache = Some(PathBuf::from(&s["--proof-cache=".len()..]));
+            }
             "--prim-verify" => {
                 i += 1;
-                match args.get(i).and_then(|v| cinch::prim_verify::PrimVerifyMode::parse(v)) {
+                match rest.get(i).and_then(|v| cinch::prim_verify::PrimVerifyMode::parse(v)) {
                     Some(m) => opts.prim_verify = Some(m),
                     None => {
                         eprintln!("cinch: --prim-verify needs one of `default`, `strict`, `lax`, or `off`");
