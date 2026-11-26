@@ -16,8 +16,10 @@ module Cinch.Infer where
   import Cinch.Proof (Proposition, PNegate, PCompare, Equal, disproved)
   import Data.Nat (nat-from-int, nat-to-int, saturating-sub)
   import Text.Show (int-to-string)
-  import Text.Scan (string-words, string-starts-with)
-  import Data.Bytes (bytes-len)
+  import Text.Scan (string-words)
+  import Data.Bytes (bytes-len, bytes-get)
+  import Data.String (string-compare, string-byte-length, string-slice, string-utf8-first)
+  import Prim.Machine (ge-i64, lt-i64)
   import Cinch.Core
   import Cinch.Layout (check-layouts)
   import Cinch.Logical (specification-names, split-specifications, check-specification)
@@ -109,6 +111,15 @@ module Cinch.Infer where
     family-patterns :: List (List UType)
     family-ctors :: List (String, Scheme)
 
+  record FamilyIndex where
+    pcs-map :: HashMap String PromotedCtorInfo
+    pks-map :: HashMap String (List (Option PromotedDataKind))
+    pfs-map :: HashMap String PromotedFn
+    prs-map :: HashMap String String
+    tfs-map :: HashMap String TypeFamilyRuleSet
+  empty-family-index :: FamilyIndex
+  empty-family-index = FamilyIndex hash-map-empty hash-map-empty hash-map-empty hash-map-empty hash-map-empty
+
   record FamilyContext where
     tfs :: List TypeFamilyRuleSet
     dfs :: List DataFamilyInfo
@@ -116,10 +127,54 @@ module Cinch.Infer where
     pks :: List (String, List (Option PromotedDataKind))
     pfs :: List PromotedFn
     prs :: List (String, String)
+    findex :: FamilyIndex
   empty-family-context :: FamilyContext
-  empty-family-context = FamilyContext [] [] [] [] [] []
+  empty-family-context = FamilyContext [] [] [] [] [] [] empty-family-index
+
+  starts-with-m-dot :: String -> Bool
+  starts-with-m-dot s = ge-i64 (string-compare s "m.") 0 && lt-i64 (string-compare s "m/") 0
+  starts-with-i-dot :: String -> Bool
+  starts-with-i-dot s = ge-i64 (string-compare s "i.") 0 && lt-i64 (string-compare s "i/") 0
+  starts-with-b-dot :: String -> Bool
+  starts-with-b-dot s = ge-i64 (string-compare s "b.") 0 && lt-i64 (string-compare s "b/") 0
+  starts-with-dollar-under :: String -> Bool
+  starts-with-dollar-under s = ge-i64 (string-compare s "$_") 0 && lt-i64 (string-compare s "$`") 0
+  index-tfs-list :: List TypeFamilyRuleSet -> HashMap String TypeFamilyRuleSet -> HashMap String TypeFamilyRuleSet
+  index-tfs-list xs acc = case xs of
+    [] -> acc
+    fs : rest -> hash-map-insert (fs.identity) fs (index-tfs-list rest acc)
+  index-pcs-list :: List PromotedCtorInfo -> HashMap String PromotedCtorInfo -> HashMap String PromotedCtorInfo
+  index-pcs-list xs acc = case xs of
+    [] -> acc
+    info : rest -> hash-map-insert (info.ctor-symbol) info (index-pcs-list rest acc)
+  index-pks-list :: List (String, List (Option PromotedDataKind)) -> HashMap String (List (Option PromotedDataKind)) -> HashMap String (List (Option PromotedDataKind))
+  index-pks-list xs acc = case xs of
+    [] -> acc
+    (key, pdks) : rest ->
+      let next = index-pks-list rest acc in
+      let canon = canonical-identity key in
+      hash-map-insert key pdks (if canon == key then next else hash-map-insert canon pdks next)
+  index-pfs-list :: List PromotedFn -> HashMap String PromotedFn -> HashMap String PromotedFn
+  index-pfs-list xs acc = case xs of
+    [] -> acc
+    fn : rest -> hash-map-insert (fn.fn-identity) fn (index-pfs-list rest acc)
+  index-prs-list :: List (String, String) -> HashMap String String -> HashMap String String
+  index-prs-list xs acc = case xs of
+    [] -> acc
+    (k, msg) : rest ->
+      let next = index-prs-list rest acc in
+      let canon = canonical-identity k in
+      hash-map-insert k msg (if canon == k then next else hash-map-insert canon msg next)
   merge-family-contexts :: FamilyContext -> FamilyContext -> FamilyContext
-  merge-family-contexts a b = FamilyContext (a.tfs <> b.tfs) (a.dfs <> b.dfs) (a.pcs <> b.pcs) (a.pks <> b.pks) (a.pfs <> b.pfs) (a.prs <> b.prs)
+  merge-family-contexts a b =
+    let bi = b.findex in
+    let idx = FamilyIndex
+          (index-pcs-list (a.pcs) (bi.pcs-map))
+          (index-pks-list (a.pks) (bi.pks-map))
+          (index-pfs-list (a.pfs) (bi.pfs-map))
+          (index-prs-list (a.prs) (bi.prs-map))
+          (index-tfs-list (a.tfs) (bi.tfs-map)) in
+    FamilyContext (a.tfs <> b.tfs) (a.dfs <> b.dfs) (a.pcs <> b.pcs) (a.pks <> b.pks) (a.pfs <> b.pfs) (a.prs <> b.prs) idx
 
   implicit instance Semigroup_FamilyContext :: Semigroup FamilyContext where
     (<>) a b = merge-family-contexts a b
@@ -212,35 +267,46 @@ module Cinch.Infer where
   context-with-family-context :: FamilyContext -> TypeContext -> TypeContext
   context-with-family-context fams context = case context of TypeContext handling kinds aliases active observers effects source-classes payloads old -> TypeContext handling kinds aliases active observers effects source-classes payloads fams
   context-type-families :: TypeContext -> List TypeFamilyRuleSet
-  context-type-families context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> tfs
+  context-type-families context = (context.family-context).tfs
   context-data-families :: TypeContext -> List DataFamilyInfo
-  context-data-families context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> dfs
+  context-data-families context = (context.family-context).dfs
   context-promoted-ctors :: TypeContext -> List PromotedCtorInfo
-  context-promoted-ctors context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> pcs
+  context-promoted-ctors context = (context.family-context).pcs
   context-data-param-kinds :: TypeContext -> List (String, List (Option PromotedDataKind))
-  context-data-param-kinds context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> pks
+  context-data-param-kinds context = (context.family-context).pks
   context-promoted-fns :: TypeContext -> List PromotedFn
-  context-promoted-fns context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> pfs
+  context-promoted-fns context = (context.family-context).pfs
   context-promoted-rejections :: TypeContext -> List (String, String)
-  context-promoted-rejections context = case context.family-context of FamilyContext tfs dfs pcs pks pfs prs -> prs
+  context-promoted-rejections context = (context.family-context).prs
+  context-family-index :: TypeContext -> FamilyIndex
+  context-family-index context = (context.family-context).findex
   context-set-type-families :: List TypeFamilyRuleSet -> TypeContext -> TypeContext
   context-set-type-families tfs context = case context.family-context of
-    FamilyContext old dfs pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs pcs pks pfs prs) context
+    FamilyContext old dfs pcs pks pfs prs (FamilyIndex pm km fm rm tm) ->
+      context-with-family-context (FamilyContext tfs dfs pcs pks pfs prs (FamilyIndex pm km fm rm (index-tfs-list tfs hash-map-empty))) context
   context-set-data-families :: List DataFamilyInfo -> TypeContext -> TypeContext
   context-set-data-families dfs context = case context.family-context of
-    FamilyContext tfs old pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs pcs pks pfs prs) context
+    FamilyContext tfs old pcs pks pfs prs idx -> context-with-family-context (FamilyContext tfs dfs pcs pks pfs prs idx) context
   context-add-promoted-ctor :: PromotedCtorInfo -> TypeContext -> TypeContext
   context-add-promoted-ctor info context = case context.family-context of
-    FamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs (info : pcs) pks pfs prs) context
+    FamilyContext tfs dfs pcs pks pfs prs (FamilyIndex pm km fm rm tm) ->
+      context-with-family-context (FamilyContext tfs dfs (info : pcs) pks pfs prs (FamilyIndex (hash-map-insert (info.ctor-symbol) info pm) km fm rm tm)) context
   context-add-data-param-kinds :: String -> List (Option PromotedDataKind) -> TypeContext -> TypeContext
   context-add-data-param-kinds name pdks context = case context.family-context of
-    FamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs pcs ((name, pdks) : pks) pfs prs) context
+    FamilyContext tfs dfs pcs pks pfs prs (FamilyIndex pm km fm rm tm) ->
+      let canon = canonical-identity name in
+      let km1 = hash-map-insert name pdks (if canon == name then km else hash-map-insert canon pdks km) in
+      context-with-family-context (FamilyContext tfs dfs pcs ((name, pdks) : pks) pfs prs (FamilyIndex pm km1 fm rm tm)) context
   context-add-promoted-fn :: PromotedFn -> TypeContext -> TypeContext
   context-add-promoted-fn fn context = case context.family-context of
-    FamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs pcs pks (fn : pfs) prs) context
+    FamilyContext tfs dfs pcs pks pfs prs (FamilyIndex pm km fm rm tm) ->
+      context-with-family-context (FamilyContext tfs dfs pcs pks (fn : pfs) prs (FamilyIndex pm km (hash-map-insert (fn.fn-identity) fn fm) rm tm)) context
   context-add-promoted-rejection :: String -> String -> TypeContext -> TypeContext
   context-add-promoted-rejection name reason context = case context.family-context of
-    FamilyContext tfs dfs pcs pks pfs prs -> context-with-family-context (FamilyContext tfs dfs pcs pks pfs ((name, reason) : prs)) context
+    FamilyContext tfs dfs pcs pks pfs prs (FamilyIndex pm km fm rm tm) ->
+      let canon = canonical-identity name in
+      let rm1 = hash-map-insert name reason (if canon == name then rm else hash-map-insert canon reason rm) in
+      context-with-family-context (FamilyContext tfs dfs pcs pks pfs ((name, reason) : prs) (FamilyIndex pm km fm rm1 tm)) context
   -- The whole-environment projections the checker asks for once per name use,
   -- folded once when the module environment is sealed. A projection of an
   -- environment longer than the sealed one is the same fold over the local
@@ -421,15 +487,15 @@ module Cinch.Infer where
   elaboration-instances :: Elaboration -> List CoreInstance
   elaboration-instances e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> instances; other -> []
   elaboration-type-families :: Elaboration -> List TypeFamilyRuleSet
-  elaboration-type-families e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (FamilyContext tfs dfs pcs pks pfs prs) -> tfs; other -> []
+  elaboration-type-families e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> fams.tfs; other -> []
   elaboration-data-families :: Elaboration -> List DataFamilyInfo
-  elaboration-data-families e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (FamilyContext tfs dfs pcs pks pfs prs) -> dfs; other -> []
+  elaboration-data-families e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> fams.dfs; other -> []
   elaboration-promoted-ctors :: Elaboration -> List PromotedCtorInfo
-  elaboration-promoted-ctors e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (FamilyContext tfs dfs pcs pks pfs prs) -> pcs; other -> []
+  elaboration-promoted-ctors e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> fams.pcs; other -> []
   elaboration-data-param-kinds :: Elaboration -> List (String, List (Option PromotedDataKind))
-  elaboration-data-param-kinds e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (FamilyContext tfs dfs pcs pks pfs prs) -> pks; other -> []
+  elaboration-data-param-kinds e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> fams.pks; other -> []
   elaboration-promoted-fns :: Elaboration -> List PromotedFn
-  elaboration-promoted-fns e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal (FamilyContext tfs dfs pcs pks pfs prs) -> pfs; other -> []
+  elaboration-promoted-fns e = case e of Elaboration [] bindings contexts core datas effects descriptions instances declarations observations rewrites temporal fams -> fams.pfs; other -> []
   -- The verified temporal contracts, in declaration order (core
   -- specification section 10): the interface facts and manifest rows.
 
@@ -666,16 +732,17 @@ module Cinch.Infer where
   is-promoted-data-type kinds name =
     if is-scalar-carrier-name name || has name ["Type", "Prop", "Region", "Effect", "Row", "Ref", "Mut", "Thunk", "Lazy", "Later", "Copy", "Kernel", "Share", "Array", "Sing", "Same", "b.Io", "b.Scope", "b.Task", "b.Dec", "(->)"]
     then False
-    else case (find-refinement name kinds, context-kind name kinds) of
-      (Some _, _) -> False
-      (None, Some _) -> not (is-type-family-in name (context-type-families kinds))
-      other -> False
+    else case find-refinement name kinds of
+      Some _ -> False
+      None -> case context-kind name kinds of
+        Some _ -> not (is-type-family-in name (context-type-families kinds))
+        None -> False
   parse-pdk-args :: TypeContext -> TypeExpr -> Option PromotedDataKind
   parse-pdk-args kinds args = case args of
     TArgsEnd _ -> Some PDKEnd
-    TArg _ first rest -> case (parse-pdk-inner kinds first, parse-pdk-args kinds rest) of
-      (Some k, Some more) -> Some (PDKArg k more)
-      other -> None
+    TArg _ first rest -> case parse-pdk-inner kinds first of
+      Some k -> (case parse-pdk-args kinds rest of Some more -> Some (PDKArg k more); None -> None)
+      None -> None
     other -> None
   parse-pdk-inner :: TypeContext -> TypeExpr -> Option PromotedDataKind
   parse-pdk-inner kinds ty = case ty of
@@ -750,15 +817,23 @@ module Cinch.Infer where
       Some (PromotedCtorInfo "ctor:Data.Core.EQ" "Data.Core.Ordering" PDKEnd)
     else if canon == "ctor:Data.Core.GT" then
       Some (PromotedCtorInfo "ctor:Data.Core.GT" "Data.Core.Ordering" PDKEnd)
-    else find-promoted-ctor canon (context-promoted-ctors kinds)
+    else case context-promoted-ctors kinds of
+      [] -> None
+      _ -> hash-map-lookup canon ((context-family-index kinds).pcs-map)
   find-promoted-ctor :: String -> List PromotedCtorInfo -> Option PromotedCtorInfo
   find-promoted-ctor wanted infos = case infos of
     [] -> None
     info : rest -> if wanted == info.ctor-symbol then Some info else find-promoted-ctor wanted rest
   lookup-data-param-kinds :: UType -> TypeContext -> List (Option PromotedDataKind)
-  lookup-data-param-kinds head kinds = case head of
-    UCon name k -> find-data-param-kinds name (canonical-identity name) (context-data-param-kinds kinds)
-    other -> []
+  lookup-data-param-kinds head kinds = case context-data-param-kinds kinds of
+    [] -> []
+    _ -> case head of
+      UCon name k ->
+        let km = (context-family-index kinds).pks-map in
+        (case hash-map-lookup name km of
+          Some pdks -> pdks
+          None -> case hash-map-lookup (canonical-identity name) km of Some pdks -> pdks; None -> [])
+      other -> []
   find-data-param-kinds :: String -> String -> List (String, List (Option PromotedDataKind)) -> List (Option PromotedDataKind)
   find-data-param-kinds raw canon entries = case entries of
     [] -> []
@@ -834,9 +909,9 @@ module Cinch.Infer where
     TName sp raw | (raw == "Code") -> (UCon global-stage-code (KFun KType KType), st)
     TName sp name -> case lookup-type-local name locals of
       Some value -> (value, st)
-      None -> case (find-refinement name kinds, context-kind name kinds) of
-        (Some definition, Some kind) -> (UCon name kind, st)
-        other -> convert external kinds locals syntax st
+      None -> case find-refinement name kinds of
+        Some definition -> (case context-kind name kinds of Some kind -> (UCon name kind, st); None -> convert external kinds locals syntax st)
+        None -> convert external kinds locals syntax st
     other -> convert external kinds locals syntax st
   imported-refinement-parameters :: Span -> Json -> Store -> (List TypeParam, Store)
   imported-refinement-parameters sp rows st = case rows of
@@ -926,14 +1001,15 @@ module Cinch.Infer where
       (case abstract-refinement-ids rest of Some ids -> Some ((q.id) : ids); None -> None)
       else None
   refinement-arguments :: Span -> TypeContext -> List TypeParam -> List UType -> List (String, UType) -> List String -> Store -> (List (String, UType), Store)
-  refinement-arguments sp kinds params actuals locals seen st = case (params, actuals) of
-    ([], []) -> (locals, st)
-    (parameter : rest, value : more) ->
-      let name = parameter.name in
-      let distinct = if has name seen then add-error sp "duplicate refinement parameter" st else st in
-      let (kind, sk) = case parameter.kind of None -> (KType, distinct); Some annotation -> kind-of False kinds locals annotation distinct in
-      refinement-arguments sp kinds rest more ((name, value) : locals) (name : seen) (unify-kind sp kind (type-kind value) sk)
-    other -> (locals, add-error sp "refinement alias arity mismatch" st)
+  refinement-arguments sp kinds params actuals locals seen st = case params of
+    [] -> (case actuals of [] -> (locals, st); other -> (locals, add-error sp "refinement alias arity mismatch" st))
+    parameter : rest -> (case actuals of
+      value : more ->
+        let name = parameter.name in
+        let distinct = if has name seen then add-error sp "duplicate refinement parameter" st else st in
+        let (kind, sk) = case parameter.kind of None -> (KType, distinct); Some annotation -> kind-of False kinds locals annotation distinct in
+        refinement-arguments sp kinds rest more ((name, value) : locals) (name : seen) (unify-kind sp kind (type-kind value) sk)
+      [] -> (locals, add-error sp "refinement alias arity mismatch" st))
   instantiate-refinement :: Span -> TypeContext -> List (String, UType) -> TypeParam -> TypeExpr -> Store -> (UType, Store)
   instantiate-refinement sp kinds locals binder predicate st = case binder.kind of
     None -> bad sp "a named refinement needs its declared carrier" st
@@ -1023,9 +1099,9 @@ module Cinch.Infer where
     [] -> True
     first : rest -> reduced-fits-pdk first pdk && reduced-list-fits-pdk rest pdk
   reduced-tuple-fits-pdk :: UType -> PromotedDataKind -> Bool
-  reduced-tuple-fits-pdk fields pdks = case (fields, pdks) of
-    (UEnd, PDKEnd) -> True
-    (UArg first rest, PDKArg k more) -> reduced-fits-pdk first k && reduced-tuple-fits-pdk rest more
+  reduced-tuple-fits-pdk fields pdks = case fields of
+    UEnd -> (case pdks of PDKEnd -> True; other -> False)
+    UArg first rest -> (case pdks of PDKArg k more -> reduced-fits-pdk first k && reduced-tuple-fits-pdk rest more; other -> False)
     other -> False
   convert-promoted-list :: Bool -> TypeContext -> List (String, UType) -> Span -> Option PromotedDataKind -> TypeExpr -> Store -> (UType, Store)
   convert-promoted-list external kinds locals sp elem-pdk elems st = case elems of
@@ -1035,21 +1111,27 @@ module Cinch.Infer where
         (tail-ty, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) head-ty) tail-ty, s2)
     other -> (UCon promoted-nil-name KType, st)
   convert-promoted-tuple :: Bool -> TypeContext -> List (String, UType) -> Span -> Option PromotedDataKind -> TypeExpr -> Store -> (UType, Store)
-  convert-promoted-tuple external kinds locals sp expected-spine args st = case (expected-spine, args) of
-    (None, TArgsEnd _) -> (UEnd, st)
-    (None, TArg s first rest) -> case convert-promoted external kinds locals None first st of
-      (ty, s1) -> case convert-promoted-tuple external kinds locals sp None rest s1 of
-        (more, s2) -> (UArg ty more, s2)
-    (Some PDKEnd, TArgsEnd _) -> (UEnd, st)
-    (Some (PDKArg k more-k), TArg s first rest) -> case convert-promoted external kinds locals (Some k) first st of
-      (ty, s1) -> case convert-promoted-tuple external kinds locals sp (Some more-k) rest s1 of
-        (more, s2) -> (UArg ty more, s2)
+  convert-promoted-tuple external kinds locals sp expected-spine args st = case expected-spine of
+    None -> (case args of
+      TArgsEnd _ -> (UEnd, st)
+      TArg s first rest -> case convert-promoted external kinds locals None first st of
+        (ty, s1) -> case convert-promoted-tuple external kinds locals sp None rest s1 of
+          (more, s2) -> (UArg ty more, s2)
+      other -> bad sp "promoted tuple arity mismatch with expected kind" st)
+    Some PDKEnd -> (case args of TArgsEnd _ -> (UEnd, st); other -> bad sp "promoted tuple arity mismatch with expected kind" st)
+    Some (PDKArg k more-k) -> (case args of
+      TArg s first rest -> case convert-promoted external kinds locals (Some k) first st of
+        (ty, s1) -> case convert-promoted-tuple external kinds locals sp (Some more-k) rest s1 of
+          (more, s2) -> (UArg ty more, s2)
+      other -> bad sp "promoted tuple arity mismatch with expected kind" st)
     other -> bad sp "promoted tuple arity mismatch with expected kind" st
   convert-promoted-ctor-args :: Bool -> TypeContext -> List (String, UType) -> Span -> UType -> PromotedDataKind -> TypeExpr -> Store -> (UType, Store)
-  convert-promoted-ctor-args external kinds locals sp head field-pdks args st = case (field-pdks, args) of
-    (PDKEnd, TArgsEnd _) -> (head, st)
-    (PDKArg k more-k, TArg s first rest) -> case convert-promoted external kinds locals (Some k) first st of
-      (val, s1) -> convert-promoted-ctor-args external kinds locals sp (UApp head val) more-k rest s1
+  convert-promoted-ctor-args external kinds locals sp head field-pdks args st = case field-pdks of
+    PDKEnd -> (case args of TArgsEnd _ -> (head, st); other -> bad sp "promoted constructor applied to wrong number of arguments" st)
+    PDKArg k more-k -> (case args of
+      TArg s first rest -> case convert-promoted external kinds locals (Some k) first st of
+        (val, s1) -> convert-promoted-ctor-args external kinds locals sp (UApp head val) more-k rest s1
+      other -> bad sp "promoted constructor applied to wrong number of arguments" st)
     other -> bad sp "promoted constructor applied to wrong number of arguments" st
   convert-promoted :: Bool -> TypeContext -> List (String, UType) -> Option PromotedDataKind -> TypeExpr -> Store -> (UType, Store)
   convert-promoted external kinds locals expected ty st = case ty of
@@ -1115,17 +1197,20 @@ module Cinch.Infer where
     TApp s head args -> case source-type-application head args of
       (TName at name, actuals) ->
         if is-promoted-cons-name name then
-          (case (expected, actuals) of
-            (None, TArg _ hd (TArg _ tl (TArgsEnd _))) ->
-              case convert-promoted external kinds locals None hd st of
-                (uhd, s1) -> case convert-promoted external kinds locals None tl s1 of
-                  (utl, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) uhd) utl, s2)
-            (Some (PDKList elem-pdk), TArg _ hd (TArg _ tl (TArgsEnd _))) ->
-              case convert-promoted external kinds locals (Some elem-pdk) hd st of
-                (uhd, s1) -> case convert-promoted external kinds locals (Some (PDKList elem-pdk)) tl s1 of
-                  (utl, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) uhd) utl, s2)
-            (Some exp-pdk, _) -> bad s (string-concat-all ["promoted constructor Cons does not match expected kind ", pdk-text exp-pdk]) st
-            other -> bad s "promoted constructor Cons takes 2 arguments" st)
+          (case expected of
+            None -> (case actuals of
+              TArg _ hd (TArg _ tl (TArgsEnd _)) ->
+                case convert-promoted external kinds locals None hd st of
+                  (uhd, s1) -> case convert-promoted external kinds locals None tl s1 of
+                    (utl, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) uhd) utl, s2)
+              other -> bad s "promoted constructor Cons takes 2 arguments" st)
+            Some (PDKList elem-pdk) -> (case actuals of
+              TArg _ hd (TArg _ tl (TArgsEnd _)) ->
+                case convert-promoted external kinds locals (Some elem-pdk) hd st of
+                  (uhd, s1) -> case convert-promoted external kinds locals (Some (PDKList elem-pdk)) tl s1 of
+                    (utl, s2) -> (UApp (UApp (UCon promoted-cons-name (KFun KType (KFun KType KType))) uhd) utl, s2)
+              other -> bad s (string-concat-all ["promoted constructor Cons does not match expected kind ", pdk-text (PDKList elem-pdk)]) st)
+            Some exp-pdk -> bad s (string-concat-all ["promoted constructor Cons does not match expected kind ", pdk-text exp-pdk]) st)
         else case lookup-promoted-rejection kinds name of
           Some reason -> bad s reason st
           None -> case lookup-promoted-ctor kinds name of
@@ -1186,18 +1271,19 @@ module Cinch.Infer where
         convert-promoted external kinds locals None ty st
       (TName at name, actuals) | (case lookup-promoted-rejection kinds name of Some _ -> True; None -> False) ->
         convert-promoted external kinds locals None ty st
-      (TName at name, actuals) | (case (lookup-promoted-fn-in kinds name, context-kind name kinds) of
-        (Some _, None) -> True
-        other -> False) ->
+      (TName at name, actuals) | (case context-kind name kinds of
+        Some KType -> (case lookup-promoted-ctor kinds name of
+          -- Same-named type+ctor like `data Axis where Axis :: Nat -> Type -> Axis`:
+          -- promote only when the type constructor itself is nullary (KType) and
+          -- applied args match the constructor's arity (so `Functor (Const m)` is
+          -- never promoted).
+          Some info -> pdk-arity (info.ctor-fields) > 0 && pdk-arity (info.ctor-fields) == list-length (type-args-of actuals)
+          None -> False)
+        Some _ -> False
+        None -> (case lookup-promoted-fn-in kinds name of
+          Some _ -> True
+          None -> case lookup-promoted-ctor kinds name of Some _ -> True; None -> False)) ->
         convert-promoted external kinds locals None ty st
-      (TName at name, actuals) | (case (lookup-promoted-ctor kinds name, context-kind name kinds) of
-        (Some info, None) -> True
-        -- Same-named type+ctor like `data Axis where Axis :: Nat -> Type -> Axis`:
-        -- promote only when the type constructor itself is nullary (KType) and
-        -- applied args match the constructor's arity (so `Functor (Const m)` is
-        -- never promoted).
-        (Some info, Some KType) -> pdk-arity (info.ctor-fields) > 0 && pdk-arity (info.ctor-fields) == list-length (type-args-of actuals)
-        other -> False) -> convert-promoted external kinds locals None ty st
       (function, actuals) -> case convert-type-head external kinds locals function st of
         (h, sh) -> if later-arguments-valid h actuals then
             let head-ty = later-head-for-args h actuals in
@@ -1277,9 +1363,12 @@ module Cinch.Infer where
       else head
     other -> head
   unqualified-name :: String -> Bool
-  unqualified-name name = no-qualifier (unpack name)
-  no-qualifier :: List Char -> Bool
-  no-qualifier chars = case chars of [] -> True; char : rest -> char-code char /= 46 && no-qualifier rest
+  unqualified-name name = no-dot-bytes (string-to-bytes name) 0
+  no-dot-bytes :: Bytes -> Nat -> Bool
+  no-dot-bytes bs idx =
+    if idx < bytes-len bs then
+      bytes-get bs idx /= 46 && no-dot-bytes bs (idx + 1)
+    else True
   refinement-free-names :: TypeContext -> List (String, UType) -> TypeExpr -> List String
   refinement-free-names kinds locals syntax = case syntax of
     TName s name -> if has name ["True", "False"] || primitive name || not (unqualified-name name) then [] else
@@ -1319,36 +1408,42 @@ module Cinch.Infer where
       if valid-type out then (out, checked) else bad sp "ill-formed source refinement" checked
 
   -- Mathematical literal decoding never narrows through a machine word.
-  number-digit :: Char -> Option Int
-  number-digit char = let code = nat-to-int (char-code char) in
-    if code >= 48 && code <= 57 then Some (code - 48)
-    else if code >= 65 && code <= 70 then Some (code - 55)
-    else if code >= 97 && code <= 102 then Some (code - 87) else None
-  number-digits :: Int -> List Char -> Int -> Bool -> Bool -> Option Int
-  number-digits radix chars value seen separator = case chars of
-    [] -> if seen && not separator then Some value else None
-    char : rest -> if char-code char == 95 then
-      (if seen && not separator then number-digits radix rest value seen True else None)
-      else case number-digit char of
-        Some digit -> if digit < radix then number-digits radix rest (value * radix + digit) True False else None
+  byte-digit :: Nat -> Option Int
+  byte-digit b =
+    if b >= 48 && b <= 57 then Some (nat-to-int b - 48)
+    else if b >= 65 && b <= 70 then Some (nat-to-int b - 55)
+    else if b >= 97 && b <= 102 then Some (nat-to-int b - 87) else None
+  number-digits-bytes :: Int -> Bytes -> Nat -> Int -> Bool -> Bool -> Option Int
+  number-digits-bytes radix bs idx value seen separator =
+    if idx < bytes-len bs then
+      let b = bytes-get bs idx in
+      if b == 95 then
+        (if seen && not separator then number-digits-bytes radix bs (idx + 1) value seen True else None)
+      else case byte-digit b of
+        Some digit -> if digit < radix then number-digits-bytes radix bs (idx + 1) (value * radix + digit) True False else None
         None -> None
-  number-base :: List Char -> Option Int
-  number-base chars = case chars of
-    zero : marker : rest -> if char-code zero == 48 then
-      (if char-code marker == 120 || char-code marker == 88 then number-digits 16 rest 0 False False
-       else if char-code marker == 98 || char-code marker == 66 then number-digits 2 rest 0 False False
-       else if char-code marker == 111 || char-code marker == 79 then number-digits 8 rest 0 False False
-       else number-digits 10 chars 0 False False)
-      else number-digits 10 chars 0 False False
-    other -> number-digits 10 chars 0 False False
+    else if seen && not separator then Some value else None
+  number-base-bytes :: Bytes -> Nat -> Option Int
+  number-base-bytes bs idx =
+    if idx + 1 < bytes-len bs && bytes-get bs idx == 48 then
+      let marker = bytes-get bs (idx + 1) in
+      if marker == 120 || marker == 88 then number-digits-bytes 16 bs (idx + 2) 0 False False
+      else if marker == 98 || marker == 66 then number-digits-bytes 2 bs (idx + 2) 0 False False
+      else if marker == 111 || marker == 79 then number-digits-bytes 8 bs (idx + 2) 0 False False
+      else number-digits-bytes 10 bs idx 0 False False
+    else number-digits-bytes 10 bs idx 0 False False
   index-number :: String -> Option Int
-  index-number text = case unpack text of
-    sign : rest -> if char-code sign == 45 then (case number-base rest of Some n -> Some (0 - n); None -> None) else number-base (unpack text)
-    [] -> None
+  index-number text =
+    let bs = string-to-bytes text in
+    if 0 < bytes-len bs then
+      if bytes-get bs 0 == 45 then
+        (case number-base-bytes bs 1 of Some n -> Some (0 - n); None -> None)
+      else number-base-bytes bs 0
+    else None
   checked-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
   checked-literal sp carrier text st = case index-number text of
     Some value ->
-      let signed-zero = value == 0 && (case unpack text of first : rest -> char-code first == 45; [] -> False) in
+      let signed-zero = value == 0 && (let bs = string-to-bytes text in 0 < bytes-len bs && bytes-get bs 0 == 45) in
       let digits = if signed-zero then "-0" else int-to-string value in
       (case normalize st carrier of
         UMeta id KType -> (CInt sp carrier digits, pending-number sp carrier value st)
@@ -1356,9 +1451,10 @@ module Cinch.Infer where
           else term-error sp (number-literal-error known value "literal is outside its integer carrier") st)
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
   negate-float-text :: String -> String
-  negate-float-text raw = case unpack raw of
-    first : rest | char-code first == 45 -> pack rest
-    other -> string-concat "-" raw
+  negate-float-text raw =
+    let bs = string-to-bytes raw in
+    if 0 < bytes-len bs && bytes-get bs 0 == 45 then string-slice raw 1 (string-length raw)
+    else string-concat "-" raw
   checked-float-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
   checked-float-literal sp carrier raw st = case normalize st carrier of
     UMeta id KType -> (CInt sp carrier raw, pending-float sp carrier raw st)
@@ -1460,8 +1556,8 @@ module Cinch.Infer where
   identity-type-parameters :: List Quant -> Bool
   identity-type-parameters params = case params of [] -> True; q : rest -> kind-equal (q.kind) KType && identity-type-parameters rest
   identity-scheme :: Scheme -> Bool
-  identity-scheme sc = identity-type-parameters (scheme-params sc) && (case (scheme-requirements sc, scheme-body sc) of
-    ([], UFun domain result) -> same-type domain result
+  identity-scheme sc = identity-type-parameters (scheme-params sc) && (case scheme-requirements sc of
+    [] -> (case scheme-body sc of UFun domain result -> same-type domain result; other -> False)
     other -> False)
   -- Only a complete single-clause identity definition, with its checked pure
   -- type, supplies this beta reduction. A similarly named or merely typed
@@ -1477,9 +1573,13 @@ module Cinch.Infer where
   known-observation-input-type :: List (String, UType) -> TypeExpr -> Option UType
   known-observation-input-type locals syntax = case syntax of
     TName sp name -> (case lookup-local name locals of Some value -> value-carrier (type-kind value); None -> None)
-    TApp sp function (TArg at argument (TArgsEnd end)) -> (case (known-observation-input-type locals function, known-observation-input-type locals argument) of
-      (Some (UFun domain result), Some input) -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some result else None
-      (Some (UPi id name domain row result), Some input) -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some (predicate-base-carrier result) else None
+    TApp sp function (TArg at argument (TArgsEnd end)) -> (case known-observation-input-type locals function of
+      Some (UFun domain result) -> (case known-observation-input-type locals argument of
+        Some input -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some result else None
+        None -> None)
+      Some (UPi id name domain row result) -> (case known-observation-input-type locals argument of
+        Some input -> if same-type (predicate-base-carrier domain) (predicate-base-carrier input) then Some (predicate-base-carrier result) else None
+        None -> None)
       other -> None)
     other -> None
   convert-byte-operand :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
@@ -1487,17 +1587,23 @@ module Cinch.Infer where
     TName at binding -> case lookup-local binding locals of
       Some value -> predicate-index-value sp (primitive-type "Bytes") value st
       None -> bad sp ("unknown index " <> binding <> ": byte observation input has no checked local identity") st
-    TApp at (TName called name) arguments -> (case (lookup-local name locals, context-identity-observation name kinds, arguments) of
-      (None, Some sc, TArg arg input (TArgsEnd end)) -> (case open-scheme False sc st of
-        (function, pairs, opened) -> case function of
-          UFun domain result -> case convert-byte-operand external kinds locals sp input opened of
-            (value, checked) -> (value, unify sp result (primitive-type "Bytes") (unify sp domain (primitive-type "Bytes") checked))
-          other -> bad sp "byte observation helper needs its checked pure identity type" opened)
-      (None, identity, args) -> (case context-total-observation name kinds of
-        Some binding -> (case convert-total-call external kinds locals called name args st of
-          (value, checked) -> predicate-index-value sp (primitive-type "Bytes") value checked)
-        None -> reject-byte-application locals sp argument st)
-      other -> reject-byte-application locals sp argument st)
+    TApp at (TName called name) arguments -> (case lookup-local name locals of
+      None -> (case context-identity-observation name kinds of
+        Some sc -> (case arguments of
+          TArg arg input (TArgsEnd end) -> (case open-scheme False sc st of
+            (function, pairs, opened) -> case function of
+              UFun domain result -> case convert-byte-operand external kinds locals sp input opened of
+                (value, checked) -> (value, unify sp result (primitive-type "Bytes") (unify sp domain (primitive-type "Bytes") checked))
+              other -> bad sp "byte observation helper needs its checked pure identity type" opened)
+          other -> (case context-total-observation name kinds of
+            Some binding -> (case convert-total-call external kinds locals called name arguments st of
+              (value, checked) -> predicate-index-value sp (primitive-type "Bytes") value checked)
+            None -> reject-byte-application locals sp argument st))
+        None -> (case context-total-observation name kinds of
+          Some binding -> (case convert-total-call external kinds locals called name arguments st of
+            (value, checked) -> predicate-index-value sp (primitive-type "Bytes") value checked)
+          None -> reject-byte-application locals sp argument st))
+      Some _ -> reject-byte-application locals sp argument st)
     other -> bad sp "byte observation input needs checked pure total reification" st
   reject-byte-application :: List (String, UType) -> Span -> TypeExpr -> Store -> (UType, Store)
   reject-byte-application locals sp argument st = case known-observation-input-type locals argument of
@@ -1546,33 +1652,38 @@ module Cinch.Infer where
         convert-promoted-fn-app external kinds locals sp "Data.List.length" 1 True args st
         else case lookup-promoted-fn-in kinds name of
           Some (canon, arity, ret-idx) -> convert-promoted-fn-app external kinds locals sp canon arity ret-idx args st
-          other -> (case (builtin-index-measure name, args) of
-            (Some WordToNat, TArg arg input (TArgsEnd end)) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
-              (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
-            (Some BufferLength, TArg arg input (TArgsEnd end)) -> (case convert-length-operand external kinds locals sp input st of
-              (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
-            (Some measure, other) -> bad sp "builtin index measure needs exactly one operand" st
-            (None, TArg arg input (TArgsEnd end)) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
-            other -> convert-total-call external kinds locals sp name args st))
+          other -> (case builtin-index-measure name of
+            Some WordToNat -> (case args of
+              TArg arg input (TArgsEnd end) -> (case convert-predicate-index external kinds locals (primitive-type "U32") input st of
+                (value, checked) -> checked-typed-source-index sp (UIndexMeasure WordToNat value) checked)
+              other -> bad sp "builtin index measure needs exactly one operand" st)
+            Some BufferLength -> (case args of
+              TArg arg input (TArgsEnd end) -> (case convert-length-operand external kinds locals sp input st of
+                (value, checked) -> checked-typed-source-index sp (UIndexMeasure BufferLength value) checked)
+              other -> bad sp "builtin index measure needs exactly one operand" st)
+            None -> (case args of
+              TArg arg input (TArgsEnd end) | byte-length-binding name kinds -> convert-byte-length external kinds locals sp name input st
+              other -> convert-total-call external kinds locals sp name args st)))
   convert-total-arguments :: Bool -> TypeContext -> List (String, UType) -> List String -> TypeExpr -> Store -> (UType, Store)
-  convert-total-arguments external kinds locals parameters arguments st = case (parameters, arguments) of
-    ([], TArgsEnd sp) -> (UEnd, st)
-    (sort : rest, TArg sp first more) -> (case convert-index external kinds locals (primitive-type sort) first st of
-      (value, checked) -> (case convert-total-arguments external kinds locals rest more checked of
-        (values, done) -> (UArg value values, done)))
-    other -> bad (type-expr-span arguments) "defining total call arity mismatch" st
+  convert-total-arguments external kinds locals parameters arguments st = case parameters of
+    [] -> (case arguments of TArgsEnd sp -> (UEnd, st); other -> bad (type-expr-span arguments) "defining total call arity mismatch" st)
+    sort : rest -> (case arguments of
+      TArg sp first more -> (case convert-index external kinds locals (primitive-type sort) first st of
+        (value, checked) -> (case convert-total-arguments external kinds locals rest more checked of
+          (values, done) -> (UArg value values, done)))
+      other -> bad (type-expr-span arguments) "defining total call arity mismatch" st)
   singleton-arrow :: TypeContext -> String -> TypeExpr -> Option UType
   singleton-arrow kinds owner syntax = case syntax of
-    TFun site (TName arg field) (TName end result) | (owner == result) -> case (context-kind owner kinds, context-kind field kinds) of
-      (Some KType, Some KType) -> Some (UFun (literal-type kinds field) (UCon owner KType))
+    TFun site (TName arg field) (TName end result) | (owner == result) -> case context-kind owner kinds of
+      Some KType -> (case context-kind field kinds of Some KType -> Some (UFun (literal-type kinds field) (UCon owner KType)); other -> None)
       other -> None
     other -> None
 
   -- Only the defining module's complete, public constructor table supplies
   -- the arrow. Nominal references inside a client's predicate carry no such authority.
   nullary-owner :: TypeContext -> String -> TypeExpr -> Option UType
-  nullary-owner kinds owner syntax = case (syntax, context-kind owner kinds) of
-    (TName sp name, Some KType) | (owner == name) -> Some (UCon owner KType)
+  nullary-owner kinds owner syntax = case syntax of
+    TName sp name | (owner == name) -> (case context-kind owner kinds of Some KType -> Some (UCon owner KType); other -> None)
     other -> None
   imported-index-constructor :: TypeContext -> String -> String -> Bool -> Json -> Option UType
   imported-index-constructor kinds owner identity singleton rows = case rows of
@@ -1624,11 +1735,12 @@ module Cinch.Infer where
     [] -> None
 
   source-constructor-arrow :: TypeContext -> String -> Option UType
-  source-constructor-arrow kinds name = case unpack name of
-    head : dot : rest | char-code head == 105 && char-code dot == 46 -> (case export-global name of
-      Ok identity -> imported-constructor-arrow kinds (nominal-owner identity) identity (context-aliases kinds)
-      Err message -> None)
-    other -> local-constructor-arrow kinds name (context-aliases kinds)
+  source-constructor-arrow kinds name =
+    if starts-with-i-dot name then
+      (case export-global name of
+        Ok identity -> imported-constructor-arrow kinds (nominal-owner identity) identity (context-aliases kinds)
+        Err message -> None)
+    else local-constructor-arrow kinds name (context-aliases kinds)
 
   constructor-operand-carrier :: TypeContext -> List (String, UType) -> TypeExpr -> Option UType
   constructor-operand-carrier kinds locals syntax = case syntax of
@@ -1642,14 +1754,20 @@ module Cinch.Infer where
   convert-total-call external kinds locals sp name arguments st = case context-total-observation name kinds of
     Some binding -> (case convert-total-arguments external kinds locals (total-parameters (binding-function binding)) arguments st of
       (values, checked) -> checked-typed-source-index sp (UIndexCall (binding-function binding) values) checked)
-    None | string-length-binding name kinds -> (case (lookup-local name locals, arguments) of
-      (None, TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals (UCon global-data-string-string KType) input st of
-        (value, checked) -> checked-typed-source-index sp (UIndexStringLength value) checked)
-      other -> bad sp "string-length index needs its defining unary binding" st)
-    None -> (case (lookup-local name locals, source-constructor-arrow kinds name, arguments) of
-      (None, Some (UFun domain result), TArg arg input (TArgsEnd end)) -> (case convert-index external kinds locals domain input st of
-        (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
-      other -> bad sp "index application has no actual defining total body declaration" st)
+    None | string-length-binding name kinds -> (case lookup-local name locals of
+      None -> (case arguments of
+        TArg arg input (TArgsEnd end) -> (case convert-index external kinds locals (UCon global-data-string-string KType) input st of
+          (value, checked) -> checked-typed-source-index sp (UIndexStringLength value) checked)
+        other -> bad sp "string-length index needs its defining unary binding" st)
+      Some _ -> bad sp "string-length index needs its defining unary binding" st)
+    None -> (case lookup-local name locals of
+      None -> (case source-constructor-arrow kinds name of
+        Some (UFun domain result) -> (case arguments of
+          TArg arg input (TArgsEnd end) -> (case convert-index external kinds locals domain input st of
+            (value, checked) -> checked-typed-source-index sp (UIndexConstructor name (UFun domain result) value) checked)
+          other -> bad sp "index application has no actual defining total body declaration" st)
+        other -> bad sp "index application has no actual defining total body declaration" st)
+      Some _ -> bad sp "index application has no actual defining total body declaration" st)
   -- A value name is an index only when its defining checked total body
   -- takes no arguments. Locally bound indices take precedence at each use.
   constant-index :: TypeContext -> String -> Option UType
@@ -1709,8 +1827,10 @@ module Cinch.Infer where
     (MkBodyContext context names index cache) : rest -> locals
     [] -> locals
     (MkValueBinding name sc id level value) : rest -> (name, value) : (value-locals rest locals)
-    (MkLocalBinding name sc id level) : rest -> case (scheme-params sc, scheme-requirements sc) of
-      ([], []) -> (name, UIndex (scheme-body sc) (IRigid id name level)) : (value-locals rest locals)
+    (MkLocalBinding name sc id level) : rest -> case scheme-params sc of
+      [] -> (case scheme-requirements sc of
+        [] -> (name, UIndex (scheme-body sc) (IRigid id name level)) : (value-locals rest locals)
+        other -> value-locals rest locals)
       other -> value-locals rest locals
     (MkRefinedLocal name orig ref id level) : rest -> (name, UIndex ref (IRigid id name level)) : (value-locals rest locals)
     binding : rest -> value-locals rest locals
@@ -1723,13 +1843,14 @@ module Cinch.Infer where
     (MkValueBinding name sc key level value) : rest -> if id == key then Some (MkValueBinding name sc key level value) else find-local-id id rest
     other : rest -> find-local-id id rest
   local-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
-  local-actuals sp params actuals earlier st = case (params, actuals) of
-    ([], []) -> (earlier, st)
-    (q : rest, actual : more) -> if valid-type actual then
-      (let expected = map-kind-types (substitute-bound earlier) (q.kind) in
-       local-actuals sp rest more ((q.id, actual) : earlier) (unify-kind sp expected (type-kind actual) st))
-      else (earlier, add-error sp "invalid local index instantiation" st)
-    other -> (earlier, add-error sp "local index instantiation arity mismatch" st)
+  local-actuals sp params actuals earlier st = case params of
+    [] -> (case actuals of [] -> (earlier, st); other -> (earlier, add-error sp "local index instantiation arity mismatch" st))
+    q : rest -> (case actuals of
+      actual : more -> if valid-type actual then
+        (let expected = map-kind-types (substitute-bound earlier) (q.kind) in
+         local-actuals sp rest more ((q.id, actual) : earlier) (unify-kind sp expected (type-kind actual) st))
+        else (earlier, add-error sp "invalid local index instantiation" st)
+      [] -> (earlier, add-error sp "local index instantiation arity mismatch" st))
   reify-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
   reify-argument sp env term st = case store-errors st of
     error : rest -> (UError, st)
@@ -1814,7 +1935,9 @@ module Cinch.Infer where
       Some value -> checked-source-index sp (normalize st ty) (IInteger value) st
       None -> bad sp "invalid integer argument literal" st
     CChar source ty text -> if same-type (normalize st ty) (UCon "Char" KType) then
-        (case unpack text of [c] -> checked-source-index sp (normalize st ty) (ICharacter c) st; other -> bad sp "invalid character argument literal" st)
+        (case string-utf8-first text of
+          Some (c, n) -> if n == string-byte-length text then checked-source-index sp (normalize st ty) (ICharacter c) st else bad sp "invalid character argument literal" st
+          None -> bad sp "invalid character argument literal" st)
       else bad sp "character argument needs a character carrier" st
     CPrimitive source ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if has op ["+", "-", "*"] && math-carrier (normalize st ty) then
@@ -1868,22 +1991,24 @@ module Cinch.Infer where
   index-let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
   index-let-binding sp env name sc id level value st =
     if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
-    else (case (scheme-params sc, scheme-requirements sc) of
-      ([], []) -> case value of
-        CInt at lit-ty text | (case normalize st lit-ty of UMeta mid KType -> True; other -> False) ->
-          (case index-number text of
-            Some n -> (MkValueBinding name sc id level (UIndex lit-ty (IInteger n)), st)
-            None -> (MkLocalBinding name sc id level, st))
-        other -> case reify-argument sp env value st of
-          (index, checked) -> case (store-errors checked, index-of-type index) of
-            -- Reification can expose the mathematical carrier of a refined
-            -- result (for example a byte length). It is not a definition at the
-            -- refined carrier. Keep the actual local and its checked RHS fact,
-            -- just as Core's scope-definitions does for a mismatched index kind.
-            ([], witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
-              (MkValueBinding name sc id level index, checked)
-              else (MkLocalBinding name sc id level, st)
-            other -> (MkLocalBinding name sc id level, st)
+    else (case scheme-params sc of
+      [] -> (case scheme-requirements sc of
+        [] -> (case value of
+          CInt at lit-ty text | (case normalize st lit-ty of UMeta mid KType -> True; other -> False) ->
+            (case index-number text of
+              Some n -> (MkValueBinding name sc id level (UIndex lit-ty (IInteger n)), st)
+              None -> (MkLocalBinding name sc id level, st))
+          other -> case reify-argument sp env value st of
+            (index, checked) -> case store-errors checked of
+              -- Reification can expose the mathematical carrier of a refined
+              -- result (for example a byte length). It is not a definition at the
+              -- refined carrier. Keep the actual local and its checked RHS fact,
+              -- just as Core's scope-definitions does for a mismatched index kind.
+              [] -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
+                (MkValueBinding name sc id level index, checked)
+                else (MkLocalBinding name sc id level, st)
+              other -> (MkLocalBinding name sc id level, st))
+        other -> (MkLocalBinding name sc id level, st))
       other -> (MkLocalBinding name sc id level, st))
 
   check-borrow-binding :: Span -> List CheckedBinding -> UType -> Store -> Store
@@ -2722,7 +2847,7 @@ module Cinch.Infer where
   remap-imported-name :: String -> String
   remap-imported-name name =
     if promoted-ctor-name name || promoted-str-name name then name
-    else if string-starts-with "m." name then interface-global (canonical-identity name)
+    else if starts-with-m-dot name then interface-global (canonical-identity name)
     else name
   remap-imported-type :: UType -> UType
   remap-imported-type ty = case ty of
@@ -2956,15 +3081,17 @@ module Cinch.Infer where
   -- Collect promoted constructor metadata, data-kinded parameter signatures,
   -- type family equations/instances, and data family instance overlap checks.
   starts-lower-name :: String -> Bool
-  starts-lower-name name = case unpack name of
-    c : _ -> char-code c >= 97 && char-code c <= 122
-    [] -> False
+  starts-lower-name name =
+    let bs = string-to-bytes name in
+    if 0 < bytes-len bs then
+      let b = bytes-get bs 0 in b >= 97 && b <= 122
+    else False
   is-family-pat-var :: TypeContext -> String -> Bool
   is-family-pat-var kinds name =
-    name == "_" || string-starts-with "$_" name || (starts-lower-name name
-      && not (string-starts-with "m." name)
-      && not (string-starts-with "i." name)
-      && not (string-starts-with "b." name)
+    name == "_" || starts-with-dollar-under name || (starts-lower-name name
+      && not (starts-with-m-dot name)
+      && not (starts-with-i-dot name)
+      && not (starts-with-b-dot name)
       && (case lookup-promoted-ctor kinds name of Some _ -> False; None -> True)
       && (case context-kind name kinds of Some _ -> False; None -> True))
   rewrite-wildcards :: TypeExpr -> Nat -> (TypeExpr, Nat)
@@ -3041,8 +3168,10 @@ module Cinch.Infer where
       infer-nat-vars-in-tuple kinds more rest (infer-nat-vars-in-arg kinds None k1 first acc)
     other -> acc
   infer-nat-vars-in-pdk-args :: TypeContext -> PromotedDataKind -> TypeExpr -> List String -> List String
-  infer-nat-vars-in-pdk-args kinds spine args acc = case (spine, args) of
-    (PDKArg k more, TArg _ first rest) -> infer-nat-vars-in-pdk-args kinds more rest (infer-nat-vars-in-arg kinds None (Some k) first acc)
+  infer-nat-vars-in-pdk-args kinds spine args acc = case spine of
+    PDKArg k more -> (case args of
+      TArg _ first rest -> infer-nat-vars-in-pdk-args kinds more rest (infer-nat-vars-in-arg kinds None (Some k) first acc)
+      other -> acc)
     other -> acc
   infer-nat-vars-in-kind-args :: TypeContext -> List Kind -> List (Option PromotedDataKind) -> TypeExpr -> List String -> List String
   infer-nat-vars-in-kind-args kinds ks pdks args acc = case args of
@@ -3246,9 +3375,13 @@ module Cinch.Infer where
     _ : rest -> collect-data-family-instances rest kinds st
   -- Native promoted function compilation & lookup helpers.
   lookup-promoted-rejection :: TypeContext -> String -> Option String
-  lookup-promoted-rejection kinds name =
-    let canon = canonical-identity name in
-    find-promoted-rejection name canon (context-promoted-rejections kinds)
+  lookup-promoted-rejection kinds name = case context-promoted-rejections kinds of
+    [] -> None
+    _ ->
+      let rm = (context-family-index kinds).prs-map in
+      case hash-map-lookup name rm of
+        Some msg -> Some msg
+        None -> hash-map-lookup (canonical-identity name) rm
 
   find-promoted-rejection :: String -> String -> List (String, String) -> Option String
   find-promoted-rejection raw canon entries = case entries of
@@ -3258,7 +3391,7 @@ module Cinch.Infer where
   lookup-promoted-fn-in :: TypeContext -> String -> Option (String, Nat, Bool)
   lookup-promoted-fn-in kinds name =
     let canon = canonical-identity name in
-    case lookup-promoted-fn canon (context-promoted-fns kinds) of
+    case hash-map-lookup canon ((context-family-index kinds).pfs-map) of
       Some f -> Some (f.fn-identity, f.fn-arity, f.fn-returns-idx)
       None -> case promoted-builtin-arity canon of
         Some arity -> Some (canon, arity, canon == "Data.List.length" || canon == "length")
@@ -3278,21 +3411,22 @@ module Cinch.Infer where
       other -> False
 
   parse-decimal-int :: String -> Option Int
-  parse-decimal-int s = case unpack s of
-    [] -> None
-    c : rest ->
-      if char-code c == 45 then
-        (case parse-decimal-digits rest 0 of Some n -> Some (0 - n); None -> None)
-      else parse-decimal-digits (c : rest) 0
+  parse-decimal-int s =
+    let bs = string-to-bytes s in
+    if 0 < bytes-len bs then
+      if bytes-get bs 0 == 45 then
+        (case parse-decimal-bytes bs 1 0 of Some n -> Some (0 - n); None -> None)
+      else parse-decimal-bytes bs 0 0
+    else None
 
-  parse-decimal-digits :: List Char -> Int -> Option Int
-  parse-decimal-digits cs acc = case cs of
-    [] -> Some acc
-    c : rest ->
-      let code = char-code c in
-      if code >= 48 && code <= 57 then
-        parse-decimal-digits rest (acc * 10 + (nat-to-int code - 48))
+  parse-decimal-bytes :: Bytes -> Nat -> Int -> Option Int
+  parse-decimal-bytes bs idx acc =
+    if idx < bytes-len bs then
+      let b = bytes-get bs idx in
+      if b >= 48 && b <= 57 then
+        parse-decimal-bytes bs (idx + 1) (acc * 10 + (nat-to-int b - 48))
       else None
+    else Some acc
 
   type-effect-names :: TypeExpr -> List String
   type-effect-names ty = case ty of
@@ -3361,25 +3495,31 @@ module Cinch.Infer where
       Some (ps, vs) -> Some (PPTuple ps, vs)
       None -> None
     PList _ args -> compile-promoted-pat-list-elems (pats-of args)
-    PCons _ head tail -> case (compile-promoted-pat head, compile-promoted-pat tail) of
-      (Some (p, v1), Some (tl, v2)) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
-      other -> None
+    PCons _ head tail -> case compile-promoted-pat head of
+      Some (p, v1) -> (case compile-promoted-pat tail of
+        Some (tl, v2) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
+        None -> None)
+      None -> None
     PAnn _ inner _ -> compile-promoted-pat inner
     other -> None
 
   compile-promoted-pat-list :: List Pat -> Option (PPatList, List String)
   compile-promoted-pat-list ps = case ps of
     [] -> Some (PPEnd, [])
-    first : rest -> case (compile-promoted-pat first, compile-promoted-pat-list rest) of
-      (Some (p, v1), Some (more, v2)) -> Some (PPArg p more, v1 <> v2)
-      other -> None
+    first : rest -> case compile-promoted-pat first of
+      Some (p, v1) -> (case compile-promoted-pat-list rest of
+        Some (more, v2) -> Some (PPArg p more, v1 <> v2)
+        None -> None)
+      None -> None
 
   compile-promoted-pat-list-elems :: List Pat -> Option (PPat, List String)
   compile-promoted-pat-list-elems ps = case ps of
     [] -> Some (PPCon promoted-nil-name PPEnd, [])
-    first : rest -> case (compile-promoted-pat first, compile-promoted-pat-list-elems rest) of
-      (Some (p, v1), Some (tl, v2)) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
-      other -> None
+    first : rest -> case compile-promoted-pat first of
+      Some (p, v1) -> (case compile-promoted-pat-list-elems rest of
+        Some (tl, v2) -> Some (PPCon promoted-cons-name (PPArg p (PPArg tl PPEnd)), v1 <> v2)
+        None -> None)
+      None -> None
 
   compile-promoted-expr :: List String -> Expr -> Option PExpr
   compile-promoted-expr locals e = case e of
@@ -3402,46 +3542,50 @@ module Cinch.Infer where
     EList _ args -> compile-promoted-expr-list-elems locals (exprs-of args)
     EApp _ (EApp _ (EVar _ op-name) a) b ->
       case compile-promoted-binop (diagnostic-member-name op-name) of
-        Some pop -> (case (compile-promoted-expr locals a, compile-promoted-expr locals b) of
-          (Some pa, Some pb) -> Some (PEBin pop pa pb)
-          other -> None)
-        None -> (case (compile-promoted-expr locals (EApp zero (EVar zero op-name) a), compile-promoted-expr locals b) of
-          (Some pf, Some px) -> Some (PEApp pf px)
-          other -> None)
-    EApp _ f x -> case (compile-promoted-expr locals f, compile-promoted-expr locals x) of
-      (Some pf, Some px) -> Some (PEApp pf px)
-      other -> None
-    EBin _ op a b -> case (compile-promoted-binop op, compile-promoted-expr locals a, compile-promoted-expr locals b) of
-      (Some pop, Some pa, Some pb) -> Some (PEBin pop pa pb)
-      other -> None
+        Some pop -> (case compile-promoted-expr locals a of
+          Some pa -> (case compile-promoted-expr locals b of Some pb -> Some (PEBin pop pa pb); None -> None)
+          None -> None)
+        None -> (case compile-promoted-expr locals (EApp zero (EVar zero op-name) a) of
+          Some pf -> (case compile-promoted-expr locals b of Some px -> Some (PEApp pf px); None -> None)
+          None -> None)
+    EApp _ f x -> case compile-promoted-expr locals f of
+      Some pf -> (case compile-promoted-expr locals x of Some px -> Some (PEApp pf px); None -> None)
+      None -> None
+    EBin _ op a b -> case compile-promoted-binop op of
+      Some pop -> (case compile-promoted-expr locals a of
+        Some pa -> (case compile-promoted-expr locals b of Some pb -> Some (PEBin pop pa pb); None -> None)
+        None -> None)
+      None -> None
     ENeg _ x -> case compile-promoted-expr locals x of
       Some px -> Some (PENeg px)
       None -> None
     ELam _ ps body -> compile-promoted-lam locals ps body
     ELet _ bindings body -> compile-promoted-let locals bindings body
     ELetScope _ inner -> compile-promoted-expr locals inner
-    EIf _ c y n -> case (compile-promoted-expr locals c, compile-promoted-expr locals y, compile-promoted-expr locals n) of
-      (Some pc, Some py, Some pn) -> Some (PEIf pc py pn)
-      other -> None
-    ECase _ scrut alts -> case (compile-promoted-expr locals scrut, compile-promoted-alts locals alts) of
-      (Some ps, Some palts) -> Some (PECase ps palts)
-      other -> None
+    EIf _ c y n -> case compile-promoted-expr locals c of
+      Some pc -> (case compile-promoted-expr locals y of
+        Some py -> (case compile-promoted-expr locals n of Some pn -> Some (PEIf pc py pn); None -> None)
+        None -> None)
+      None -> None
+    ECase _ scrut alts -> case compile-promoted-expr locals scrut of
+      Some ps -> (case compile-promoted-alts locals alts of Some palts -> Some (PECase ps palts); None -> None)
+      None -> None
     EAnn _ inner _ -> compile-promoted-expr locals inner
     other -> None
 
   compile-promoted-expr-list :: List String -> List Expr -> Option PExprList
   compile-promoted-expr-list locals es = case es of
     [] -> Some PEEnd
-    first : rest -> case (compile-promoted-expr locals first, compile-promoted-expr-list locals rest) of
-      (Some pe, Some more) -> Some (PEArg pe more)
-      other -> None
+    first : rest -> case compile-promoted-expr locals first of
+      Some pe -> (case compile-promoted-expr-list locals rest of Some more -> Some (PEArg pe more); None -> None)
+      None -> None
 
   compile-promoted-expr-list-elems :: List String -> List Expr -> Option PExpr
   compile-promoted-expr-list-elems locals es = case es of
     [] -> Some (PECon promoted-nil-name PEEnd)
-    first : rest -> case (compile-promoted-expr locals first, compile-promoted-expr-list-elems locals rest) of
-      (Some pe, Some tl) -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd)))
-      other -> None
+    first : rest -> case compile-promoted-expr locals first of
+      Some pe -> (case compile-promoted-expr-list-elems locals rest of Some tl -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd))); None -> None)
+      None -> None
 
   compile-promoted-lam :: List String -> List Pat -> Expr -> Option PExpr
   compile-promoted-lam locals ps body = case ps of
@@ -3457,22 +3601,22 @@ module Cinch.Infer where
   compile-promoted-let :: List String -> Expr -> Expr -> Option PExpr
   compile-promoted-let locals bindings body = case bindings of
     EBindingsEnd _ -> compile-promoted-expr locals body
-    EBinding _ name rhs rest -> case (compile-promoted-expr locals rhs, compile-promoted-let (name : locals) rest body) of
-      (Some pr, Some pb) -> Some (PELet name pr pb)
-      other -> None
+    EBinding _ name rhs rest -> case compile-promoted-expr locals rhs of
+      Some pr -> (case compile-promoted-let (name : locals) rest body of Some pb -> Some (PELet name pr pb); None -> None)
+      None -> None
     ELocalEnd _ -> compile-promoted-expr locals body
-    ELocalStrict _ (PVar _ name) rhs rest -> case (compile-promoted-expr locals rhs, compile-promoted-let (name : locals) rest body) of
-      (Some pr, Some pb) -> Some (PELet name pr pb)
-      other -> None
+    ELocalStrict _ (PVar _ name) rhs rest -> case compile-promoted-expr locals rhs of
+      Some pr -> (case compile-promoted-let (name : locals) rest body of Some pb -> Some (PELet name pr pb); None -> None)
+      None -> None
     other -> None
 
   compile-promoted-alts :: List String -> Expr -> Option PAltList
   compile-promoted-alts locals alts = case alts of
     EAltsEnd _ -> Some PAltEnd
     EAlt _ pat body rest -> case compile-promoted-pat pat of
-      Some (pp, bound) -> case (compile-promoted-expr (bound <> locals) body, compile-promoted-alts locals rest) of
-        (Some pb, Some more) -> Some (PAltCons pp pb more)
-        other -> None
+      Some (pp, bound) -> (case compile-promoted-expr (bound <> locals) body of
+        Some pb -> (case compile-promoted-alts locals rest of Some more -> Some (PAltCons pp pb more); None -> None)
+        None -> None)
       None -> None
     other -> None
 
@@ -3480,16 +3624,18 @@ module Cinch.Infer where
   compile-promoted-clauses cs = case cs of
     [] -> Some []
     (ps, body) : rest -> case compile-promoted-pat-list ps of
-      Some (pps, bound) -> case (compile-promoted-expr bound body, compile-promoted-clauses rest) of
-        (Some pb, Some more) -> Some ((PClause pps pb) : more)
-        other -> None
+      Some (pps, bound) -> (case compile-promoted-expr bound body of
+        Some pb -> (case compile-promoted-clauses rest of Some more -> Some ((PClause pps pb) : more); None -> None)
+        None -> None)
       None -> None
 
-  lookup-sig-returns-nat :: String -> List Decl -> Bool
-  lookup-sig-returns-nat name ds = case ds of
-    [] -> False
-    (DSig _ n ty) : rest -> if name == n then sig-returns-nat ty else lookup-sig-returns-nat name rest
-    _ : rest -> lookup-sig-returns-nat name rest
+  index-sig-returns-nat :: List Decl -> HashMap String Bool -> HashMap String Bool
+  index-sig-returns-nat ds acc = case ds of
+    [] -> acc
+    (DSig _ n ty) : rest -> case hash-map-lookup n acc of
+      Some _ -> index-sig-returns-nat rest acc
+      None -> index-sig-returns-nat rest (hash-map-insert n (sig-returns-nat ty) acc)
+    _ : rest -> index-sig-returns-nat rest acc
 
   collect-promoted-rejections :: List Decl -> TypeContext -> TypeContext
   collect-promoted-rejections ds kinds = case ds of
@@ -3507,26 +3653,34 @@ module Cinch.Infer where
     _ : rest -> collect-promoted-rejections rest kinds
 
   collect-promoted-fns :: List Decl -> List Decl -> TypeContext -> TypeContext
-  collect-promoted-fns all ds kinds = case ds of
+  collect-promoted-fns all ds kinds =
+    collect-promoted-fns-indexed (clause-index all) (index-sig-returns-nat all hash-map-empty) hash-map-empty ds kinds
+
+  collect-promoted-fns-indexed :: HashMap String (List (List Pat, Expr)) -> HashMap String Bool -> HashMap String Nat -> List Decl -> TypeContext -> TypeContext
+  collect-promoted-fns-indexed clauses nat-sigs seen ds kinds = case ds of
     [] -> kinds
     (DFun _ name cs) : rest ->
-      let next = case lookup-promoted-rejection kinds name of
-            Some _ -> kinds
-            None -> case lookup-promoted-fn-in kinds name of
+      if indexed name seen then collect-promoted-fns-indexed clauses nat-sigs seen rest kinds
+      else
+        let seen1 = hash-map-insert name 0 seen in
+        let next = case lookup-promoted-rejection kinds name of
               Some _ -> kinds
-              None ->
-                let all-cs = function-clauses name all in
-                case all-cs of
-                  [] -> kinds
-                  (ps, _) : _ ->
-                    let arity = list-length ps in
-                    case compile-promoted-clauses all-cs of
-                      Some pclauses ->
-                        let fn = PromotedFn (canonical-identity name) arity (lookup-sig-returns-nat name all) pclauses in
-                        context-add-promoted-fn fn kinds
-                      None -> kinds in
-      collect-promoted-fns all rest next
-    _ : rest -> collect-promoted-fns all rest kinds
+              None -> case lookup-promoted-fn-in kinds name of
+                Some _ -> kinds
+                None ->
+                  let all-cs = indexed-clauses name clauses in
+                  case all-cs of
+                    [] -> kinds
+                    (ps, _) : _ ->
+                      let arity = list-length ps in
+                      case compile-promoted-clauses all-cs of
+                        Some pclauses ->
+                          let ret-nat = case hash-map-lookup name nat-sigs of Some b -> b; None -> False in
+                          let fn = PromotedFn (canonical-identity name) arity ret-nat pclauses in
+                          context-add-promoted-fn fn kinds
+                        None -> kinds in
+        collect-promoted-fns-indexed clauses nat-sigs seen1 rest next
+    _ : rest -> collect-promoted-fns-indexed clauses nat-sigs seen rest kinds
 
   compile-type-expr-to-pexpr :: List String -> TypeExpr -> Option PExpr
   compile-type-expr-to-pexpr locals ty = case ty of
@@ -3539,9 +3693,11 @@ module Cinch.Infer where
     TIndex _ text -> case parse-decimal-int text of Some n -> Some (PENat n); None -> None
     TStrLit _ text -> Some (PEStr text)
     TNegate _ x -> case compile-type-expr-to-pexpr locals x of Some px -> Some (PENeg px); None -> None
-    TInfix _ op a b -> case (compile-promoted-binop op, compile-type-expr-to-pexpr locals a, compile-type-expr-to-pexpr locals b) of
-      (Some pop, Some pa, Some pb) -> Some (PEBin pop pa pb)
-      other -> None
+    TInfix _ op a b -> case compile-promoted-binop op of
+      Some pop -> (case compile-type-expr-to-pexpr locals a of
+        Some pa -> (case compile-type-expr-to-pexpr locals b of Some pb -> Some (PEBin pop pa pb); None -> None)
+        None -> None)
+      None -> None
     TIndexLambda _ param body -> case compile-type-expr-to-pexpr (param : locals) body of
       Some pb -> Some (PELam param pb)
       None -> None
@@ -3549,24 +3705,24 @@ module Cinch.Infer where
       Some es -> Some (PETuple es)
       None -> None
     TList _ args -> compile-type-list-to-pexpr locals (type-args-of args)
-    TApp _ head args -> case (compile-type-expr-to-pexpr locals head, compile-type-exprs-to-pexprs locals (type-args-of args)) of
-      (Some pf, Some es) -> Some (apply-pexpr-list pf es)
-      other -> None
+    TApp _ head args -> case compile-type-expr-to-pexpr locals head of
+      Some pf -> (case compile-type-exprs-to-pexprs locals (type-args-of args) of Some es -> Some (apply-pexpr-list pf es); None -> None)
+      None -> None
     other -> None
 
   compile-type-exprs-to-pexprs :: List String -> List TypeExpr -> Option PExprList
   compile-type-exprs-to-pexprs locals ts = case ts of
     [] -> Some PEEnd
-    first : rest -> case (compile-type-expr-to-pexpr locals first, compile-type-exprs-to-pexprs locals rest) of
-      (Some pe, Some more) -> Some (PEArg pe more)
-      other -> None
+    first : rest -> case compile-type-expr-to-pexpr locals first of
+      Some pe -> (case compile-type-exprs-to-pexprs locals rest of Some more -> Some (PEArg pe more); None -> None)
+      None -> None
 
   compile-type-list-to-pexpr :: List String -> List TypeExpr -> Option PExpr
   compile-type-list-to-pexpr locals ts = case ts of
     [] -> Some (PECon promoted-nil-name PEEnd)
-    first : rest -> case (compile-type-expr-to-pexpr locals first, compile-type-list-to-pexpr locals rest) of
-      (Some pe, Some tl) -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd)))
-      other -> None
+    first : rest -> case compile-type-expr-to-pexpr locals first of
+      Some pe -> (case compile-type-list-to-pexpr locals rest of Some tl -> Some (PECon promoted-cons-name (PEArg pe (PEArg tl PEEnd))); None -> None)
+      None -> None
 
   apply-pexpr-list :: PExpr -> PExprList -> PExpr
   apply-pexpr-list fn args = case args of
@@ -4573,7 +4729,7 @@ module Cinch.Infer where
     [] -> seen
     (DClass sp name ps members) : rest -> case context-kind name kinds of
       Some kind -> (case lookup-kind name seen of
-        Some existing | string-starts-with "i." name && kind-equal existing kind -> source-class-kinds rest kinds seen
+        Some existing | starts-with-i-dot name && kind-equal existing kind -> source-class-kinds rest kinds seen
         other -> source-class-kinds rest kinds ((name, kind) : seen))
       None -> source-class-kinds rest kinds seen
     other : rest -> source-class-kinds rest kinds seen
@@ -4713,14 +4869,12 @@ module Cinch.Infer where
   -- Defining source and imported bindings have distinct internal encodings.
   -- Only a resolved global or kernel identity may cross this boundary.
   portable-default-global :: String -> Option String
-  portable-default-global name = case unpack name of
-    prefix : dot : rest -> if char-code dot /= 46 then
-      (if has name ["True", "False"] then Some name else None)
-      else if char-code prefix == 98 then Some name
-      else if char-code prefix == 109 || char-code prefix == 105 then
-        (case export-global name of Ok identity -> Some (interface-global identity); Err error -> None)
-      else None
-    other -> None
+  portable-default-global name =
+    if starts-with-b-dot name then Some name
+    else if starts-with-m-dot name || starts-with-i-dot name then
+      (case export-global name of Ok identity -> Some (interface-global identity); Err error -> None)
+    else if name == "True" || name == "False" then Some name
+    else None
   portable-default-method :: String -> Nat -> List CoreClassMethod -> Option String
   portable-default-method owner slot members = case members of
     [] -> None
@@ -5857,8 +6011,8 @@ module Cinch.Infer where
     (MkValueBinding name sc id level value) : rest -> proof-gamma-local sc id (proof-gamma rest st) st
     b : rest -> proof-gamma rest st
   proof-gamma-local :: Scheme -> Nat -> List (Nat, UType) -> Store -> List (Nat, UType)
-  proof-gamma-local sc id rest st = case (scheme-params sc, scheme-requirements sc) of
-    ([], []) -> (id, normalize st (scheme-body sc)) : rest
+  proof-gamma-local sc id rest st = case scheme-params sc of
+    [] -> (case scheme-requirements sc of [] -> (id, normalize st (scheme-body sc)) : rest; other -> rest)
     other -> rest
   proof-context :: List CheckedBinding -> Store -> ProofScope
   proof-context env st = proof-erased env st (with-guarded-bindings (env-guarded-bindings env) (with-checked-body-bindings (env-body-context env) (make-proof-scope (proof-gamma env st) (proof-values env st))))
@@ -5907,9 +6061,11 @@ module Cinch.Infer where
   proof-values env st = case env of
     (MkBodyContext context names index cache) : rest -> []
     [] -> []
-    (MkValueBinding name sc id level value) : rest -> case (scheme-params sc, scheme-requirements sc) of
-      ([], []) -> let resolved = normalize st value in
-        if valid-type resolved then (id, resolved) : (proof-values rest st) else proof-values rest st
+    (MkValueBinding name sc id level value) : rest -> case scheme-params sc of
+      [] -> (case scheme-requirements sc of
+        [] -> let resolved = normalize st value in
+          if valid-type resolved then (id, resolved) : (proof-values rest st) else proof-values rest st
+        other -> proof-values rest st)
       other -> proof-values rest st
     binding : rest -> proof-values rest st
   proof-facts :: List CheckedBinding -> List Proposition
@@ -5986,16 +6142,18 @@ module Cinch.Infer where
   proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
   proof-let-env env binding id sc value st =
     let extended = binding : env in
-    case (scheme-params sc, scheme-requirements sc) of
-      ([], []) ->
-        let ty = normalize st (scheme-body sc) in
-        if let-type-may-prove ty then
-          let term = map-term-types (normalize st) value in
-          let introduced = (case scoped-core-let-fact (proof-context env st) (proof-facts env) id (mono ty) term of
-            Some fact -> (MkProofBinding zero None fact) : extended
-            None -> extended) in
-          if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (core-mutable-writes term) st else introduced
-        else proof-env-after-term extended value st
+    case scheme-params sc of
+      [] -> (case scheme-requirements sc of
+        [] ->
+          let ty = normalize st (scheme-body sc) in
+          if let-type-may-prove ty then
+            let term = map-term-types (normalize st) value in
+            let introduced = (case scoped-core-let-fact (proof-context env st) (proof-facts env) id (mono ty) term of
+              Some fact -> (MkProofBinding zero None fact) : extended
+              None -> extended) in
+            if proof-env-invalidatable introduced then live-proof-env-after-writes introduced (core-mutable-writes term) st else introduced
+          else proof-env-after-term extended value st
+        other -> proof-env-after-term extended value st)
       other -> proof-env-after-term extended value st
   stale-evidence-message :: Span -> Span -> String
   stale-evidence-message origin write = string-concat-all
@@ -6041,17 +6199,19 @@ module Cinch.Infer where
   measured-case-binding env site scrutinee arms = case scrutinee of
     EApp decision head (EBin test op (EApp measure (EVar at name) (EApp projection get (EVar use global))) rhs)
       | (name == "#kernel.length") && has op ["<", "<=", "==", "/=", ">=", ">"] && decision-syntax-head env head ->
-      (case (projection-syntax-head env get, lookup-binding global env) of
-        (Some intrinsic, Some (MkCheckedBinding symbol scheme role)) | (intrinsic == "b.unrefine") ->
-          (case refinement-view (scheme-body scheme) of
-            URefine id display carrier predicate | length-carrier carrier -> (case exact-refined-length (scheme-body scheme) of
-              Some known -> None
-              None -> let local = "#decision-subject" in
-                let subject = EApp projection get (EVar use global) in
-                let reading = EApp measure (EVar at name) (EVar projection local) in
-                let branch = ECase site (EApp decision head (EBin test op reading rhs)) arms in
-                Some (ELet site (EBinding projection local subject (EBindingsEnd site)) branch))
-            other -> None)
+      (case projection-syntax-head env get of
+        Some intrinsic | (intrinsic == "b.unrefine") -> (case lookup-binding global env of
+          Some (MkCheckedBinding symbol scheme role) ->
+            (case refinement-view (scheme-body scheme) of
+              URefine id display carrier predicate | length-carrier carrier -> (case exact-refined-length (scheme-body scheme) of
+                Some known -> None
+                None -> let local = "#decision-subject" in
+                  let subject = EApp projection get (EVar use global) in
+                  let reading = EApp measure (EVar at name) (EVar projection local) in
+                  let branch = ECase site (EApp decision head (EBin test op reading rhs)) arms in
+                  Some (ELet site (EBinding projection local subject (EBindingsEnd site)) branch))
+              other -> None)
+          other -> None)
         other -> None)
     other -> None
   decision-boolean :: Span -> Bool -> CoreTerm
@@ -6214,9 +6374,11 @@ module Cinch.Infer where
 
   infer-decision-expected :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
   infer-decision-expected classes kinds families env locals sp syntax expected st = case infer-decision classes kinds families env locals sp syntax st of
-    (term, checked) -> case (normalize checked expected, term) of
-      (UApp (UCon name kind) predicate, CDecision at ty inferred condition) -> if name == "b.Dec" && scoped-decision-valid (proof-context env checked) (proof-facts env) (normalize checked expected) predicate condition then
-        (CDecision sp (normalize checked expected) predicate condition, checked) else (term, checked)
+    (term, checked) -> case term of
+      CDecision at ty inferred condition -> (case normalize checked expected of
+        UApp (UCon name kind) predicate -> if name == "b.Dec" && scoped-decision-valid (proof-context env checked) (proof-facts env) (normalize checked expected) predicate condition then
+          (CDecision sp (normalize checked expected) predicate condition, checked) else (term, checked)
+        other -> (term, checked))
       other -> (term, checked)
 
   collection-list :: UType -> UType
@@ -6302,26 +6464,28 @@ module Cinch.Infer where
       (case fresh-meta kind checked of
         (actual, opened) -> refinement-constructor-arguments kinds rest ((parameter.name, actual) : earlier) (UApp head actual) opened)
   refinement-constructor :: Span -> TypeContext -> String -> Store -> (CoreTerm, Store)
-  refinement-constructor sp kinds name st = case (find-refinement name kinds, context-kind name kinds) of
-    (Some (DRefine at owner parameters binder predicate), Some kind) -> (case refinement-constructor-arguments kinds parameters [] (UCon name kind) st of
-      (applied, opened) -> (case unfold-refinement sp kinds applied opened of
-        (refined, checked) -> (case refinement-view (normalize checked refined) of
-          URefine id display carrier condition -> (case fresh-for-types [refined] checked of
-            (argument, fresh) -> (case fresh-id fresh of
-              (local, next) -> (case fresh-id next of
-                (proof-id, ready) ->
-                  let row = URow UEnd in
-                  let formal = UIndex carrier (IBound argument "#refinement-value") in
-                  let actual = UIndex carrier (IRigid local "#refinement-value" (ready.level)) in
-                  let required = substitute-bound [(id, formal)] condition in
-                  let opened-required = substitute-bound [(id, actual)] condition in
-                  let ty = UPi argument "#refinement-value" carrier row (UProofFun required row refined) in
-                  let payload = CLocal sp carrier local "#refinement-value" [] in
-                  let witness = CProofRef sp opened-required proof-id "#refinement-proof" in
-                  let body = CRefineProof sp refined witness payload in
-                  (CLambda sp ty (CPVar sp carrier local "#refinement-value")
-                    (CLambda sp (UProofFun opened-required row refined) (CPProof sp opened-required proof-id "#refinement-proof") body), ready))))
-          other -> term-error sp "named refinement has no checked constructor template" checked)))
+  refinement-constructor sp kinds name st = case find-refinement name kinds of
+    Some (DRefine at owner parameters binder predicate) -> (case context-kind name kinds of
+      Some kind -> (case refinement-constructor-arguments kinds parameters [] (UCon name kind) st of
+        (applied, opened) -> (case unfold-refinement sp kinds applied opened of
+          (refined, checked) -> (case refinement-view (normalize checked refined) of
+            URefine id display carrier condition -> (case fresh-for-types [refined] checked of
+              (argument, fresh) -> (case fresh-id fresh of
+                (local, next) -> (case fresh-id next of
+                  (proof-id, ready) ->
+                    let row = URow UEnd in
+                    let formal = UIndex carrier (IBound argument "#refinement-value") in
+                    let actual = UIndex carrier (IRigid local "#refinement-value" (ready.level)) in
+                    let required = substitute-bound [(id, formal)] condition in
+                    let opened-required = substitute-bound [(id, actual)] condition in
+                    let ty = UPi argument "#refinement-value" carrier row (UProofFun required row refined) in
+                    let payload = CLocal sp carrier local "#refinement-value" [] in
+                    let witness = CProofRef sp opened-required proof-id "#refinement-proof" in
+                    let body = CRefineProof sp refined witness payload in
+                    (CLambda sp ty (CPVar sp carrier local "#refinement-value")
+                      (CLambda sp (UProofFun opened-required row refined) (CPProof sp opened-required proof-id "#refinement-proof") body), ready))))
+            other -> term-error sp "named refinement has no checked constructor template" checked)))
+      None -> term-error sp "transparent constructor needs its actual defining refinement" st)
     other -> term-error sp "transparent constructor needs its actual defining refinement" st
   lookup-expression-value :: Span -> TypeContext -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
   lookup-expression-value sp kinds name env st = case lookup-binding name env of
@@ -7140,11 +7304,13 @@ module Cinch.Infer where
         (more, checked) -> (UArg ty more, checked)))
     other -> (UError, add-error sp "invalid tuple literal element spine" st)
   check-tuple-elements :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check-tuple-elements classes kinds families env locals sp fields types st = case (fields, types) of
-    (EArgsEnd at, UEnd) -> (CArgumentsEnd at, st)
-    (EArg at first rest, UArg ty more) -> (case check classes kinds families env locals first ty st of
-      (value, checked) -> (case check-tuple-elements classes kinds families (proof-env-after-term env value checked) locals sp rest more checked of
-        (values, done) -> (CArgument at value values, done)))
+  check-tuple-elements classes kinds families env locals sp fields types st = case fields of
+    EArgsEnd at -> (case types of UEnd -> (CArgumentsEnd at, st); other -> term-error sp "tuple literal arity disagrees with its expected type" st)
+    EArg at first rest -> (case types of
+      UArg ty more -> (case check classes kinds families env locals first ty st of
+        (value, checked) -> (case check-tuple-elements classes kinds families (proof-env-after-term env value checked) locals sp rest more checked of
+          (values, done) -> (CArgument at value values, done)))
+      other -> term-error sp "tuple literal arity disagrees with its expected type" st)
     other -> term-error sp "tuple literal arity disagrees with its expected type" st
   check-inferred :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-inferred classes kinds families env locals expr expected st = case infer-expected classes kinds families env locals expr expected st of
@@ -7231,8 +7397,10 @@ module Cinch.Infer where
               None -> case thunk-syntax-operation env head of
                 Some operation ->
                   let norm-expected = normalize st expected in
-                  (case (later-parts norm-expected, args) of
-                    (Some carrier, [input]) -> if operation == "b.delay" then check-later-delay classes kinds families env locals sp norm-expected input carrier st else infer classes kinds families env locals expr st
+                  (case args of
+                    [input] -> (case later-parts norm-expected of
+                      Some carrier -> if operation == "b.delay" then check-later-delay classes kinds families env locals sp norm-expected input carrier st else infer classes kinds families env locals expr st
+                      None -> infer classes kinds families env locals expr st)
                     other -> infer classes kinds families env locals expr st)
                 None -> case infer-callee classes kinds families env locals head st of
                   (fun, opened) -> apply-spine classes kinds families env locals fun args
@@ -7294,13 +7462,19 @@ module Cinch.Infer where
   -- consumer requests its underlying carrier. Keep all other element types
   -- so ordinary unification still checks widths, identities and tuple arity.
   project-tuple-fields :: UType -> UType -> (UType, Bool)
-  project-tuple-fields wanted actual = case (wanted, actual) of
-    (UArg requested more, UArg field rest) -> (case project-tuple-fields more rest of
-      (tail, changed) -> case (requested, refinement-view field) of
-        (UTuple expected, UTuple inputs) -> (case project-tuple-fields expected inputs of
-          (fields, nested) -> (UArg (UTuple fields) tail, nested || changed))
-        (UCon name kind, URefine id binder base predicate) | comparison-refinement field && same-type requested base -> (UArg base tail, True)
-        other -> (UArg field tail, changed))
+  project-tuple-fields wanted actual = case wanted of
+    UArg requested more -> (case actual of
+      UArg field rest -> (case project-tuple-fields more rest of
+        (tail, changed) -> case requested of
+          UTuple expected -> (case refinement-view field of
+            UTuple inputs -> (case project-tuple-fields expected inputs of
+              (fields, nested) -> (UArg (UTuple fields) tail, nested || changed))
+            other -> (UArg field tail, changed))
+          UCon name kind -> (case refinement-view field of
+            URefine id binder base predicate | comparison-refinement field && same-type requested base -> (UArg base tail, True)
+            other -> (UArg field tail, changed))
+          other -> (UArg field tail, changed))
+      other -> (actual, False))
     other -> (actual, False)
 
   -- A function value whose result is a comparison refinement flows into an
@@ -7310,12 +7484,18 @@ module Cinch.Infer where
   -- duplicated or reordered.
   forget-function-result :: Span -> CoreTerm -> UType -> Store -> Option (CoreTerm, Store)
   forget-function-result sp term expected st = if not (function-value-reference term) then None else
-    case (normalize st (core-type term), normalize st expected) of
-      (UFun domain result, UFun wanted-domain wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
-      (UFunEff domain row result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain row result wanted st
-      (UFun domain result, UFunEff wanted-domain wanted-row wanted) -> forgotten-arrow sp term domain (URow UEnd) result wanted st
-      (UPi id name domain row result, UFun wanted-domain wanted) -> forgotten-pi sp term id name domain row result wanted st
-      (UPi id name domain row result, UFunEff wanted-domain wanted-row wanted) -> forgotten-pi sp term id name domain row result wanted st
+    case normalize st (core-type term) of
+      UFun domain result -> (case normalize st expected of
+        UFun wanted-domain wanted -> forgotten-arrow sp term domain (URow UEnd) result wanted st
+        UFunEff wanted-domain wanted-row wanted -> forgotten-arrow sp term domain (URow UEnd) result wanted st
+        other -> None)
+      UFunEff domain row result -> (case normalize st expected of
+        UFunEff wanted-domain wanted-row wanted -> forgotten-arrow sp term domain row result wanted st
+        other -> None)
+      UPi id name domain row result -> (case normalize st expected of
+        UFun wanted-domain wanted -> forgotten-pi sp term id name domain row result wanted st
+        UFunEff wanted-domain wanted-row wanted -> forgotten-pi sp term id name domain row result wanted st
+        other -> None)
       other -> None
   function-value-reference :: CoreTerm -> Bool
   function-value-reference term = case term of
@@ -8835,12 +9015,14 @@ module Cinch.Infer where
     (MkBodyContext ctx names idx cache) : rest -> env
     (MkLocalBinding name sc id lvl) : rest ->
       let next = refine-env-locals refs st rest in
-      case (scheme-params sc, scheme-requirements sc) of
-        ([], []) ->
-          let orig = normalize st (scheme-body sc) in
-          let refined = normalize st (substitute-rigids refs orig) in
-          if same-shape orig refined then (MkLocalBinding name sc id lvl) : next
-          else (MkRefinedLocal name orig refined id lvl) : next
+      case scheme-params sc of
+        [] -> (case scheme-requirements sc of
+          [] ->
+            let orig = normalize st (scheme-body sc) in
+            let refined = normalize st (substitute-rigids refs orig) in
+            if same-shape orig refined then (MkLocalBinding name sc id lvl) : next
+            else (MkRefinedLocal name orig refined id lvl) : next
+          other -> (MkLocalBinding name sc id lvl) : next)
         other -> (MkLocalBinding name sc id lvl) : next
     (MkRefinedLocal name orig prev id lvl) : rest ->
       let refined = normalize st (substitute-rigids refs (normalize st prev)) in
@@ -8867,13 +9049,13 @@ module Cinch.Infer where
   gadt-pre-match raw-a raw-b st =
     let a = normalize st raw-a in
     let b = normalize st raw-b in
-    case (a, b) of
-      (UMeta id k, other) -> if null-bound-in other then unify zero a b st else st
-      (UIndex c (IMeta id), other) -> if null-bound-in other then unify zero a b st else st
-      (UApp f1 x1, UApp f2 x2) -> gadt-pre-match x1 x2 (gadt-pre-match f1 f2 st)
-      (UTuple xs, UTuple ys) -> gadt-pre-match xs ys st
-      (UArg a1 r1, UArg a2 r2) -> gadt-pre-match r1 r2 (gadt-pre-match a1 a2 st)
-      (UFun a1 b1, UFun a2 b2) -> gadt-pre-match b1 b2 (gadt-pre-match a1 a2 st)
+    case a of
+      UMeta id k -> if null-bound-in b then unify zero a b st else st
+      UIndex c (IMeta id) -> if null-bound-in b then unify zero a b st else st
+      UApp f1 x1 -> (case b of UApp f2 x2 -> gadt-pre-match x1 x2 (gadt-pre-match f1 f2 st); other -> st)
+      UTuple xs -> (case b of UTuple ys -> gadt-pre-match xs ys st; other -> st)
+      UArg a1 r1 -> (case b of UArg a2 r2 -> gadt-pre-match r1 r2 (gadt-pre-match a1 a2 st); other -> st)
+      UFun a1 b1 -> (case b of UFun a2 b2 -> gadt-pre-match b1 b2 (gadt-pre-match a1 a2 st); other -> st)
       other -> st
   null-bound-in :: UType -> Bool
   null-bound-in ty = case type-free-bound ty of [] -> True; other -> False
@@ -8883,34 +9065,33 @@ module Cinch.Infer where
   gadt-refine-match sp local-ids raw-a raw-b refs st =
     let a = normalize st raw-a in
     let b = normalize st raw-b in
-    case (a, b) of
-      (UMeta id k, other) -> (refs, unify sp a b st)
-      (other, UMeta id k) -> (refs, unify sp a b st)
-      (UIndex c (IMeta id), other) -> (refs, unify sp a b st)
-      (other, UIndex c (IMeta id)) -> (refs, unify sp a b st)
-      (other, URigid id name lvl k) ->
-        if same-shape a b then (refs, st) else ((id, a) : refs, st)
-      (other, UIndex c (IRigid id name lvl)) ->
-        if same-shape a b then (refs, st)
-        else case a of
-          UIndex c2 (IRigid id2 _ _) | contains-nat-id id2 local-ids -> ((id2, b) : refs, st)
-          other2 -> ((id, a) : refs, st)
-      (UIndex c (IRigid id name lvl), other) ->
-        if same-shape a b then (refs, st) else ((id, b) : refs, st)
-      (URigid id name lvl k, other) ->
-        if same-shape a b then (refs, st) else ((id, b) : refs, st)
-      (UApp f1 x1, UApp f2 x2) ->
-        case gadt-refine-match sp local-ids f1 f2 refs st of
-          (r1, s1) -> gadt-refine-match sp local-ids x1 x2 r1 s1
-      (UTuple xs, UTuple ys) -> gadt-refine-match sp local-ids xs ys refs st
-      (UArg a1 r1, UArg a2 r2) ->
-        case gadt-refine-match sp local-ids a1 a2 refs st of
-          (refs1, s1) -> gadt-refine-match sp local-ids r1 r2 refs1 s1
-      (UEnd, UEnd) -> (refs, st)
-      (UFun a1 b1, UFun a2 b2) ->
-        case gadt-refine-match sp local-ids a1 a2 refs st of
-          (r1, s1) -> gadt-refine-match sp local-ids b1 b2 r1 s1
-      other -> (refs, unify sp a b st)
+    case a of
+      UMeta id k -> (refs, unify sp a b st)
+      UIndex c (IMeta id) -> (refs, unify sp a b st)
+      other-a -> case b of
+        UMeta id k -> (refs, unify sp a b st)
+        UIndex c (IMeta id) -> (refs, unify sp a b st)
+        URigid id name lvl k -> if same-shape a b then (refs, st) else ((id, a) : refs, st)
+        UIndex c (IRigid id name lvl) ->
+          if same-shape a b then (refs, st)
+          else case a of
+            UIndex c2 (IRigid id2 _ _) | contains-nat-id id2 local-ids -> ((id2, b) : refs, st)
+            other2 -> ((id, a) : refs, st)
+        other-b -> case a of
+          UIndex c (IRigid id name lvl) -> if same-shape a b then (refs, st) else ((id, b) : refs, st)
+          URigid id name lvl k -> if same-shape a b then (refs, st) else ((id, b) : refs, st)
+          UApp f1 x1 -> (case b of
+            UApp f2 x2 -> case gadt-refine-match sp local-ids f1 f2 refs st of (r1, s1) -> gadt-refine-match sp local-ids x1 x2 r1 s1
+            other -> (refs, unify sp a b st))
+          UTuple xs -> (case b of UTuple ys -> gadt-refine-match sp local-ids xs ys refs st; other -> (refs, unify sp a b st))
+          UArg a1 r1 -> (case b of
+            UArg a2 r2 -> case gadt-refine-match sp local-ids a1 a2 refs st of (refs1, s1) -> gadt-refine-match sp local-ids r1 r2 refs1 s1
+            other -> (refs, unify sp a b st))
+          UEnd -> (case b of UEnd -> (refs, st); other -> (refs, unify sp a b st))
+          UFun a1 b1 -> (case b of
+            UFun a2 b2 -> case gadt-refine-match sp local-ids a1 a2 refs st of (r1, s1) -> gadt-refine-match sp local-ids b1 b2 r1 s1
+            other -> (refs, unify sp a b st))
+          other -> (refs, unify sp a b st)
   types-coverage-apart :: Store -> UType -> UType -> Bool
   types-coverage-apart st a b = coverage-index-apart a b || types-apart (st.type-families) a b
   pattern-local-id :: CorePattern -> List Nat
@@ -8986,10 +9167,12 @@ module Cinch.Infer where
     PUnmodeled s message -> (env, CPWild s UError, [], add-error s message st)
     other -> (env, CPWild (pat-span pat) UError, [], add-error (pat-span pat) "pattern needs further elaboration" st)
   foreign-constructor-family :: ConstructorFamilies -> UType -> UType -> Option String
-  foreign-constructor-family families actual expected = case (root-name actual, root-name expected) of
-    (Some source, Some owner) -> if source == owner then None else
-      (case family-ctors owner families of Some constructors -> Some owner; None -> None)
-    other -> None
+  foreign-constructor-family families actual expected = case root-name actual of
+    Some source -> (case root-name expected of
+      Some owner -> if source == owner then None else
+        (case family-ctors owner families of Some constructors -> Some owner; None -> None)
+      None -> None)
+    None -> None
   check-tuple-pattern-type :: Span -> UType -> UType -> Store -> Store
   check-tuple-pattern-type sp expected fields st = case normalize st expected of
     UTuple existing -> let actual = list-length (spine-list fields) in
@@ -9004,11 +9187,13 @@ module Cinch.Infer where
     PArg s x rest -> case fresh-meta KType st of (ty, ss) -> case pattern-fields rest ss of (ys, sy) -> (UArg ty ys, sy)
     other -> bad (pat-span ps) "malformed pattern spine" st
   bind-pattern-fields-refined :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, List (Nat, UType), Store)
-  bind-pattern-fields-refined classes kinds families env locals ps tys st = case (ps, tys) of
-    (PArgsEnd s, UEnd) -> (env, CPDone s, [], st)
-    (PArg s p rest, UArg ty tail) -> case bind-pattern-refined classes kinds families env locals p ty st of
-      (bound, pattern, r1, sp) -> case bind-pattern-fields-refined classes kinds families bound locals rest tail sp of
-        (final, patterns, r2, ss) -> (final, CPField s pattern patterns, r1 <> r2, ss)
+  bind-pattern-fields-refined classes kinds families env locals ps tys st = case ps of
+    PArgsEnd s -> (case tys of UEnd -> (env, CPDone s, [], st); other -> (env, CPWild (pat-span ps) UError, [], add-error (pat-span ps) "tuple pattern arity mismatch" st))
+    PArg s p rest -> (case tys of
+      UArg ty tail -> case bind-pattern-refined classes kinds families env locals p ty st of
+        (bound, pattern, r1, sp) -> case bind-pattern-fields-refined classes kinds families bound locals rest tail sp of
+          (final, patterns, r2, ss) -> (final, CPField s pattern patterns, r1 <> r2, ss)
+      other -> (env, CPWild (pat-span ps) UError, [], add-error (pat-span ps) "tuple pattern arity mismatch" st))
     other -> (env, CPWild (pat-span ps) UError, [], add-error (pat-span ps) "tuple pattern arity mismatch" st)
   -- Later fields can depend on the actual payload even when the pattern
   -- leaves it unnamed. Give such a field a private identity in Core.
@@ -9127,13 +9312,17 @@ module Cinch.Infer where
   -- instance cannot invent a slot, because slots are numbered from the
   -- declaring signature's own member list (`source-class-methods`).
   par-method-last :: String -> String
-  par-method-last text = par-method-last-chars (unpack text) ""
+  par-method-last text = par-method-last-bytes text (string-to-bytes text) 0 0 0 False
   -- The segment after the last dot, with the dot itself dropped: `b.both`
   -- gives `both`, not `.both`.
-  par-method-last-chars :: List Char -> String -> String
-  par-method-last-chars chars acc = case chars of
-    [] -> acc
-    c : rest -> if char-code c == 46 then par-method-last-chars rest "" else par-method-last-chars rest (string-concat acc (pack ([c])))
+  par-method-last-bytes :: String -> Bytes -> Nat -> Nat -> Nat -> Bool -> String
+  par-method-last-bytes text bs idx char-idx after-dot found =
+    if idx < bytes-len bs then
+      let b = bytes-get bs idx in
+      let next-char = if b < 128 || b >= 192 then char-idx + 1 else char-idx in
+      if b == 46 then par-method-last-bytes text bs (idx + 1) next-char next-char True
+      else par-method-last-bytes text bs (idx + 1) next-char after-dot found
+    else if found then string-slice text after-dot char-idx else text
   -- `name` is the resolved symbol (`b.both`), so the label is its last
   -- segment; comparing the symbol against `both` never matched and the
   -- rules silently did not run.
@@ -9663,11 +9852,15 @@ module Cinch.Infer where
     other -> 0
 
   coverage-index-apart :: UType -> UType -> Bool
-  coverage-index-apart first second = case (first, second) of
-    (UApp f a, UApp g b) -> coverage-index-apart f g || coverage-index-apart a b
-    (UIndex carrier (IInteger a), UIndex other (IInteger b)) -> integer-carrier carrier && same-type carrier other && a /= b
-    (UIndex carrier a, UIndex other (IInteger b)) -> same-type carrier (primitive-type "Nat") && same-type carrier other && natural-index-minimum a > b
-    (UIndex carrier (IInteger a), UIndex other b) -> same-type carrier (primitive-type "Nat") && same-type carrier other && natural-index-minimum b > a
+  coverage-index-apart first second = case first of
+    UApp f a -> (case second of UApp g b -> coverage-index-apart f g || coverage-index-apart a b; other -> False)
+    UIndex carrier (IInteger a) -> (case second of
+      UIndex other (IInteger b) -> integer-carrier carrier && same-type carrier other && a /= b
+      UIndex other b -> same-type carrier (primitive-type "Nat") && same-type carrier other && natural-index-minimum b > a
+      other -> False)
+    UIndex carrier a -> (case second of
+      UIndex other (IInteger b) -> same-type carrier (primitive-type "Nat") && same-type carrier other && natural-index-minimum a > b
+      other -> False)
     other -> False
   coverage-no-index-constructor :: List CheckedBinding -> UType -> List String -> Store -> Bool
   coverage-no-index-constructor env ty constructors st = case constructors of
@@ -9927,9 +10120,11 @@ module Cinch.Infer where
   bind-value-parameters params pairs env st = case params of
     [] -> (env, st)
     q : rest -> case mapped-local (q.id) pairs of
-      Some value -> (case (value-carrier (type-kind value), index-of-type value) of
-        (Some carrier, Some (IRigid id name level)) -> bind-value-parameters rest pairs ((MkValueBinding (q.name) (mono carrier) id level value) : env) st
-        other -> bind-value-parameters rest pairs env st)
+      Some value -> (case value-carrier (type-kind value) of
+        Some carrier -> (case index-of-type value of
+          Some (IRigid id name level) -> bind-value-parameters rest pairs ((MkValueBinding (q.name) (mono carrier) id level value) : env) st
+          other -> bind-value-parameters rest pairs env st)
+        None -> bind-value-parameters rest pairs env st)
       None -> (env, add-error zero "quantified value is missing its checked opening" st)
   check-definition :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> Store -> (Option CoreDefinition, Store)
   -- The regions a signature quantifies: its opened region parameters. The
@@ -9972,9 +10167,11 @@ module Cinch.Infer where
   bind-annotation-values :: List (String, UType) -> List CheckedBinding -> List CheckedBinding
   bind-annotation-values annotations env = case annotations of
     [] -> env
-    (name, value) : rest -> case (value-carrier (type-kind value), index-of-type value) of
-      (Some carrier, Some (IRigid id display level)) -> (MkValueBinding name (mono carrier) id level value) : (bind-annotation-values rest env)
-      other -> bind-annotation-values rest env
+    (name, value) : rest -> case value-carrier (type-kind value) of
+      Some carrier -> (case index-of-type value of
+        Some (IRigid id display level) -> (MkValueBinding name (mono carrier) id level value) : (bind-annotation-values rest env)
+        other -> bind-annotation-values rest env)
+      None -> bind-annotation-values rest env
   check-definition-with-annotations :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> List (String, UType) -> Store -> (Option CoreDefinition, Store)
   check-definition-with-annotations classes kinds families env sp name cs annotations st = case lookup-binding name env of
     None -> (None, add-error sp (string-concat "no signature for " name) st)
@@ -10000,15 +10197,14 @@ module Cinch.Infer where
   take-types :: Nat -> List UType -> List UType
   take-types count types = if count == 0 then [] else case types of [] -> []; ty : rest -> ty : (take-types (count - 1) rest)
   pat-covers :: Pat -> Pat -> Bool
-  pat-covers first second = if wildcard first then True else case (constructor-pattern "" first, constructor-pattern "" second) of
-    (PCon s name args, PCon t other xs) -> name == other && row-covers (pats-of args) (pats-of xs)
-    (PTuple s args, PTuple t xs) -> row-covers (pats-of args) (pats-of xs)
+  pat-covers first second = if wildcard first then True else case constructor-pattern "" first of
+    PCon s name args -> (case constructor-pattern "" second of PCon t other xs -> name == other && row-covers (pats-of args) (pats-of xs); other -> False)
+    PTuple s args -> (case constructor-pattern "" second of PTuple t xs -> row-covers (pats-of args) (pats-of xs); other -> False)
     other -> False
   row-covers :: List Pat -> List Pat -> Bool
-  row-covers first second = case (first, second) of
-    ([], []) -> True
-    (p : ps, q : qs) -> pat-covers p q && row-covers ps qs
-    other -> False
+  row-covers first second = case first of
+    [] -> (case second of [] -> True; other -> False)
+    p : ps -> (case second of q : qs -> pat-covers p q && row-covers ps qs; [] -> False)
   covered-by :: List (List Pat) -> List Pat -> Bool
   covered-by rows ps = case rows of [] -> False; row : rest -> row-covers row ps || covered-by rest ps
   check-overlap :: List (List Pat, Expr) -> List (List Pat) -> Store -> Store
@@ -12011,12 +12207,14 @@ module Cinch.Infer where
     name : rest -> (record-pattern all (record-field-pattern sp name fields)) : (record-ordered-patterns all sp rest fields)
   record-pattern :: HashMap String RecordShape -> Pat -> Pat
   record-pattern all pattern = case pattern of
-    PRecord sp name fields -> (case (hash-map-lookup name all, record-pattern-fields fields) of
-      (Some (RecordShape owner declared (Some observations)), Some values) -> pattern
-      (Some (RecordShape owner declared None), Some values) -> (case record-field-error declared (record-pattern-labels values) [] of
-        Some message -> PUnmodeled sp message
-        None -> PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)))
-      other -> PUnmodeled sp "record pattern has no defining field contract")
+    PRecord sp name fields -> (case hash-map-lookup name all of
+      Some (RecordShape owner declared (Some observations)) -> (case record-pattern-fields fields of Some values -> pattern; None -> PUnmodeled sp "record pattern has no defining field contract")
+      Some (RecordShape owner declared None) -> (case record-pattern-fields fields of
+        Some values -> (case record-field-error declared (record-pattern-labels values) [] of
+          Some message -> PUnmodeled sp message
+          None -> PCon sp name (pat-spine sp (record-ordered-patterns all sp declared values)))
+        None -> PUnmodeled sp "record pattern has no defining field contract")
+      None -> PUnmodeled sp "record pattern has no defining field contract")
     PFamilyCon sp fallback candidate fields -> PFamilyCon sp fallback candidate (record-pattern all fields)
     PCon sp name fields -> PCon sp name (record-pattern all fields)
     PTuple sp fields -> PTuple sp (record-pattern all fields)
@@ -12088,10 +12286,11 @@ module Cinch.Infer where
     EAlt sp pattern body rest -> EAlt sp (record-pattern all pattern) (record-expression all body) (record-expression all rest)
     other -> expression
   record-typed-fields :: List String -> List UType -> Option (List (String, UType))
-  record-typed-fields fields types = case (fields, types) of
-    ([], []) -> Some []
-    (name : rest, ty : more) -> (case record-typed-fields rest more of Some tail -> Some ((name, ty) : tail); None -> None)
-    other -> None
+  record-typed-fields fields types = case fields of
+    [] -> (case types of [] -> Some []; other -> None)
+    name : rest -> (case types of
+      ty : more -> (case record-typed-fields rest more of Some tail -> Some ((name, ty) : tail); None -> None)
+      [] -> None)
   -- Check each initializer in written order against its instantiated field
   -- type. Bind the checked value once, before declaration-order assembly.
   record-initializers :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List (String, UType) -> List (String, Expr) -> Store -> (List CheckedBinding, List (Nat, String, Scheme, CoreTerm), Store)
@@ -12119,18 +12318,20 @@ module Cinch.Infer where
     (label, value) : rest -> let sp = expr-span value in
       (label, ELam sp [PWild sp] value) : (delayed-observations rest)
   infer-record-construction :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Option UType -> Store -> (CoreTerm, Store)
-  infer-record-construction classes kinds families env locals sp name fields wanted st = case (hash-map-lookup name (context-records kinds), record-expression-fields fields) of
-    (Some (RecordShape owner declared observations), Some values) -> (case record-field-error declared (record-expression-labels values) [] of
-      Some message -> term-error sp message st
-      None -> (case lookup-expression-value sp kinds (record-storage-name (has-observations observations) owner) env st of
-        (constructor, opened) -> let ready = case wanted of None -> opened; Some expected -> unify sp (result-type (core-type constructor)) expected opened in
-          (case record-typed-fields declared (domains (core-type constructor)) of
-            Some types -> let initializers = if has-observations observations then delayed-observations values else values in
-              (case record-initializers classes kinds families env locals types initializers ready of
-                (bound, bindings, prepared) -> (case apply-spine classes kinds families bound locals constructor (record-value-arguments sp types initializers) prepared of
-                  (result, done) -> (record-initializer-lets sp bindings result, done)))
-            None -> term-error sp "record constructor fields disagree with the checked declaration" ready)))
-    other -> term-error sp "record construction has no defining field contract" st
+  infer-record-construction classes kinds families env locals sp name fields wanted st = case hash-map-lookup name (context-records kinds) of
+    Some (RecordShape owner declared observations) -> (case record-expression-fields fields of
+      Some values -> (case record-field-error declared (record-expression-labels values) [] of
+        Some message -> term-error sp message st
+        None -> (case lookup-expression-value sp kinds (record-storage-name (has-observations observations) owner) env st of
+          (constructor, opened) -> let ready = case wanted of None -> opened; Some expected -> unify sp (result-type (core-type constructor)) expected opened in
+            (case record-typed-fields declared (domains (core-type constructor)) of
+              Some types -> let initializers = if has-observations observations then delayed-observations values else values in
+                (case record-initializers classes kinds families env locals types initializers ready of
+                  (bound, bindings, prepared) -> (case apply-spine classes kinds families bound locals constructor (record-value-arguments sp types initializers) prepared of
+                    (result, done) -> (record-initializer-lets sp bindings result, done)))
+              None -> term-error sp "record constructor fields disagree with the checked declaration" ready)))
+      None -> term-error sp "record construction has no defining field contract" st)
+    None -> term-error sp "record construction has no defining field contract" st
   record-projection-pattern :: Span -> String -> List String -> List Pat
   record-projection-pattern sp label fields = case fields of
     [] -> []
@@ -12138,8 +12339,8 @@ module Cinch.Infer where
   record-context-names :: Json -> List String
   record-context-names names = case names of JArr (JStr name) rest -> name : (record-context-names rest); other -> []
   record-scope-contains :: Span -> Span -> Bool
-  record-scope-contains outer inner = case (outer, inner) of
-    (Span start finish line column, Span position end row col) -> start <= position && position < finish
+  record-scope-contains outer inner = case outer of
+    Span start finish line column -> case inner of Span position end row col -> start <= position && position < finish
   -- Only visible records can inform an unknown receiver. Build the
   -- label table once per source scope, keeping the first matching span
   -- and counting repeated candidate records just as the scope list did.
@@ -12414,12 +12615,13 @@ module Cinch.Infer where
     [] -> []
     (SourceTotalDecl at declaration) : rest -> declaration : (source-total-spine rest)
   source-total-merge :: List SourceTotalDecl -> List SourceTotalDecl -> List Decl
-  source-total-merge selected shared = case (selected, shared) of
-    ([], other) -> source-total-spine other
-    (other, []) -> source-total-spine other
-    ((SourceTotalDecl first declaration) : rest, (SourceTotalDecl second common) : more) ->
-      if first > second then declaration : (source-total-merge rest shared)
-      else common : (source-total-merge selected more)
+  source-total-merge selected shared = case selected of
+    [] -> source-total-spine shared
+    (SourceTotalDecl first declaration) : rest -> (case shared of
+      [] -> source-total-spine selected
+      (SourceTotalDecl second common) : more ->
+        if first > second then declaration : (source-total-merge rest shared)
+        else common : (source-total-merge selected more))
 
   source-total-find-alias :: String -> SourceTotalDecls -> Option Decl
   source-total-find-alias name (SourceTotalDecls functions aliases datas shared) = case source-total-group name aliases of
@@ -12484,7 +12686,7 @@ module Cinch.Infer where
   source-total-required-heads :: Expr -> List String -> List String
   source-total-required-heads expr more = case expr of
     EApp at callee arguments -> source-total-required-heads callee more
-    EVar at name | string-starts-with "m." name -> name : more
+    EVar at name | starts-with-m-dot name -> name : more
     EIf at condition yes no -> source-total-required-heads condition
       (source-total-required-heads yes (source-total-required-heads no more))
     ELet at bindings body -> source-total-required-heads bindings (source-total-required-heads body more)
@@ -13205,7 +13407,7 @@ module Cinch.Infer where
     UPi id name domain row result -> conditional-precondition result
     other -> False
   closed-conditional-scheme :: Scheme -> Bool
-  closed-conditional-scheme sc = contract-scheme-closed sc && (case (scheme-params sc, scheme-requirements sc) of ([], []) -> True; other -> False)
+  closed-conditional-scheme sc = contract-scheme-closed sc && (case scheme-params sc of [] -> (case scheme-requirements sc of [] -> True; other -> False); other -> False)
   register-conditional-methods :: ImportedClasses -> List (String, Kind) -> TypeContext -> Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-conditional-methods descriptions classes kinds sp dictionary methods env st = case methods of
     JArr row rest -> let checked = field "checked" row in
