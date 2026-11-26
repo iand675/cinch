@@ -354,20 +354,123 @@ module Text.Flate where
       let aligned = sub-sat pos (nat-div nbits 8) in
       BitReader src aligned 0 0
 
-  -- | Refill the bit accumulator so at least 32 bits are buffered when available.
+  -- | Mask v to its low n bits (0..64), clearing any lookahead bits above bit n - 1.
+  mask-low-u64 :: U64 -> U32 -> U64
+  mask-low-u64 v n =
+    if ge-u32 n 64 then v
+    else bit-and-u64 v (wrapping-sub-u64 (wrapping-shl-u64 1 n) 1)
+
+  -- | Base length for length symbol 257..285 (indexed by k = sym - 257) as U32.
+  len-base-u32 :: U32 -> U32
+  len-base-u32 k = case k of
+    0 -> 3
+    1 -> 4
+    2 -> 5
+    3 -> 6
+    4 -> 7
+    5 -> 8
+    6 -> 9
+    7 -> 10
+    8 -> 11
+    9 -> 13
+    10 -> 15
+    11 -> 17
+    12 -> 19
+    13 -> 23
+    14 -> 27
+    15 -> 31
+    16 -> 35
+    17 -> 43
+    18 -> 51
+    19 -> 59
+    20 -> 67
+    21 -> 83
+    22 -> 99
+    23 -> 115
+    24 -> 131
+    25 -> 163
+    26 -> 195
+    27 -> 227
+    _ -> 258
+
+  -- | Extra bit count for length symbol 257..285 (indexed by k = sym - 257) as U32.
+  len-extra-u32 :: U32 -> U32
+  len-extra-u32 k =
+    if lt-u32 k 8 || eq-u32 k 28 then 0
+    else wrapping-shr-u32 (wrapping-sub-u32 k 4) 2
+
+  -- | Base distance for distance symbol 0..29 as U32.
+  dist-base-u32 :: U32 -> U32
+  dist-base-u32 k = case k of
+    0 -> 1
+    1 -> 2
+    2 -> 3
+    3 -> 4
+    4 -> 5
+    5 -> 7
+    6 -> 9
+    7 -> 13
+    8 -> 17
+    9 -> 25
+    10 -> 33
+    11 -> 49
+    12 -> 65
+    13 -> 97
+    14 -> 129
+    15 -> 193
+    16 -> 257
+    17 -> 385
+    18 -> 513
+    19 -> 769
+    20 -> 1025
+    21 -> 1537
+    22 -> 2049
+    23 -> 3073
+    24 -> 4097
+    25 -> 6145
+    26 -> 8193
+    27 -> 12289
+    28 -> 16385
+    _ -> 24577
+
+  -- | Extra bit count for distance symbol 0..29 as U32.
+  dist-extra-u32 :: U32 -> U32
+  dist-extra-u32 k =
+    if lt-u32 k 4 then 0
+    else wrapping-shr-u32 (wrapping-sub-u32 k 2) 1
+
+  -- | Unboxed checked 32-bit word load at 4-byte slot index i.
+  get-u32-i64 :: Bytes -> I64 -> U32
+  get-u32-i64 buf idx =
+    let off = wrapping-shl-i64 idx 2 in
+    let n = bytes-len buf in
+    if 0 <= off && 4 <= n then
+      if nat-from-i64 off <= n - 4 then bytes-load-le32-at buf off else 0
+    else 0
+
+  -- | Refill the bit accumulator using Fabian Giesen's branchless 64-bit Variant 4
+  -- when at least 8 bytes remain, falling back to a safe byte-by-byte tail refill.
+  -- Maintains 0 <= nbits <= 63 and leaves at least 56 bits buffered whenever input remains.
   br-refill :: BitReader -> BitReader
   br-refill br = case br of
     BitReader src pos buf nbits ->
-      if nbits >= 32 then br
-      else if pos + 4 <= bytes-len src then
-        let w = u32-to-u64 (bytes-read-le32 src pos) in
-        BitReader src (pos + 4) (bit-or-u64 buf (wrapping-shl-u64 w (nat-u32 nbits))) (nbits + 32)
-      else br-refill-bytes src pos buf nbits
+      let n32 = nat-u32 nbits in
+      if ge-u32 n32 56 then br
+      else
+        let slen = bytes-len src in
+        if 8 <= slen && pos <= slen - 8 then
+          let p = nat-to-i64 pos in
+          let word = bytes-load-le64-at src p in
+          let buf1 = bit-or-u64 buf (wrapping-shl-u64 word n32) in
+          let adv = wrapping-shr-u32 (wrapping-sub-u32 63 n32) 3 in
+          let nbits1 = bit-or-u32 n32 56 in
+          BitReader src (pos + u32-to-nat adv) buf1 (u32-to-nat nbits1)
+        else br-refill-bytes src pos (mask-low-u64 buf n32) nbits
 
-  -- | Load remaining tail bytes one by one up to 56 bits.
+  -- | Load remaining tail bytes one by one while nbits <= 55 (keeping nbits <= 63).
   br-refill-bytes :: Bytes -> Nat -> U64 -> Nat -> BitReader
   br-refill-bytes src pos buf nbits =
-    if pos < bytes-len src && nbits <= 56 then
+    if pos < bytes-len src && nbits <= 55 then
       let b = nat-u64 (bytes-get src pos) in
       br-refill-bytes src (pos + 1) (bit-or-u64 buf (wrapping-shl-u64 b (nat-u32 nbits))) (nbits + 8)
     else BitReader src pos buf nbits
@@ -506,31 +609,40 @@ module Text.Flate where
           BitReader src pos buf nbits ->
             if nbits == 0 then Err FlateUnexpectedEof
             else
-              let idx = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 buf) 511) in
-              let entry = get-w fast idx in
-              let l = nat-rem entry 256 in
-              if l > 0 then
-                if l <= nbits then Ok (br-drop br1 l, nat-div entry 256)
+              let n32 = nat-u32 nbits in
+              let off = mask-i64 (wrapping-shl-i64 (wrapping-u64-to-i64 buf) 2) 2044 in
+              let entry = if 2048 <= bytes-len-i64 fast then bytes-load-le32-at fast off else 0 in
+              let l = bit-and-u32 entry 255 in
+              if gt-u32 l 0 then
+                if le-u32 l n32 then
+                  Ok (BitReader src pos (wrapping-shr-u64 buf l) (sub-sat nbits (u32-to-nat l)), u32-to-nat (wrapping-shr-u32 entry 8))
                 else Err FlateUnexpectedEof
-              else decode-huff-slow br1 tab 1 0
+              else
+                let slow = decode-huff-slow-raw buf n32 (nat-u32 max-len) counts first-code first-off syms 1 0 in
+                if eq-u32 slow 0 then Err FlateUnexpectedEof
+                else if eq-u32 slow 4294967295 then Err (FlateCorruptInput (br-aligned-byte br1))
+                else
+                  let sl = bit-and-u32 slow 255 in
+                  let ssym = wrapping-shr-u32 slow 8 in
+                  Ok (BitReader src pos (wrapping-shr-u64 buf sl) (sub-sat nbits (u32-to-nat sl)), u32-to-nat ssym)
 
-  -- | Bit-by-bit canonical fallback for codes longer than 9 bits or invalid prefixes.
-  decode-huff-slow :: BitReader -> HuffTable -> Nat -> Nat -> Result FlateError (BitReader, Nat)
-  decode-huff-slow br tab l code =
-    case br of
-      BitReader src pos buf nbits ->
-        if l > nbits then Err FlateUnexpectedEof
-        else case tab of
-          HuffTable max-len fast counts first-code first-off syms ->
-            let bit = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 buf (nat-u32 (sub-sat l 1)))) 1) in
-            let next-c = code * 2 + bit in
-            let cnt = get-w counts l in
-            let fc = get-w first-code l in
-            if cnt > 0 && fc <= next-c && next-c < fc + cnt then
-              let sym = get-w syms (get-w first-off l + (next-c - fc)) in
-              Ok (br-drop br l, sym)
-            else if l >= max-len then Err (FlateCorruptInput (br-aligned-byte br))
-            else decode-huff-slow br tab (l + 1) next-c
+  -- | Unboxed bit-by-bit canonical fallback for codes longer than 9 bits or invalid prefixes.
+  -- Returns packed ((sym << 8) | len), 0 on unexpected EOF, or 0xFFFFFFFF on corrupt input.
+  decode-huff-slow-raw :: U64 -> U32 -> U32 -> Bytes -> Bytes -> Bytes -> Bytes -> U32 -> U32 -> U32
+  decode-huff-slow-raw buf nbits max-len counts first-code first-off syms l code =
+    if gt-u32 l nbits then 0
+    else
+      let bit = wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 buf (wrapping-sub-u32 l 1)) 1) in
+      let next-c = wrapping-add-u32 (wrapping-shl-u32 code 1) bit in
+      let li = u32-to-i64 l in
+      let cnt = get-u32-i64 counts li in
+      let fc = get-u32-i64 first-code li in
+      if gt-u32 cnt 0 && le-u32 fc next-c && lt-u32 next-c (wrapping-add-u32 fc cnt) then
+        let fo = get-u32-i64 first-off li in
+        let sym = get-u32-i64 syms (u32-to-i64 (wrapping-add-u32 fo (wrapping-sub-u32 next-c fc))) in
+        bit-or-u32 (wrapping-shl-u32 sym 8) l
+      else if ge-u32 l max-len then 4294967295
+      else decode-huff-slow-raw buf nbits max-len counts first-code first-off syms (wrapping-add-u32 l 1) next-c
 
   -- | Build the RFC 1951 fixed literal/length Huffman table.
   make-fixed-lit-table :: Unit -> HuffTable
@@ -677,9 +789,7 @@ module Text.Flate where
     else
       let est = min-nat (max-nat (bytes-len src * 3) 256) (max-nat limit 256) in
       let ob = out-init dict est limit in
-      let fixed-lit = make-fixed-lit-table () in
-      let fixed-dist = make-fixed-dist-table () in
-      decode-blocks (br-at src start) ob fixed-lit fixed-dist
+      decode-blocks (br-at src start) ob None
 
   -- | Decode a single DEFLATE block starting at an absolute bit position with a
   -- sliding-window history buffer. Returns block output, next bit position, and BFINAL.
@@ -688,34 +798,44 @@ module Text.Flate where
     if nat-div start-bit 8 > bytes-len src then Err FlateUnexpectedEof
     else
       let ob = out-init window 1024 limit in
-      let fixed-lit = make-fixed-lit-table () in
-      let fixed-dist = make-fixed-dist-table () in
-      case decode-one-block (br-at-bit src start-bit) ob fixed-lit fixed-dist of
+      case decode-one-block (br-at-bit src start-bit) ob None of
         Err e -> Err e
-        Ok (br2, ob2, is-final) ->
+        Ok (br2, ob2, is-final, _) ->
           let next-bit = if is-final then br-aligned-byte br2 * 8 else br-bitpos br2 in
           Ok (out-extract ob2, next-bit, is-final)
 
-  -- | Decode blocks until a block with BFINAL=1 completes.
-  decode-blocks :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Result FlateError (Bytes, Nat)
-  decode-blocks br ob fixed-lit fixed-dist =
-    case decode-one-block br ob fixed-lit fixed-dist of
+  -- | Decode blocks until a block with BFINAL=1 completes, building fixed Huffman tables lazily.
+  decode-blocks :: BitReader -> OutBuf -> Option (HuffTable, HuffTable) -> Result FlateError (Bytes, Nat)
+  decode-blocks br ob fixed-opt =
+    case decode-one-block br ob fixed-opt of
       Err e -> Err e
-      Ok (br2, ob2, is-final) ->
+      Ok (br2, ob2, is-final, next-fixed) ->
         if is-final then Ok (out-extract ob2, br-aligned-byte br2)
-        else decode-blocks br2 ob2 fixed-lit fixed-dist
+        else decode-blocks br2 ob2 next-fixed
 
   -- | Decode one RFC 1951 block (stored, fixed Huffman, or dynamic Huffman).
-  decode-one-block :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Result FlateError (BitReader, OutBuf, Bool)
-  decode-one-block br ob fixed-lit fixed-dist =
+  decode-one-block :: BitReader -> OutBuf -> Option (HuffTable, HuffTable) -> Result FlateError (BitReader, OutBuf, Bool, Option (HuffTable, HuffTable))
+  decode-one-block br ob fixed-opt =
     case br-read br 3 of
       Err e -> Err e
       Ok (br1, hdr) ->
         let is-final = nat-rem hdr 2 == 1 in
         let btype = nat-div hdr 2 in
-        if btype == 0 then decode-stored-block br1 ob is-final
-        else if btype == 1 then decode-huff-block br1 ob fixed-lit fixed-dist is-final
-        else if btype == 2 then decode-dynamic-block br1 ob is-final
+        if btype == 0 then
+          case decode-stored-block br1 ob is-final of
+            Err e -> Err e
+            Ok (br2, ob2, fin) -> Ok (br2, ob2, fin, fixed-opt)
+        else if btype == 1 then
+          let pair = (case fixed-opt of Some p -> p; None -> (make-fixed-lit-table (), make-fixed-dist-table ())) in
+          case pair of
+            (fixed-lit, fixed-dist) ->
+              case decode-huff-block br1 ob fixed-lit fixed-dist is-final of
+                Err e -> Err e
+                Ok (br2, ob2, fin) -> Ok (br2, ob2, fin, Some pair)
+        else if btype == 2 then
+          case decode-dynamic-block br1 ob is-final of
+            Err e -> Err e
+            Ok (br2, ob2, fin) -> Ok (br2, ob2, fin, fixed-opt)
         else Err FlateUnsupportedBlock
 
   -- | Decode a type-0 stored block: align to byte boundary, verify LEN/NLEN, copy payload.
@@ -823,40 +943,299 @@ module Text.Flate where
               else read-dyn-lens br2 cl-tab all-lens (i + rep) total err-off
         else Err (FlateCorruptInput err-off)
 
-  -- | Decode literals and LZ77 matches in a Huffman block until EOB (256).
+  -- | Block-invariant context for unboxed Huffman block decoding.
+  data HuffCtx where
+    -- | Private fields: lit/len table, dist table, dist fast table, dist max length, output max cursor, dict len, output limit, BFINAL flag.
+    HuffCtx :: HuffTable -> HuffTable -> Bytes -> U32 -> I64 -> Nat -> Nat -> Bool -> HuffCtx
+
+  -- | Compute aligned byte position for corrupt-input diagnostics from unboxed cursor state.
+  aligned-byte-i64 :: I64 -> U32 -> Nat
+  aligned-byte-i64 pos nbits =
+    let whole = u32-to-i64 (wrapping-shr-u32 nbits 3) in
+    let diff = wrapping-sub-i64 pos whole in
+    if 0 <= diff then nat-from-i64 diff else 0
+
+  -- | Convert an I64 cursor to Nat safely (clamping negatives to 0).
+  i64-to-nat-sat :: I64 -> Nat
+  i64-to-nat-sat x = if 0 <= x then nat-from-i64 x else 0
+
+  -- | Tail byte-by-byte refill on unboxed cursor state when fewer than 8 source bytes remain.
+  refill-tail-i64 :: Bytes -> I64 -> U64 -> U32 -> (I64, U64, U32)
+  refill-tail-i64 src pos buf nbits =
+    if 0 <= pos && pos < bytes-len-i64 src && le-u32 nbits 55 then
+      let b = u8-to-u64 (bytes-get-u8-at src pos) in
+      refill-tail-i64 src (wrapping-add-i64 pos 1) (bit-or-u64 buf (wrapping-shl-u64 b nbits)) (wrapping-add-u32 nbits 8)
+    else (pos, buf, nbits)
+
+  -- | Grow the output buffer to hold at least out-len + need bytes.
+  out-grow-i64 :: Bytes -> I64 -> I64 -> Bytes
+  out-grow-i64 out out-len need =
+    let len-n = i64-to-nat-sat out-len in
+    let need-n = i64-to-nat-sat need in
+    let cap2 = max-nat (bytes-len out * 2) (len-n + need-n) in
+    let buf2 = bytes-new cap2 in
+    let u = copy-range buf2 out 0 0 len-n in
+    buf2
+
+  -- | Copy rem bytes sequentially from src to dst inside buf (handles both non-overlapping and overlapping matches).
+  copy-match-bytes-i64 :: Bytes -> I64 -> I64 -> I64 -> Unit
+  copy-match-bytes-i64 buf dst src rem =
+    if le-i64 rem 0 then ()
+    else if 0 <= src && src < bytes-len-i64 buf && 0 <= dst && dst < bytes-len-i64 buf then
+      let b = bytes-get-u8-at buf src in
+      let u = bytes-set-u8-at buf dst b in
+      copy-match-bytes-i64 buf (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-i64 rem 1)
+    else ()
+
+  -- | Fill rem consecutive bytes at dst with one repeated byte (distance-1 RLE fast path).
+  fill-match-byte-i64 :: Bytes -> I64 -> I64 -> U8 -> Unit
+  fill-match-byte-i64 buf dst rem b =
+    if le-i64 rem 0 then ()
+    else if 0 <= dst && dst < bytes-len-i64 buf then
+      let u = bytes-set-u8-at buf dst b in
+      fill-match-byte-i64 buf (wrapping-add-i64 dst 1) (wrapping-sub-i64 rem 1) b
+    else ()
+
+  -- | Decode literals and LZ77 matches in a Huffman block until EOB (256) using unboxed scalar state.
   decode-huff-block :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Bool -> Result FlateError (BitReader, OutBuf, Bool)
-  decode-huff-block br ob ltab dtab is-final =
-    case decode-huff br ltab of
-      Err e -> Err e
-      Ok (br1, sym) ->
-        if sym < 256 then
-          case out-push-byte ob sym of
-            Err e -> Err e
-            Ok ob1 -> decode-huff-block br1 ob1 ltab dtab is-final
-        else if sym == 256 then Ok (br1, ob, is-final)
-        else if sym > 285 then Err (FlateCorruptInput (br-aligned-byte br1))
+  decode-huff-block br ob ltab dtab is-final = case ltab of
+    HuffTable lmax lfast _ _ _ _ ->
+      if lmax == 0 then Err (FlateCorruptInput (br-aligned-byte br))
+      else case dtab of
+        HuffTable dmax dfast _ _ _ _ ->
+          case br of
+            BitReader src pos0 buf0 nbits0 ->
+              case ob of
+                OutBuf out0 len0 dlen limit ->
+                  if bytes-len-i64 lfast == 2048 then
+                    let slen = bytes-len src in
+                    let pos = (if pos0 <= 9223372036854775807 then (nat-to-i64 pos0 :: I64) else (bytes-len-i64 src :: I64)) in
+                    let out-len = (if len0 <= 9223372036854775807 then (nat-to-i64 len0 :: I64) else (bytes-len-i64 out0 :: I64)) in
+                    let out-max = (if dlen + limit <= 9223372036854775807 then (nat-to-i64 (dlen + limit) :: I64) else (9223372036854775807 :: I64)) in
+                    let ctx = HuffCtx ltab dtab dfast (nat-u32 dmax) out-max dlen limit is-final in
+                    if 8 <= slen then
+                      let lim8 = slen - 8 in
+                      decode-huff-loop src lim8 lfast ctx pos buf0 (nat-u32 nbits0) out0 out-len
+                    else
+                      decode-huff-tail-only src lfast ctx pos buf0 (nat-u32 nbits0) out0 out-len
+                  else Err (FlateCorruptInput (br-aligned-byte br))
+
+  -- | Tail-only symbol loop for tiny inputs shorter than 8 bytes.
+  decode-huff-tail-only :: using (bytes-len-i64 lfast == 2048) => Bytes -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-tail-only src lfast ctx pos buf nbits out out-len =
+    case refill-tail-i64 src pos (mask-low-u64 buf nbits) nbits of
+      (pos1, buf1, nbits1) ->
+        decode-huff-body-tail src lfast ctx pos1 buf1 nbits1 out out-len
+
+  -- | Decode one symbol on inputs shorter than 8 bytes.
+  decode-huff-body-tail :: using (bytes-len-i64 lfast == 2048) => Bytes -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-body-tail src lfast ctx pos1 buf1 nbits1 out out-len =
+    let off = mask-i64 (wrapping-shl-i64 (wrapping-u64-to-i64 buf1) 2) 2044 in
+    let entry0 = bytes-load-le32-at lfast off in
+    let l0 = bit-and-u32 entry0 255 in
+    let entry = (if gt-u32 l0 0 then
+      if le-u32 l0 nbits1 then entry0 else (0 :: U32)
+    else case ctx of
+      HuffCtx ltab _ _ _ _ _ _ _ ->
+        case ltab of
+          HuffTable lmax _ lcounts lfc lfo lsyms ->
+            decode-huff-slow-raw buf1 nbits1 (nat-u32 lmax) lcounts lfc lfo lsyms 1 0) in
+    if eq-u32 entry 0 then Err FlateUnexpectedEof
+    else if eq-u32 entry 4294967295 then Err (FlateCorruptInput (aligned-byte-i64 pos1 nbits1))
+    else
+      let sl = bit-and-u32 entry 255 in
+      let sym = wrapping-shr-u32 entry 8 in
+      let buf2 = wrapping-shr-u64 buf1 sl in
+      let nbits2 = wrapping-sub-u32 nbits1 sl in
+      if lt-u32 sym 256 then
+        case ctx of
+          HuffCtx _ _ _ _ out-max _ _ _ ->
+            if ge-i64 out-len out-max then Err FlateOutputLimitExceeded
+            else
+              let out2 = if 0 <= out-len && out-len < bytes-len-i64 out then out else out-grow-i64 out out-len 1 in
+              let u = if 0 <= out-len && out-len < bytes-len-i64 out2 then bytes-set-u8-at out2 out-len (wrapping-u32-to-u8 sym) else () in
+              decode-huff-tail-only src lfast ctx pos1 buf2 nbits2 out2 (wrapping-add-i64 out-len 1)
+      else
+        decode-huff-nonlit-tail src lfast ctx pos1 buf2 nbits2 out out-len sym
+
+  -- | Handle EOB and matches for tiny inputs shorter than 8 bytes.
+  decode-huff-nonlit-tail :: using (bytes-len-i64 lfast == 2048) => Bytes -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> U32 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-nonlit-tail src lfast ctx pos buf nbits out out-len sym = case ctx of
+    HuffCtx ltab dtab dfast dmax out-max dlen limit is-final ->
+      if eq-u32 sym 256 then
+        let br-out = BitReader src (i64-to-nat-sat pos) (mask-low-u64 buf nbits) (u32-to-nat nbits) in
+        let ob-out = OutBuf out (i64-to-nat-sat out-len) dlen limit in
+        Ok (br-out, ob-out, is-final)
+      else if gt-u32 sym 285 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits))
+      else
+        let lk = wrapping-sub-u32 sym 257 in
+        let lbase = len-base-u32 lk in
+        let lextra = len-extra-u32 lk in
+        if gt-u32 lextra nbits then Err FlateUnexpectedEof
         else
-          let lk = sym - 257 in
-          let lbase = len-base-of lk in
-          let lextra = len-extra-of lk in
-          case br-read br1 lextra of
-            Err e -> Err e
-            Ok (br2, lx) ->
-              let mlen = lbase + lx in
-              case decode-huff br2 dtab of
-                Err e -> Err e
-                Ok (br3, dsym) ->
-                  if dsym > 29 then Err (FlateCorruptInput (br-aligned-byte br3))
+          let lx = if eq-u32 lextra 0 then (0 :: U32) else wrapping-u64-to-u32 (bit-and-u64 buf (wrapping-sub-u64 (wrapping-shl-u64 1 lextra) 1)) in
+          let mlen = u32-to-i64 (wrapping-add-u32 lbase lx) in
+          let buf2 = wrapping-shr-u64 buf lextra in
+          let nbits2 = wrapping-sub-u32 nbits lextra in
+          if eq-u32 dmax 0 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits2))
+          else
+            let doff = mask-i64 (wrapping-shl-i64 (wrapping-u64-to-i64 buf2) 2) 2044 in
+            let dentry0 = if 2048 <= bytes-len-i64 dfast then bytes-load-le32-at dfast doff else 0 in
+            let dl0 = bit-and-u32 dentry0 255 in
+            let dentry = (if gt-u32 dl0 0 then
+              if le-u32 dl0 nbits2 then dentry0 else (0 :: U32)
+            else case dtab of
+              HuffTable _ _ dcounts dfc dfo dsyms ->
+                decode-huff-slow-raw buf2 nbits2 dmax dcounts dfc dfo dsyms 1 0) in
+            if eq-u32 dentry 0 then Err FlateUnexpectedEof
+            else if eq-u32 dentry 4294967295 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits2))
+            else
+              let dl = bit-and-u32 dentry 255 in
+              let dsym = wrapping-shr-u32 dentry 8 in
+              let buf3 = wrapping-shr-u64 buf2 dl in
+              let nbits3 = wrapping-sub-u32 nbits2 dl in
+              if gt-u32 dsym 29 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits3))
+              else
+                let dbase = dist-base-u32 dsym in
+                let dextra = dist-extra-u32 dsym in
+                if gt-u32 dextra nbits3 then Err FlateUnexpectedEof
+                else
+                  let dx = if eq-u32 dextra 0 then (0 :: U32) else wrapping-u64-to-u32 (bit-and-u64 buf3 (wrapping-sub-u64 (wrapping-shl-u64 1 dextra) 1)) in
+                  let dist = u32-to-i64 (wrapping-add-u32 dbase dx) in
+                  let buf4 = wrapping-shr-u64 buf3 dextra in
+                  let nbits4 = wrapping-sub-u32 nbits3 dextra in
+                  if le-i64 dist 0 || gt-i64 dist out-len then Err (FlateCorruptInput (aligned-byte-i64 pos nbits4))
+                  else if gt-i64 (wrapping-add-i64 out-len mlen) out-max then Err FlateOutputLimitExceeded
                   else
-                    let dbase = dist-base-of dsym in
-                    let dextra = dist-extra-of dsym in
-                    case br-read br3 dextra of
-                      Err e -> Err e
-                      Ok (br4, dx) ->
-                        let dist = dbase + dx in
-                        case out-copy-match ob mlen dist (br-aligned-byte br4) of
-                          Err e -> Err e
-                          Ok ob1 -> decode-huff-block br4 ob1 ltab dtab is-final
+                    let out2 = if le-i64 (wrapping-add-i64 out-len mlen) (bytes-len-i64 out) then out else out-grow-i64 out out-len mlen in
+                    let src-pos = wrapping-sub-i64 out-len dist in
+                    let u = copy-match-bytes-i64 out2 out-len src-pos mlen in
+                    decode-huff-tail-only src lfast ctx pos buf4 nbits4 out2 (wrapping-add-i64 out-len mlen)
+
+  -- | Hot tail-recursive symbol loop: branchless 64-bit Variant 4 refill + unboxed 9-bit table lookup.
+  decode-huff-loop :: using (lim8 + 8 <= bytes-len src, bytes-len-i64 lfast == 2048) => (src :: Bytes) -> (lim8 :: Nat) -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-loop src lim8 lfast ctx pos buf nbits out out-len =
+    if 0 <= pos && nat-from-i64 pos <= lim8 then
+      let word = bytes-load-le64-at src pos in
+      let buf1 = bit-or-u64 buf (wrapping-shl-u64 word nbits) in
+      let adv = wrapping-shr-u32 (wrapping-sub-u32 63 nbits) 3 in
+      let pos1 = wrapping-add-i64 pos (u32-to-i64 adv) in
+      let nbits1 = bit-or-u32 nbits 56 in
+      decode-huff-body src lim8 lfast ctx pos1 buf1 nbits1 out out-len
+    else
+      case refill-tail-i64 src pos (mask-low-u64 buf nbits) nbits of
+        (pos1, buf1, nbits1) ->
+          decode-huff-body src lim8 lfast ctx pos1 buf1 nbits1 out out-len
+
+  -- | Decode one literal/length symbol from a refilled 64-bit bit buffer.
+  decode-huff-body :: using (lim8 + 8 <= bytes-len src, bytes-len-i64 lfast == 2048) => (src :: Bytes) -> (lim8 :: Nat) -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-body src lim8 lfast ctx pos1 buf1 nbits1 out out-len =
+    let off = mask-i64 (wrapping-shl-i64 (wrapping-u64-to-i64 buf1) 2) 2044 in
+    let entry0 = bytes-load-le32-at lfast off in
+    let l0 = bit-and-u32 entry0 255 in
+    if gt-u32 l0 0 then
+      if le-u32 l0 nbits1 then
+        let sym = wrapping-shr-u32 entry0 8 in
+        let buf2 = wrapping-shr-u64 buf1 l0 in
+        let nbits2 = wrapping-sub-u32 nbits1 l0 in
+        if lt-u32 sym 256 then
+          decode-huff-lit src lim8 lfast ctx pos1 buf2 nbits2 out out-len sym
+        else
+          decode-huff-nonlit src lim8 lfast ctx pos1 buf2 nbits2 out out-len sym
+      else Err FlateUnexpectedEof
+    else
+      case ctx of
+        HuffCtx ltab _ _ _ _ _ _ _ ->
+          case ltab of
+            HuffTable lmax _ lcounts lfc lfo lsyms ->
+              let slow = decode-huff-slow-raw buf1 nbits1 (nat-u32 lmax) lcounts lfc lfo lsyms 1 0 in
+              if eq-u32 slow 0 then Err FlateUnexpectedEof
+              else if eq-u32 slow 4294967295 then Err (FlateCorruptInput (aligned-byte-i64 pos1 nbits1))
+              else
+                let sl = bit-and-u32 slow 255 in
+                let sym = wrapping-shr-u32 slow 8 in
+                let buf2 = wrapping-shr-u64 buf1 sl in
+                let nbits2 = wrapping-sub-u32 nbits1 sl in
+                if lt-u32 sym 256 then
+                  decode-huff-lit src lim8 lfast ctx pos1 buf2 nbits2 out out-len sym
+                else
+                  decode-huff-nonlit src lim8 lfast ctx pos1 buf2 nbits2 out out-len sym
+
+  -- | Emit one decoded literal byte and continue the unboxed symbol loop.
+  decode-huff-lit :: using (lim8 + 8 <= bytes-len src, bytes-len-i64 lfast == 2048) => (src :: Bytes) -> (lim8 :: Nat) -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> U32 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-lit src lim8 lfast ctx pos buf nbits out out-len sym = case ctx of
+    HuffCtx _ _ _ _ out-max _ _ _ ->
+      if ge-i64 out-len out-max then Err FlateOutputLimitExceeded
+      else if 0 <= out-len && out-len < bytes-len-i64 out then
+        let u = bytes-set-u8-at out out-len (wrapping-u32-to-u8 sym) in
+        decode-huff-loop src lim8 lfast ctx pos buf nbits out (wrapping-add-i64 out-len 1)
+      else
+        let out2 = out-grow-i64 out out-len 1 in
+        let u = if 0 <= out-len && out-len < bytes-len-i64 out2 then bytes-set-u8-at out2 out-len (wrapping-u32-to-u8 sym) else () in
+        decode-huff-loop src lim8 lfast ctx pos buf nbits out2 (wrapping-add-i64 out-len 1)
+
+  -- | Handle EOB (256), corrupt symbols (> 285), and LZ77 length/distance matches (257..285).
+  decode-huff-nonlit :: using (lim8 + 8 <= bytes-len src, bytes-len-i64 lfast == 2048) => (src :: Bytes) -> (lim8 :: Nat) -> (lfast :: Bytes) -> HuffCtx -> I64 -> U64 -> U32 -> Bytes -> I64 -> U32 -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-nonlit src lim8 lfast ctx pos buf nbits out out-len sym = case ctx of
+    HuffCtx ltab dtab dfast dmax out-max dlen limit is-final ->
+      if eq-u32 sym 256 then
+        let br-out = BitReader src (i64-to-nat-sat pos) (mask-low-u64 buf nbits) (u32-to-nat nbits) in
+        let ob-out = OutBuf out (i64-to-nat-sat out-len) dlen limit in
+        Ok (br-out, ob-out, is-final)
+      else if gt-u32 sym 285 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits))
+      else
+        let lk = wrapping-sub-u32 sym 257 in
+        let lbase = len-base-u32 lk in
+        let lextra = len-extra-u32 lk in
+        if gt-u32 lextra nbits then Err FlateUnexpectedEof
+        else
+          let lx = if eq-u32 lextra 0 then (0 :: U32) else wrapping-u64-to-u32 (bit-and-u64 buf (wrapping-sub-u64 (wrapping-shl-u64 1 lextra) 1)) in
+          let mlen = u32-to-i64 (wrapping-add-u32 lbase lx) in
+          let buf2 = wrapping-shr-u64 buf lextra in
+          let nbits2 = wrapping-sub-u32 nbits lextra in
+          if eq-u32 dmax 0 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits2))
+          else
+            let doff = mask-i64 (wrapping-shl-i64 (wrapping-u64-to-i64 buf2) 2) 2044 in
+            let dentry0 = if 2048 <= bytes-len-i64 dfast then bytes-load-le32-at dfast doff else 0 in
+            let dl0 = bit-and-u32 dentry0 255 in
+            let dentry = (if gt-u32 dl0 0 then
+              if le-u32 dl0 nbits2 then dentry0 else (0 :: U32)
+            else case dtab of
+              HuffTable _ _ dcounts dfc dfo dsyms ->
+                decode-huff-slow-raw buf2 nbits2 dmax dcounts dfc dfo dsyms 1 0) in
+            if eq-u32 dentry 0 then Err FlateUnexpectedEof
+            else if eq-u32 dentry 4294967295 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits2))
+            else
+              let dl = bit-and-u32 dentry 255 in
+              let dsym = wrapping-shr-u32 dentry 8 in
+              let buf3 = wrapping-shr-u64 buf2 dl in
+              let nbits3 = wrapping-sub-u32 nbits2 dl in
+              if gt-u32 dsym 29 then Err (FlateCorruptInput (aligned-byte-i64 pos nbits3))
+              else
+                let dbase = dist-base-u32 dsym in
+                let dextra = dist-extra-u32 dsym in
+                if gt-u32 dextra nbits3 then Err FlateUnexpectedEof
+                else
+                  let dx = if eq-u32 dextra 0 then (0 :: U32) else wrapping-u64-to-u32 (bit-and-u64 buf3 (wrapping-sub-u64 (wrapping-shl-u64 1 dextra) 1)) in
+                  let dist = u32-to-i64 (wrapping-add-u32 dbase dx) in
+                  let buf4 = wrapping-shr-u64 buf3 dextra in
+                  let nbits4 = wrapping-sub-u32 nbits3 dextra in
+                  if le-i64 dist 0 || gt-i64 dist out-len then Err (FlateCorruptInput (aligned-byte-i64 pos nbits4))
+                  else if gt-i64 (wrapping-add-i64 out-len mlen) out-max then Err FlateOutputLimitExceeded
+                  else
+                    let out2 = if le-i64 (wrapping-add-i64 out-len mlen) (bytes-len-i64 out) then out else out-grow-i64 out out-len mlen in
+                    let src-pos = wrapping-sub-i64 out-len dist in
+                    let u = (if eq-i64 dist 1 then
+                      if 0 <= src-pos && src-pos < bytes-len-i64 out2 then
+                        fill-match-byte-i64 out2 out-len mlen (bytes-get-u8-at out2 src-pos)
+                      else ()
+                    else if le-i64 mlen 24 then
+                      copy-match-bytes-i64 out2 out-len src-pos mlen
+                    else if ge-i64 dist mlen then
+                      copy-range out2 out2 (i64-to-nat-sat out-len) (i64-to-nat-sat src-pos) (i64-to-nat-sat mlen)
+                    else
+                      copy-overlap out2 (i64-to-nat-sat out-len) (i64-to-nat-sat dist) (i64-to-nat-sat mlen)) in
+                    decode-huff-loop src lim8 lfast ctx pos buf4 nbits4 out2 (wrapping-add-i64 out-len mlen)
 
   -- ---------------------------------------------------------------------
   -- Fast 64-bit LSB-first bit writer for encoding.
