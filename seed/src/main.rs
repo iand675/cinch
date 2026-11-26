@@ -91,6 +91,12 @@ flags:
               one: no ownership operation is emitted, so every block the
               program allocates stays live until exit (the same profile
               CINCH_RECLAIM=0 selects, as a flag; design/reclamation.md)
+  --prim-verify <default|strict|lax|off>  formal verification strictness for
+              `prim ... justify verify*` bodies (`CINCH_PRIM_VERIFY=...`):
+              `lax` relaxes policy/missing-solver prereqs into honest
+              `assumed` receipts while still failing on counterexamples;
+              `off` skips provers altogether
+  --lax-prim-verify  shorthand for `--prim-verify lax`
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -378,6 +384,27 @@ fn main() {
             }
             "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
             "--no-reclaim" => opts.no_reclaim = true,
+            "--lax-prim-verify" => opts.prim_verify = Some(cinch::prim_verify::PrimVerifyMode::Lax),
+            "--prim-verify" => {
+                i += 1;
+                match args.get(i).and_then(|v| cinch::prim_verify::PrimVerifyMode::parse(v)) {
+                    Some(m) => opts.prim_verify = Some(m),
+                    None => {
+                        eprintln!("cinch: --prim-verify needs one of `default`, `strict`, `lax`, or `off`");
+                        exit(2);
+                    }
+                }
+            }
+            s if s.starts_with("--prim-verify=") => {
+                let v = &s["--prim-verify=".len()..];
+                match cinch::prim_verify::PrimVerifyMode::parse(v) {
+                    Some(m) => opts.prim_verify = Some(m),
+                    None => {
+                        eprintln!("cinch: --prim-verify needs one of `default`, `strict`, `lax`, or `off`");
+                        exit(2);
+                    }
+                }
+            }
             "--no-stack-alloc" => opts.no_stack_alloc = true,
             "--array-report" => opts.array_report = true,
             "--array-report-json" => opts.array_report_json = true,

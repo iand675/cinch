@@ -59,6 +59,58 @@ impl fmt::Display for TrustTier {
     }
 }
 
+/// Compilation strictness mode for formal verification of `prim` bodies.
+///
+/// Selectable via `--prim-verify=strict|dev|lax|off` (or `--lax-prim-verify` /
+/// `CINCH_PRIM_VERIFY=...`). Lax and off modes stay honest: unproved bodies
+/// downgrade to `PrimTier::Assumed` with an explicit `TrustTier::Assumed`
+/// receipt rather than forging a verified contract.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PrimVerifyMode {
+    /// Enforce `jpl` strictness under `#[profile("jpl")]`, `dev` elsewhere.
+    #[default]
+    Default,
+    /// Enforce `Policy::jpl_strict()` (`KernelCert`/`KernelProof` only) everywhere.
+    Strict,
+    /// Permissive fast-iteration mode: uses a tighter SAT budget, admits all
+    /// verified tiers (even in `jpl` modules), downgrades `Unverified` / missing
+    /// solver prerequisites to an explicit `TrustTier::Assumed` receipt, and
+    /// still fails on actively `Disproved` counterexamples.
+    Lax,
+    /// Skip running provers/checkers during compilation; records an explicit
+    /// `TrustTier::Assumed` receipt (`cinch-verify-off@1`) and keeps the prim
+    /// at `PrimTier::Assumed`.
+    Off,
+}
+
+impl PrimVerifyMode {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "default" | "dev" => Some(Self::Default),
+            "strict" | "jpl" => Some(Self::Strict),
+            "lax" => Some(Self::Lax),
+            "off" | "none" | "skip" => Some(Self::Off),
+            _ => None,
+        }
+    }
+
+    pub fn from_env() -> Self {
+        std::env::var("CINCH_PRIM_VERIFY")
+            .ok()
+            .and_then(|v| Self::parse(&v))
+            .unwrap_or(Self::Default)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Strict => "strict",
+            Self::Lax => "lax",
+            Self::Off => "off",
+        }
+    }
+}
+
 /// Errors produced by an [`IrSemantics`] plugin.
 #[derive(Clone, Debug)]
 pub enum SemError {
@@ -247,6 +299,15 @@ impl Policy {
         }
     }
 
+    /// Lax iteration policy: admits all tiers (including compiled-cert, SMT verdicts,
+    /// and explicitly downgraded `assumed` receipts).
+    pub fn lax() -> Self {
+        Self {
+            name: "lax".to_string(),
+            max_allowed_tier: TrustTier::Assumed,
+        }
+    }
+
     pub fn admits(&self, receipt: &TrustReceipt) -> Result<(), String> {
         if receipt.tier <= self.max_allowed_tier {
             Ok(())
@@ -333,6 +394,17 @@ impl VerifierEngine {
         self.checkers.retain(|c| c.format() != bitblast::LRAT_FORMAT_ID);
         self.checkers.insert(0, Box::new(CompiledLratChecker::default()));
         self
+    }
+
+    /// Fast, permissive engine for `PrimVerifyMode::Lax`: tighter SAT budget so heavy
+    /// bit-vector proofs don't stall iteration, paired with `Policy::lax()`.
+    pub fn lax_engine() -> Self {
+        let mut engine = Self::default_engine(Policy::lax());
+        engine.provers[0] = Box::new(CdclLratProver {
+            max_clauses: 50_000,
+            max_conflicts: 2_000,
+        });
+        engine
     }
 
     pub fn add_prover(&mut self, prover: Box<dyn Prover>) {
@@ -527,7 +599,7 @@ pub fn cli(args: &[String]) -> i32 {
             eprintln!(
                 "usage: cinch verify-prims <file.cinch...> [options]\n\
                  options:\n\
-                 \x20 --policy=dev|jpl          admission policy (default: dev)\n\
+                 \x20 --policy=dev|jpl|lax      admission policy (default: dev)\n\
                  \x20 --checker=kernel|compiled LRAT checker TCB tier (default: kernel)\n\
                  \x20 --smt=<binary>            plug in external SMT-LIB 2 solver (z3/bitwuzla/cvc5)\n\
                  \x20 --cadical=<binary>        plug in external CaDiCaL LRAT solver\n\
@@ -554,13 +626,18 @@ pub fn cli(args: &[String]) -> i32 {
     let policy = match policy_name.as_str() {
         "dev" => Policy::dev_default(),
         "jpl" => Policy::jpl_strict(),
+        "lax" => Policy::lax(),
         other => {
-            eprintln!("cinch verify-prims: unknown policy `{other}` (expected `dev` or `jpl`)");
+            eprintln!("cinch verify-prims: unknown policy `{other}` (expected `dev`, `jpl`, or `lax`)");
             return 2;
         }
     };
 
-    let mut engine = VerifierEngine::default_engine(policy);
+    let mut engine = if policy.name == "lax" {
+        VerifierEngine::lax_engine()
+    } else {
+        VerifierEngine::default_engine(policy)
+    };
     if checker_mode == "compiled" {
         engine = engine.with_compiled_lrat_checker();
     }

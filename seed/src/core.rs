@@ -4413,6 +4413,9 @@ pub struct TargetProfile {
     /// constructor returns its fields in registers. On by default;
     /// `CINCH_NO_CPR=1` turns it off for measurement.
     pub no_cpr: bool,
+    /// Formal verification mode for `prim ... justify verify*` declarations
+    /// (`--prim-verify=default|strict|lax|off` or `CINCH_PRIM_VERIFY=...`).
+    pub prim_verify: crate::prim_verify::PrimVerifyMode,
 }
 
 /// The build host's `(os, arch, libc)` as last-resort defaults for the
@@ -4497,6 +4500,7 @@ impl TargetProfile {
             rc_debug: false,
             reclaim: reclaim_from_env(),
             no_cpr: no_cpr_from_env(),
+            prim_verify: crate::prim_verify::PrimVerifyMode::from_env(),
         }
     }
 
@@ -4538,6 +4542,7 @@ impl TargetProfile {
             rc_debug: false,
             reclaim: reclaim_from_env(),
             no_cpr: no_cpr_from_env(),
+            prim_verify: crate::prim_verify::PrimVerifyMode::from_env(),
         }
     }
 }

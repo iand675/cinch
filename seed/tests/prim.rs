@@ -1314,3 +1314,101 @@ module Main where
     let code = run_source(&kernel_in_jpl).expect("kernel-cert is admitted under #[profile(\"jpl\")]");
     assert_eq!(code, 0);
 }
+
+#[test]
+fn lax_and_off_prim_verify_modes_relax_prereqs_honestly() {
+    use cinch::prim_verify::PrimVerifyMode;
+
+    // 1. Lax mode admits `verify-compiled-lrat` even inside a `#[profile("jpl")]`
+    // module and records `compiled-cert` + `prim_verify: "lax"` honestly.
+    let compiled_in_jpl = r#"
+#[profile("jpl")]
+module Main where
+  spec id-spec :: U32 -> U32
+  id-spec x = x
+
+  prim id-u32 :: U32 -> U32 spec id-spec where
+    llvm {
+      ret i32 %0
+    } justify verify-compiled-lrat
+
+  main :: Int
+  main = case 2 + 2 of
+    n -> case decide (n < 5) of
+      Yes _ -> case decide (n < 3) of
+        Yes _ -> 1
+        No _ -> if id-u32 7 == 7 then 0 else 1
+      No _ -> 1
+"#;
+    let lax_profile = TargetProfile {
+        prim_verify: PrimVerifyMode::Lax,
+        ..TargetProfile::native()
+    };
+    let m_jpl_lax = manifest_of("jpl-lax-compiled", compiled_in_jpl, &lax_profile);
+    assert!(m_jpl_lax.contains("\"prim_verify\":\"lax\""), "{m_jpl_lax}");
+    assert!(m_jpl_lax.contains("\"tier\":\"verified\""), "{m_jpl_lax}");
+    assert!(m_jpl_lax.contains("\"tier\":\"compiled-cert\""), "{m_jpl_lax}");
+
+    // 2. Lax mode downgrades unproved prerequisites (e.g. a float prim when no
+    // external SMT solver is available) to an explicit `assumed` receipt rather
+    // than failing compilation OR falsely stamping `verified` in `.cinchif`.
+    let float_prim = r#"
+module Main where
+  prim add-f64-local :: F64 -> F64 -> F64 where
+    llvm {
+      %r = fadd double %0, %1
+      ret double %r
+    } justify verify
+
+  main :: Int
+  main = 0
+"#;
+    // In default mode (without an SMT solver), this fails as unverified unless a
+    // solver is installed; in lax mode it ALWAYS compiles cleanly and records
+    // either a real SMT receipt or an explicit `cinch-lax-bypass@1` assumed receipt.
+    let m_float_lax = manifest_of("float-lax", float_prim, &lax_profile);
+    assert!(m_float_lax.contains("\"prim_verify\":\"lax\""), "{m_float_lax}");
+    assert!(
+        m_float_lax.contains("cinch-lax-bypass@1") || m_float_lax.contains("\"tier\":\"smt-verified\""),
+        "{m_float_lax}"
+    );
+    if m_float_lax.contains("cinch-lax-bypass@1") {
+        // Honest downgrade: prim tier is `assumed`, never forged `verified`.
+        assert!(m_float_lax.contains("\"tier\":\"assumed\""), "{m_float_lax}");
+        assert!(m_float_lax.contains("prim:Main.add-f64-local#"), "{m_float_lax}");
+    }
+
+    // 3. Lax mode STILL rejects an actively disproved broken LLVM body!
+    let broken = r#"
+module Main where
+  spec twice-spec :: U32 -> U32
+  twice-spec x = wrapping-add-u32 x x
+
+  prim twice :: U32 -> U32 spec twice-spec where
+    llvm {
+      %r = add i32 %0, 1
+      ret i32 %r
+    } justify verify
+
+  main :: Int
+  main = 0
+"#;
+    expect_err_profile(
+        "lax-still-catches-counterexample",
+        broken,
+        &lax_profile,
+        "failed formal verification",
+        &[],
+    );
+
+    // 4. `off` mode skips provers completely and records `cinch-verify-off@1`
+    // with `tier: "assumed"` honestly in the manifest.
+    let off_profile = TargetProfile {
+        prim_verify: PrimVerifyMode::Off,
+        ..TargetProfile::native()
+    };
+    let m_off = manifest_of("verify-off", broken, &off_profile);
+    assert!(m_off.contains("\"prim_verify\":\"off\""), "{m_off}");
+    assert!(m_off.contains("\"tier\":\"assumed\""), "{m_off}");
+    assert!(m_off.contains("cinch-verify-off@1"), "{m_off}");
+}

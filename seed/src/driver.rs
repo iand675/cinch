@@ -2966,6 +2966,7 @@ fn write_artifacts<'a>(
                 .unwrap_or(J::Null),
         ),
         ("word_size", profile.word_size.into()),
+        ("prim_verify", profile.prim_verify.as_str().into()),
         ("endian", (&profile.endian).into()),
         (
             "vector_shape",
@@ -4781,6 +4782,9 @@ pub struct DriverOptions {
     /// counted, so no ownership operation is emitted and every block the
     /// program allocates stays live (design/reclamation.md).
     pub no_reclaim: bool,
+    /// `--prim-verify <default|strict|lax|off>` (or `--lax-prim-verify`):
+    /// overrides `CINCH_PRIM_VERIFY` for formal verification of `prim` bodies.
+    pub prim_verify: Option<crate::prim_verify::PrimVerifyMode>,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -5466,6 +5470,9 @@ pub fn target_profile(opts: &DriverOptions) -> Result<crate::core::TargetProfile
     // `reclaim: false` for a consumer to refuse (design/reclamation.md).
     if opts.no_reclaim {
         profile.reclaim = false;
+    }
+    if let Some(pv) = opts.prim_verify {
+        profile.prim_verify = pv;
     }
     Ok(profile)
 }

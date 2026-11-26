@@ -9126,9 +9126,17 @@ impl Checker {
                                 "an `unsafe` prim body cannot be discharged with `justify verify`",
                             ));
                         }
-                        receipts = self.verify_prim_body_formally(
+                        let (body_receipts, fully_verified) = self.verify_prim_body_formally(
                             &module, &p, body_idx, b, strategy,
                         )?;
+                        receipts = body_receipts;
+                        if !fully_verified {
+                            // Lax or off mode downgraded at least one obligation to
+                            // `TrustTier::Assumed`: stay honest by keeping the prim at
+                            // `PrimTier::Assumed` so the raw body hash stays in `iface_hash`.
+                            all_verified = false;
+                            all_justified = false;
+                        }
                         Vec::new()
                     }
                     Some(j) => {
@@ -9459,6 +9467,16 @@ impl Checker {
         }
     }
 
+    fn prim_verify_mode(&self) -> crate::prim_verify::PrimVerifyMode {
+        match (&self.build, &self.target) {
+            (Some(build), _) => {
+                crate::core::condition_context(build, crate::core::BuildContext::Emitted).prim_verify
+            }
+            (None, Some(target)) => target.prim_verify,
+            (None, None) => crate::prim_verify::PrimVerifyMode::from_env(),
+        }
+    }
+
     fn verify_prim_body_formally(
         &self,
         module: &str,
@@ -9466,37 +9484,85 @@ impl Checker {
         body_idx: usize,
         body: &ast::PrimBody,
         strategy: &str,
-    ) -> Result<Vec<crate::prim_verify::TrustReceipt>> {
+    ) -> Result<(Vec<crate::prim_verify::TrustReceipt>, bool)> {
         use crate::prim_verify::prelude_bridge::build_prim_body_obligations;
-        use crate::prim_verify::{Policy, VerificationStatus, VerifierEngine};
-
-        let policy = if self.jpl_target || self.jpl_user_modules.contains(module) {
-            Policy::jpl_strict()
-        } else {
-            Policy::dev_default()
+        use crate::prim_verify::{
+            Policy, PrimVerifyMode, TrustReceipt, TrustTier, VerificationStatus, VerifierEngine,
         };
-        let mut engine = VerifierEngine::default_engine(policy);
+
+        let mode = self.prim_verify_mode();
+        if mode == PrimVerifyMode::Off {
+            let receipt = TrustReceipt {
+                goal_hash: "skipped".to_string(),
+                semantics_id: crate::prim_verify::llvm_ir::LLVM_SEMANTICS_ID.to_string(),
+                evidence_format: "assumed/v1".to_string(),
+                checker_id: "cinch-verify-off@1".to_string(),
+                tcb: vec!["prim-verify-off".to_string()],
+                tier: TrustTier::Assumed,
+                details: format!(
+                    "formal verification skipped (`--prim-verify=off`) for `{}.{}`",
+                    module, p.name.text
+                ),
+            };
+            return Ok((vec![receipt], false));
+        }
+
+        let mut engine = match mode {
+            PrimVerifyMode::Lax => VerifierEngine::lax_engine(),
+            PrimVerifyMode::Strict => VerifierEngine::default_engine(Policy::jpl_strict()),
+            PrimVerifyMode::Default => {
+                let policy = if self.jpl_target || self.jpl_user_modules.contains(module) {
+                    Policy::jpl_strict()
+                } else {
+                    Policy::dev_default()
+                };
+                VerifierEngine::default_engine(policy)
+            }
+            PrimVerifyMode::Off => unreachable!(),
+        };
         if strategy == "verify-compiled-lrat" {
             engine = engine.with_compiled_lrat_checker();
         }
+
         let obligations = {
             let sems = engine.semantics_refs();
-            build_prim_body_obligations(module, p, body_idx, body, &self.spec_equations, &sems)
-                .map_err(|msg| {
-                    Error::at(
+            match build_prim_body_obligations(module, p, body_idx, body, &self.spec_equations, &sems) {
+                Ok(obs) => obs,
+                Err(msg) if mode == PrimVerifyMode::Lax => {
+                    let receipt = TrustReceipt {
+                        goal_hash: "unlowered".to_string(),
+                        semantics_id: crate::prim_verify::llvm_ir::LLVM_SEMANTICS_ID.to_string(),
+                        evidence_format: "assumed/v1".to_string(),
+                        checker_id: "cinch-lax-bypass@1".to_string(),
+                        tcb: vec!["lax-mode-unverified".to_string()],
+                        tier: TrustTier::Assumed,
+                        details: format!("lax mode bypassed setup prerequisite: {msg}"),
+                    };
+                    return Ok((vec![receipt], false));
+                }
+                Err(msg) => {
+                    return Err(Error::at(
                         body.span,
                         format!(
                             "prim `{}.{}` failed formal verification setup: {msg}",
                             module, p.name.text
                         ),
-                    )
-                })?
+                    ));
+                }
+            }
         };
+
         let mut receipts = Vec::with_capacity(obligations.len());
+        let mut all_discharged = true;
         for ob in &obligations {
             let report = engine.verify(ob);
             match report.status {
-                VerificationStatus::Verified { receipt, .. } => receipts.push(receipt),
+                VerificationStatus::Verified { receipt, .. } => {
+                    if receipt.tier == TrustTier::Assumed {
+                        all_discharged = false;
+                    }
+                    receipts.push(receipt);
+                }
                 VerificationStatus::Disproved { prover_id, counterexample } => {
                     let inputs = counterexample
                         .inputs
@@ -9522,20 +9588,37 @@ impl Checker {
                     ));
                 }
                 VerificationStatus::Unverified { reasons } => {
-                    return Err(Error::at(
-                        body.span,
-                        format!(
-                            "prim `{}.{}` could not be formally verified ({}): {}",
-                            module,
-                            p.name.text,
-                            report.kind,
-                            reasons.join("; ")
-                        ),
-                    ));
+                    if mode == PrimVerifyMode::Lax {
+                        all_discharged = false;
+                        receipts.push(TrustReceipt {
+                            goal_hash: ob.goal_hash.clone(),
+                            semantics_id: ob.semantics_id.clone(),
+                            evidence_format: "assumed/v1".to_string(),
+                            checker_id: "cinch-lax-bypass@1".to_string(),
+                            tcb: vec!["lax-mode-unverified".to_string()],
+                            tier: TrustTier::Assumed,
+                            details: format!(
+                                "lax mode accepted unverified obligation `{}`: {}",
+                                report.kind,
+                                reasons.join("; ")
+                            ),
+                        });
+                    } else {
+                        return Err(Error::at(
+                            body.span,
+                            format!(
+                                "prim `{}.{}` could not be formally verified ({}): {}",
+                                module,
+                                p.name.text,
+                                report.kind,
+                                reasons.join("; ")
+                            ),
+                        ));
+                    }
                 }
             }
         }
-        Ok(receipts)
+        Ok((receipts, all_discharged))
     }
 
     /// A `prim` body's `justify` evidence (primitive operations and
