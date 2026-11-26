@@ -8664,6 +8664,13 @@ fn share_in_unit(f: &FnDef, taken: &mut std::collections::HashSet<String>, wide_
             if others.is_empty() || free.is_empty() || free.len() > SHARE_MAX_PARAMS {
                 continue;
             }
+            // Do not outline a small repeated subterm that calls `f` itself:
+            // turning a self-recursive `br label %loop` into mutual recursion
+            // (`f <-> f.shared0`) defeats single-function loop optimization and
+            // introduces cross-function `musttail` calls on every iteration.
+            if others.len() <= 2 && nodes[rep].size <= 128 && subterm_calls_unit(refs[rep], &f.id) {
+                continue;
+            }
             let Some(param_classes) = free.iter().map(|l| classes.get(&l.0).copied()).collect::<Option<Vec<Class>>>() else {
                 continue;
             };
@@ -8727,6 +8734,20 @@ fn share_returns_wide(e: &Core, classes: &HashMap<usize, Class>, units: &HashMap
         Core::Global(unit, _) => units.get(&unit.0) == Some(&0),
         _ => false,
     }
+}
+
+/// Whether `e` contains a direct reference to unit `target`.
+fn subterm_calls_unit(e: &Core, target: &GlobalId) -> bool {
+    if matches!(e, Core::Global(id, _) if id == target) {
+        return true;
+    }
+    let mut found = false;
+    each_operand(e, &mut |child| {
+        if !found && subterm_calls_unit(child, target) {
+            found = true;
+        }
+    });
+    found
 }
 
 /// A term's operands in preorder: an application's head, then
