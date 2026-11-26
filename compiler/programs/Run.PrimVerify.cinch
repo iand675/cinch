@@ -24,9 +24,9 @@ module Main where
   import Cinch.Check (CheckedProgram, check-and-retain-with-interfaces-tuned)
   import Cinch.Document (Json, canonical-bytes)
   import Cinch.Export (export-interfaces-aliased, interface-hash, checked-primitive-rows)
-  import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl)
+  import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, receipt-checker-id, receipt-tier)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-alethe, audit-memory-atomic-contract, validate-llvm-equiv, receipt-checker-id, receipt-tier)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-with-prim-verify, target-view-program)
@@ -225,6 +225,236 @@ module Main where
           Ok ok -> Err "unguarded U128 divisor unexpectedly passed"
           Err msg2 -> Ok ()
 
+  -- 8. Signed I128 division with I128::MIN dependent refinement.
+  src-i128-sdiv :: String
+  src-i128-sdiv = string-concat-all [
+    "module Main where\n",
+    "  prim raw-sdiv-i128 :: (a :: I128) -> refined (r /= 0 && Not (a == -170141183460469231731687303715884105728 && r == -1)) I128 -> I128 where\n",
+    "    llvm {\n",
+    "      %r = sdiv i128 %0, %1\n",
+    "      ret i128 %r\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-i128-sdiv :: Result String Unit
+  test-i128-sdiv =
+    case self-iface-and-prims "default" src-i128-sdiv of
+      Err msg -> Err (string-concat-all ["I128 sdiv verify failed: ", msg])
+      Ok (h, iface, prims) ->
+        if string-contains "\"tier\":\"kernel-cert\"" prims && string-contains "\"prim_proofs\":" iface then Ok ()
+        else Err (string-concat-all ["I128 sdiv missing kernel-cert: ", prims])
+
+  -- 9. SIMD vector primitives (<16 x i8>, insertelement, shufflevector, bitcast, icmp, sext).
+  src-simd :: String
+  src-simd = string-concat-all [
+    "module Main where\n",
+    "  prim simd-splat :: U8 -> U128 where\n",
+    "    llvm {\n",
+    "      %v0 = insertelement <16 x i8> poison, i8 %0, i64 0\n",
+    "      %v = shufflevector <16 x i8> %v0, <16 x i8> poison, <16 x i32> zeroinitializer\n",
+    "      %r = bitcast <16 x i8> %v to i128\n",
+    "      ret i128 %r\n",
+    "    } justify verify\n",
+    "  prim simd-movemask :: U128 -> U32 where\n",
+    "    llvm {\n",
+    "      %v = bitcast i128 %0 to <16 x i8>\n",
+    "      %m = icmp slt <16 x i8> %v, zeroinitializer\n",
+    "      %b16 = bitcast <16 x i1> %m to i16\n",
+    "      %r = zext i16 %b16 to i32\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-simd :: Result String Unit
+  test-simd =
+    case self-iface-and-prims "default" src-simd of
+      Err msg -> Err (string-concat-all ["SIMD prim verify failed: ", msg])
+      Ok (h, iface, prims) ->
+        if string-contains "\"tier\":\"kernel-cert\"" prims then Ok ()
+        else Err (string-concat-all ["SIMD prim missing kernel-cert: ", prims])
+
+  -- 10. Acyclic multi-block CFG (br i1, br label, phi) + cycle rejection.
+  src-cfg-good :: String
+  src-cfg-good = string-concat-all [
+    "module Main where\n",
+    "  prim safe-div-cfg :: U32 -> U32 -> U32 where\n",
+    "    llvm {\n",
+    "    entry:\n",
+    "      %z = icmp eq i32 %1, 0\n",
+    "      br i1 %z, label %zero, label %nonzero\n",
+    "    zero:\n",
+    "      br label %done\n",
+    "    nonzero:\n",
+    "      %q = udiv i32 %0, %1\n",
+    "      br label %done\n",
+    "    done:\n",
+    "      %r = phi i32 [ 0, %zero ], [ %q, %nonzero ]\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  src-cfg-cycle :: String
+  src-cfg-cycle = string-concat-all [
+    "module Main where\n",
+    "  prim bad-loop :: U32 -> U32 where\n",
+    "    llvm {\n",
+    "    loop:\n",
+    "      br label %loop\n",
+    "      ret i32 %0\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-acyclic-cfg :: Result String Unit
+  test-acyclic-cfg =
+    case self-iface-and-prims "default" src-cfg-good of
+      Err msg -> Err (string-concat-all ["acyclic CFG failed: ", msg])
+      Ok (h, iface, prims) ->
+        if not (string-contains "\"tier\":\"kernel-cert\"" prims) then Err "acyclic CFG missing kernel-cert"
+        else case self-check "default" src-cfg-cycle of
+          Ok ok -> Err "cyclic CFG unexpectedly passed"
+          Err msg2 -> Ok ()
+
+  -- 11. Cross-target equivalence across multi-body llvm prims.
+  src-cross-good :: String
+  src-cross-good = string-concat-all [
+    "module Main where\n",
+    "  prim dbl :: U32 -> U32 where\n",
+    "    llvm {\n",
+    "      %r = shl i32 %0, 1\n",
+    "      ret i32 %r\n",
+    "    } when arch x86_64 justify verify\n",
+    "    llvm {\n",
+    "      %r = add i32 %0, %0\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  src-cross-bad :: String
+  src-cross-bad = string-concat-all [
+    "module Main where\n",
+    "  prim dbl :: U32 -> U32 where\n",
+    "    llvm {\n",
+    "      %r = add i32 %0, 1\n",
+    "      ret i32 %r\n",
+    "    } when arch x86_64 justify verify\n",
+    "    llvm {\n",
+    "      %r = add i32 %0, %0\n",
+    "      ret i32 %r\n",
+    "    } justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-cross-target :: Result String Unit
+  test-cross-target =
+    case self-check "default" src-cross-good of
+      Err msg -> Err (string-concat-all ["cross-target good failed: ", msg])
+      Ok ok -> case self-check "default" src-cross-bad of
+        Ok ok2 -> Err "divergent cross-target prim unexpectedly passed"
+        Err msg2 ->
+          if string-contains "cross-target equivalence" msg2 then Ok ()
+          else Err (string-concat-all ["wrong cross-target error: ", msg2])
+
+  -- 12. Alethe proof checker seam.
+  test-alethe :: Result String Unit
+  test-alethe =
+    let good = "(assume h1 p)\n(assume h2 (not p))\n(step t1 (cl) :rule resolution :premises (h1 h2))\n" in
+    let bad-hole = "(assume h1 p)\n(step t1 (cl) :rule hole :premises (h1))\n" in
+    let bad-prem = "(step t1 (cl) :rule resolution :premises (missing))\n" in
+    case (verify-alethe good, verify-alethe bad-hole, verify-alethe bad-prem) of
+      (Ok ok-msg, Err e1, Err e2) -> Ok ()
+      other -> Err "Alethe checker test failed"
+
+  -- 13. Verified `rewrite ... justify verify`.
+  src-rewrite-good :: String
+  src-rewrite-good = string-concat-all [
+    ops-prelude,
+    "module Main where\n",
+    "  import Ops\n",
+    "  prim bit-xor-u32 :: U32 -> U32 -> U32 where\n",
+    "    llvm {\n",
+    "      %r = xor i32 %0, %1\n",
+    "      ret i32 %r\n",
+    "    }\n",
+    "  rewrite xor-cancel forall (x :: U32) (y :: U32). where\n",
+    "    match (bit-xor-u32 (bit-xor-u32 x y) y)\n",
+    "    replace x\n",
+    "    justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  src-rewrite-bad :: String
+  src-rewrite-bad = string-concat-all [
+    ops-prelude,
+    "module Main where\n",
+    "  import Ops\n",
+    "  rewrite bogus forall (x :: U32). where\n",
+    "    match (wrapping-add-u32 x x)\n",
+    "    replace (wrapping-add-u32 x 1)\n",
+    "    justify verify\n",
+    "  main :: Int\n",
+    "  main = 0\n"
+  ]
+
+  test-verified-rewrite :: Result String Unit
+  test-verified-rewrite =
+    case self-check "default" src-rewrite-good of
+      Err msg -> Err (string-concat-all ["good verified rewrite failed: ", msg])
+      Ok ok -> case self-check "default" src-rewrite-bad of
+        Ok ok2 -> Err "bogus verified rewrite unexpectedly passed"
+        Err msg2 ->
+          if string-contains "failed formal verification" msg2 then Ok ()
+          else Err (string-concat-all ["wrong bogus rewrite error: ", msg2])
+
+  -- 14. Replay-only mode fails closed when cache is missing.
+  test-replay-only :: Result String Unit
+  test-replay-only =
+    let src = string-to-bytes src-twice-add in
+    let tuning = tuning-with-replay-only True default-tuning in
+    case parse-program "test.cinch" src of
+      Parsed prog Nil -> case target-view-program host-profile prog of
+        Ok view -> case resolve-program view of
+          (resolved, Nil) -> case check-and-retain-with-interfaces-tuned tuning Nil resolved of
+            Ok ok -> Err "replay-only unexpectedly succeeded with empty cache"
+            Err errs ->
+              if string-contains "replay-only" (render-diagnostics errs) then Ok ()
+              else Err (string-concat-all ["wrong replay-only error: ", render-diagnostics errs])
+          other -> Err "resolve failed in replay-only test"
+        Err e -> Err e
+      other -> Err "parse failed in replay-only test"
+
+  -- 15. Memory & Atomic Boundary Contract auditor.
+  test-boundary-audit :: Result String Unit
+  test-boundary-audit =
+    let good-frag = "%p = inttoptr i64 %0 to ptr\n%v = load atomic i64, ptr %p acquire, align 8\nret i64 %v\n" in
+    let bad-frag = "%p = inttoptr i64 %0 to ptr\n%v = load atomic i64, ptr %p release, align 4\nret i64 %v\n" in
+    case (audit-memory-atomic-contract "good" False good-frag, audit-memory-atomic-contract "bad" False bad-frag) of
+      (Nil, Cons v1 rest) -> Ok ()
+      other -> Err "memory/atomic boundary audit test failed"
+
+  -- 16. LLVM Translation Validation (`validate-llvm-equiv`).
+  test-tv :: Result String Unit
+  test-tv =
+    let p0 = MkPrimParamSpec "x" "U32" 32 False False False in
+    let r = MkPrimParamSpec "r" "U32" 32 False False False in
+    let fa = "%r = add i32 %0, %0\nret i32 %r\n" in
+    let fb = "%r = shl i32 %0, 1\nret i32 %r\n" in
+    let fc = "%r = add i32 %0, 1\nret i32 %r\n" in
+    case (validate-llvm-equiv "dbl" fa fb [p0] r, validate-llvm-equiv "bad" fa fc [p0] r) of
+      (OutcomeVerified rs, OutcomeDisproved d) -> Ok ()
+      other -> Err "LLVM translation validation test failed"
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -239,11 +469,29 @@ module Main where
               Err e -> Err e
               Ok u5 -> case test-off-mode of
                 Err e -> Err e
-                Ok u6 -> test-u128-numeric-index
+                Ok u6 -> case test-u128-numeric-index of
+                  Err e -> Err e
+                  Ok u7 -> case test-i128-sdiv of
+                    Err e -> Err e
+                    Ok u8 -> case test-simd of
+                      Err e -> Err e
+                      Ok u9 -> case test-acyclic-cfg of
+                        Err e -> Err e
+                        Ok u10 -> case test-cross-target of
+                          Err e -> Err e
+                          Ok u11 -> case test-alethe of
+                            Err e -> Err e
+                            Ok u12 -> case test-verified-rewrite of
+                              Err e -> Err e
+                              Ok u13 -> case test-replay-only of
+                                Err e -> Err e
+                                Ok u14 -> case test-boundary-audit of
+                                  Err e -> Err e
+                                  Ok u15 -> test-tv
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 7 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 16 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

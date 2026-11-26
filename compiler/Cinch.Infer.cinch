@@ -8,7 +8,7 @@ module Cinch.Infer where
   import Cinch.Type
   import Cinch.Promote
   import Cinch.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
-  import Cinch.PrimVerify (SpecDef, MkSpecDef)
+  import Cinch.PrimVerify (SpecDef, MkSpecDef, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, verify-rewrite-rule, is-verify-justification-word)
   import Cinch.Index
   import Cinch.Total
   import Cinch.BodyContract
@@ -4784,9 +4784,9 @@ module Cinch.Infer where
   -- declaration's group is a property of the module, so it cannot be read
   -- from the tail being walked.
   register :: DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register all rows classes kinds ds env st = register-with-verify (False, "default", []) all rows classes kinds ds env st
+  register all rows classes kinds ds env st = register-with-verify (False, "default", [], [], False) all rows classes kinds ds env st
 
-  register-with-verify :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-with-verify :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-with-verify vcfg all rows classes kinds ds env st =
     -- Small scopes cost less to scan than to index. Limit the size probe to
     -- the cutoff so a wide declaration list is not traversed twice.
@@ -4796,7 +4796,7 @@ module Cinch.Infer where
   registration-wide ds remaining = if remaining == 0 then True else case ds of
     [] -> False
     first : rest -> registration-wide rest (remaining - 1)
-  register-linear :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-linear :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-linear vcfg all rows classes kinds ds env st = case ds of
     [] -> (env, st)
     d : rest -> case register-declaration vcfg all rows classes kinds d env st of
@@ -4821,7 +4821,7 @@ module Cinch.Infer where
     (MkRegistrationLookup names trie) : rest -> (rest, index)
     binding : rest -> case index-new-bindings rest index of
       (more, previous) -> (binding : more, reg-trie-add binding previous)
-  register-indexed :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
+  register-indexed :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> (Nat, HashMap String Nat, CheckedBinding) -> Store -> (List CheckedBinding, Store)
   register-indexed vcfg all rows classes kinds ds env index st = case ds of
     [] -> (env, st)
     (DFun sp name clauses) : rest -> register-indexed vcfg all rows classes kinds rest env index st
@@ -4835,7 +4835,7 @@ module Cinch.Infer where
         (added, checked) -> case index-new-bindings added index of
           (more, updated) -> register-indexed vcfg all rows classes kinds rest more updated checked
 
-  register-declaration :: (Bool, String, List SpecDef) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-declaration :: (Bool, String, List SpecDef, List (String, String), Bool) -> DataGraph -> ImportedClasses -> List (String, Kind) -> TypeContext -> Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-declaration vcfg all rows classes kinds d env st = case d of
     DSig s name ty -> case make-scheme False classes kinds [] ty st of
       (sc, ss) -> register-source-value s name sc kinds env ss
@@ -4863,8 +4863,8 @@ module Cinch.Infer where
       (scheme, checked) ->
         let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
         let actual = map-scheme-types (normalize checked-uses) scheme in
-        let (is-jpl, verify-mode, spec-defs) = vcfg in
-        (case (lookup-binding name env, primitive-plan name actual spec-opt bodies use-schemes (primitive-law-identity (all.graph-declarations) name) is-jpl verify-mode spec-defs) of
+        let (is-jpl, verify-mode, spec-defs, proof-cache, replay-only) = vcfg in
+        (case (lookup-binding name env, primitive-plan name actual spec-opt bodies use-schemes (primitive-law-identity (all.graph-declarations) name) is-jpl verify-mode spec-defs proof-cache replay-only) of
           (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked-uses)
           (None, Err error) -> (env, add-error s error checked-uses)
           (None, Ok plan) -> ((MkForeignBinding name actual plan) : env, checked-uses))
@@ -10819,8 +10819,8 @@ module Cinch.Infer where
         then add-error sp "the justification does not prove the rule's equation" done else done
       (formals, None, checked) -> add-error sp "rewrite citation must conclude with a checked equation" checked
 
-  check-rewrite-evidence :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> ImportedClasses -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
-  check-rewrite-evidence classes kinds families env locals givens declarations rows lhs rhs evidence st = case evidence of
+  check-rewrite-evidence :: (Bool, String, List (String, String), Bool) -> String -> Expr -> Expr -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> List CoreGiven -> List Decl -> ImportedClasses -> CoreTerm -> CoreTerm -> RewriteJustification -> Store -> (Option String, Store)
+  check-rewrite-evidence rw-cfg rule-name pat-expr rep-expr classes kinds families env locals givens declarations rows lhs rhs evidence st = case evidence of
     RewriteLaw sp owner member args ->
       let (definition, syntax, assumption, header) = (case find-class owner (kinds.source-classes) of
         Some description -> (case source-equation-method description member of
@@ -10841,6 +10841,23 @@ module Cinch.Infer where
       let done = finish-numbers final in
       (None, if rewrite-term-equal [] (map-term-types (normalize done) first) (map-term-types (normalize done) second)
         then done else add-error sp "the justification does not prove the rule's equation" done)
+    RewriteTerm (EVar sp jword) | is-verify-justification-word jword ->
+      let (is-jpl, verify-mode, proof-cache, replay-only) = rw-cfg in
+      let res-ty = normalize st (core-type lhs) in
+      let norm-locals = map (\(nm, ty) ->
+            let nt = normalize st ty in
+            case value-carrier (type-kind nt) of
+              Some carrier -> (nm, carrier)
+              None -> (nm, nt)) locals in
+      (case verify-rewrite-rule rule-name is-jpl verify-mode jword proof-cache replay-only norm-locals res-ty pat-expr rep-expr of
+        OutcomeVerified receipts -> (None, st)
+        OutcomeAssumed receipts -> (None, st)
+        OutcomeDisproved detail ->
+          (None, add-error sp (string-concat-all ["rewrite `", rule-name, "` failed formal verification: ", detail]) st)
+        OutcomeRejected detail ->
+          (None, add-error sp (string-concat-all ["rewrite `", rule-name, "` verification rejected by policy: ", detail]) st)
+        OutcomeOpen detail ->
+          (None, add-error sp (string-concat-all ["rewrite `", rule-name, "` verification failed (unproved): ", detail]) st))
     RewriteTerm expression -> (None, add-error (expr-span expression) "rewrite needs a checked equation proof" st)
 
   check-rewrite-guard :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Option Expr -> Store -> (Option CoreTerm, Store)
@@ -10848,8 +10865,8 @@ module Cinch.Infer where
     None -> (None, st)
     Some expression -> case check-required classes kinds families env locals expression (primitive-type "Bool") st of
       (test, checked) -> (Some test, include-effects (expr-span expression) (core-effects test) (URow UEnd) checked)
-  check-source-rewrite :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
-  check-source-rewrite classes kinds families env declarations rows sp name syntax st = case syntax of
+  check-source-rewrite :: (Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> Span -> String -> RewriteSyntax -> Store -> (Option CheckedRewrite, Store)
+  check-source-rewrite rw-cfg classes kinds families env declarations rows sp name syntax st = case syntax of
     RewriteSyntax True params bounds pattern replacement guard evidence ->
       (None, add-error sp "target rewrite needs a checked target applicability condition" st)
     RewriteSyntax False params bounds pattern replacement guard evidence ->
@@ -10871,7 +10888,7 @@ module Cinch.Infer where
           add-error sp "rewrite uses an unbound value or changes the use of a restricted binder" guarded else guarded) in
       case store-errors checked of
         error : rest -> (None, restore-level (st.level) checked)
-        [] -> (case check-rewrite-evidence classes kinds families bound locals givens declarations rows lhs rhs evidence checked of
+        [] -> (case check-rewrite-evidence rw-cfg name pattern replacement classes kinds families bound locals givens declarations rows lhs rhs evidence checked of
           (identity, verified) -> retain-checked-rewrite classes bound givens (st.level) name lhs rhs condition identity verified)
 
   retain-checked-rewrite :: List (String, Kind) -> List CheckedBinding -> List CoreGiven -> Nat -> String -> CoreTerm -> CoreTerm -> Option CoreTerm -> Option String -> Store -> (Option CheckedRewrite, Store)
@@ -10889,15 +10906,15 @@ module Cinch.Infer where
       [] -> (Some (CheckedRewrite name (typed first) (typed second) test identity), done)
       other -> (None, done)
 
-  check-source-rewrites :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
-  check-source-rewrites classes kinds families env declarations rows pending seen st = case pending of
+  check-source-rewrites :: (Bool, String, List (String, String), Bool) -> List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List Decl -> ImportedClasses -> List Decl -> List String -> Store -> (List CheckedRewrite, Store)
+  check-source-rewrites rw-cfg classes kinds families env declarations rows pending seen st = case pending of
     [] -> ([], st)
     (DRewrite sp name syntax) : rest -> if has name seen then ([], add-error sp "duplicate rewrite declaration" st)
-      else (case check-source-rewrite classes kinds families env declarations rows sp name syntax st of
-        (Some rule, checked) -> (case check-source-rewrites classes kinds families env declarations rows rest (name : seen) checked of
+      else (case check-source-rewrite rw-cfg classes kinds families env declarations rows sp name syntax st of
+        (Some rule, checked) -> (case check-source-rewrites rw-cfg classes kinds families env declarations rows rest (name : seen) checked of
           (more, done) -> (rule : more, done))
         (None, failed) -> ([], failed))
-    other : rest -> check-source-rewrites classes kinds families env declarations rows rest seen st
+    other : rest -> check-source-rewrites rw-cfg classes kinds families env declarations rows rest seen st
 
   check-class-law :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> CoreClass -> Span -> String -> LawSyntax -> Store -> Store
   check-class-law classes kinds families env description sp name syntax st =
@@ -11518,7 +11535,9 @@ module Cinch.Infer where
     let (rows, ordered-classes, external-families, nominals, distinct, read-usage) = (case imports of
       ElaborationImports admitted signatures syntax ordered families (nominal-rows, unique) reader plans headers -> (signatures, ordered, families, nominal-rows, unique, reader)) in
     let (kinds, body-store) = add-source-bodies bodies method-kinds method-store in
-    let vcfg = (tuning.jpl || module-has-jpl-profile ds, tuning.prim-verify, collect-spec-defs (ds <> specs)) in
+    let is-jpl-mod = tuning.jpl || module-has-jpl-profile ds in
+    let vcfg = (is-jpl-mod, tuning.prim-verify, collect-spec-defs (ds <> specs), tuning.proof-cache, tuning.replay-only) in
+    let rw-cfg = (is-jpl-mod, tuning.prim-verify, tuning.proof-cache, tuning.replay-only) in
     let (values, sv) = register-with-verify vcfg (data-graph ds) rows classes kinds ds (context-body-bindings kinds <> builtins) body-store in
     let named-proofs = proof-declarations ds in
     let (proofs, proof-store) = register-source-proofs kinds named-proofs (proof-signatures named-proofs hash-map-empty) named-proofs values sv in
@@ -11557,7 +11576,7 @@ module Cinch.Infer where
           other -> ([], source-sampled) in
     let law-observations = source-laws <> imported-laws in
     let (rewrites, rewritten) = (case store-errors done of
-      [] -> check-source-rewrites classes linked-kinds families env ds rows ds [] done
+      [] -> check-source-rewrites rw-cfg classes linked-kinds families env ds rows ds [] done
       other -> ([], done)) in
     let finished = case store-errors rewritten of [] -> check-data-closed datas (check-global-core-tuned tuning cached linked-kinds env instances datas core usage rewritten); other -> rewritten in
     let verified = case (specs, store-errors finished) of

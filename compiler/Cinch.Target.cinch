@@ -44,7 +44,7 @@ module Cinch.Target where
   import Algebra.Semigroup
 
   export TargetProfile, selectable-profile, requested-profile, configured-profile, configure-platform, selection-arch
-  export profile-with-prim-verify, profile-with-jpl, valid-prim-verify-mode
+  export profile-with-prim-verify, profile-with-jpl, profile-with-proof-cache, profile-with-replay-only, valid-prim-verify-mode
   export supported-targets, profile-of-triple, host-profile, target-profile
   export target-triple-of, unsupported-target, target-ir-header
   export WhenAtom, Eq_WhenAtom, Show_WhenAtom
@@ -71,16 +71,28 @@ module Cinch.Target where
     features :: List String
     prim-verify :: String
     jpl :: Bool
+    proof-cache :: Option String
+    replay-only :: Bool
 
   profile-with-prim-verify :: String -> TargetProfile -> TargetProfile
   profile-with-prim-verify pv profile = case profile of
-    TargetProfile name triple os arch libc bits endian portable required features old jpl ->
-      TargetProfile name triple os arch libc bits endian portable required features pv jpl
+    TargetProfile name triple os arch libc bits endian portable required features old jpl pc ro ->
+      TargetProfile name triple os arch libc bits endian portable required features pv jpl pc ro
 
   profile-with-jpl :: Bool -> TargetProfile -> TargetProfile
   profile-with-jpl jpl profile = case profile of
-    TargetProfile name triple os arch libc bits endian portable required features pv old ->
-      TargetProfile name triple os arch libc bits endian portable required features pv jpl
+    TargetProfile name triple os arch libc bits endian portable required features pv old pc ro ->
+      TargetProfile name triple os arch libc bits endian portable required features pv jpl pc ro
+
+  profile-with-proof-cache :: Option String -> TargetProfile -> TargetProfile
+  profile-with-proof-cache pc profile = case profile of
+    TargetProfile name triple os arch libc bits endian portable required features pv jpl old ro ->
+      TargetProfile name triple os arch libc bits endian portable required features pv jpl pc ro
+
+  profile-with-replay-only :: Bool -> TargetProfile -> TargetProfile
+  profile-with-replay-only ro profile = case profile of
+    TargetProfile name triple os arch libc bits endian portable required features pv jpl pc old ->
+      TargetProfile name triple os arch libc bits endian portable required features pv jpl pc ro
 
   valid-prim-verify-mode :: String -> Bool
   valid-prim-verify-mode mode = case mode of
@@ -113,10 +125,10 @@ module Cinch.Target where
 
   configure-platform :: TargetProfile -> Bool -> List String -> Option (List String) -> TargetProfile
   configure-platform profile portable required features = case profile of
-    TargetProfile name triple os arch libc bits endian flag prior defaults pv jpl ->
+    TargetProfile name triple os arch libc bits endian flag prior defaults pv jpl pc ro ->
       let chosen = case features of None -> defaults; Some explicit -> reverse explicit in
       TargetProfile (if portable then name <> "-portable" else name)
-        triple os arch libc bits endian portable (reverse required) chosen pv jpl
+        triple os arch libc bits endian portable (reverse required) chosen pv jpl pc ro
 
   -- LLVM layouts for the triples accepted by profile-of-triple.
   target-ir-header :: TargetProfile -> String
@@ -183,15 +195,15 @@ module Cinch.Target where
     Some (arch, os, libc) ->
       -- The freestanding Wasm target is the one 32-bit entry in the table.
       if arch == "wasm32" then
-        Ok (TargetProfile triple triple os arch libc 32 "little" False [] [] "default" False)
-      else Ok (TargetProfile triple triple os arch libc 64 (if arch == "powerpc64" then "big" else "little") False [] ["u32.wrappingAdd"] "default" False)
+        Ok (TargetProfile triple triple os arch libc 32 "little" False [] [] "default" False None False)
+      else Ok (TargetProfile triple triple os arch libc 64 (if arch == "powerpc64" then "big" else "little") False [] ["u32.wrappingAdd"] "default" False None False)
 
   -- The profile of the machine this compiler runs on. `Cinch.Host` is
   -- rendered from the build host before the sources are hashed, the same
   -- way `Cinch.RuntimeAbi` is, because a compiled program cannot ask
   -- Rust for its own triple.
   host-profile :: TargetProfile
-  host-profile = TargetProfile host-triple host-triple host-os host-arch host-libc 64 "little" False [] ["u32.wrappingAdd"] "default" False
+  host-profile = TargetProfile host-triple host-triple host-os host-arch host-libc 64 "little" False [] ["u32.wrappingAdd"] "default" False None False
 
   -- The profile a caller asked for: the host's own target, or the profile of
   -- one supported triple. `--target` defaults to the host, so a compile that

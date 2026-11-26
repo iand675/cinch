@@ -558,6 +558,9 @@ module Cinch.Contracts where
 
   rewrite-proof-references :: RewriteJustification -> List String
   rewrite-proof-references evidence = case evidence of
+    RewriteTerm (EVar sp word) ->
+      if word == "verify" || word == "verify-lrat" || word == "verify-compiled-lrat" then []
+      else expr-references (EVar sp word)
     RewriteTerm expression -> expr-references expression
     RewriteLaw at owner member args -> owner : (expr-references (expr-spine at args))
 

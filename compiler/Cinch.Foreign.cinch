@@ -4,7 +4,7 @@ module Cinch.Foreign where
   import Cinch.Type
   import Cinch.Target (condition-render, primitive-target, when-vocabulary, host-profile)
   import Cinch.Ast (PrimBody, PrimTarget, UnprojectedPrimitive, ApplicablePrimitive, InapplicablePrimitive, RewriteJustification, RewriteTerm, Expr, EVar, source-identity-expr)
-  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
+  import Cinch.PrimVerify (TrustReceipt, receipts-to-json, PrimProofFact, MkPrimProofFact, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, PrimParamSpec, MkPrimParamSpec, SpecDef, verify-prim-body-cached, verify-prim-cross-target, is-verify-justification-word, worst-trust-tier, receipts-tcb-union)
   import Cinch.Core (contract-scheme-closed)
   import Cinch.ExportType (export-type, export-global, export-display-scheme)
   import Cinch.Interface (fnv-source-hash)
@@ -425,50 +425,82 @@ module Cinch.Foreign where
   first-ir-return result words = case words of
     operation : actual : ([operand]) -> operation == "ret" && actual == result
     other -> False
-  -- | Validate one straight-line fragment. Explicitly trusted bodies may read
-  -- raw memory, invoke inline assembly, or call checked `uses` contracts;
-  -- effectful trusted bodies may also write memory or execute atomics.
+  -- | Helper for acyclic forward-only local LLVM labels and branches.
+  ir-label-name :: String -> Option String
+  ir-label-name raw =
+    let code = case string-split-on ";" raw of [] -> ""; c : _ -> string-strip c in
+    if string-length code > 1 && string-ends-with ":" code && not (string-contains " " code) then
+      let name = string-slice code 0 (string-length code - 1) in
+      if all (\c -> is-ascii-alpha-numeric c || char-code c == 95 || char-code c == 46) (unpack name) then Some name
+      else None
+    else None
+
+  ir-remaining-labels :: List String -> List String
+  ir-remaining-labels ls = case ls of
+    [] -> []
+    l : rest -> case ir-label-name l of
+      Some nm -> nm : (ir-remaining-labels rest)
+      None -> ir-remaining-labels rest
+
+  ir-valid-forward-br :: List String -> List String -> Bool
+  ir-valid-forward-br words future-labels = case words of
+    ["br", "label", dst] ->
+      string-starts-with "%" dst && string-length dst > 1 && has (string-slice dst 1 (string-length dst)) future-labels
+    ["br", "i1", cond, "label", t-dst, "label", f-dst] ->
+      string-starts-with "%" t-dst && string-length t-dst > 1 && has (string-slice t-dst 1 (string-length t-dst)) future-labels
+        && string-starts-with "%" f-dst && string-length f-dst > 1 && has (string-slice f-dst 1 (string-length f-dst)) future-labels
+    other -> False
+
+  -- | Validate one straight-line or acyclic forward-branching LLVM fragment.
   contained-ir :: String -> Bool -> Bool -> List String -> List String -> Bool -> List String -> Result String (List String)
   contained-ir result pure trusted use-symbols lines returned symbols = case lines of
     [] -> if returned then Ok symbols else Err "containment (grammar): an LLVM fragment needs one final return"
-    line : rest -> let words = ir-line-words line in
-      (case ir-instruction words of
-        [] -> if list-length words == 0 then contained-ir result pure trusted use-symbols rest returned symbols
-          else Err "containment (grammar): an LLVM result binding needs an instruction"
-        operation : arguments ->
-          if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
-            Err "containment (no-unwind): the inline body may unwind"
-          else if ir-has-word ["define", "declare"] words then Err "containment (signature discipline): a fragment declares extra parameters or results"
-          else if (pure && ir-has-word ["store", "atomicrmw", "cmpxchg", "fence", "volatile"] words)
-              || (not trusted && ir-has-word ["load", "store", "atomicrmw", "cmpxchg", "fence", "volatile"] words) then
-            Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
-          else if returned then Err "containment (grammar): an instruction follows the return"
-          else if operation == "call" && has "asm" arguments then
-            if not trusted then Err "containment: mark an embedded assembly call unsafe to trust its effects"
-            else contained-ir result pure trusted use-symbols rest False symbols
-          else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
-          else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "ptrtoint", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr"] words) then
-            Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
-          else if operation == "ret" then
-            if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted use-symbols rest True symbols
-            else Err "containment (signature discipline): LLVM return disagrees with the declared result"
-          else if operation == "call" && not (has "call" arguments) then (case ir-symbols arguments of
-            [symbol] -> if has symbol use-symbols then
-                (if trusted then contained-ir result pure trusted use-symbols rest False symbols
-                 else Err "containment: mark a call through uses unsafe to trust its declared effect row")
-              else if allowed-intrinsic symbol then contained-ir result pure trusted use-symbols rest False (if has symbol symbols then symbols else symbol : symbols)
-              else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
-            other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
-          else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
-            Err "containment (no-escape): unchecked calls and symbols are forbidden"
-          else if has operation ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
-              "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "extractvalue", "insertvalue",
-              "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze",
-              "extractelement", "insertelement", "shufflevector"]
-              || (trusted && has operation ["inttoptr", "getelementptr", "load"])
-              || (trusted && not pure && has operation ["store", "atomicrmw", "cmpxchg", "fence"]) then
-            contained-ir result pure trusted use-symbols rest False symbols
-          else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
+    line : rest ->
+      case ir-label-name line of
+        Some lbl -> contained-ir result pure trusted use-symbols rest False symbols
+        None ->
+          let words = ir-line-words line in
+          (case ir-instruction words of
+            [] -> if list-length words == 0 then contained-ir result pure trusted use-symbols rest returned symbols
+              else Err "containment (grammar): an LLVM result binding needs an instruction"
+            operation : arguments ->
+              if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
+                Err "containment (no-unwind): the inline body may unwind"
+              else if ir-has-word ["define", "declare"] words then Err "containment (signature discipline): a fragment declares extra parameters or results"
+              else if (pure && ir-has-word ["store", "atomicrmw", "cmpxchg", "fence", "volatile"] words)
+                  || (not trusted && ir-has-word ["load", "store", "atomicrmw", "cmpxchg", "fence", "volatile"] words) then
+                Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
+              else if returned then Err "containment (grammar): an instruction follows the return"
+              else if operation == "call" && has "asm" arguments then
+                if not trusted then Err "containment: mark an embedded assembly call unsafe to trust its effects"
+                else contained-ir result pure trusted use-symbols rest False symbols
+              else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
+              else if operation == "br" then
+                if ir-valid-forward-br words (ir-remaining-labels rest) then
+                  contained-ir result pure trusted use-symbols rest False symbols
+                else Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
+              else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "ptrtoint", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr"] words) then
+                Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
+              else if operation == "ret" then
+                if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted use-symbols rest True symbols
+                else Err "containment (signature discipline): LLVM return disagrees with the declared result"
+              else if operation == "call" && not (has "call" arguments) then (case ir-symbols arguments of
+                [symbol] -> if has symbol use-symbols then
+                    (if trusted then contained-ir result pure trusted use-symbols rest False symbols
+                     else Err "containment: mark a call through uses unsafe to trust its declared effect row")
+                  else if allowed-intrinsic symbol then contained-ir result pure trusted use-symbols rest False (if has symbol symbols then symbols else symbol : symbols)
+                  else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
+                other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
+              else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
+                Err "containment (no-escape): unchecked calls and symbols are forbidden"
+              else if has operation ["add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
+                  "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "phi", "extractvalue", "insertvalue",
+                  "trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "bitcast", "freeze",
+                  "extractelement", "insertelement", "shufflevector"]
+                  || (trusted && has operation ["inttoptr", "getelementptr", "load"])
+                  || (trusted && not pure && has operation ["store", "atomicrmw", "cmpxchg", "fence"]) then
+                contained-ir result pure trusted use-symbols rest False symbols
+              else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
   -- Unprojected declarations can also enter through a host-side checked splice.
   checked-target :: PrimTarget -> String -> List Expr -> Result String PrimTarget
   checked-target selected family clauses = case selected of
@@ -594,28 +626,28 @@ module Cinch.Foreign where
     let is-bool = cname == "Bool" in
     MkPrimParamSpec pname cname (p.width * 8) (p.signed) is-fp is-bool
 
-  extract-scheme-meta :: UType -> Nat -> (List String, List UType, Option UType)
+  extract-scheme-meta :: UType -> Nat -> (List String, List UType, List (Nat, UType), Option UType)
   extract-scheme-meta ty idx = case ty of
     URequire preds rest ->
       case extract-scheme-meta rest idx of
-        (names, ps, post) -> (names, collect-require-preds preds <> ps, post)
+        (names, reqs, ppreds, post) -> (names, collect-require-preds preds <> reqs, ppreds, post)
     UFun domain rest ->
-      let (dpreds, dname) = domain-refinements domain (string-concat "arg" (nat-to-string idx)) in
+      let (dpreds, dname) = domain-refinements idx domain (string-concat "arg" (nat-to-string idx)) in
       case extract-scheme-meta rest (idx + 1) of
-        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+        (names, reqs, ppreds, post) -> (dname : names, reqs, dpreds <> ppreds, post)
     UFunEff domain row rest ->
-      let (dpreds, dname) = domain-refinements domain (string-concat "arg" (nat-to-string idx)) in
+      let (dpreds, dname) = domain-refinements idx domain (string-concat "arg" (nat-to-string idx)) in
       case extract-scheme-meta rest (idx + 1) of
-        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+        (names, reqs, ppreds, post) -> (dname : names, reqs, dpreds <> ppreds, post)
     UPi id name domain row rest ->
       let pname = if string-length name > 0 then name else string-concat "arg" (nat-to-string idx) in
-      let (dpreds, dname) = domain-refinements domain pname in
+      let (dpreds, dname) = domain-refinements idx domain pname in
       case extract-scheme-meta rest (idx + 1) of
-        (names, ps, post) -> (dname : names, dpreds <> ps, post)
+        (names, reqs, ppreds, post) -> (dname : names, reqs, dpreds <> ppreds, post)
     other ->
       case refinement-view ty of
-        URefine id name base pred -> ([], [], Some pred)
-        other2 -> ([], [], None)
+        URefine id name base pred -> ([], [], [], Some pred)
+        other2 -> ([], [], [], None)
 
   collect-require-preds :: UType -> List UType
   collect-require-preds u = case u of
@@ -623,11 +655,11 @@ module Cinch.Foreign where
     UEnd -> []
     other -> [u]
 
-  domain-refinements :: UType -> String -> (List UType, String)
-  domain-refinements ty fallback = case refinement-view ty of
+  domain-refinements :: Nat -> UType -> String -> (List (Nat, UType), String)
+  domain-refinements idx ty fallback = case refinement-view ty of
     URefine id name base pred ->
       let nm = if string-length name > 0 then name else fallback in
-      ([pred], nm)
+      ([(idx, pred)], nm)
     other -> ([], fallback)
 
   build-param-specs :: List String -> List ForeignParameter -> List PrimParamSpec
@@ -635,6 +667,18 @@ module Cinch.Foreign where
     (nm : nr, p : pr) -> (param-to-verify-spec nm p) : (build-param-specs nr pr)
     ([], p : pr) -> (param-to-verify-spec "arg" p) : (build-param-specs [] pr)
     other -> []
+
+  adjust-spec-word-size :: Bool -> PrimParamSpec -> PrimParamSpec
+  adjust-spec-word-size is-w32 p = case p of
+    MkPrimParamSpec nm cname w sg fp bl ->
+      if is-w32 && (cname == "Usize" || cname == "Isize") then
+        MkPrimParamSpec nm cname 32 sg fp bl
+      else p
+
+  adjust-specs-word-size :: Bool -> List PrimParamSpec -> List PrimParamSpec
+  adjust-specs-word-size is-w32 ps = case ps of
+    [] -> []
+    p : rest -> (adjust-spec-word-size is-w32 p) : (adjust-specs-word-size is-w32 rest)
 
   spec-identity-string :: Option Expr -> Option String
   spec-identity-string spec-opt = case spec-opt of
@@ -647,17 +691,20 @@ module Cinch.Foreign where
       let h = fnv-source-hash (canonical-bytes (source-identity-expr expr)) in
       Some (string-concat "inline-spec#" h)
 
-  verify-prim-bodies-loop :: String -> Bool -> String -> List PrimParamSpec -> PrimParamSpec -> List UType -> Option UType -> Option Expr -> List SpecDef -> String -> List PrimBody -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
-  verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display bodies acc all-verified = case bodies of
+  verify-prim-bodies-loop :: String -> Bool -> String -> List (String, String) -> Bool -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> Option UType -> Option Expr -> List SpecDef -> String -> List PrimBody -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
+  verify-prim-bodies-loop symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies acc all-verified = case bodies of
     [] -> Ok (all-verified, acc)
     (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
       case verify-justification-word justification of
-        None -> verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest acc False
+        None -> verify-prim-bodies-loop symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display rest acc False
         Some jword ->
           if family /= "llvm" then
             Err (string-concat-all ["prim `", symbol, "`: `justify ", jword, "` is supported only for `llvm` bodies"])
           else
-            case verify-prim-body symbol is-jpl verify-mode jword fragment pspecs rspec preconds postcond spec-opt spec-defs spec-display unverified of
+            let is-w32 = string-contains "word-size 32" (condition-text when) in
+            let body-pspecs = adjust-specs-word-size is-w32 pspecs in
+            let body-rspec = adjust-spec-word-size is-w32 rspec in
+            case verify-prim-body-cached symbol is-jpl verify-mode jword proof-cache replay-only fragment body-pspecs body-rspec req-preds param-preds postcond spec-opt spec-defs spec-display unverified of
               OutcomeDisproved detail ->
                 Err (string-concat-all ["prim `", symbol, "` failed formal verification: ", detail])
               OutcomeRejected detail ->
@@ -665,13 +712,40 @@ module Cinch.Foreign where
               OutcomeOpen detail ->
                 Err (string-concat-all ["prim `", symbol, "` verification failed (unproved): ", detail])
               OutcomeVerified receipts ->
-                verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest (acc <> receipts) all-verified
+                verify-prim-bodies-loop symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display rest (acc <> receipts) all-verified
               OutcomeAssumed receipts ->
-                verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display rest (acc <> receipts) False
+                verify-prim-bodies-loop symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display rest (acc <> receipts) False
+
+  collect-same-width-llvm-bodies :: Bool -> List PrimBody -> List (String, String)
+  collect-same-width-llvm-bodies want-w32 bodies = case bodies of
+    [] -> []
+    (PrimBody sp family fragment unverified when selected justification uses immediates) : rest ->
+      let is-w32 = string-contains "word-size 32" (condition-text when) in
+      if family == "llvm" && not unverified && is-w32 == want-w32 then
+        case verify-justification-word justification of
+          Some jword -> (fragment, jword) : (collect-same-width-llvm-bodies want-w32 rest)
+          None -> collect-same-width-llvm-bodies want-w32 rest
+      else collect-same-width-llvm-bodies want-w32 rest
+
+  verify-cross-target-pairs :: String -> Bool -> String -> List (String, String) -> Bool -> List PrimParamSpec -> PrimParamSpec -> List UType -> List (Nat, UType) -> String -> List (String, String) -> List TrustReceipt -> Bool -> Result String (Bool, List TrustReceipt)
+  verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds ref-frag others acc all-verified = case others of
+    [] -> Ok (all-verified, acc)
+    (other-frag, jword) : rest ->
+      case verify-prim-cross-target symbol is-jpl verify-mode jword proof-cache replay-only ref-frag other-frag pspecs rspec req-preds param-preds of
+        OutcomeDisproved detail ->
+          Err (string-concat-all ["prim `", symbol, "` failed cross-target equivalence: ", detail])
+        OutcomeRejected detail ->
+          Err (string-concat-all ["prim `", symbol, "` cross-target verification rejected by policy: ", detail])
+        OutcomeOpen detail ->
+          Err (string-concat-all ["prim `", symbol, "` cross-target verification failed (unproved): ", detail])
+        OutcomeVerified receipts ->
+          verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds ref-frag rest (acc <> receipts) all-verified
+        OutcomeAssumed receipts ->
+          verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds ref-frag rest (acc <> receipts) False
 
   -- | Check a declared primitive body against its validated layout and containment rules.
-  primitive-plan :: String -> Scheme -> Option Expr -> List PrimBody -> List (List (String, Scheme)) -> (Nat -> RewriteJustification -> Result String String) -> Bool -> String -> List SpecDef -> Result String ForeignPlan
-  primitive-plan name scheme spec-opt bodies body-uses check-law is-jpl verify-mode spec-defs =
+  primitive-plan :: String -> Scheme -> Option Expr -> List PrimBody -> List (List (String, Scheme)) -> (Nat -> RewriteJustification -> Result String String) -> Bool -> String -> List SpecDef -> List (String, String) -> Bool -> Result String ForeignPlan
+  primitive-plan name scheme spec-opt bodies body-uses check-law is-jpl verify-mode spec-defs proof-cache replay-only =
     case (export-global name, primitive-layout scheme) of
       (Ok symbol, Ok (arguments, result)) -> let arity = list-length arguments in
         let pure = pure-primitive-arrows (scheme-body scheme) in
@@ -682,28 +756,33 @@ module Cinch.Foreign where
             let trust = primitive-trust symbol bodies in
             let family = case body of InlinePrimitive owner chosen immediates llvm assembly -> chosen in
             if bodies-use-verify bodies then
-              let (pnames, preconds, postcond) = extract-scheme-meta (scheme-body scheme) 0 in
+              let (pnames, req-preds, param-preds, postcond) = extract-scheme-meta (scheme-body scheme) 0 in
               let pspecs = build-param-specs pnames arguments in
               let rspec = param-to-verify-spec "result" result in
               let spec-id-opt = spec-identity-string spec-opt in
               let spec-display = case spec-id-opt of Some s -> s; None -> "well-defined" in
-              (case verify-prim-bodies-loop symbol is-jpl verify-mode pspecs rspec preconds postcond spec-opt spec-defs spec-display bodies [] True of
+              (case verify-prim-bodies-loop symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds postcond spec-opt spec-defs spec-display bodies [] True of
                 Err message -> Err message
-                Ok (all-verified, receipts) ->
-                  if all-verified then
-                    (case export-display-scheme scheme of
-                      Err message -> Err message
-                      Ok signature-text ->
-                        let identity = string-concat-all ["prim:", symbol, ":", signature-text, ":spec[", spec-display, "]"] in
-                        let proof-fact = MkPrimProofFact (local-symbol-name symbol) spec-display "llvm-sem@21.1" (worst-trust-tier receipts) (receipts-tcb-union receipts) in
+                Ok (all-verified1, receipts1) ->
+                  let cross-result = case collect-same-width-llvm-bodies False bodies of
+                        (ref-f, ref-j) : (more1 : more-rest) ->
+                          verify-cross-target-pairs symbol is-jpl verify-mode proof-cache replay-only pspecs rspec req-preds param-preds ref-f (more1 : more-rest) receipts1 all-verified1
+                        other -> Ok (all-verified1, receipts1) in
+                  (case cross-result of
+                    Err message -> Err message
+                    Ok (all-verified, receipts) ->
+                      if all-verified then
+                        (case export-display-scheme scheme of
+                          Err message -> Err message
+                          Ok signature-text ->
+                            let identity = string-concat-all ["prim:", symbol, ":", signature-text, ":spec[", spec-display, "]"] in
+                            let proof-fact = MkPrimProofFact (local-symbol-name symbol) spec-display "llvm-sem@21.1" (worst-trust-tier receipts) (receipts-tcb-union receipts) in
+                            Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
+                              (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact))))
+                      else
+                        let identity = primitive-identity symbol (primitive-body-text bodies) in
                         Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                          (Some (body, None, trust, selection-document-verified body condition identity "verified" spec-id-opt receipts trust bodies, Some proof-fact))))
-                  else
-                    -- Honest downgrade (e.g. `lax` or `off` mode): keep body-hashed identity
-                    -- in `assumptions.primitives`, emit `tier: "assumed"`, and emit NO `.cinchif` `prim_proofs`.
-                    let identity = primitive-identity symbol (primitive-body-text bodies) in
-                    Ok (ForeignPlan (string-concat-all [symbol, ".", family]) scheme arguments result
-                      (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None))))
+                          (Some (body, Some identity, trust, selection-document-verified body condition identity "assumed" spec-id-opt receipts trust bodies, None)))))
             else
               (case primitive-laws (check-law arity) bodies True [] of
                 Err message -> Err message
