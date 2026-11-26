@@ -6067,16 +6067,102 @@ module Cinch.RuntimeIr where
     (Borrowed id ty v) : rest -> (v == word && term-uses-id id body) || value-live-in-body rest word body
     other : rest -> value-live-in-body rest word body
 
+  fvals-as-borrowed :: List (Option Nat, UType, String) -> List Local
+  fvals-as-borrowed fields = case fields of
+    [] -> []
+    (Some id, fty, val) : rest -> (Borrowed id fty val) : fvals-as-borrowed rest
+    (None, _, _) : rest -> fvals-as-borrowed rest
+
+  can-sink-reset-reuse :: List Local -> String -> Nat -> CoreTerm -> Bool
+  can-sink-reset-reuse locals value arity term = case term of
+    CIf sp ty test yes no ->
+      not (value-live-in-body locals value test)
+        && ((not (value-live-in-body locals value yes) && arm-has-reuse-alloc arity yes)
+            || (not (value-live-in-body locals value no) && arm-has-reuse-alloc arity no)
+            || can-sink-reset-reuse locals value arity yes
+            || can-sink-reset-reuse locals value arity no)
+    other -> False
+
+  is-bare-value-local :: List Local -> String -> CoreTerm -> Bool
+  is-bare-value-local locals value term = case term of
+    CLocal sp ty id name [] -> (case local id locals of
+      Some (_, w) -> w == value
+      None -> False)
+    other -> False
+
+  emit-reset-reuse :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  emit-reset-reuse definitions locals w ty value pointer fvals arity body =
+    case reset-partition-fields body fvals of
+      (used-locals, unused-fields) ->
+        let (w1, uniq) = fresh w "%runiq" in
+        let (w2, uniq-l) = fresh w1 "resetuniq" in
+        let (w3, shared-l) = fresh w2 "resetshared" in
+        let (w4, join-l) = fresh w3 "resetjoin" in
+        let (w5, tok) = fresh w4 "%rtok" in
+        let checked = emit-lines w5 [
+          cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
+          cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
+          cat [uniq-l, ":"]] in
+        let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
+        let shared-start = line after-uniq (cat [shared-l, ":"]) in
+        let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
+        let joined = emit-lines after-shared [
+          cat [join-l, ":"],
+          cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
+        case expression-with-reuse definitions (used-locals <> locals) joined arity tok body of
+          (done, result) -> (drop-locals used-locals done, result)
+
+  sink-reset-reuse-branch :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  sink-reset-reuse-branch definitions locals borrowed-fvals w ty value pointer fvals arity branch =
+    if not (value-live-in-body locals value branch) && arm-has-reuse-alloc arity branch then
+      emit-reset-reuse definitions locals w ty value pointer fvals arity branch
+    else if can-sink-reset-reuse locals value arity branch then
+      sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer fvals arity branch
+    else if is-bare-value-local locals value branch then
+      (w, value)
+    else case expression definitions (borrowed-fvals <> locals) w branch of
+      (done, res) -> (count-op False ty value done, res)
+
+  sink-reset-reuse-arm :: List CoreDefinition -> List Local -> List Local -> Writer -> UType -> String -> String -> List (Option Nat, UType, String) -> Nat -> CoreTerm -> (Writer, String)
+  sink-reset-reuse-arm definitions locals borrowed-fvals w ty value pointer fvals arity term = case term of
+    CIf sp rty test yes no ->
+      let result-ty = value-llvm (w.context) rty in
+      case expression definitions (borrowed-fvals <> locals) w test of
+        (tested, cond) ->
+          let (w1, zero) = fresh tested "%v" in
+          let (w2, yes-l) = fresh w1 "sryes" in
+          let (w3, no-l) = fresh w2 "srno" in
+          let (w4, end-l) = fresh w3 "srend" in
+          let (w5, yes-out) = fresh w4 "sryesout" in
+          let (w6, no-out) = fresh w5 "srnoout" in
+          let branched = emit-lines w6 [
+            cat ["  ", zero, " = icmp ne i64 ", cond, ", 0"],
+            cat ["  br i1 ", zero, ", label %", yes-l, ", label %", no-l],
+            cat [yes-l, ":"]] in
+          case sink-reset-reuse-branch definitions locals borrowed-fvals branched ty value pointer fvals arity yes of
+            (left, yval) ->
+              let after-yes = emit-lines left [cat ["  br label %", yes-out], cat [yes-out, ":"], cat ["  br label %", end-l], cat [no-l, ":"]] in
+              case sink-reset-reuse-branch definitions locals borrowed-fvals after-yes ty value pointer fvals arity no of
+                (right, nval) ->
+                  let joined = emit-lines right [cat ["  br label %", no-out], cat [no-out, ":"], cat ["  br label %", end-l], cat [end-l, ":"]] in
+                  let (done, phi-v) = fresh joined "%v" in
+                  (line done (cat ["  ", phi-v, " = phi ", result-ty, " [ ", yval, ", %", yes-out, " ], [ ", nval, ", %", no-out, " ]"]), phi-v)
+    other ->
+      case expression definitions (borrowed-fvals <> locals) w term of
+        (done, res) -> (count-op False ty value done, res)
+
   reset-reuse-arm :: List CoreDefinition -> List Local -> Writer -> UType -> String -> String -> CorePattern -> CoreTerm -> Option (Writer, String)
   reset-reuse-arm definitions locals w ty value pointer pattern body =
-    if not ((writer-program w).reclaim) || has-top-guard body || value-live-in-body locals value body then None
+    if not ((writer-program w).reclaim) || has-top-guard body then None
     else case pattern of
       CPConstructor sp aty name actuals sc fields ->
         (case flat-pattern-fields fields 0 of
           None -> None
           Some flat ->
             let arity = list-length flat in
-            if arity == 0 || not (arm-has-reuse-alloc arity body) then None
+            let live-val = value-live-in-body locals value body in
+            let eligible = if arity == 0 then False else if not live-val then arm-has-reuse-alloc arity body else can-sink-reset-reuse locals value arity body in
+            if not eligible then None
             else (case constructor name (writer-program w) of
               Some (owner, tag, c) | list-length (core-constructor-fields c) == arity ->
                 (case data-declaration owner (writer-program w) of
@@ -6091,25 +6177,11 @@ module Cinch.RuntimeIr where
                               if description-escaped old-desc then None
                               else
                                 case load-reset-fields planned pointer flat of
-                                  (loaded, fvals) -> case reset-partition-fields body fvals of
-                                    (used-locals, unused-fields) ->
-                                      let (w1, uniq) = fresh loaded "%runiq" in
-                                      let (w2, uniq-l) = fresh w1 "resetuniq" in
-                                      let (w3, shared-l) = fresh w2 "resetshared" in
-                                      let (w4, join-l) = fresh w3 "resetjoin" in
-                                      let (w5, tok) = fresh w4 "%rtok" in
-                                      let checked = emit-lines w5 [
-                                        cat ["  ", uniq, " = call i1 @cinch.typed.rc.unique(ptr ", pointer, ")"],
-                                        cat ["  br i1 ", uniq, ", label %", uniq-l, ", label %", shared-l],
-                                        cat [uniq-l, ":"]] in
-                                      let after-uniq = line (drop-unused-reset-fields unused-fields checked) (cat ["  br label %", join-l]) in
-                                      let shared-start = line after-uniq (cat [shared-l, ":"]) in
-                                      let after-shared = line (count-op False ty value (dup-used-reset-fields used-locals shared-start)) (cat ["  br label %", join-l]) in
-                                      let joined = emit-lines after-shared [
-                                        cat [join-l, ":"],
-                                        cat ["  ", tok, " = phi i64 [ ", value, ", %", uniq-l, " ], [ 0, %", shared-l, " ]"]] in
-                                      case expression-with-reuse definitions (used-locals <> locals) joined arity tok body of
-                                        (done, result) -> Some (drop-locals used-locals done, result))
+                                  (loaded, fvals) ->
+                                    if not live-val then
+                                      Some (emit-reset-reuse definitions locals loaded ty value pointer fvals arity body)
+                                    else
+                                      Some (sink-reset-reuse-arm definitions locals (fvals-as-borrowed fvals) loaded ty value pointer fvals arity body))
                         None -> None)
                       None -> None)
                     other -> None)

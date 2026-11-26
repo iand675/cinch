@@ -1320,7 +1320,10 @@ fn compatible_ctor<'a>(
         return None;
     }
     let fact = ctors.by_unit.get(&id.0)?;
-    if fact.planned || fact.fields != words || args.len() != words {
+    // Nullary constructors (`words == 0`) are immortal static singletons with
+    // no heap cell to reuse. Rejecting them here also prevents `reuse_scrutinees`
+    // from forcing ownership on borrowed lookups whose base arm is `Tip -> None`.
+    if words == 0 || fact.planned || fact.fields != words || args.len() != words {
         return None;
     }
     let data = fact.data.as_deref()?;
@@ -1820,6 +1823,179 @@ impl Pass<'_> {
         call
     }
 
+    /// Emit drop-specialization (`Core::Release`) and optional cell reuse for
+    /// a `case` arm body where scrutinee `s` is dead.
+    fn emit_release_body(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        body_in: &Core,
+        owned: &Set,
+        live: &Set,
+    ) -> Core {
+        let nb = self.need(body_in);
+        let used: Vec<usize> =
+            fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && nb.contains(x)).collect();
+        let mut o = owned.clone();
+        o.remove(&s);
+        o.extend(used.iter().copied());
+        let body = self.go(body_in, &o, live);
+        let with_class = |x: usize| (LocalId(x), self.class_of(x));
+        let moved = used.iter().map(|x| with_class(*x)).collect();
+        let rest = fields
+            .iter()
+            .map(|x| x.0)
+            .filter(|x| self.counted(*x) && !used.contains(x))
+            .map(with_class)
+            .collect();
+        let words = fields.len();
+        let found = insert_reuse(&body, self.next, words, tag, fields, false, self.ctors)
+            .or_else(|| insert_reuse(&body, self.next, words, tag, fields, true, self.ctors));
+        match found {
+            Some(body) => {
+                let token = self.fresh(Class::Raw);
+                Core::Release {
+                    block: LocalId(s),
+                    moved,
+                    rest,
+                    token: Some(LocalId(token)),
+                    body: Box::new(body),
+                }
+            }
+            None => {
+                let token = self.fresh(Class::Raw);
+                match branch_reuse(&body, token, words, tag, fields, self.ctors) {
+                    Some(body) => Core::Release {
+                        block: LocalId(s),
+                        moved,
+                        rest,
+                        token: Some(LocalId(token)),
+                        body: Box::new(body),
+                    },
+                    None => Core::Release {
+                        block: LocalId(s),
+                        moved,
+                        rest,
+                        token: None,
+                        body: Box::new(body),
+                    },
+                }
+            }
+        }
+    }
+
+    /// Whether `body` is a branch/let spine where scrutinee `s` stays dead on
+    /// at least one reachable branch (allowing `Core::Release` to sink there
+    /// while leaving `else s` branches free of premature field dups).
+    fn can_sink_release(&mut self, s: usize, body: &Core) -> bool {
+        match body {
+            Core::If(c, t, f) => {
+                if self.need(c).contains(&s) {
+                    return false;
+                }
+                !self.need(&t.body).contains(&s)
+                    || !self.need(&f.body).contains(&s)
+                    || self.can_sink_release(s, &t.body)
+                    || self.can_sink_release(s, &f.body)
+            }
+            Core::Let(x, c, v, b) => {
+                x.0 != s
+                    && let_alias(*x, *c, v, &self.class, &self.written).is_none()
+                    && !self.need(v).contains(&s)
+                    && self.can_sink_release(s, b)
+            }
+            _ => false,
+        }
+    }
+
+    fn sink_release_branch(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        br: &Core,
+        after: &Set,
+        live: &Set,
+    ) -> Core {
+        let br_need = self.need(br);
+        if !br_need.contains(&s) {
+            let mut bound_fields = Set::new();
+            crate::core::walk_locals(br, &mut |l| {
+                bound_fields.insert(l.0);
+            });
+            let reads_fields = fields.iter().any(|x| bound_fields.contains(&x.0));
+            if reads_fields {
+                self.emit_release_body(s, tag, fields, br, after, live)
+            } else {
+                self.go(br, after, live)
+            }
+        } else if self.can_sink_release(s, br) {
+            let mut need = br_need;
+            need.extend(live.iter().copied());
+            let kept: Set = after.intersection(&need).copied().collect();
+            let dead: Vec<usize> = after.difference(&need).copied().collect();
+            let mut body = self.sink_release_body(s, tag, fields, br, &kept, live);
+            for x in dead.into_iter().rev() {
+                body = self.rc(true, x, body);
+            }
+            body
+        } else {
+            let used: Vec<usize> =
+                fields.iter().map(|x| x.0).filter(|x| self.counted(*x) && br_need.contains(x)).collect();
+            let mut o = after.clone();
+            o.extend(used.iter().copied());
+            let mut body = self.go(br, &o, live);
+            for x in used.into_iter().rev() {
+                body = self.rc(false, x, body);
+            }
+            body
+        }
+    }
+
+    fn sink_release_body(
+        &mut self,
+        s: usize,
+        tag: usize,
+        fields: &[LocalId],
+        body: &Core,
+        owned: &Set,
+        live: &Set,
+    ) -> Core {
+        match body {
+            Core::If(c, t, f) => {
+                let mut nb = self.need(&t.body);
+                nb.extend(self.need(&f.body));
+                nb.extend(live.iter().copied());
+                nb.insert(s);
+                let after: Set = owned.intersection(&nb).copied().collect();
+                let c2 = self.go(c, owned, &after);
+                let t2 = self.sink_release_branch(s, tag, fields, &t.body, &after, live);
+                let f2 = self.sink_release_branch(s, tag, fields, &f.body, &after, live);
+                Core::If(
+                    Box::new(c2),
+                    CBranch { weight: t.weight, body: Box::new(t2) },
+                    CBranch { weight: f.weight, body: Box::new(f2) },
+                )
+            }
+            Core::Let(x, c, v, b) => {
+                let mut fb = self.need(b);
+                fb.remove(&x.0);
+                fb.extend(live.iter().copied());
+                fb.insert(s);
+                let lv: Set = owned.intersection(&fb).copied().collect();
+                let v2 = self.go(v, owned, &lv);
+                let mut ob = lv;
+                if self.counted(x.0) {
+                    ob.insert(x.0);
+                }
+                let b2 = self.sink_release_body(s, tag, fields, b, &ob, live);
+                Core::Let(*x, *c, Box::new(v2), Box::new(b2))
+            }
+            _ => unreachable!("sink_release_body called on non-sinkable node"),
+        }
+    }
+
     /// The alternatives of a `case` on the owned-or-raw binder `s`.
     fn case_on(&mut self, s: usize, alts: &[CAlt<Core>], owned: &Set, live: &Set) -> Core {
         let mut out = Vec::with_capacity(alts.len());
@@ -1848,78 +2024,20 @@ impl Pass<'_> {
                         && !live.contains(&s)
                         && !nb.contains(&s)
                     {
-                        // The alternative keeps fields and leaves the
-                        // scrutinee dead: a uniquely held scrutinee hands
-                        // its fields over instead of dupping them and
-                        // dropping itself (design/reclamation.md section 4).
-                        let mut o = owned.clone();
-                        o.remove(&s);
-                        o.extend(used.iter().copied());
-                        let body = self.go(&a.body, &o, live);
-                        let with_class = |x: usize| (LocalId(x), self.class_of(x));
-                        let moved = used.iter().map(|x| with_class(*x)).collect();
-                        let rest = fields
-                            .iter()
-                            .map(|x| x.0)
-                            .filter(|x| self.counted(*x) && !used.contains(x))
-                            .map(with_class)
-                            .collect();
-                        // A constructor allocation on the body's spine can
-                        // be built in this block's cell instead of a fresh
-                        // block: the block is uniquely held here (that is
-                        // this arm's condition), and the reuse hands it
-                        // the new constructor's layout (Lean 4's
-                        // reset/reuse pair).
-                        // Two passes, in Lean's order (`ResetReuse.lean`
-                        // runs `insertResetReuseCore` with `relaxedReuse`
-                        // off and then on): the same-family reuse first,
-                        // and only when that finds nothing the
-                        // family-crossing one, so a compatible successor
-                        // of the scrutinee's own type is never passed over
-                        // for one of another type.
-                        let words = fields.len();
-                        let found = insert_reuse(&body, self.next, words, *tag, fields, false, self.ctors)
-                            .or_else(|| {
-                                insert_reuse(&body, self.next, words, *tag, fields, true, self.ctors)
-                            });
-                        match found {
-                            Some(body) => {
-                                let token = self.fresh(Class::Raw);
-                                Core::Release {
-                                    block: LocalId(s),
-                                    moved,
-                                    rest,
-                                    token: Some(LocalId(token)),
-                                    body: Box::new(body),
-                                }
-                            }
-                            None => {
-                                // No allocation on the straight-line
-                                // spine. The release keeps its place at the
-                                // head of the branch and binds the token;
-                                // only the reuse moves into the arms (Lean's
-                                // `expandResetReuse`), because the head runs
-                                // before every arm and a field it consumes
-                                // is dead at arm entry.
-                                let token = self.fresh(Class::Raw);
-                                match branch_reuse(&body, token, words, *tag, fields, self.ctors) {
-                                    Some(body) => Core::Release {
-                                        block: LocalId(s),
-                                        moved,
-                                        rest,
-                                        token: Some(LocalId(token)),
-                                        body: Box::new(body),
-                                    },
-                                    None => Core::Release {
-                                        block: LocalId(s),
-                                        moved,
-                                        rest,
-                                        token: None,
-                                        body: Box::new(body),
-                                    },
-                                }
-                            }
-                        }
+                        self.emit_release_body(s, *tag, fields, &a.body, owned, live)
+                    } else if self.specialize
+                        && reads_fields
+                        && self.class_of(s) == Class::Obj
+                        && owned.contains(&s)
+                        && !live.contains(&s)
+                        && self.can_sink_release(s, &a.body)
+                    {
+                        // The scrutinee is live on at least one branch (e.g. a
+                        // cold `else s` return), but dead on sibling branches.
+                        // Keep `s` alive through conditions/lets without
+                        // prematurely dupping fields, and sink `Core::Release`
+                        // (unique move/reuse) into every branch where `s` dies.
+                        self.sink_release_body(s, *tag, fields, &a.body, owned, live)
                     } else if self.counted(s) && !owned.contains(&s) {
                         // A borrowed scrutinee (a borrowed parameter, or a
                         // field of one) lives for the whole call, so its
@@ -2622,6 +2740,7 @@ fn expr_class_in(e: &Core, classes: &HashMap<usize, Class>) -> Option<Class> {
 #[cfg(test)]
 mod owned_use_tests {
     use super::*;
+    use crate::core::{FnHints, FnMeta, UnitRepr};
 
     #[test]
     fn ownership_witnesses_distinguish_escapes_and_consuming_calls() {
@@ -2643,5 +2762,172 @@ mod owned_use_tests {
             assert_eq!(out, [0].into_iter().collect());
             assert_eq!(details.unwrap().get(&0), Some(&expected));
         }
+    }
+
+    #[test]
+    fn nullary_ctor_arm_does_not_force_ownership_on_lookup() {
+        // `lookup s = case s of Tip -> None; Bin x l r -> Some x`
+        // `Tip` and `None` both have 0 fields; nullary constructors are static
+        // singletons and must not claim cell reuse (which previously forced `s`
+        // to be owned instead of lent).
+        let tip = FnDef {
+            id: GlobalId("T.Tip".into()),
+            params: vec![],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 0)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { fields: vec![], data: Some("T.Tree".into()), ..UnitRepr::default() },
+        };
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["x".into(), "l".into(), "r".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((1, 3)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj, Class::Obj],
+                data: Some("T.Tree".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let none = FnDef {
+            id: GlobalId("T.None".into()),
+            params: vec![],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 0)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { fields: vec![], data: Some("T.Opt".into()), ..UnitRepr::default() },
+        };
+        let some = FnDef {
+            id: GlobalId("T.Some".into()),
+            params: vec!["v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((1, 1)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj],
+                fields: vec![Class::Obj],
+                data: Some("T.Opt".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let lookup = FnDef {
+            id: GlobalId("T.lookup".into()),
+            params: vec!["s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(0))),
+                alts: vec![
+                    CAlt::new(
+                        CPat::Con { tag: 0, fields: vec![], classes: vec![] },
+                        Core::App(Box::new(Core::Ctor(GlobalId("T.None".into()), vec![])), vec![]),
+                    ),
+                    CAlt::new(
+                        CPat::Con {
+                            tag: 1,
+                            fields: vec![LocalId(1), LocalId(2), LocalId(3)],
+                            classes: vec![Class::Obj, Class::Obj, Class::Obj],
+                        },
+                        Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Some".into()), vec![])),
+                            vec![Core::Var(LocalId(1))],
+                        ),
+                    ),
+                ],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr { params: vec![Class::Obj], result: Some(Class::Obj), ..UnitRepr::default() },
+        };
+        let program = Program::from_functions(vec![tip, bin, none, some, lookup]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        assert_eq!(
+            out.borrowed.get("T.lookup"),
+            Some(&vec![true]),
+            "nullary Tip -> None must not block borrowing `s`"
+        );
+    }
+
+    #[test]
+    fn branch_sunk_release_reuses_cell_despite_cold_scrutinee_return() {
+        // `upd flag s = case s of Bin k v -> if flag then Bin k k else s`
+        // Even though the `else` branch returns `s` directly, the `then` branch
+        // leaves `s` dead and must emit `Core::Release` + `Core::Reuse`, while
+        // the `else` branch returns `s` with zero dups/drops, passing `verify`.
+        let bin = FnDef {
+            id: GlobalId("T.Bin".into()),
+            params: vec!["k".into(), "v".into()],
+            body: Core::Unit,
+            prim: None,
+            ctor: Some((0, 2)),
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Obj, Class::Obj],
+                fields: vec![Class::Obj, Class::Obj],
+                data: Some("T.Pair".into()),
+                ..UnitRepr::default()
+            },
+        };
+        let upd = FnDef {
+            id: GlobalId("T.upd".into()),
+            params: vec!["flag".into(), "s".into()],
+            body: Core::Case {
+                scrut: Box::new(Core::Var(LocalId(1))),
+                alts: vec![CAlt::new(
+                    CPat::Con {
+                        tag: 0,
+                        fields: vec![LocalId(2), LocalId(3)],
+                        classes: vec![Class::Obj, Class::Obj],
+                    },
+                    Core::If(
+                        Box::new(Core::Var(LocalId(0))),
+                        CBranch::new(Core::App(
+                            Box::new(Core::Ctor(GlobalId("T.Bin".into()), vec![])),
+                            vec![Core::Var(LocalId(2)), Core::Var(LocalId(2))],
+                        )),
+                        CBranch::new(Core::Var(LocalId(1))),
+                    ),
+                )],
+            },
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta::default(),
+            repr: UnitRepr {
+                params: vec![Class::Raw, Class::Obj],
+                result: Some(Class::Obj),
+                ..UnitRepr::default()
+            },
+        };
+        let program = Program::from_functions(vec![bin, upd]);
+        let profile = crate::core::TargetProfile { reclaim: true, ..crate::core::TargetProfile::native() };
+        let out = insert_closed(program, &profile).expect("rc insert_closed");
+        let f = out.fns.iter().find(|f| f.id.0 == "T.upd").expect("T.upd");
+        let Core::Case { alts, .. } = &f.body else { panic!("expected Case") };
+        let Core::If(_, yes, no) = &*alts[0].body else {
+            panic!("expected branch-sunk If at arm entry, got {:?}", alts[0].body);
+        };
+        assert!(
+            matches!(&*yes.body, Core::Release { token: Some(_), .. }),
+            "expected Core::Release with reuse token on dead-scrutinee branch, got {:?}",
+            yes.body
+        );
+        assert!(
+            matches!(&*no.body, Core::Var(LocalId(1))),
+            "expected zero-RC direct return of scrutinee on else branch, got {:?}",
+            no.body
+        );
     }
 }
