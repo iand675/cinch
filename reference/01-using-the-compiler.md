@@ -28,6 +28,7 @@ Every compilation command takes one entry `.cinch` file. Imports resolve against
 | `cinch build <file.cinch> [-o out]` | Compile and link an executable, Wasm module, or `--shared` library. | `<out>`, `<out>.ll`, `build/` artifacts |
 | `cinch run <file.cinch> [args...]` | Compile to a temporary directory, execute, and return the program's exit code. | `build/` artifacts (temp binary removed) |
 | `cinch core emit\|verify\|diff ...` | Dump, verify, or structurally diff Core IR artifacts. | `build/<entry>.core` (or `-o`) |
+| `cinch model inspect\|trace\|dot ...` | Inspect `machine` state spaces, trace predicates/deadlocks, or export Graphviz DOT. | Stdout or `-o out.dot` |
 | `cinch cxx [build] <bindings.json> --out-dir <dir>` | Generate C++17 bindings or build native C++ exports / GDExtensions. | Generated C++/Cinch files and binaries |
 | `cinch doc <subcommand> ...` | Extract `.cinchdoc`, render Markdown/HTML, Hoogle search, lookup, index, or run doctests. | See [Chapter 28](28-documentation.md) |
 | `cinch repl` | Start an interactive session in the current project. | See [Chapter 26](26-repl.md) |
@@ -131,6 +132,20 @@ end
 
 - **`cinch core verify <file.core>`** re-parses and checks grammar, unit uniqueness, `global`/`local` scoping, dictionary slot tables, ownership ops, and `@span` annotations. Exits `0` on valid Core, `1` with `unit:path: message` on error.
 - **`cinch core diff <a.core> <b.core>`** compares two dumps unit by unit in canonical order, ignoring header target lines, and prints the first structural path where they diverge (exit `0` if equal, `1` if different).
+
+# Model inspection (`cinch model`)
+
+For modules declaring explicit-state `machine`s, `cinch model` inspects explored state graphs, finds shortest traces, and exports Graphviz DOT diagrams even when a temporal `contract` or `refines` declaration is currently failing:
+
+```sh
+cinch model inspect Protocol.cinch [MachineName] [--json]
+cinch model trace Protocol.cinch MachineName --state 4
+cinch model trace Protocol.cinch MachineName --deadlock
+cinch model trace Protocol.cinch MachineName --where '\s -> s.phase == 2'
+cinch model dot Protocol.cinch MachineName -o graph.dot
+```
+
+`cinch model inspect` reports state/transition counts, deadlocks, action parameter domains, symmetry/POR reductions, and pass/fail verdicts for every contract and refinement, exiting `0` if all pass and `1` if any fail. See [Learn Chapter 24](../learn/24-composing-state-machines.md) and [Chapter 30](30-tla-plus-guide-and-value-domains.md) for worked examples.
 
 # Cross compilation
 

@@ -258,16 +258,19 @@ Each action listed in `actions` is a pure Cinch function whose **last** paramete
 - `... -> StateType -> Option StateType` — guarded step (`Some next` = enabled, `None` = disabled).
 - `... -> StateType -> List StateType` — non-deterministic step (`Nil` = disabled).
 
-Any parameters before `StateType` are automatically enumerated by the model checker from their Cinch types:
+Any parameters before `StateType` are automatically enumerated by the model checker from their Cinch types (multi-parameter actions enumerate the Cartesian product up to 1,024 tuples per state; each individual domain is capped at 256 values):
 
 | Parameter type | Enumerated domain |
 | --- | --- |
 | `Bool` | `[False, True]` |
+| `Unit` | `[()]` |
 | Nullary `data` enum | All declared constructors in declaration order |
-| `Fin n` (static numeral `n`) | `0 .. n - 1` |
-| `InRange lo hi Nat` (and refined integer ranges) | `lo .. hi` |
+| `Fin n` (static numeral `n <= 256`) | `0 .. n - 1` |
+| `InRange lo hi Nat` (and refined integer ranges, `hi - lo <= 256`) | `lo .. hi` |
+| `Option T` (finite `T`) | `None`, then `Some v` for every `v` in `T` |
+| Tuples `(A, B, ...)` of finite types | Lexicographic Cartesian product |
 
-Unbounded parameter types (such as bare `Nat` or `String`) are rejected rather than silently truncated.
+Unbounded parameter types (such as bare `Nat`, `String`, or `List a`) and unhashable state field types (closures, thunks, `codata`, `Mut`, `MVar`) are rejected rather than silently truncated. See [Chapter 30](30-tla-plus-guide-and-value-domains.md) for the complete value-domain matrix and TLA+ comparison.
 
 ## Machine contracts, fairness, and stuttering invariance
 
@@ -315,7 +318,9 @@ module Main where
 
 - **Weak fairness (`fair`)** discards any cycle in which a listed action remains continuously enabled in every state of the cycle without firing.
 - **Strong fairness (`strong_fair`)** discards any cycle in which a listed action is enabled in at least one state of the cycle without firing.
+- **Environment assumptions (`assume = (\s -> Env s)`)** restrict checked reachable states and fair cycles to states reachable from `init` while `Env` holds continuously, recording the assumption explicitly in `build/<entry>.manifest.json` and `cinch model inspect` for assume-guarantee composition.
 - Fairness clauses can be placed on the `machine` (applying to all contracts on it) or overridden/extended on an individual `contract`.
+- Counterexample traces annotate each transition with per-field diffs (`(changed: field: old -> new)`).
 - **Stuttering invariance (`next` forbidden):** Public contracts reject a raw `next` operator (`\`next\` is forbidden in public temporal contracts; contracts must be stuttering-invariant`) so that properties proved on an abstract machine are preserved by every stuttering refinement:
 
 <!-- cinch:reject contains="stuttering-invariant" -->
@@ -460,4 +465,4 @@ Discharged refinements are recorded in `build/<entry>.manifest.json` under `temp
 
 <span class="support-tag support-tag--planned">Coming soon</span> **Unbounded inductive proofs over arbitrary state spaces and process trees.** Bounded explicit-state model checking, weak/strong fairness, symmetry reduction, POR, stuttering refinement, clocked `Later k`, and fair `MVar` discharge are implemented today; unbounded symbolic/inductive proofs beyond `max_states` and proofs over dynamically spawned concurrent process trees remain planned.
 
-For guided walkthroughs, see [state evolution and temporal contracts](../learn/21-upgrades-and-contracts.md) and the beginner guide to [state machines, fairness, and model checking](../learn/23-state-machines-and-model-checking.md).
+For guided walkthroughs, see [state evolution and temporal contracts](../learn/21-upgrades-and-contracts.md), [state machines, fairness, and model checking](../learn/23-state-machines-and-model-checking.md), [composing state machines and debugging models](../learn/24-composing-state-machines.md), and the [guide for TLA+ users and checkable value domains](30-tla-plus-guide-and-value-domains.md).

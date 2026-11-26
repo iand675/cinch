@@ -77,7 +77,7 @@ x :: Int
 ...
 18: :history
 > :help
-:type <expr>, :kind <type>, :browse [module], :load <file>, :reload, :history, :quit
+:type <expr>, :kind <type>, :browse [module], :machines, :machine <Name>, :explore <Name> [id], :trace <Name> <id|deadlock>, :dot <Name>, :load <file>, :reload, :history, :quit
 > 1 + True
 error: no instance for Add Bool
   at 1:3
@@ -153,6 +153,11 @@ Commands begin with `:` at the start of an input:
 | `:kind NAME` | `:k` | Print the kind of a type constructor or class declared in the session or loaded modules. |
 | `:browse` | `:b` | List names and schemes in scope across the session and loaded modules. |
 | `:browse MODULE` | `:b MODULE` | List names and schemes exported by `MODULE`. |
+| `:machines` | `:m` | List all loaded `machine` declarations with state/edge/deadlock/contract counts. |
+| `:machine NAME` | — | Print a machine's summary: actions, parameter domains, symmetry/POR reductions, and contract/refinement verdicts. |
+| `:explore NAME [ID]` | — | Inspect state `#ID` (default `0`) and its outgoing transitions with per-field diffs. |
+| `:trace NAME ID\|deadlock` | — | Print the shortest BFS trace from `init` to state `#ID` or the first reachable deadlock. |
+| `:dot NAME` | — | Print the explored transition graph of `NAME` in Graphviz DOT format. |
 | `:load FILE` | `:l FILE` | Load a source entry file and its local module closure. |
 | `:reload` | `:r` | Re-read and recheck all loaded source files. |
 | `:history` | `:hist` | Print numbered session inputs (including commands and errors). |
@@ -280,6 +285,7 @@ Callers must treat `ReplOutcome::Incomplete` as a request for additional lines r
 | Full-screen TUI and piped line loop | **Available** |
 | Persistent in-session bindings, pending signatures, imports, history | **Available** |
 | `:type`, `:kind`, `:browse`, `:history`, `:help` | **Available** (`:kind` excludes prelude types) |
+| `:machines`, `:machine`, `:explore`, `:trace`, `:dot` | **Available** (interactive state-machine exploration and DOT export) |
 | Transactional `:load` and `:reload` | **Available** |
 | Expression evaluation (interpreter + native probe) | **Available** |
 | Prefix completion (commands, session, imports, prelude) | **Available** |

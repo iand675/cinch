@@ -12,7 +12,7 @@ A terminal and a text editor, plus a Rust toolchain with Cargo to build the comp
 
 Work through the first ten chapters in order. Save each complete example as `Main.cinch` in a fresh directory unless the chapter gives a multi-file project. Commands assume you built the Rust compiler and put its executable on `PATH`. Runnable examples state the expected output or exit status, and a deliberately rejected program states the diagnostic it produces. A block that is not a complete module is labelled as a fragment and cannot be run on its own.
 
-Each chapter explains the new syntax and walks through its meaning. Chapters 1 through 21 and 23 each end with an exercise and its answer. Chapters 11 to 21 and 23 extend the same foundations into the advanced language. Chapter 22 combines the basics in a complete order calculator and suggests incremental extensions.
+Each chapter explains the new syntax and walks through its meaning. Chapters 1 through 21, 23, and 24 each end with an exercise and its answer. Chapters 11 to 21, 23, and 24 extend the same foundations into the advanced language. Chapter 22 combines the basics in a complete order calculator and suggests incremental extensions.
 
 <span class="support-tag support-tag--planned">Coming soon</span> marks specified behaviour that is not available yet. A nearby explanation states the current boundary and intended behaviour. The [support matrix](../reference/16-support-and-roadmap.md) collects these distinctions. Planned APIs are not prerequisites for any runnable example.
 
@@ -67,6 +67,7 @@ Start at [chapter 2](02-values-and-layout.md) for literal, layout, and applicati
 | [21. State evolution and temporal contracts](21-upgrades-and-contracts.md) | Write a migration, version active code, and state the scope of a temporal claim. |
 | [22. Build a small order calculator](22-putting-it-together.md) | Requirements, a complete implementation, boundary tests, and extensions in stages. |
 | [23. State machines, fairness, and model checking](23-state-machines-and-model-checking.md) | Check protocols inside Cinch with `machine`, safety/deadlock/liveness contracts, weak vs. strong fairness, symmetry, `refines`, fair `MVar`, and clocked `Later k`. |
+| [24. Composing state machines and debugging models](24-composing-state-machines.md) | Multi-actor parameters, product records with POR, assume-guarantee `assume`, multi-view & cross-module `refines`, and debugging with `cinch model`, REPL, and LSP. |
 
 # Keep a reference nearby
 
