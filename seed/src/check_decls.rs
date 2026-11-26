@@ -367,7 +367,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell" | "Type" | "Prop" | "True" | "False"
             | "Code" | "Syntax" | "SyntaxBinding" | "TypeSyntax" | "PackedCode" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -386,7 +386,7 @@ fn builtin_type_name(name: &str) -> bool {
 fn reserved_data_type_name(name: &str) -> bool {
     Scalar::parse(name).is_some() || matches!(name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-            | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+            | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
             | "Code" | "Syntax" | "TypeSyntax" | "PackedCode"
             | "SyntaxBinding" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap")
@@ -808,6 +808,20 @@ impl Checker {
                 field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
+        self.types.entry("FixedArray".into()).or_default().push(TypeKind {
+            strict_positive_payload: None,
+            data_family: false,
+            module: "<builtin>".into(),
+            name: "FixedArray".into(),
+            identity: "FixedArray".into(),
+            arity: 2,
+            param_kinds: vec![ParamKind::Val(Ty::Nat), ParamKind::Type],
+            ctors: Vec::new(),
+            fields: None,
+            field_erased: Vec::new(),
+            opaque: false,
+            refine: None,
+        });
         // `Io r`: runtime capability evidence for identity `r` (design
         // section 4, decision D21). The value is a uniform word; the
         // identity lives in the type.
@@ -1439,6 +1453,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     })
                     .collect();
                 let has_ret_ptr = b.call.ret.is_some();
@@ -1457,6 +1472,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     });
                 }
                 let result = AbiParam {
@@ -1477,6 +1493,7 @@ impl Checker {
                     tag: 0,
                     fields: Vec::new(),
                     leaves: Vec::new(),
+                    value_layout: None,
                 };
                 self.foreign_plans.push((
                     unit.clone(),
@@ -1605,6 +1622,7 @@ impl Checker {
                 tag: 0,
                 fields: Vec::new(),
                 leaves: Vec::new(),
+                value_layout: None,
             };
             let mut params = vec![word_param.clone()];
             if arity == 2 {
@@ -1632,6 +1650,7 @@ impl Checker {
                         tag: 0,
                         fields: Vec::new(),
                         leaves: Vec::new(),
+                        value_layout: None,
                     },
                     deallocator: String::new(),
                     canon: None,
@@ -4032,7 +4051,7 @@ impl Checker {
                         ));
                     }
                     let s = self.conv_scheme(&p.ty)?;
-                    if !s.params.is_empty() || !s.ctx.is_empty() {
+                    if !s.ctx.is_empty() {
                         return Err(Error::at(
                             p.span,
                             "a prim cannot be polymorphic or constrained (primitive operations and inline target IR specification section 2)",
@@ -4042,7 +4061,9 @@ impl Checker {
                     // the declared arguments in the declared ABI and
                     // return the declared result shape (foreign function
                     // interface specification section 2: widths,
-                    // signedness, convention).
+                    // signedness, convention). Type and region parameters
+                    // are permitted only under pointer roles whose ABI
+                    // carrier is concretely `ptr`.
                     let (arg_tys, _) = self.check_prim_envelope(p, &s.ty)?;
                     let mut immarg: Vec<usize> = Vec::new();
                     for b in &p.bodies {
@@ -5076,7 +5097,7 @@ impl Checker {
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
-                    if matches!(rec.name.text.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
+                    if matches!(rec.name.text.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell") {
                         return Err(Error::at(rec.name.span, format!("{} is a builtin primitive type and cannot be redefined", rec.name.text)));
                     }
                     // The head is already registered, with its parameter
@@ -5116,10 +5137,10 @@ impl Checker {
                                     ),
                                 ));
                             }
-                            if !set.repr.as_ref().map(|r| r.c_layout).unwrap_or(false) {
+                            if !set.repr.as_ref().map(|r| r.c_layout || r.value).unwrap_or(false) {
                                 return Err(Error::at(
                                     f.span,
-                                    "a field's representation applies to fields of a `repr(C)` record (attribute annotations specification section 9's open decision admits them there)",
+                                    "a field's representation applies to fields of a `repr(C)` record (or `repr(value)` record) (attribute annotations specification section 9's open decision admits them there)",
                                 ));
                             }
                             field_reprs.push(fr);
@@ -5317,7 +5338,7 @@ impl Checker {
                         || matches!(
                             rec.name.text.as_str(),
                             "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
-                                | "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
+                                | "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "AtomicCell" | "RwLockCell"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )
@@ -6536,23 +6557,78 @@ impl Checker {
                     .get(&(module.to_string(), cname.clone()))
                     .cloned()
                     .unwrap();
-                let (runtime_arity, fields) = match &v.kind {
+                let (runtime_arity, fields, non_erased_tys) = match &v.kind {
                     ValueKind::Ctor { runtime_arity, field_tys, field_erased, .. } => {
                         // Each runtime field's class over the data type's own
                         // parameters (`Cons` is `[Param(0), Obj]`).
-                        let fields: Vec<Class> = field_tys
+                        let non_erased_tys: Vec<Ty> = field_tys
                             .iter()
                             .zip(field_erased)
                             .filter(|(_, e)| !**e)
-                            .map(|(t, _)| crate::repr::repr_of(t, &v.scheme.params, self, &mut |_| {}))
+                            .map(|(t, _)| self.uni.zonk(t))
                             .collect();
-                        (*runtime_arity, (fields, v.scheme.params.len()))
+                        let fields: Vec<Class> = non_erased_tys
+                            .iter()
+                            .map(|t| crate::repr::repr_of(t, &v.scheme.params, self, &mut |_| {}))
+                            .collect();
+                        (*runtime_arity, (fields, v.scheme.params.len()), non_erased_tys)
                     }
                     _ => unreachable!(),
                 };
                 if let Some(plan) = self.unpacked_record(t) {
                     let (builder, storage) = plan.units(fn_id(module, cname), fields.0, self);
                     self.fns.extend([builder, storage]);
+                    continue;
+                }
+                if let Some(&lid) = self.value_records.get(&(t.module.clone(), t.name.clone())) {
+                    let vlayout = self.value_layouts[lid as usize].clone();
+                    let val_params: Vec<Option<u32>> = match &vlayout.kind {
+                        crate::core::ValueLayoutKind::Struct { fields: vf } => vf
+                            .iter()
+                            .map(|f| {
+                                if matches!(f.layout.kind, crate::core::ValueLayoutKind::Scalar { .. }) {
+                                    None
+                                } else {
+                                    Some(self.intern_value_layout(f.layout.clone()))
+                                }
+                            })
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    let body = if runtime_arity == 0 {
+                        Core::App(
+                            Box::new(Core::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                                layout: lid,
+                                arity: 0,
+                            }))),
+                            Vec::new(),
+                        )
+                    } else {
+                        Core::App(
+                            Box::new(Core::Prim(PrimOp::Value(crate::core::ValOp::Construct {
+                                layout: lid,
+                                arity: runtime_arity as u16,
+                            }))),
+                            (0..runtime_arity).map(|i| Core::Var(LocalId(i))).collect(),
+                        )
+                    };
+                    self.fns.push(FnDef {
+                        id: fn_id(module, cname),
+                        params: (0..runtime_arity).map(|i| format!("f{i}")).collect(),
+                        body,
+                        prim: None,
+                        ctor: None,
+                        hints: Default::default(),
+                        meta: Default::default(),
+                        repr: crate::core::UnitRepr {
+                            tparams: fields.1,
+                            result: Some(Class::Raw),
+                            params: fields.0,
+                            value_params: val_params,
+                            value_result: Some(lid),
+                            ..Default::default()
+                        },
+                    });
                     continue;
                 }
                 if self.unboxed_payload(t).is_some() {
@@ -6573,6 +6649,14 @@ impl Checker {
                     });
                     continue;
                 }
+                for ft in &non_erased_tys {
+                    if self.is_unboxed_value_ty(ft) {
+                        return Err(Error::plain(format!(
+                            "unboxed value type {} cannot be stored directly in boxed constructor `{}`; mark the enclosing record `#[repr(value)]` or pass via a reference/pointer",
+                            ft, cname
+                        )));
+                    }
+                }
                 self.fns.push(FnDef {
                     id: fn_id(module, cname),
                     params: (0..runtime_arity).map(|i| format!("f{i}")).collect(),
@@ -6587,7 +6671,8 @@ impl Checker {
                         fields: fields.0,
                         data: Some(format!("{}.{}", t.module, t.name)),
                         result: Some(Class::Obj),
-                    dictionary_values: Vec::new(),
+                        dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
             }
@@ -6627,6 +6712,7 @@ impl Checker {
                         data: Some(family_identity),
                         result: Some(Class::Obj),
                         dictionary_values: Vec::new(),
+                        ..Default::default()
                     },
                 });
             }
@@ -8681,14 +8767,30 @@ impl Checker {
             Some(suffix) => (erased_parameter_stages(suffix, body), None),
             None => (body, self.total_sort(&self.uni.zonk(&rest), &mut Vec::new())),
         };
-        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta, total_result)?;
+        self.finish_fn(id.clone(), param_ids.clone(), body, None, None, false, meta, total_result)?;
         let result = if erased_suffix.is_some() {
             Class::Obj
         } else {
             crate::repr::repr_of(&self.uni.zonk(&rest), &self.cur_tparams, self, &mut |_| {})
         };
+        let value_params: Vec<Option<u32>> = param_ids
+            .iter()
+            .map(|p| {
+                let t = self.local_tys.get(p).cloned()?;
+                self.unboxed_value_layout_id(&t)
+            })
+            .collect();
+        let value_result = if erased_suffix.is_some() {
+            None
+        } else {
+            self.unboxed_value_layout_id(&rest)
+        };
         if let Some(unit) = self.fns.iter_mut().find(|unit| unit.id == *id) {
             unit.repr.result = Some(result);
+            if value_params.iter().any(|v| v.is_some()) {
+                unit.repr.value_params = value_params;
+            }
+            unit.repr.value_result = value_result;
         }
         Ok(())
     }
@@ -8995,7 +9097,21 @@ impl Checker {
                             own: vec![k],
                         });
                     }
-                    let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
+                    // Reject capturing an unboxed value type directly in a closure
+                // (Item 3 deferred; pass a `Ref`/`Mut` or a scalar field instead).
+                if h.poly.is_none() {
+                    for p in &h.params {
+                        if let Some(t) = self.local_tys.get(p) {
+                            let z = self.uni.zonk(t);
+                            if self.is_unboxed_value_ty(&z) {
+                                return Err(Error::plain(format!(
+                                    "unboxed value type `{z}` cannot be captured in or passed through a closure yet (pass by `Ref`/`Mut` or bind in `withLocal`)"
+                                )));
+                            }
+                        }
+                    }
+                }
+                let result = h.result.as_ref().map(|ty| crate::repr::repr_of(&self.uni.zonk(ty), &unit_tparams, self, &mut |_| {}));
                     let mut unit = if h.extra.is_empty() {
                         finalize_fn(h.id, h.params, h.body, None, None, crate::core::FnHints::default(), crate::core::FnMeta::default(), &mut cx)?
                     } else {
@@ -12251,6 +12367,7 @@ impl Checker {
         program.foreigns = foreigns;
         program.prims = self.prims;
         program.laws = self.law_rows;
+        program.value_layouts = self.value_layouts;
         // This is the original complete checked constructor inventory,
         // before dictionary lowering, specialization or reachability pruning.
         program.certify_builtin_constructors()?;
@@ -12296,18 +12413,18 @@ impl Checker {
                 return Err(Error::at(
                     p.span,
                     crate::diagnostic!(
-                        "a prim body receives its arguments as machine scalars in the declared ABI (foreign function interface specification section 2), not {}",
+                        "a prim body receives its arguments as machine scalars or pointers in the declared ABI (foreign function interface specification section 2), not {}",
                         a
                     ),
                 ));
             }
         }
         let res = cur.clone();
-        if !self.is_prim_abi_ty(&res) {
+        if !matches!(self.unwrap_prim_abi_ty(&res), Ty::Unit) && !self.is_prim_abi_ty(&res) {
             return Err(Error::at(
                 p.span,
                 crate::diagnostic!(
-                    "a prim body returns the declared result shape: a machine scalar (foreign function interface specification section 2), not {}",
+                    "a prim body returns the declared result shape: a machine scalar, pointer, or `Unit` (foreign function interface specification section 2), not {}",
                     res
                 ),
             ));
@@ -12382,23 +12499,32 @@ impl Checker {
         }
     }
 
+    /// Target pointer width in bytes (`4` on 32-bit/wasm32, `8` on 64-bit).
+    pub(crate) fn ptr_bytes(&self) -> u64 {
+        u64::from(self.usize_bits) / 8
+    }
+
     /// One `uses` contract slot: the interface record and the ABI shape.
     fn prim_use_slot(&self, ty: &Ty) -> (crate::interface::ForeignParam, crate::core::PrimAbiTy) {
         let shape = self.prim_abi_shape(ty);
-        let (width, signed) = match shape {
-            crate::core::PrimAbiTy::Int { bits, signed } => (u64::from(bits) / 8, signed),
-            crate::core::PrimAbiTy::F32 => (4, true),
-            crate::core::PrimAbiTy::F64 => (8, true),
+        let (class, role, width, signed) = match shape {
+            crate::core::PrimAbiTy::Int { bits, signed } => {
+                ("scalar", "value", u64::from(bits) / 8, signed)
+            }
+            crate::core::PrimAbiTy::F32 => ("scalar", "value", 4, true),
+            crate::core::PrimAbiTy::F64 => ("scalar", "value", 8, true),
+            crate::core::PrimAbiTy::Ptr => ("pointer", "raw", self.ptr_bytes(), false),
+            crate::core::PrimAbiTy::Unit => ("unit", "value", 0, false),
         };
         (
             crate::interface::ForeignParam {
                 ty: ty.to_string(),
-                class: "scalar".to_string(),
-                role: "value".to_string(),
+                class: class.to_string(),
+                role: role.to_string(),
                 allocator: String::new(),
                 nullable: false,
                 width,
-                align: width,
+                align: width.max(1),
                 signed,
                 offsets: Vec::new(),
             },
@@ -12429,33 +12555,41 @@ impl Checker {
         cur
     }
 
-    /// Is this type a prim ABI scalar (the declared ABI's widths)?
+    /// Is this type a prim ABI scalar or native pointer (the declared ABI's widths)?
     fn is_prim_abi_ty(&self, ty: &Ty) -> bool {
-        matches!(self.unwrap_prim_abi_ty(ty), Ty::Prim(_) | Ty::Bool)
+        match self.unwrap_prim_abi_ty(ty) {
+            Ty::Prim(_) | Ty::Bool | Ty::Ptr { .. } => true,
+            Ty::Adt(ref n, _) => self.lookup_known_type(n).is_ok_and(|t| t.opaque),
+            _ => false,
+        }
     }
 
-    /// The declared ABI shape of one prim scalar (the inline fragment's
+    /// The declared ABI shape of one prim scalar or pointer (the inline fragment's
     /// widths; primitive operations and inline target IR specification
     /// section 4).
     fn prim_abi_shape(&self, ty: &Ty) -> crate::core::PrimAbiTy {
         use crate::core::PrimAbiTy;
         use crate::types::Scalar;
         match self.unwrap_prim_abi_ty(ty) {
+            Ty::Unit => PrimAbiTy::Unit,
             Ty::Prim(Scalar::F32) => PrimAbiTy::F32,
             Ty::Prim(Scalar::F64) => PrimAbiTy::F64,
             Ty::Prim(Scalar::Usize) => PrimAbiTy::Int { bits: self.usize_bits, signed: false },
             Ty::Prim(Scalar::Isize) => PrimAbiTy::Int { bits: self.usize_bits, signed: true },
             Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
+            Ty::Ptr { .. } => PrimAbiTy::Ptr,
+            Ty::Adt(ref n, _) if self.lookup_known_type(n).is_ok_and(|t| t.opaque) => PrimAbiTy::Ptr,
             // `Bool` crosses as its `i8` value bits.
             _ => PrimAbiTy::Int { bits: 8, signed: false },
         }
     }
 
-    /// The LLVM type spelling of a prim ABI scalar (the family's
-    /// fragment grammar speaks these widths).
+    /// The LLVM type spelling of a prim ABI scalar, pointer, or `Unit` result
+    /// (the family's fragment grammar speaks these widths).
     fn prim_abi_word(&self, ty: &Ty) -> Result<String> {
         use crate::types::Scalar;
         Ok(match self.unwrap_prim_abi_ty(ty) {
+            Ty::Unit => "void".into(),
             Ty::Prim(Scalar::I8) | Ty::Prim(Scalar::U8) => "i8".into(),
             Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
             Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
@@ -12465,6 +12599,8 @@ impl Checker {
             Ty::Prim(Scalar::F64) => "double".into(),
             Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
             Ty::Bool => "i8".into(),
+            Ty::Ptr { .. } => "ptr".into(),
+            Ty::Adt(ref n, _) if self.lookup_known_type(n).is_ok_and(|t| t.opaque) => "ptr".into(),
             other => {
                 return Err(Error::plain(crate::diagnostic!(
                     "internal error: {} is not a prim ABI type",
@@ -13231,11 +13367,6 @@ impl Checker {
     /// role asserts of the memory it points at (`None` asserts nothing,
     /// as for `RawPtr`, opaque handles and types without a recorded
     /// layout). The facts feed the LLVM contract surface's `align`,
-    /// `dereferenceable` and `!align` claims.
-    fn ptr_bytes(&self) -> u64 {
-        (self.usize_bits / 8) as u64
-    }
-
     fn pointee_layout(&self, pointee: &Ty) -> Option<(u64, u64)> {
         match pointee {
             Ty::Prim(s) => Some((s.align_for(self.usize_bits), s.size_for(self.usize_bits))),
@@ -13310,6 +13441,7 @@ impl Checker {
             tag: 0,
             fields: Vec::new(),
             leaves: Vec::new(),
+            value_layout: None,
         };
         match ty {
             Ty::Unit => Ok(p),
@@ -13440,6 +13572,7 @@ impl Checker {
                 p.width = layout.size;
                 p.align = layout.align;
                 p.tag = tag as u64;
+                p.value_layout = self.value_records.get(&(info.module.clone(), info.name.clone())).copied();
                 let mut slot = 0;
                 for (fty, er) in field_tys.iter().zip(field_erased.iter()) {
                     if *er {
@@ -13534,7 +13667,11 @@ impl Checker {
             else {
                 continue;
             };
-            if layout.repr == "unboxed" || layout.repr == "uniform-word" || layout.fields.is_empty() {
+            if layout.repr == "unboxed"
+                || layout.repr == "uniform-word"
+                || layout.fields.is_empty()
+                || self.value_records.contains_key(&(t.module.clone(), t.name.clone()))
+            {
                 continue;
             }
             for (cname, tag) in &t.ctors {
@@ -13616,14 +13753,19 @@ fn crossing(t: &Ty, types: &dyn crate::repr::TypeReprs) -> Option<crate::core::C
         // sign-extended for a signed scalar and zero-extended for an
         // unsigned one (or a float's bits), so the boundary has to know
         // which way to extend back into the slot.
-        Ty::Prim(s) => {
-            let bits = match s {
-                Scalar::I8 | Scalar::U8 => 8,
-                Scalar::I16 | Scalar::U16 => 16,
-                Scalar::I32 | Scalar::U32 | Scalar::F32 => 32,
-                _ => return None,
-            };
-            Some(Crossing::Bits { bits, signed: s.is_signed() })
+        Ty::Prim(s) => match s {
+            Scalar::I8 | Scalar::U8 => Some(Crossing::Bits { bits: 8, signed: s.is_signed() }),
+            Scalar::I16 | Scalar::U16 => Some(Crossing::Bits { bits: 16, signed: s.is_signed() }),
+            Scalar::I32 | Scalar::U32 | Scalar::F32 => {
+                Some(Crossing::Bits { bits: 32, signed: s.is_signed() })
+            }
+            Scalar::Usize => Some(Crossing::Csize { signed: false }),
+            Scalar::Isize => Some(Crossing::Csize { signed: true }),
+            _ => None,
+        },
+        Ty::Ptr { .. } => Some(Crossing::Ptr),
+        Ty::Ref(_, inner) | Ty::Mut(_, inner) if crate::repr::is_value_ty(inner, types) => {
+            Some(Crossing::Ptr)
         }
         Ty::Nat => Some(Crossing::Csize { signed: false }),
         Ty::Int => Some(Crossing::Csize { signed: true }),
@@ -13786,6 +13928,8 @@ pub(crate) struct ReprSpec {
     /// `repr(C)`: the platform C layout algorithm over source-order
     /// fields.
     pub c_layout: bool,
+    /// `repr(value)`: headerless, non-refcounted, stack/inline POD value record.
+    pub value: bool,
     /// The constructor has the runtime representation of its payload.
     pub unboxed: bool,
     /// `repr(transparent)`: exactly the single field's representation.
@@ -13806,13 +13950,13 @@ pub(crate) struct ReprSpec {
 impl ReprSpec {
     /// Does this representation lay out fields?
     fn has_fields(&self) -> bool {
-        self.unboxed || self.c_layout || self.transparent || self.align.is_some() || self.packed.is_some()
+        self.unboxed || self.c_layout || self.value || self.transparent || self.align.is_some() || self.packed.is_some()
     }
 
     /// The field-level forms: `align(N)` and `packed(N)` (the section 9
-    /// open decision admits them on fields of `repr(C)` records).
+    /// open decision admits them on fields of `repr(C)` or `repr(value)` records).
     fn field_only(&self) -> bool {
-        !self.unboxed && !self.c_layout && !self.transparent && self.discriminant.is_none()
+        !self.unboxed && !self.c_layout && !self.value && !self.transparent && self.discriminant.is_none()
     }
 }
 
@@ -13908,6 +14052,10 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
                 once(spec.c_layout)?;
                 spec.c_layout = true;
             }
+            ("value", None) => {
+                once(spec.value)?;
+                spec.value = true;
+            }
             ("transparent", None) => {
                 once(spec.transparent)?;
                 spec.transparent = true;
@@ -13959,7 +14107,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
     // one field's layout, `align` only raises, and a fixed discriminant
     // is its own representation.
     if spec.transparent
-        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some() || spec.discriminant.is_some())
+        && (spec.c_layout || spec.value || spec.align.is_some() || spec.packed.is_some() || spec.discriminant.is_some())
     {
         return Err(Error::at(
             a.span,
@@ -13973,7 +14121,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
         ));
     }
     if spec.discriminant.is_some()
-        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some())
+        && (spec.c_layout || spec.value || spec.align.is_some() || spec.packed.is_some())
     {
         return Err(Error::at(
             a.span,
@@ -13985,7 +14133,7 @@ fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
 
 fn repr_item_error(t: &str) -> String {
     format!(
-        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
+        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `value`, `unboxed`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
     )
 }
 
@@ -14535,6 +14683,8 @@ pub(crate) struct ForeignMarks {
     pub ptrs: HashSet<String>,
     /// Foreign names whose binding contract marshals an aggregate.
     pub aggregates: HashSet<String>,
+    /// `#[repr(value)]` record names (stack/value constructed, zero heap allocation).
+    pub value_records: HashSet<String>,
 }
 
 /// Is this pattern refutable (a check that can fail)?
@@ -14720,15 +14870,24 @@ impl<'a> FactWalk<'a> {
                     "joinAllOrCancel" => self.facts.conc_sites.push(("join".to_string(), span)),
                     _ => {}
                 }
-                if name == "mutBorrow" {
-                    // The `Mut` introduction is an allocation site
-                    // (attribute annotations specification section 10:
-                    // a `Mut` cell is fresh state).
-                    self.facts.alloc_sites.push(AllocRec {
-                        what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
-                        span,
-                        closure: self.closure,
-                    });
+                if name == "mutBorrow" || name == "mut-borrow" {
+                    // An interior sub-borrow (`mutBorrow m.field`) is a zero-allocation
+                    // byte-offset GEP over an existing place; only fresh `Mut` cell
+                    // introduction allocates.
+                    let is_place_subborrow = matches!(args, [ast::Term::Proj(..)]);
+                    if !is_place_subborrow {
+                        // The `Mut` introduction is an allocation site
+                        // (attribute annotations specification section 10:
+                        // a `Mut` cell is fresh state).
+                        self.facts.alloc_sites.push(AllocRec {
+                            what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
+                            span,
+                            closure: self.closure,
+                        });
+                    }
+                }
+                if name == "mutAsPtr" || name == "mut-as-ptr" {
+                    self.facts.ptr_ops.push((name.to_string(), span));
                 }
                 if self.foreign.ptrs.contains(name) {
                     self.facts.ptr_ops.push((name.to_string(), span));
@@ -14814,6 +14973,28 @@ impl<'a> FactWalk<'a> {
                 self.note_span(*s);
             }
             ast::Term::App(f, args, _) => {
+                // `withLocal init (\m -> body)` inlines its lambda on the stack
+                // with zero heap/closure allocation.
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "withLocal" | "with-local")
+                        && !self.in_scope(&p.name.text)
+                        && args.len() == 2
+                    {
+                        self.walk_child(&args[0]);
+                        if let ast::Term::Lam(pats, body, _) = &args[1] {
+                            let depth = self.frames.len();
+                            for pat in pats {
+                                self.bind_pat(pat, None);
+                            }
+                            let saved_tail = self.tail;
+                            self.walk_term(body);
+                            self.tail = saved_tail;
+                            self.frames.truncate(depth);
+                            return;
+                        }
+                    }
+                }
                 // The application head is the call; its arguments run
                 // before it in non-tail position. A `decide` operand is
                 // a validating check of the parameters it examines (the
@@ -14834,11 +15015,14 @@ impl<'a> FactWalk<'a> {
                     ast::Term::Var(p) => self.record_head(p, args),
                     ast::Term::Con(p) => {
                         self.note_span(p.span());
-                        self.facts.alloc_sites.push(AllocRec {
-                            what: format!("the constructor `{}`", p.parts().last().unwrap_or(&"")),
-                            span: p.span(),
-                            closure: self.closure,
-                        });
+                        let cname = *p.parts().last().unwrap_or(&"");
+                        if !self.foreign.value_records.contains(cname) {
+                            self.facts.alloc_sites.push(AllocRec {
+                                what: format!("the constructor `{cname}`"),
+                                span: p.span(),
+                                closure: self.closure,
+                            });
+                        }
                     }
                     other => self.walk_child(other),
                 }
@@ -15000,14 +15184,14 @@ impl<'a> FactWalk<'a> {
             }
             ast::Term::Record(path, fields, s) => {
                 self.note_span(*s);
-                self.facts.alloc_sites.push(AllocRec {
-                    what: format!(
-                        "the record construction of `{}`",
-                        path.parts().last().unwrap_or(&"")
-                    ),
-                    span: *s,
-                    closure: self.closure,
-                });
+                let rname = *path.parts().last().unwrap_or(&"");
+                if !self.foreign.value_records.contains(rname) {
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: format!("the record construction of `{rname}`"),
+                        span: *s,
+                        closure: self.closure,
+                    });
+                }
                 for (_, v) in fields {
                     self.walk_child(v);
                 }
@@ -15616,6 +15800,14 @@ impl Checker {
             if agg {
                 marks.aggregates.insert(f.symbol.clone());
                 marks.aggregates.insert(f.external.clone());
+            }
+        }
+        for (_, name) in self.value_records.keys() {
+            marks.value_records.insert(name.clone());
+        }
+        for ((_, name), r) in &self.layout_recipes {
+            if r.repr.value {
+                marks.value_records.insert(name.clone());
             }
         }
         marks
@@ -18100,6 +18292,11 @@ impl Checker {
             }
             fields.push((n, t, fr));
         }
+        if repr.value && (!recipe.record || recipe.ctor_count != 1) {
+            return Err(err(
+                "`repr(value)` requires a `record` declaration (single-constructor POD value struct)".to_string(),
+            ));
+        }
         if repr.unboxed {
             if recipe.ctor_count != 1 || fields.len() != 1 {
                 return Err(err("repr(unboxed) requires one constructor with exactly one represented field".into()));
@@ -18192,6 +18389,29 @@ impl Checker {
             type_align = raise;
         }
         let size = offset.div_ceil(type_align) * type_align;
+        if repr.value {
+            let mut vfields = Vec::with_capacity(out.len());
+            for (af, (_, fty, _)) in out.iter().zip(fields.iter()) {
+                let fl = self.pod_value_layout(fty).ok_or_else(|| {
+                    err(crate::diagnostic!(
+                        "a `repr(value)` record must contain only POD (non-refcounted) fields, not {} on field `{}`",
+                        fty, af.name
+                    ))
+                })?;
+                vfields.push(crate::core::ValueField {
+                    name: af.name.clone(),
+                    offset: af.offset,
+                    layout: fl,
+                });
+            }
+            let vl = crate::core::ValueLayout {
+                size,
+                align: type_align,
+                kind: crate::core::ValueLayoutKind::Struct { fields: vfields },
+            };
+            let id = self.intern_value_layout(vl);
+            self.value_records.insert((recipe.module.clone(), recipe.name.clone()), id);
+        }
         Ok(AbiLayout {
             name: recipe.name.clone(),
             repr: repr.spelled.clone(),
@@ -18217,8 +18437,42 @@ impl Checker {
             Ty::Bool => Ok((1, 1)),
             Ty::Prim(s) => Ok((s.size_for(self.usize_bits), s.align_for(self.usize_bits))),
             Ty::Ptr { .. } => Ok((self.ptr_bytes(), self.ptr_bytes())),
+            Ty::Adt(name, args) if name.as_str() == "FixedArray" && args.len() == 2 => {
+                let len = match &args[0] {
+                    Ty::Idx(n) => self.const_nat_of_idx(n).ok_or_else(|| {
+                        Error::at(
+                            span,
+                            "a `FixedArray` field requires a compile-time constant `Nat` length".to_string(),
+                        )
+                    })?,
+                    _ => {
+                        return Err(Error::at(
+                            span,
+                            "a `FixedArray` field requires a compile-time constant `Nat` length".to_string(),
+                        ))
+                    }
+                };
+                let (esz, eal) = self.field_size_align(&args[1], span, stack)?;
+                if self.pod_value_layout(&args[1]).is_none() {
+                    return Err(Error::at(
+                        span,
+                        crate::diagnostic!(
+                            "`FixedArray` elements must be POD (non-refcounted), not {}",
+                            args[1]
+                        ),
+                    ));
+                }
+                let stride = esz.div_ceil(eal.max(1)) * eal.max(1);
+                let total = len.checked_mul(stride).ok_or_else(|| {
+                    Error::at(span, "`FixedArray` byte size overflows u64".to_string())
+                })?;
+                Ok((total, eal.max(1)))
+            }
             Ty::Adt(name, _) => {
                 let kind = self.lookup_known_type(name.as_str())?.clone();
+                if kind.opaque {
+                    return Ok((self.ptr_bytes(), self.ptr_bytes()));
+                }
                 let key = (kind.module.clone(), kind.name.clone());
                 if self.layout_recipes.contains_key(&key) {
                     let l = self.layout_of(&key.0, &key.1, stack)?;
@@ -26538,6 +26792,9 @@ fn eval_llvm_prim_fragment(
             PrimAbiTy::F64 => {
                 let w = word_of(val, "an `F64`")? as u64;
                 Ssa::F64(f64::from_bits(w))
+            }
+            PrimAbiTy::Ptr | PrimAbiTy::Unit => {
+                return Err(err("pointer and unit prims cannot be evaluated at compile time".into()));
             }
         };
         env.insert(format!("%{i}"), ssa);

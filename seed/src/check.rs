@@ -1333,7 +1333,12 @@ impl<'a> LowerCx<'a> {
         let z = self.ck.uni.zonk(ty);
         match &z {
             Ty::Meta(_) => return Class::Raw,
-            Ty::Ref(_, a) => return self.class(a),
+            Ty::Ref(_, a) => {
+                if crate::repr::is_value_ty(a, self.ck) {
+                    return Class::Raw;
+                }
+                return self.class(a);
+            }
             _ => {}
         }
         crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| match t {
@@ -1404,6 +1409,7 @@ impl<'a> LowerCx<'a> {
                 _ => self.expr_class(b),
             },
             ECore::LitFold { body, .. } => self.expr_class(body),
+            ECore::App(f, _) if matches!(&**f, ECore::Prim(PrimOp::Value(_))) => Some(Class::Raw),
             ECore::Proj(_, _, t, _) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
             | ECore::BoxInit(_, _, t) => Some(self.class(t)),
             ECore::ConstBig { .. } => Some(Class::TObj),
@@ -1449,6 +1455,9 @@ impl crate::repr::TypeReprs for Checker {
         // they are handles the foreign side owns.
         if kind.opaque {
             return crate::repr::AdtRepr::Raw;
+        }
+        if self.is_value_record(&kind.module, &kind.name) {
+            return crate::repr::AdtRepr::Value;
         }
         crate::repr::AdtRepr::Obj
     }
@@ -1515,6 +1524,17 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::Unit => C::Unit,
         ECore::Var(l) => C::Var(*l),
         ECore::Global(g, tys) => {
+            if !tys.is_empty() && !cx.ck.is_prim_unit(&g.0) {
+                for t in tys {
+                    let z = cx.ck.uni.zonk(t);
+                    if cx.ck.is_unboxed_value_ty(&z) {
+                        cx.refuse(format!(
+                            "unboxed value type `{z}` cannot instantiate uniform-word polymorphic parameter of `{}` yet (polymorphism over unboxed value types is deferred)",
+                            g.0
+                        ));
+                    }
+                }
+            }
             let v = if !tys.is_empty() {
                 cx.classes(tys)
             } else if cx.own.contains(g) {
@@ -1525,7 +1545,18 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             C::Global(g.clone(), v)
         }
         ECore::Ctor(g, tys) if cx.ck.has_constructor_body(g) => C::Global(g.clone(), cx.classes(tys)),
-        ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
+        ECore::Ctor(g, tys) => {
+            for t in tys {
+                let z = cx.ck.uni.zonk(t);
+                if cx.ck.is_unboxed_value_ty(&z) {
+                    cx.refuse(format!(
+                        "unboxed value type `{z}` cannot instantiate uniform-word polymorphic constructor `{}` yet (polymorphism over unboxed value types is deferred)",
+                        g.0
+                    ));
+                }
+            }
+            C::Ctor(g.clone(), cx.classes(tys))
+        }
         ECore::Prim(p) => C::Prim(*p),
         ECore::Foreign(n) => C::Foreign(n.clone()),
         ECore::DictProj(d, i, site, ty) => C::DictProj(
@@ -3621,6 +3652,12 @@ struct Checker {
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
+    /// Interned POD unboxed value layouts (`#[repr(value)]`, `FixedArray`,
+    /// and `withLocal` cells).
+    value_layouts: Vec<crate::core::ValueLayout>,
+    value_layout_intern: HashMap<crate::core::ValueLayout, u32>,
+    /// `#[repr(value)]` record `(module, name)` -> interned `ValueLayout` id.
+    value_records: HashMap<(String, String), u32>,
     /// P20: the safety assertion set recorded per definition (attribute
     /// annotations specification section 10).
     safety_attrs: HashMap<String, SafetySet>,
@@ -4222,6 +4259,9 @@ impl Checker {
             unboxed_ctors: HashMap::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
+            value_layouts: Vec::new(),
+            value_layout_intern: HashMap::new(),
+            value_records: HashMap::new(),
             safety_attrs: HashMap::new(),
             module_safety: HashMap::new(),
             safety_records: Vec::new(),
@@ -5635,7 +5675,7 @@ impl Checker {
             Ty::Adt(name, args) => {
                 if is_capability_class(name) || name == "Scope" || name == "Copy" || name == "AtomicCell" || name == "Kernel" { return false; }
                 if name == "Task" { return true; }
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
+                if matches!(name.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar" | "TVar" | "MVarCell" | "RwLockCell") {
                     return args.iter().any(|arg| self.value_may_hide_scope(arg, seen, fuel - 1));
                 }
                 seen.push(ty.clone());
@@ -5750,7 +5790,7 @@ impl Checker {
                 .iter()
                 .all(|i| self.structural_usage(i, scope, seen, usage)),
             Ty::Adt(name, args) => {
-                if matches!(name.as_str(), "Array" | "Tensor" | "Columnar") {
+                if matches!(name.as_str(), "Array" | "FixedArray" | "Tensor" | "Columnar") {
                     return args.iter().all(|a| self.structural_usage(a, scope, seen, usage));
                 }
                 // A transactional variable is a handle to a cell every
@@ -6814,6 +6854,139 @@ impl Checker {
     /// boundary-layout aggregate is stored inline at the recorded size.
     /// A pointer field records the alignment its role asserts of the
     /// pointee (the `!align` fact of the LLVM contract surface).
+    pub(crate) fn intern_value_layout(&mut self, layout: crate::core::ValueLayout) -> u32 {
+        if let Some(&id) = self.value_layout_intern.get(&layout) {
+            return id;
+        }
+        let id = self.value_layouts.len() as u32;
+        self.value_layouts.push(layout.clone());
+        self.value_layout_intern.insert(layout, id);
+        id
+    }
+
+    pub(crate) fn is_value_record(&self, module: &str, name: &str) -> bool {
+        let key = (module.to_string(), name.to_string());
+        self.value_records.contains_key(&key)
+            || self.layout_recipes.get(&key).is_some_and(|r| r.repr.value)
+    }
+
+    pub(crate) fn is_prim_unit(&self, unit: &str) -> bool {
+        self.prims.iter().any(|p| p.unit == unit)
+            || self.pending_prims.iter().any(|(m, p, _)| fn_id(m, &p.name.text).0 == unit)
+    }
+
+    pub(crate) fn const_nat_of_idx(&self, idx: &ITerm) -> Option<u64> {
+        let z = self.uni.resolve_idx(idx).normalize();
+        match z {
+            ITerm::Num(n) => n.as_str().parse::<u64>().ok(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn fixed_array_parts(&self, ty: &Ty) -> Option<(ITerm, Ty)> {
+        let z = self.uni.zonk(ty);
+        if let Ty::Adt(name, args) = z {
+            if name.as_str() == "FixedArray" && args.len() == 2 {
+                if let Ty::Idx(n) = &args[0] {
+                    return Some(((**n).clone(), args[1].clone()));
+                }
+            }
+        }
+        None
+    }
+
+    pub(crate) fn is_unboxed_value_ty(&self, ty: &Ty) -> bool {
+        let z = self.uni.zonk(ty);
+        crate::repr::is_value_ty(&z, self)
+    }
+
+    pub(crate) fn pod_value_layout(&self, ty: &Ty) -> Option<crate::core::ValueLayout> {
+        use crate::core::{ValueLayout, ValueLayoutKind};
+        let z = self.uni.zonk(ty);
+        if let Some(view) = self.refine_view(&z) {
+            if let Some(base) = view.base {
+                return self.pod_value_layout(&base);
+            }
+        }
+        match z {
+            Ty::Unit => Some(ValueLayout {
+                size: 0,
+                align: 1,
+                kind: ValueLayoutKind::Scalar { signed: false, is_ptr: false, is_float: false },
+            }),
+            Ty::Bool => Some(ValueLayout {
+                size: 1,
+                align: 1,
+                kind: ValueLayoutKind::Scalar { signed: false, is_ptr: false, is_float: false },
+            }),
+            Ty::Prim(s) => {
+                let (size, align) = if matches!(s, Scalar::Usize | Scalar::Isize) {
+                    let pb = self.ptr_bytes();
+                    (pb, pb)
+                } else {
+                    (s.size(), s.align())
+                };
+                Some(ValueLayout {
+                    size,
+                    align,
+                    kind: ValueLayoutKind::Scalar {
+                        signed: s.is_signed() && !s.is_float(),
+                        is_ptr: false,
+                        is_float: s.is_float(),
+                    },
+                })
+            }
+            Ty::Ptr { .. } => {
+                let pb = self.ptr_bytes();
+                Some(ValueLayout {
+                    size: pb,
+                    align: pb,
+                    kind: ValueLayoutKind::Scalar { signed: false, is_ptr: true, is_float: false },
+                })
+            }
+            Ty::Adt(ref name, ref args) if name.as_str() == "FixedArray" && args.len() == 2 => {
+                let Ty::Idx(n_idx) = &args[0] else { return None };
+                let len = self.const_nat_of_idx(n_idx)?;
+                let elem = self.pod_value_layout(&args[1])?;
+                let stride = elem.size.div_ceil(elem.align.max(1)) * elem.align.max(1);
+                let size = len.checked_mul(stride)?;
+                Some(ValueLayout {
+                    size,
+                    align: elem.align.max(1),
+                    kind: ValueLayoutKind::Array { len, stride, elem: Box::new(elem) },
+                })
+            }
+            Ty::Adt(ref name, _) => {
+                let info = self.lookup_known_type(name).ok()?;
+                if info.opaque {
+                    let pb = self.ptr_bytes();
+                    return Some(ValueLayout {
+                        size: pb,
+                        align: pb,
+                        kind: ValueLayoutKind::Scalar { signed: false, is_ptr: true, is_float: false },
+                    });
+                }
+                if let Some(&id) = self.value_records.get(&(info.module.clone(), info.name.clone())) {
+                    return self.value_layouts.get(id as usize).cloned();
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn intern_pod_layout(&mut self, ty: &Ty) -> Option<u32> {
+        let l = self.pod_value_layout(ty)?;
+        Some(self.intern_value_layout(l))
+    }
+
+    pub(crate) fn unboxed_value_layout_id(&mut self, ty: &Ty) -> Option<u32> {
+        if !self.is_unboxed_value_ty(ty) {
+            return None;
+        }
+        self.intern_pod_layout(ty)
+    }
+
     pub(crate) fn field_shape(&self, ty: &Ty, size: u64) -> FieldShape {
         match ty {
             // `Unit` and `Bool` fill their recorded scalar width (the
@@ -7454,6 +7627,7 @@ impl Checker {
                     data: None,
                     result: Some(Class::Obj),
                     dictionary_values: Vec::new(),
+                    ..Default::default()
                 },
             });
         }
@@ -12133,6 +12307,10 @@ impl Checker {
                 regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             ),
+            Ty::Ptr { role, pointee } => Ty::Ptr {
+                role: role.clone(),
+                pointee: Box::new(Checker::subst_namespaces(pointee, types, rows, regions, evidence)),
+            },
             Ty::Region(r) => Ty::Region(regions.get(r.as_str()).cloned().unwrap_or_else(|| r.to_string()).into()),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {

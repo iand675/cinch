@@ -951,6 +951,7 @@ fn body_def(body: BodyExport) -> FnDef {
             params: body.params,
             fields: Vec::new(),
             data: None,
+            ..Default::default()
         },
     }
 }

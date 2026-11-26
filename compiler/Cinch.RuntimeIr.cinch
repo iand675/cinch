@@ -14,6 +14,8 @@ module Cinch.RuntimeIr where
   import Cinch.Ad (lower-ad-program)
   import Cinch.Core
   import Cinch.Foreign
+  import Cinch.Layout (fixed-array-parts, pod-type-layout, value-layout-of)
+  import Data.Nat (nat-rem)
   import Cinch.Builtin (array-plan, array-type-name, mvar-plan, cell-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic)
   import Cinch.Index
   import Cinch.ExportType (export-global)
@@ -75,6 +77,8 @@ module Cinch.RuntimeIr where
     -- Marker indicating codegen is inside a self-tail loop body so stack
     -- frame allocas are skipped and stack space stays O(1).
     LoopMarker :: Local
+    -- Native pointer to a stack-allocated scalar cell created by withLocal.
+    StackCell :: Nat -> UType -> String -> Local
 
   record RecursiveWorker where
     id :: Nat
@@ -108,6 +112,8 @@ module Cinch.RuntimeIr where
     CprDemand :: String -> List Nat -> Demand
     BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
+    MemcpyDemand :: Demand
+    MemsetDemand :: Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
   -- A worker is shared by all actual types with the same class vector.
   record MethodVersion where
@@ -424,9 +430,11 @@ module Cinch.RuntimeIr where
   index-function-hints :: List Decl -> Option (HashMap String FunctionHints) -> Option (HashMap String FunctionHints)
   index-function-hints ds hints = case ds of
     [] -> hints
-    (DInlineHint sp name (Ok hint)) : rest -> let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
-      FunctionHints inline cold loop -> let updated = if hint == "cold" then FunctionHints inline True loop else FunctionHints hint cold loop in
-        index-function-hints rest (Some (hash-map-insert name updated table)))
+    (DInlineHint sp name (Ok hint)) : rest ->
+      if hint == "no-alloc" || hint == "no-raw-ptr" || hint == "byval" || hint == "sret" then index-function-hints rest hints
+      else let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
+        FunctionHints inline cold loop -> let updated = if hint == "cold" then FunctionHints inline True loop else FunctionHints hint cold loop in
+          index-function-hints rest (Some (hash-map-insert name updated table)))
     (DUnrollHint sp name (Ok count)) : rest -> let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
       FunctionHints inline cold loop -> index-function-hints rest (Some (hash-map-insert name (FunctionHints inline cold (Some count)) table)))
     other : rest -> index-function-hints rest hints
@@ -588,18 +596,39 @@ module Cinch.RuntimeIr where
   checked-string-word name info = case info.object of
     Some provider -> case object-string-layout name provider of Some descriptor -> True; None -> False
     None -> False
+  program-word-bits :: ProgramInfo -> Nat
+  program-word-bits info = if program-wasm32 info then 32 else 64
+  program-ptr-bytes :: ProgramInfo -> Nat
+  program-ptr-bytes info = if program-wasm32 info then 4 else 8
+  type-value-size-align :: RuntimeContext -> UType -> Option (Nat, Nat)
+  type-value-size-align context raw-ty =
+    let ty = base (reduce-types (context.info.type-families) (context.info.promoted-fns) raw-ty) in
+    case fixed-array-parts ty of
+      Some pair -> pod-type-layout (program-word-bits (context.info)) (context.info.index-of.datas) ty
+      None -> case type-head ty of
+        UCon name KType -> (case value-layout-of name (context.info.index-of.datas) of
+          Some (repr, sz, al, fs) -> Some (sz, al)
+          None -> None)
+        other -> None
+  is-value-type :: RuntimeContext -> UType -> Bool
+  is-value-type context ty = case type-value-size-align context ty of Some pair -> True; None -> False
+  is-indirect-value :: RuntimeContext -> UType -> Bool
+  is-indirect-value context ty = case type-value-size-align context ty of
+    Some (sz, al) -> sz > 16 || al > 16
+    None -> False
   word-class :: RuntimeContext -> UType -> Option Nat
   word-class context ty =
     let b = base ty in
-    case mutable-borrow b of
-      Some place -> Some 1
-      None -> case borrowed-carrier b of
-        Some carrier -> word-class context carrier
-        None -> case deferral-parts b of
+    case borrow-type-parts b of
+      Some (is-mut, region, carrier) ->
+        if is-value-type context carrier then Some 0
+        else if is-mut then Some 1
+        else word-class context carrier
+      None -> case deferral-parts b of
+        Some _ -> Some 1
+        None -> case lazy-parts b of
           Some _ -> Some 1
-          None -> case lazy-parts b of
-            Some _ -> Some 1
-            None -> value-word-class context ty
+          None -> value-word-class context ty
   handler-word-type :: UType -> Bool
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
@@ -610,7 +639,7 @@ module Cinch.RuntimeIr where
       Some (carrier, val) -> value-word-class context carrier
       None -> case same-type-parts (base ty) of
         Some _ -> Some 0
-        None -> if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+        None -> if is-value-type context ty || foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (context.info)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
           RuntimeContext datas bounds rigids queue inlining -> case base ty of
             -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
             UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") -> Some 0
@@ -645,7 +674,10 @@ module Cinch.RuntimeIr where
               URigid id name level kind -> applied-former-class ty kind (representation id rigids)
               other -> None
   data-word-class :: CoreData -> Nat
-  data-word-class d = case core-data-layout d of UnboxedData label word bytes align -> word; other -> 1
+  data-word-class d = case core-data-layout d of
+    UnboxedData label word bytes align -> word
+    ValueData repr sz al fs -> 0
+    other -> 1
   uniform-owner :: String -> Writer -> Bool
   uniform-owner name w = case data-declaration name (writer-program w) of
     Some d -> (case core-data-layout d of UniformData -> True; other -> False)
@@ -671,7 +703,54 @@ module Cinch.RuntimeIr where
   wide-type context ty = case word-class context ty of Some 3 -> True; other -> False
   -- The LLVM type a value of this type travels as.
   value-llvm :: RuntimeContext -> UType -> String
-  value-llvm context ty = if wide-type context ty then "i128" else "i64"
+  value-llvm context ty =
+    let b = base (reduce-types (context.info.type-families) (context.info.promoted-fns) ty) in
+    if foreign-pointer b then "ptr"
+    else case borrow-type-parts b of
+      Some (is-mut, region, carrier) | is-value-type context carrier -> "ptr"
+      other -> case type-value-size-align context b of
+        Some (sz, al) -> if sz > 16 || al > 16 then "ptr" else if sz <= 8 then "i64" else "{ i64, i64 }"
+        None -> if wide-type context ty then "i128" else "i64"
+  value-param-llvm :: RuntimeContext -> UType -> String
+  value-param-llvm context ty = case type-value-size-align context ty of
+    Some (sz, al) | sz > 16 || al > 16 ->
+      cat ["ptr readonly align ", nat-to-string al, " dereferenceable(", nat-to-string sz, ")"]
+    other -> value-llvm context ty
+  value-param-llvms :: RuntimeContext -> List UType -> List String
+  value-param-llvms context types = case types of [] -> []; ty : rest -> (value-param-llvm context ty) : (value-param-llvms context rest)
+  value-sret-info :: RuntimeContext -> UType -> Option (String, Nat, Nat)
+  value-sret-info context ty = case type-value-size-align context ty of
+    Some (sz, al) | sz > 16 || al > 16 ->
+      Some (cat ["ptr sret([", nat-to-string sz, " x i8]) noalias align ", nat-to-string al, " dereferenceable(", nat-to-string sz, ")"], sz, al)
+    other -> None
+  all-i64-types :: RuntimeContext -> List UType -> Bool
+  all-i64-types context types = case types of
+    [] -> True
+    ty : rest -> value-llvm context ty == "i64" && all-i64-types context rest
+  definition-has-non-word :: RuntimeContext -> CoreDefinition -> List UType -> Bool
+  definition-has-non-word context d types =
+    not (all-i64-types context types)
+    || definition-result-llvm context d /= "i64"
+    || (case definition-sret-result context d of Some info -> True; None -> False)
+    || clauses-have-val-ops (d.clauses)
+  clauses-have-val-ops :: List CoreClause -> Bool
+  clauses-have-val-ops clauses = case clauses of
+    [] -> False
+    (CoreClause sp ps body) : rest -> term-has-val-ops body || clauses-have-val-ops rest
+  term-has-val-ops :: CoreTerm -> Bool
+  term-has-val-ops term = case term of
+    CPrimitive sp ty op args -> string-starts-with "val-" op || term-has-val-ops args
+    other -> terms-have-val-ops (term-children other)
+  terms-have-val-ops :: List CoreTerm -> Bool
+  terms-have-val-ops terms = case terms of
+    [] -> False
+    first : rest -> term-has-val-ops first || terms-have-val-ops rest
+  definition-sret-result :: RuntimeContext -> CoreDefinition -> Option (String, Nat, Nat)
+  definition-sret-result context d = case d.clauses of
+    (CoreClause sp patterns body) : rest -> (case proof-stage-arities patterns 0 of
+      [count] -> value-sret-info context (core-type body)
+      other -> None)
+    [] -> None
   value-llvms :: RuntimeContext -> List UType -> List String
   value-llvms context types = case types of [] -> []; ty : rest -> (value-llvm context ty) : (value-llvms context rest)
   wide-code :: List Nat -> Bool
@@ -784,6 +863,8 @@ module Cinch.RuntimeIr where
     CprDemand name classes -> cat [specialized-name name classes, "#cpr"]
     BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
+    MemcpyDemand -> "intrinsic:llvm.memcpy"
+    MemsetDemand -> "intrinsic:llvm.memset"
   request-demand :: Demand -> Writer -> Writer
   request-demand demand w = case w of
     Writer next globals code errors layouts (RuntimeContext datas bounds rigids (WorkerQueue pending keys dictionaries scope serial unit-mode) inlining) ->
@@ -844,6 +925,7 @@ module Cinch.RuntimeIr where
     (DeferredConstructor id ty name actuals args) : rest -> drop-locals rest w
     (SelfValue owner slot ty word) : rest -> drop-locals rest w
     LoopMarker : rest -> drop-locals rest w
+    (StackCell id ty ptr-reg) : rest -> drop-locals rest w
   in-loop-locals :: List Local -> Bool
   in-loop-locals locals = case locals of
     [] -> False
@@ -861,6 +943,7 @@ module Cinch.RuntimeIr where
     (SelfValue owner slot ty word) : rest -> local id rest
     (DeferredConstructor key ty name actuals args) : rest -> local id rest
     LoopMarker : rest -> local id rest
+    (StackCell key ty ptr-reg) : rest -> local id rest
 
   -- A shaped block describes itself (design/self-describing-blocks.md).
   -- Its description is the header's layout field, tag | counted-mask << 8,
@@ -1855,6 +1938,12 @@ module Cinch.RuntimeIr where
       None -> case expression definitions locals w rhs of
         (bound, value) -> eval-let-body definitions locals bound id ty value body
 
+  stack-cell-local :: Nat -> List Local -> Option (UType, String)
+  stack-cell-local id locals = case locals of
+    [] -> None
+    (StackCell key ty ptr-reg) : rest -> if id == key then Some (ty, ptr-reg) else stack-cell-local id rest
+    other : rest -> stack-cell-local id rest
+
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
     CInt sp ty text -> if number ty then decimal w ty text else if raw-integer ty then (w, text)
@@ -1869,11 +1958,15 @@ module Cinch.RuntimeIr where
     CUnit sp ty -> (w, "0")
     CLocal sp ty id name actuals -> if not (erased-region-arguments actuals) then unsupported w sp "local type arguments need representation specialization" else case deferred-constructor id locals of
       Some (ctor, actuals, args) -> direct-call definitions locals w sp ctor actuals args
-      None -> case knot-local id locals of
-        Some (declared, slot) -> knot-read w declared slot
-        None -> case local id locals of
-          Some (declared, value) -> (count-op True declared value w, value)
-          None -> unsupported w sp "runtime local is absent from its lexical scope"
+      None -> case stack-cell-local id locals of
+        Some (declared, ptr-reg) ->
+          if value-llvm (w.context) declared == "ptr" then (w, ptr-reg)
+          else let (next, word) = fresh w "%v" in (line next (cat ["  ", word, " = ptrtoint ptr ", ptr-reg, " to i64"]), word)
+        None -> case knot-local id locals of
+          Some (declared, slot) -> knot-read w declared slot
+          None -> case local id locals of
+            Some (declared, value) -> (count-op True declared value w, value)
+            None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
       if role == "dictionary" then evidence-value definitions locals w (CEGiven sp ty name)
       else if role == "operation" then expression definitions locals w (operation-closure sp ty)
@@ -3238,6 +3331,7 @@ module Cinch.RuntimeIr where
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case (core-data-layout d, args) of
                   (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
+                  (ValueData repr sz al vfields, actuals-args) -> construct-value-data definitions locals w sz al vfields actuals-args
                   other -> if regular-constructor d c
                     then box-constructor definitions locals w sp d classes tag args
                     else box-gadt-constructor definitions locals w sp d context c tag args)
@@ -3266,22 +3360,43 @@ module Cinch.RuntimeIr where
   -- how (seed/src/codegen.rs, ext_attr); without it a constant
   -- `i16 -1234` reached C as 64302.
   foreign-c-type :: ForeignParameter -> String
-  foreign-c-type parameter = let ty = foreign-llvm-type parameter in
-    if ty == "i8" || ty == "i16" then cat [ty, if parameter.signed then " signext" else " zeroext"]
-    else if parameter.role == "borrowed" then "ptr nocapture" else ty
+  foreign-c-type parameter = foreign-c-type-for "x86_64" parameter
+  foreign-c-type-for :: String -> ForeignParameter -> String
+  foreign-c-type-for arch parameter =
+    if parameter.class == "aggregate" then
+      if parameter.width <= 8 then "i64"
+      else if parameter.width <= 16 then "{ i64, i64 }"
+      else if arch == "aarch64" then "ptr"
+      else cat ["ptr byval([", nat-to-string (parameter.width), " x i8]) align ", nat-to-string (parameter.align)]
+    else let ty = foreign-llvm-type parameter in
+      if ty == "i8" || ty == "i16" then cat [ty, if parameter.signed then " signext" else " zeroext"]
+      else if parameter.role == "borrowed" then "ptr nocapture" else ty
   foreign-c-result :: ForeignParameter -> String
-  foreign-c-result parameter = let ty = foreign-llvm-type parameter in
-    if ty == "i8" || ty == "i16" then cat [if parameter.signed then "signext " else "zeroext ", ty] else ty
+  foreign-c-result parameter =
+    if parameter.class == "aggregate" then
+      if parameter.width <= 8 then "i64"
+      else if parameter.width <= 16 then "{ i64, i64 }"
+      else "void"
+    else let ty = foreign-llvm-type parameter in
+      if ty == "i8" || ty == "i16" then cat [if parameter.signed then "signext " else "zeroext ", ty] else ty
   foreign-c-parameter-types :: List ForeignParameter -> List String
-  foreign-c-parameter-types params = case params of
+  foreign-c-parameter-types params = foreign-c-parameter-types-for "x86_64" params
+  foreign-c-parameter-types-for :: String -> List ForeignParameter -> List String
+  foreign-c-parameter-types-for arch params = case params of
     [] -> []
-    first : rest -> if first.class == "unit" then foreign-c-parameter-types rest else (foreign-c-type first) : (foreign-c-parameter-types rest)
+    first : rest -> if first.class == "unit" then foreign-c-parameter-types-for arch rest else (foreign-c-type-for arch first) : (foreign-c-parameter-types-for arch rest)
   foreign-worker :: ForeignPlan -> Writer -> Writer
   foreign-worker plan w = let result = foreign-llvm-type (plan.result) in
     let arguments = foreign-parameter-types (plan.parameters) in
     let symbol = plan.symbol in
+    let arch = program-arch (writer-program w) in
     case foreign-inline plan of
-      None -> global w (cat ["declare ", foreign-c-result (plan.result), " ", llvm-object-symbol symbol, "(", join (foreign-c-parameter-types (plan.parameters)), ")"])
+      None ->
+        let res = plan.result in
+        let res-sret = res.class == "aggregate" && res.width > 16 in
+        let sret-prefix = if res-sret then [cat ["ptr sret([", nat-to-string (res.width), " x i8]) align ", nat-to-string (res.align)]] else [] in
+        let c-params = sret-prefix <> foreign-c-parameter-types-for arch (plan.parameters) in
+        global w (cat ["declare ", foreign-c-result res, " ", llvm-object-symbol symbol, "(", join c-params, ")"])
       Some (InlinePrimitive owner family selected llvm assembly) ->
         let defined = case llvm of
               None -> w
@@ -3395,7 +3510,7 @@ module Cinch.RuntimeIr where
             (let (ready, safe) = fresh w "%foreign" in
               foreign-result-word (line ready (cat ["  ", safe, " = freeze ", ty, " %c", nat-to-string index])) first safe) in
       (case foreign-export-arguments converted rest (index + 1) of
-        (done, tail) -> (done, (if ty == "i128" then "i128" else "i64", value) : tail))
+        (done, tail) -> (done, (if ty == "i128" then "i128" else if ty == "ptr" && foreign-pointer (base (first.parameter-type)) then "ptr" else "i64", value) : tail))
 
   foreign-export-roots :: List (String, ForeignPlan) -> List (String, List Nat)
   foreign-export-roots exports = map (\pair -> case pair of (name, plan) -> (name, [])) exports
@@ -3432,10 +3547,20 @@ module Cinch.RuntimeIr where
               line (if ty == "ptr" then foreign-pointer-check converted result value else converted) (cat ["  ret ", ty, " ", value])) in
       foreign-export-bridges rest (line returned "}")
 
+  foreign-pointer-head :: UType -> Option String
+  foreign-pointer-head ty = case base ty of
+    UApp (UCon name kind) pointee | foreign-pointer ty -> Some name
+    other -> None
   foreign-argument-types :: List ForeignParameter -> List CoreTerm -> Bool
   foreign-argument-types params args = case (params, args) of
     ([], []) -> True
-    (first : rest, value : more) -> foreign-type-equal (base (first.parameter-type)) (base (core-type value)) && foreign-argument-types rest more
+    (first : rest, value : more) ->
+      let pt = base (first.parameter-type) in
+      let vt = base (core-type value) in
+      let matches = foreign-type-equal pt vt || (case (foreign-pointer-head pt, foreign-pointer-head vt) of
+            (Some a, Some b) -> a == b
+            other -> False) in
+      matches && foreign-argument-types rest more
     other -> False
   -- `boundary` is a call of a C symbol, whose narrow arguments carry the
   -- platform's extension; an inline primitive's worker is this module's
@@ -3444,15 +3569,20 @@ module Cinch.RuntimeIr where
   foreign-marshal boundary w params values = case (params, values) of
     ([], []) -> (w, [])
     (first : rest, value : more) -> if first.class == "unit" then foreign-marshal boundary w rest more else
+      let arch = program-arch (writer-program w) in
       (case foreign-marshal-one w first value of
         (converted, argument) -> case foreign-marshal boundary converted rest more of
-          (done, tail) -> (done, (cat [if boundary then foreign-c-type first else foreign-llvm-type first, " ", argument]) : tail))
+          (done, tail) -> (done, (cat [if boundary then foreign-c-type-for arch first else foreign-llvm-type first, " ", argument]) : tail))
     other -> (refuse w (Span 0 0 1 1) "foreign ABI argument vector differs from its checked plan", [])
   foreign-marshal-one :: Writer -> ForeignParameter -> String -> (Writer, String)
-  foreign-marshal-one w parameter value = let ty = foreign-llvm-type parameter in
-    -- A wide scalar already travels as the C `__int128` it is.
+  foreign-marshal-one w parameter value =
+    if parameter.class == "aggregate" then (w, value)
+    else let ty = foreign-llvm-type parameter in
+    -- A wide scalar already travels as the C `__int128` it is; native pointers travel as `ptr`.
     if ty == "i64" || ty == "i128" then (w, value)
-    else if ty == "ptr" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = inttoptr i64 ", value, " to ptr"]), result)
+    else if ty == "ptr" then
+      if foreign-pointer (base (parameter.parameter-type)) then (w, value)
+      else let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = inttoptr i64 ", value, " to ptr"]), result)
     else if ty == "double" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = bitcast i64 ", value, " to double"]), result)
     else if ty == "float" then
       let (next, bits) = fresh w "%foreign" in let narrow = line next (cat ["  ", bits, " = trunc i64 ", value, " to i32"]) in
@@ -3472,11 +3602,14 @@ module Cinch.RuntimeIr where
     let (a, yes) = fresh tested "foreign_nonnull" in let (b, no) = fresh a "foreign_null" in
     emit-lines (request-demand ForeignNullFault b) [cat ["  br i1 ", condition, ", label %", yes, ", label %", no], cat [no, ":"], cat ["  call void @cinch_panic(ptr @cinch.typed.foreign_null_message, i64 ", nat-to-string (string-length foreign-null-message), ")"], "  unreachable", cat [yes, ":"]]
   foreign-result-word :: Writer -> ForeignParameter -> String -> (Writer, String)
-  foreign-result-word w parameter value = let ty = foreign-llvm-type parameter in
+  foreign-result-word w parameter value =
+    if parameter.class == "aggregate" then (w, value)
+    else let ty = foreign-llvm-type parameter in
     if ty == "i64" || ty == "i128" then (w, value)
     else if ty == "ptr" then
       let guarded = foreign-pointer-check w parameter value in
-      let (next, result) = fresh guarded "%foreign" in (line next (cat ["  ", result, " = ptrtoint ptr ", value, " to i64"]), result)
+      if foreign-pointer (base (parameter.parameter-type)) then (guarded, value)
+      else let (next, result) = fresh guarded "%foreign" in (line next (cat ["  ", result, " = ptrtoint ptr ", value, " to i64"]), result)
     else if ty == "double" then let (next, result) = fresh w "%foreign" in (line next (cat ["  ", result, " = bitcast double ", value, " to i64"]), result)
     else if ty == "float" then
       let (next, bits) = fresh w "%foreign" in let narrow = line next (cat ["  ", bits, " = bitcast float ", value, " to i32"]) in
@@ -3598,11 +3731,17 @@ module Cinch.RuntimeIr where
           (ready, arguments) -> let result = plan.result in let ty = foreign-llvm-type result in
             let blocking = boundary && not (program-wasm32 (writer-program ready)) && foreign-blocking plan in
             let entered = if blocking then line ready "  call i64 @cinch_sched_blocking_enter()" else ready in
-            let (called, value) = if ty == "void" then (line entered (cat ["  call void ", llvm-object-symbol (plan.symbol), "(", join arguments, ")"]), "0")
+            let (called, value) =
+                  if boundary && result.class == "aggregate" && result.width > 16 then
+                    let (w1, sret) = fresh entered "%sret" in
+                    let w2 = line w1 (cat ["  ", sret, " = alloca [", nat-to-string (result.width), " x i8], align ", nat-to-string (result.align)]) in
+                    let sret-arg = cat ["ptr sret([", nat-to-string (result.width), " x i8]) align ", nat-to-string (result.align), " ", sret] in
+                    (line w2 (cat ["  call void ", llvm-object-symbol (plan.symbol), "(", join (sret-arg : arguments), ")"]), sret)
+                  else if ty == "void" then (line entered (cat ["  call void ", llvm-object-symbol (plan.symbol), "(", join arguments, ")"]), "0")
                   else (case fresh entered "%foreign" of
                     (next, name) -> (line next (cat ["  ", name, " = call ", if boundary then foreign-c-result result else ty, " ", llvm-object-symbol (plan.symbol), "(", join arguments, ")"]), name)) in
             let exited = if blocking then line called "  call i64 @cinch_sched_blocking_exit()" else called in
-            if ty == "void" then (exited, value) else foreign-result-word exited result value
+            if ty == "void" || result.class == "aggregate" then (exited, value) else foreign-result-word exited result value
   primitive-immediate-arguments :: Option InlinePrimitive -> List CoreTerm -> Bool
   primitive-immediate-arguments plan args = case plan of
     None -> True
@@ -3986,7 +4125,8 @@ module Cinch.RuntimeIr where
                 Some parameter-classes -> case expressions definitions locals (demand-worker (d.name) classes indexed) args of
                   (ready, values) -> closure sp (specialized-name (d.name) classes) parameter-classes (saved <> givens <> witnesses <> values) ready
                 None -> unsupported indexed sp "function parameters need known closure representations")
-              else case (case saved of
+              else let non-word = definition-has-non-word context d all-types in
+                case (if non-word then None else case saved of
                     [] -> (case givens of
                       [] -> (case witnesses of
                         [] -> hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))
@@ -4000,8 +4140,17 @@ module Cinch.RuntimeIr where
                         case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
                           (called, result) -> apply-terms definitions locals (drop-locals post-drops called) result (drop-terms count args))
                   other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
-                    (ready, values) -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) (typed-values (value-llvms context all-types) (saved <> givens <> witnesses <> values)) of
-                      (called, result) -> apply-terms definitions locals called result (drop-terms count args)
+                    (ready, values) ->
+                      let call-args = typed-values (value-param-llvms context all-types) (saved <> givens <> witnesses <> values) in
+                      case definition-sret-result context d of
+                        Some (sret-attr, sz, al) ->
+                          let (w1, retbuf) = fresh ready "%sret" in
+                          let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
+                          let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
+                          let called = line w2 (cat ["  call void ", symbol (specialized-name (d.name) classes), "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
+                          apply-terms definitions locals called retbuf (drop-terms count args)
+                        None -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) call-args of
+                          (called, result) -> apply-terms definitions locals called result (drop-terms count args)
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   -- Evaluate arguments for a borrowed-parameter worker call:
   -- local variables at borrowed positions pass directly without dup/drop;
@@ -4621,6 +4770,7 @@ module Cinch.RuntimeIr where
     (Discard ty value) : rest -> captures-from parameter body all rest
     (DeferredConstructor id ty name actuals args) : rest -> captures-from parameter body all rest
     LoopMarker : rest -> captures-from parameter body all rest
+    (StackCell id ty ptr-reg) : rest -> captures-from parameter body all rest
   capture-types :: List Local -> List UType
   capture-types locals = case locals of
     [] -> []
@@ -5094,6 +5244,7 @@ module Cinch.RuntimeIr where
           Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
             Some d -> case core-data-layout d of
               UnboxedData label word bytes align -> match-unboxed fields value failed w
+              ValueData repr sz al vfields -> match-value-data ty sz al vfields fields value failed w
               layout -> if tag < 16777216 then
                 (case constructor-tag w value of
                   (loaded, actual) -> case compare-word loaded "eq" actual (nat-to-string tag) of
@@ -6517,7 +6668,9 @@ module Cinch.RuntimeIr where
 
   primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
 
-  primitive definitions locals w sp ty op args = case args of
+  primitive definitions locals w sp ty op args =
+    if string-starts-with "val-" op then value-primitive definitions locals w sp ty op args
+    else case args of
     CArgumentsEnd at | (op == "#unhandled-operation") -> let (ready, dead) = fresh w "afterfault" in
       (line (line (line ready "  call void @cinch_blackhole()") "  unreachable") (dead <> ":"), "poison")
     CArgument at input (CArgumentsEnd end) | (op == "#kernel.ordered") -> (case expression definitions locals w input of
@@ -6714,22 +6867,446 @@ module Cinch.RuntimeIr where
     "  store i64 %value, ptr %cache\n  store i64 2, ptr %p\n  ret i64 %value\n",
     "done:\n  %cached = load i64, ptr %cache\n  ret i64 %cached\n",
     "bad:\n  call void @cinch_blackhole()\n  unreachable\n}\n"])
+  value-mod-nat :: Nat -> Nat -> Nat
+  value-mod-nat n a = if a <= 1 then 0 else if a <= n then value-mod-nat (n - a) a else n
+
+  value-align-up :: Nat -> Nat -> Nat
+  value-align-up n a = if a <= 1 then n else let r = value-mod-nat n a in if r == 0 then n else if r <= a then n + (a - r) else n
+
+  emit-gep-offset :: Writer -> String -> Nat -> (Writer, String)
+  emit-gep-offset w base-ptr off =
+    if off == 0 then (w, base-ptr)
+    else let (w1, slot) = fresh w "%gep" in
+      (line w1 (cat ["  ", slot, " = getelementptr inbounds i8, ptr ", base-ptr, ", i64 ", nat-to-string off]), slot)
+
+  emit-store-at :: Writer -> String -> Nat -> UType -> String -> Writer
+  emit-store-at w base-ptr off raw-ty val =
+    let ty = base (reduce-types (w.context.info.type-families) (w.context.info.promoted-fns) raw-ty) in
+    let ptr-bytes = program-ptr-bytes (writer-program w) in
+    case emit-gep-offset w base-ptr off of
+      (w1, slot) ->
+        if named ty "Unit" then w1
+        else if foreign-pointer ty then
+          line w1 (cat ["  store ptr ", val, ", ptr ", slot, ", align 1"])
+        else case type-value-size-align (w1.context) ty of
+          Some (sz, al) ->
+            if sz == 0 then w1
+            else if sz <= 8 && al <= 16 then
+              if sz == 8 then line w1 (cat ["  store i64 ", val, ", ptr ", slot, ", align 1"])
+              else let it = "i" <> nat-to-string (sz * 8) in
+                let (w2, tr) = fresh w1 "%tr" in
+                line (line w2 (cat ["  ", tr, " = trunc i64 ", val, " to ", it])) (cat ["  store ", it, " ", tr, ", ptr ", slot, ", align 1"])
+            else if sz <= 16 && al <= 16 then
+              let (w2, lo) = fresh w1 "%lo" in
+              let (w3, hi) = fresh w2 "%hi" in
+              let w4 = emit-lines w3 [
+                cat ["  ", lo, " = extractvalue { i64, i64 } ", val, ", 0"],
+                cat ["  store i64 ", lo, ", ptr ", slot, ", align 1"],
+                cat ["  ", hi, " = extractvalue { i64, i64 } ", val, ", 1"]] in
+              case emit-gep-offset w4 slot 8 of
+                (w5, hi-slot) ->
+                  let rem = if 8 <= sz then sz - 8 else 0 in
+                  if rem == 8 then line w5 (cat ["  store i64 ", hi, ", ptr ", hi-slot, ", align 1"])
+                  else let it = "i" <> nat-to-string (rem * 8) in
+                    let (w6, tr) = fresh w5 "%tr" in
+                    line (line w6 (cat ["  ", tr, " = trunc i64 ", hi, " to ", it])) (cat ["  store ", it, " ", tr, ", ptr ", hi-slot, ", align 1"])
+            else
+              let w2 = request-demand MemcpyDemand w1 in
+              line w2 (cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align 1 ", slot, ", ptr align 1 ", val, ", i64 ", nat-to-string sz, ", i1 false)"])
+          None ->
+            if wide-scalar ty then line w1 (cat ["  store i128 ", val, ", ptr ", slot, ", align 1"])
+            else if named ty "Bool" || named ty "I8" || named ty "U8" then
+              let (w2, tr) = fresh w1 "%tr" in
+              line (line w2 (cat ["  ", tr, " = trunc i64 ", val, " to i8"])) (cat ["  store i8 ", tr, ", ptr ", slot, ", align 1"])
+            else if named ty "I16" || named ty "U16" then
+              let (w2, tr) = fresh w1 "%tr" in
+              line (line w2 (cat ["  ", tr, " = trunc i64 ", val, " to i16"])) (cat ["  store i16 ", tr, ", ptr ", slot, ", align 1"])
+            else if named ty "I32" || named ty "U32" || named ty "Char" || named ty "F32" || ((named ty "Usize" || named ty "Isize") && ptr-bytes == 4) then
+              let (w2, tr) = fresh w1 "%tr" in
+              line (line w2 (cat ["  ", tr, " = trunc i64 ", val, " to i32"])) (cat ["  store i32 ", tr, ", ptr ", slot, ", align 1"])
+            else line w1 (cat ["  store i64 ", val, ", ptr ", slot, ", align 1"])
+
+  emit-load-at :: Writer -> String -> Nat -> UType -> (Writer, String)
+  emit-load-at w base-ptr off raw-ty =
+    let ty = base (reduce-types (w.context.info.type-families) (w.context.info.promoted-fns) raw-ty) in
+    let ptr-bytes = program-ptr-bytes (writer-program w) in
+    case emit-gep-offset w base-ptr off of
+      (w1, slot) ->
+        if named ty "Unit" then (w1, "0")
+        else if foreign-pointer ty then
+          let (w2, r) = fresh w1 "%ld" in
+          (line w2 (cat ["  ", r, " = load ptr, ptr ", slot, ", align 1"]), r)
+        else case type-value-size-align (w1.context) ty of
+          Some (sz, al) ->
+            if sz == 0 then (w1, "0")
+            else if sz <= 8 && al <= 16 then
+              if sz == 8 then
+                let (w2, r) = fresh w1 "%ld" in
+                (line w2 (cat ["  ", r, " = load i64, ptr ", slot, ", align 1"]), r)
+              else let it = "i" <> nat-to-string (sz * 8) in
+                let (w2, raw) = fresh w1 "%ld" in
+                let (w3, ext) = fresh w2 "%ext" in
+                (emit-lines w3 [
+                  cat ["  ", raw, " = load ", it, ", ptr ", slot, ", align 1"],
+                  cat ["  ", ext, " = zext ", it, " ", raw, " to i64"]], ext)
+            else if sz <= 16 && al <= 16 then
+              let (w2, lo) = fresh w1 "%lo" in
+              let w3 = line w2 (cat ["  ", lo, " = load i64, ptr ", slot, ", align 1"]) in
+              case emit-gep-offset w3 slot 8 of
+                (w4, hi-slot) ->
+                  let rem = if 8 <= sz then sz - 8 else 0 in
+                  let (w5, hi) = (if rem == 8 then
+                        (let (wa, h) = fresh w4 "%hi" in
+                        (line wa (cat ["  ", h, " = load i64, ptr ", hi-slot, ", align 1"]), h))
+                      else (let it = "i" <> nat-to-string (rem * 8) in
+                        let (wa, raw) = fresh w4 "%hi" in
+                        let (wb, ext) = fresh wa "%ext" in
+                        (emit-lines wb [
+                          cat ["  ", raw, " = load ", it, ", ptr ", hi-slot, ", align 1"],
+                          cat ["  ", ext, " = zext ", it, " ", raw, " to i64"]], ext))) in
+                  let (w6, p0) = fresh w5 "%agg" in
+                  let (w7, p1) = fresh w6 "%agg" in
+                  (emit-lines w7 [
+                    cat ["  ", p0, " = insertvalue { i64, i64 } undef, i64 ", lo, ", 0"],
+                    cat ["  ", p1, " = insertvalue { i64, i64 } ", p0, ", i64 ", hi, ", 1"]], p1)
+            else
+              let w2 = request-demand MemcpyDemand w1 in
+              let (w3, buf) = fresh w2 "%val" in
+              (emit-lines w3 [
+                cat ["  ", buf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al],
+                cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " ", buf, ", ptr align 1 ", slot, ", i64 ", nat-to-string sz, ", i1 false)"]], buf)
+          None ->
+            if wide-scalar ty then
+              let (w2, r) = fresh w1 "%ld" in
+              (line w2 (cat ["  ", r, " = load i128, ptr ", slot, ", align 1"]), r)
+            else if named ty "Bool" || named ty "I8" || named ty "U8" then
+              let (w2, raw) = fresh w1 "%ld" in
+              let (w3, ext) = fresh w2 "%ext" in
+              let op = if named ty "I8" then "sext" else "zext" in
+              (emit-lines w3 [
+                cat ["  ", raw, " = load i8, ptr ", slot, ", align 1"],
+                cat ["  ", ext, " = ", op, " i8 ", raw, " to i64"]], ext)
+            else if named ty "I16" || named ty "U16" then
+              let (w2, raw) = fresh w1 "%ld" in
+              let (w3, ext) = fresh w2 "%ext" in
+              let op = if named ty "I16" then "sext" else "zext" in
+              (emit-lines w3 [
+                cat ["  ", raw, " = load i16, ptr ", slot, ", align 1"],
+                cat ["  ", ext, " = ", op, " i16 ", raw, " to i64"]], ext)
+            else if named ty "I32" || named ty "U32" || named ty "Char" || named ty "F32" || ((named ty "Usize" || named ty "Isize") && ptr-bytes == 4) then
+              let (w2, raw) = fresh w1 "%ld" in
+              let (w3, ext) = fresh w2 "%ext" in
+              let op = if named ty "I32" || named ty "Isize" then "sext" else "zext" in
+              (emit-lines w3 [
+                cat ["  ", raw, " = load i32, ptr ", slot, ", align 1"],
+                cat ["  ", ext, " = ", op, " i32 ", raw, " to i64"]], ext)
+            else
+              let (w2, r) = fresh w1 "%ld" in
+              (line w2 (cat ["  ", r, " = load i64, ptr ", slot, ", align 1"]), r)
+
+  materialize-value-ptr :: Writer -> UType -> String -> (Writer, String)
+  materialize-value-ptr w ty val = case type-value-size-align (w.context) ty of
+    Some (sz, al) ->
+      if sz > 16 || al > 16 then (w, val)
+      else let alloc-sz = if sz == 0 then 1 else sz in
+        let (w1, buf) = fresh w "%vbuf" in
+        let w2 = line w1 (cat ["  ", buf, " = alloca [", nat-to-string alloc-sz, " x i8], align ", nat-to-string al]) in
+        (emit-store-at w2 buf 0 ty val, buf)
+    None -> (w, val)
+
+  store-value-fields :: Writer -> String -> List ValueField -> List String -> Writer
+  store-value-fields w buf fields vals = case (fields, vals) of
+    (vf : rest, v : more) -> store-value-fields (emit-store-at w buf (vf.vf-offset) (vf.vf-type) v) buf rest more
+    other -> w
+
+  construct-value-data :: List CoreDefinition -> List Local -> Writer -> Nat -> Nat -> List ValueField -> List CoreTerm -> (Writer, String)
+  construct-value-data definitions locals w sz al vfields args =
+    case expressions definitions locals w args of
+      (w1, vals) ->
+        let alloc-sz = if sz == 0 then 1 else sz in
+        let w2 = if sz > 0 then request-demand MemsetDemand w1 else w1 in
+        let (w3, buf) = fresh w2 "%vobj" in
+        let w4 = line w3 (cat ["  ", buf, " = alloca [", nat-to-string alloc-sz, " x i8], align ", nat-to-string al]) in
+        let w5 = if sz > 0 then line w4 (cat ["  call void @llvm.memset.p0.i64(ptr align ", nat-to-string al, " ", buf, ", i8 0, i64 ", nat-to-string sz, ", i1 false)"]) else w4 in
+        let w6 = store-value-fields w5 buf vfields vals in
+        if sz > 16 || al > 16 then (w6, buf)
+        else if sz == 0 then (w6, "0")
+        else if sz <= 8 then
+          if sz == 8 then
+            let (w7, r) = fresh w6 "%vval" in
+            (line w7 (cat ["  ", r, " = load i64, ptr ", buf, ", align ", nat-to-string al]), r)
+          else let it = "i" <> nat-to-string (sz * 8) in
+            let (w7, raw) = fresh w6 "%vval" in
+            let (w8, ext) = fresh w7 "%vext" in
+            (emit-lines w8 [
+              cat ["  ", raw, " = load ", it, ", ptr ", buf, ", align 1"],
+              cat ["  ", ext, " = zext ", it, " ", raw, " to i64"]], ext)
+        else
+          let (w7, lo) = fresh w6 "%lo" in
+          let w8 = line w7 (cat ["  ", lo, " = load i64, ptr ", buf, ", align 1"]) in
+          case emit-gep-offset w8 buf 8 of
+            (w9, hi-slot) ->
+              let rem = if 8 <= sz then sz - 8 else 0 in
+              let (w10, hi) = (if rem == 8 then
+                    (let (wa, h) = fresh w9 "%hi" in
+                    (line wa (cat ["  ", h, " = load i64, ptr ", hi-slot, ", align 1"]), h))
+                  else (let it = "i" <> nat-to-string (rem * 8) in
+                    let (wa, raw) = fresh w9 "%hi" in
+                    let (wb, ext) = fresh wa "%ext" in
+                    (emit-lines wb [
+                      cat ["  ", raw, " = load ", it, ", ptr ", hi-slot, ", align 1"],
+                      cat ["  ", ext, " = zext ", it, " ", raw, " to i64"]], ext))) in
+              let (w11, p0) = fresh w10 "%agg" in
+              let (w12, p1) = fresh w11 "%agg" in
+              (emit-lines w12 [
+                cat ["  ", p0, " = insertvalue { i64, i64 } undef, i64 ", lo, ", 0"],
+                cat ["  ", p1, " = insertvalue { i64, i64 } ", p0, ", i64 ", hi, ", 1"]], p1)
+
+  match-value-fields :: CorePattern -> String -> List ValueField -> String -> Writer -> (Writer, List Local)
+  match-value-fields pat-fields buf vfields failed w = case (pat-fields, vfields) of
+    (CPDone end, other) -> (w, [])
+    (CPField sp (CPProof at pred id name) rest, fs) -> match-value-fields rest buf fs failed w
+    (CPField sp first rest, vf : more) ->
+      case emit-load-at w buf (vf.vf-offset) (vf.vf-type) of
+        (w1, fval) -> case match-pattern first fval failed w1 of
+          (w2, bindings) -> case match-value-fields rest buf more failed w2 of
+            (w3, rest-bindings) -> (w3, bindings <> rest-bindings)
+    other -> (refuse w (Span 0 0 1 1) "value struct pattern arity mismatch", [])
+
+  match-value-data :: UType -> Nat -> Nat -> List ValueField -> CorePattern -> String -> String -> Writer -> (Writer, List Local)
+  match-value-data ty sz al vfields pat-fields value failed w =
+    case materialize-value-ptr w ty value of
+      (w1, buf) -> match-value-fields pat-fields buf vfields failed w1
+
+  find-runtime-value-field :: String -> List ValueField -> Option ValueField
+  find-runtime-value-field wanted fields = case fields of
+    [] -> None
+    vf : rest -> if vf.vf-name == wanted then Some vf else find-runtime-value-field wanted rest
+
+  resolve-runtime-value-path :: List CoreData -> UType -> List String -> Nat -> Option (Nat, UType)
+  resolve-runtime-value-path datas carrier labels acc = case labels of
+    [] -> None
+    label : rest -> case type-head (base carrier) of
+      UCon owner KType -> (case value-layout-of owner datas of
+        Some (repr, sz, al, vfields) -> (case find-runtime-value-field label vfields of
+          Some vf -> let off = acc + vf.vf-offset in
+            case rest of
+              [] -> Some (off, vf.vf-type)
+              more -> resolve-runtime-value-path datas (vf.vf-type) more off
+          None -> None)
+        None -> None)
+      other -> None
+
+  eval-place-ptr :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
+  eval-place-ptr definitions locals w place = case place of
+    CLocal sp ty id name [] -> (case stack-cell-local id locals of
+      Some (declared, ptr-reg) -> (w, ptr-reg)
+      None -> case expression definitions locals w place of
+        (w1, val) -> if value-llvm (w1.context) (core-type place) == "ptr" then (w1, val)
+          else let (w2, p) = fresh w1 "%ptr" in (line w2 (cat ["  ", p, " = inttoptr i64 ", val, " to ptr"]), p))
+    other -> case expression definitions locals w place of
+      (w1, val) -> if value-llvm (w1.context) (core-type place) == "ptr" then (w1, val)
+        else let (w2, p) = fresh w1 "%ptr" in (line w2 (cat ["  ", p, " = inttoptr i64 ", val, " to ptr"]), p)
+
+  emit-fixed-fill :: Writer -> String -> Nat -> Nat -> Nat -> UType -> String -> Writer
+  emit-fixed-fill w buf idx count stride elem val =
+    if idx >= count then w
+    else emit-fixed-fill (emit-store-at w buf (idx * stride) elem val) buf (idx + 1) count stride elem val
+
+  value-primitive :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> String -> CoreTerm -> (Writer, String)
+  value-primitive definitions locals w sp ty op args =
+    let datas = (writer-program w).index-of.datas in
+    let word-bits = program-word-bits (writer-program w) in
+    if op == "val-local-scope" then
+      (case args of
+        CArgument at (CLet lt lty lid lname lsc (CPrimitive sat smty "val-stack-alloc" (CArgument iat init (CArgumentsEnd iend))) body) (CArgumentsEnd end) ->
+          (case mutable-borrow (scheme-body lsc) of
+            Some (region, carrier) -> case expression definitions locals w init of
+              (w1, init-val) -> case type-value-size-align (w1.context) carrier of
+                Some (sz, al) ->
+                  let alloc-sz = if sz == 0 then 1 else sz in
+                  let (w2, buf) = fresh w1 "%local" in
+                  let w3 = line w2 (cat ["  ", buf, " = alloca [", nat-to-string alloc-sz, " x i8], align ", nat-to-string al]) in
+                  let w4 = emit-store-at w3 buf 0 carrier init-val in
+                  expression definitions ((Local lid (scheme-body lsc) buf) : locals) w4 body
+                None ->
+                  let (w2, buf) = fresh w1 "%local" in
+                  let (w3, cell) = fresh w2 "%cell" in
+                  let init-ty = value-llvm (w3.context) carrier in
+                  let w4 = emit-lines w3 [
+                    cat ["  ", buf, " = alloca [2 x i64], align 8"],
+                    cat ["  store i64 0, ptr ", buf, ", align 8"],
+                    cat ["  ", cell, " = getelementptr inbounds i8, ptr ", buf, ", i64 8"],
+                    cat ["  store ", init-ty, " ", init-val, ", ptr ", cell, ", align 8"]] in
+                  expression definitions ((StackCell lid (scheme-body lsc) cell) : locals) w4 body
+            None -> unsupported w sp "val-local-scope requires a Mut carrier")
+        other -> unsupported w sp "malformed val-local-scope")
+    else if op == "val-ref-as-ptr" || op == "val-mut-as-ptr" then
+      (case args of
+        CArgument at place (CArgumentsEnd end) -> eval-place-ptr definitions locals w place
+        other -> unsupported w sp "refAsPtr/mutAsPtr takes one place argument")
+    else if op == "val-place-load" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->
+          (case borrow-type-parts (base (core-type place)) of
+            Some (is-mut, region, carrier) -> (case resolve-runtime-value-path datas carrier (string-split-on "." path) 0 of
+              Some (off, fty) -> case eval-place-ptr definitions locals w place of
+                (w1, base-ptr) -> emit-load-at w1 base-ptr off fty
+              None -> unsupported w sp ("unknown value field path: " <> path))
+            None -> unsupported w sp "val-place-load requires a borrowed place")
+        other -> unsupported w sp "malformed val-place-load")
+    else if op == "val-place-store" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgument ct val-term (CArgumentsEnd end))) ->
+          (case mutable-borrow (base (core-type place)) of
+            Some (region, carrier) -> (case resolve-runtime-value-path datas carrier (string-split-on "." path) 0 of
+              Some (off, fty) -> case eval-place-ptr definitions locals w place of
+                (w1, base-ptr) -> case expression definitions locals w1 val-term of
+                  (w2, val-reg) -> (emit-store-at w2 base-ptr off fty val-reg, "0")
+              None -> unsupported w sp ("unknown value field path: " <> path))
+            None -> unsupported w sp "val-place-store requires a Mut place")
+        other -> unsupported w sp "malformed val-place-store")
+    else if op == "val-place-subborrow" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->
+          (case borrow-type-parts (base (core-type place)) of
+            Some (is-mut, region, carrier) -> (case resolve-runtime-value-path datas carrier (string-split-on "." path) 0 of
+              Some (off, fty) -> case eval-place-ptr definitions locals w place of
+                (w1, base-ptr) -> case emit-gep-offset w1 base-ptr off of
+                  (w2, sub-ptr) ->
+                    if value-llvm (w2.context) ty == "ptr" then (w2, sub-ptr)
+                    else let (w3, wval) = fresh w2 "%v" in (line w3 (cat ["  ", wval, " = ptrtoint ptr ", sub-ptr, " to i64"]), wval)
+              None -> unsupported w sp ("unknown value field path: " <> path))
+            None -> unsupported w sp "val-place-subborrow requires a borrowed place")
+        other -> unsupported w sp "malformed val-place-subborrow")
+    else if op == "val-fixed-repeat" then
+      (case (fixed-array-parts (base ty), args) of
+        (Some (count, elem), CArgument at init-term (CArgumentsEnd end)) ->
+          (case pod-type-layout word-bits datas elem of
+            Some (esz, eal) ->
+              let stride = value-align-up esz eal in
+              let total = count * stride in
+              let alloc-sz = if total == 0 then 1 else total in
+              case expression definitions locals w init-term of
+                (w1, init-val) ->
+                  let (w2, buf) = fresh w1 "%farr" in
+                  let w3 = line w2 (cat ["  ", buf, " = alloca [", nat-to-string alloc-sz, " x i8], align ", nat-to-string eal]) in
+                  let w4 = emit-fixed-fill w3 buf 0 count stride elem init-val in
+                  if total > 16 || eal > 16 then (w4, buf)
+                  else emit-load-at w4 buf 0 ty
+            None -> unsupported w sp "FixedArray element must be POD")
+        other -> unsupported w sp "malformed val-fixed-repeat")
+    else if op == "val-fixed-get" then
+      (case args of
+        CArgument at arr-term (CArgument bt idx-term (CArgumentsEnd end)) ->
+          let raw-ty = base (core-type arr-term) in
+          let (is-borrowed, arr-ty) = case borrowed-carrier raw-ty of Some c -> (True, c); None -> (False, raw-ty) in
+          (case fixed-array-parts arr-ty of
+            Some (count, elem) -> (case pod-type-layout word-bits datas elem of
+              Some (esz, eal) ->
+                let stride = value-align-up esz eal in
+                let (w1, base-ptr) = if is-borrowed then eval-place-ptr definitions locals w arr-term
+                      else (case expression definitions locals w arr-term of
+                        (wa, val) -> materialize-value-ptr wa arr-ty val) in
+                case expression definitions locals w1 idx-term of
+                  (w2, idx-val) ->
+                    let (w3, byte-off) = fresh w2 "%off" in
+                    let (w4, ep) = fresh w3 "%ep" in
+                    let w5 = emit-lines w4 [
+                      cat ["  ", byte-off, " = mul i64 ", idx-val, ", ", nat-to-string stride],
+                      cat ["  ", ep, " = getelementptr inbounds i8, ptr ", base-ptr, ", i64 ", byte-off]] in
+                    emit-load-at w5 ep 0 elem
+              None -> unsupported w sp "FixedArray element must be POD")
+            None -> unsupported w sp "val-fixed-get requires a FixedArray")
+        other -> unsupported w sp "malformed val-fixed-get")
+    else if op == "val-fixed-set" then
+      (case args of
+        CArgument at place (CArgument bt idx-term (CArgument ct val-term (CArgumentsEnd end))) ->
+          (case mutable-borrow (base (core-type place)) of
+            Some (region, arr-ty) -> (case fixed-array-parts arr-ty of
+              Some (count, elem) -> (case pod-type-layout word-bits datas elem of
+                Some (esz, eal) ->
+                  let stride = value-align-up esz eal in
+                  case eval-place-ptr definitions locals w place of
+                    (w1, base-ptr) -> case expression definitions locals w1 idx-term of
+                      (w2, idx-val) -> case expression definitions locals w2 val-term of
+                        (w3, val-reg) ->
+                          let (w4, byte-off) = fresh w3 "%off" in
+                          let (w5, ep) = fresh w4 "%ep" in
+                          let w6 = emit-lines w5 [
+                            cat ["  ", byte-off, " = mul i64 ", idx-val, ", ", nat-to-string stride],
+                            cat ["  ", ep, " = getelementptr inbounds i8, ptr ", base-ptr, ", i64 ", byte-off]] in
+                          (emit-store-at w6 ep 0 elem val-reg, "0")
+                None -> unsupported w sp "FixedArray element must be POD")
+              None -> unsupported w sp "val-fixed-set requires a Mut FixedArray")
+            None -> unsupported w sp "val-fixed-set requires a Mut FixedArray")
+        other -> unsupported w sp "malformed val-fixed-set")
+    else if op == "val-fixed-ref" || op == "val-fixed-mut" then
+      (case args of
+        CArgument at place (CArgument bt idx-term (CArgumentsEnd end)) ->
+          (case borrow-type-parts (base (core-type place)) of
+            Some (is-mut, region, arr-ty) -> (case fixed-array-parts arr-ty of
+              Some (count, elem) -> (case pod-type-layout word-bits datas elem of
+                Some (esz, eal) ->
+                  let stride = value-align-up esz eal in
+                  case eval-place-ptr definitions locals w place of
+                    (w1, base-ptr) -> case expression definitions locals w1 idx-term of
+                      (w2, idx-val) ->
+                        let (w3, byte-off) = fresh w2 "%off" in
+                        let (w4, ep) = fresh w3 "%ep" in
+                        let w5 = emit-lines w4 [
+                          cat ["  ", byte-off, " = mul i64 ", idx-val, ", ", nat-to-string stride],
+                          cat ["  ", ep, " = getelementptr inbounds i8, ptr ", base-ptr, ", i64 ", byte-off]] in
+                        if value-llvm (w5.context) ty == "ptr" then (w5, ep)
+                        else let (w6, wval) = fresh w5 "%v" in (line w6 (cat ["  ", wval, " = ptrtoint ptr ", ep, " to i64"]), wval)
+                None -> unsupported w sp "FixedArray element must be POD")
+              None -> unsupported w sp "val-fixed-ref/mut requires a FixedArray borrow")
+            None -> unsupported w sp "val-fixed-ref/mut requires a borrow")
+        other -> unsupported w sp "malformed val-fixed-ref/mut")
+    else unsupported w sp ("unsupported value primitive: " <> op)
+
   copy-out-word :: List CoreDefinition -> List Local -> Writer -> UType -> CoreTerm -> (Writer, String)
-  copy-out-word definitions locals w ty input = case mutable-borrow (core-type input) of
-    None -> expression definitions locals w input
-    Some place -> if wide-type (w.context) ty then unsupported w (Span 0 0 1 1) wide-refusal else case expression definitions locals w input of
-      (ready, cell) -> let (one, pointer) = fresh ready "%ptr" in
-        (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
-          (loaded, value) -> (count-op False (core-type input) cell (count-op True ty value loaded), value))
-  write-borrow-word :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
-  write-borrow-word definitions locals w sp cell-term input = case mutable-borrow (core-type cell-term) of
-    None -> unsupported w sp "mutable write needs a checked cell carrier"
-    Some (region, carrier) -> if wide-type (w.context) carrier then unsupported w sp wide-refusal else case expression definitions locals w cell-term of
-      (held, cell) -> case expression definitions locals held input of
-        (ready, value) -> let (one, pointer) = fresh ready "%ptr" in
+  copy-out-word definitions locals w ty input = case input of
+    CLocal sp lty id name [] -> (case stack-cell-local id locals of
+      Some (declared, ptr-reg) ->
+        let (w1, val) = fresh w "%v" in
+        (line w1 (cat ["  ", val, " = load ", value-llvm (w1.context) ty, ", ptr ", ptr-reg, ", align 8"]), val)
+      None -> copy-out-word-general definitions locals w ty input)
+    other -> copy-out-word-general definitions locals w ty input
+  copy-out-word-general :: List CoreDefinition -> List Local -> Writer -> UType -> CoreTerm -> (Writer, String)
+  copy-out-word-general definitions locals w ty input = case borrow-type-parts (base (core-type input)) of
+    Some (is-mut, region, carrier) | is-value-type (w.context) carrier ->
+      (case eval-place-ptr definitions locals w input of
+        (w1, ptr-reg) -> emit-load-at w1 ptr-reg 0 carrier)
+    other -> case mutable-borrow (core-type input) of
+      None -> expression definitions locals w input
+      Some place -> if wide-type (w.context) ty then unsupported w (Span 0 0 1 1) wide-refusal else case expression definitions locals w input of
+        (ready, cell) -> let (one, pointer) = fresh ready "%ptr" in
           (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
-            (loaded, old) -> let replaced = store-fields loaded pointer 0 [value] in
-              (count-op False (core-type cell-term) cell (count-op False carrier old replaced), "0"))
+            (loaded, value) -> (count-op False (core-type input) cell (count-op True ty value loaded), value))
+  write-borrow-word :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  write-borrow-word definitions locals w sp cell-term input = case cell-term of
+    CLocal lsp lty id name [] -> (case stack-cell-local id locals of
+      Some (declared, ptr-reg) -> (case mutable-borrow (base declared) of
+        Some (region, carrier) -> case expression definitions locals w input of
+          (ready, value) -> (line ready (cat ["  store ", value-llvm (ready.context) carrier, " ", value, ", ptr ", ptr-reg, ", align 8"]), "0")
+        None -> write-borrow-word-general definitions locals w sp cell-term input)
+      None -> write-borrow-word-general definitions locals w sp cell-term input)
+    other -> write-borrow-word-general definitions locals w sp cell-term input
+  write-borrow-word-general :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  write-borrow-word-general definitions locals w sp cell-term input = case mutable-borrow (core-type cell-term) of
+    None -> unsupported w sp "mutable write needs a checked cell carrier"
+    Some (region, carrier) ->
+      if is-value-type (w.context) carrier then
+        (case eval-place-ptr definitions locals w cell-term of
+          (w1, ptr-reg) -> case expression definitions locals w1 input of
+            (w2, value) -> (emit-store-at w2 ptr-reg 0 carrier value, "0"))
+      else if wide-type (w.context) carrier then unsupported w sp wide-refusal else case expression definitions locals w cell-term of
+        (held, cell) -> case expression definitions locals held input of
+          (ready, value) -> let (one, pointer) = fresh ready "%ptr" in
+            (case load-word (line one (cat ["  ", pointer, " = inttoptr i64 ", cell, " to ptr"])) pointer "0" of
+              (loaded, old) -> let replaced = store-fields loaded pointer 0 [value] in
+                (count-op False (core-type cell-term) cell (count-op False carrier old replaced), "0"))
   compare-word :: Writer -> String -> String -> String -> (Writer, String)
   compare-word w predicate a b = compare-typed w "i64" predicate a b
   -- | Lower checked machine ordering without treating unsigned high bits as signs.
@@ -6877,9 +7454,10 @@ module Cinch.RuntimeIr where
               -- Tail workers pass every argument in a word slot, so a Wide
               -- specialization of a group member uses the typed self-loop
               -- worker when self-tail-recursive, or an ordinary worker otherwise.
-              case (if wide-code classes then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
+              let non-word = definition-has-non-word (scoped.context) d types in
+              case (if wide-code classes || non-word then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
                 Some (group, width) -> global-tail-worker definitions d classes prefix roots scoped group width (list-length parameters)
-                None -> if offset == 0 && list-length (proof-stage-arities patterns offset) == 1 && self-tail-present name classes (list-length parameters) (d.clauses) then
+                None -> if not non-word && offset == 0 && list-length (proof-stage-arities patterns offset) == 1 && self-tail-present name classes (list-length parameters) (d.clauses) then
                     self-loop-worker definitions classes d prefix roots types (list-length parameters) scoped
                   else proof-worker-stages definitions classes d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
             [] -> refuse scoped sp "runtime definition has no checked equations"
@@ -7202,21 +7780,38 @@ module Cinch.RuntimeIr where
           let done = cpr-result definitions ctor fllvms agg-ty (bindings <> locals) owned matched failed rebuilt in
           cpr-case-chain definitions ctor fllvms agg-ty locals roots (line done (cat [failed, ":"])) ty value drop-scrut rest
     other -> line (refuse w (Span 0 0 1 1) "malformed case alternative spine in CPR worker") "  unreachable"
+  worker-clauses-sret :: List CoreDefinition -> List Local -> List Local -> Nat -> Nat -> Nat -> List CoreClause -> Writer -> Writer
+  worker-clauses-sret definitions prefix roots offset sz al clauses w = case clauses of
+    [] -> line w "  unreachable"
+    (CoreClause sp patterns body) : rest ->
+      let (one, failed) = fresh w "nexteq" in
+      case match-clause patterns body prefix offset failed one of
+        (matched, bindings, rebuilt) -> case worker-result definitions (bindings <> prefix) roots matched failed rebuilt of
+          (done, result) ->
+            let w1 = request-demand MemcpyDemand done in
+            let copied = line w1 (cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " %sret, ptr align ", nat-to-string al, " ", result, ", i64 ", nat-to-string sz, ", i1 false)"]) in
+            let returned = line copied "  ret void" in
+            worker-clauses-sret definitions prefix roots offset sz al rest (line returned (cat [failed, ":"]))
+
   proof-worker-stages :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
   proof-worker-stages definitions classes d prefix roots offset types arities rung w = case arities of
     [] -> refuse w (Span 0 0 1 1) "runtime function has no checked proof stage"
     count : rest ->
       let name = proof-stage-name (specialized-name (d.name) classes) rung in
-      let result = (case rest of [] -> definition-result-llvm (w.context) d; other -> "i64") in
-      let parameters = typed-arguments (typed-values (value-llvms (w.context) (take-types count types)) (value-parameters count 0)) in
+      let sret-opt = (case rest of [] -> definition-sret-result (w.context) d; other -> None) in
+      let result = (case (rest, sret-opt) of ([], Some info) -> "void"; ([], None) -> definition-result-llvm (w.context) d; other -> "i64") in
+      let base-params = typed-arguments (typed-values (value-param-llvms (w.context) (take-types count types)) (value-parameters count 0)) in
+      let parameters = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
       let started = line (line w (cat ["define ", worker-linkage w name, result, " ", symbol name, "(", join parameters, ")", llvm-hint w (d.name), worker-open w])) "entry:" in
-      (case rest of
-        [] ->
+      (case (rest, sret-opt) of
+        ([], Some (sret-attr, sz, al)) ->
+          line (worker-clauses-sret definitions prefix roots offset sz al (d.clauses) started) "}"
+        ([], None) ->
           if rung == 0 && worker-uses-arena (d.name) started then
             let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
             line (worker-clauses-arena definitions prefix roots offset (Some "%arena.phase") (d.clauses) entered) "}"
           else line (worker-clauses definitions prefix roots offset (d.clauses) started) "}"
-        next-count : more -> if wide-type (started.context) (final-result (scheme-body (d.scheme))) then refuse started (Span 0 0 1 1) wide-refusal else
+        (next-count : more, other) -> if wide-type (started.context) (final-result (scheme-body (d.scheme))) then refuse started (Span 0 0 1 1) wide-refusal else
           case class-vector (started.context) (take-types next-count types) of
 
           None -> refuse started (Span 0 0 1 1) "proof continuation needs checked runtime parameter representations"
@@ -7778,6 +8373,8 @@ module Cinch.RuntimeIr where
     CprDemand name classes -> cpr-worker definitions name classes claimed
     BorrowDemand name classes -> borrow-worker definitions name classes claimed
     BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
+    MemcpyDemand -> global claimed "declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly, ptr noalias readonly, i64, i1 immarg)"
+    MemsetDemand -> global claimed "declare void @llvm.memset.p0.i64(ptr writeonly, i8, i64, i1 immarg)"
 
   workers :: List CoreDefinition -> Writer -> Writer
   workers definitions w = case w of

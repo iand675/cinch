@@ -546,6 +546,14 @@ fn subst(e: &mut Core, from: LocalId, to: &Core) {
                 subst(h, from, to);
             }
         }
+        Core::RefSet(l, v, _) | Core::BoxInit(l, v, _) | Core::LazyInit(l, v) => {
+            if *l == from {
+                if let Core::Var(new_l) = to {
+                    *l = *new_l;
+                }
+            }
+            subst(v, from, to);
+        }
         _ => {
             for slot in child_slots(e) {
                 subst(slot, from, to);
@@ -583,7 +591,16 @@ fn visit_children<'a>(e: &'a Core, f: &mut impl FnMut(&'a Core)) {
 
 /// Whether the term mentions `l`.
 fn mentions(e: &Core, l: LocalId) -> bool {
-    if matches!(e, Core::Var(x) if *x == l) {
+    if matches!(
+        e,
+        Core::Var(x)
+            | Core::RefSet(x, ..)
+            | Core::BoxInit(x, ..)
+            | Core::LazyInit(x, ..)
+            | Core::Dup(x, ..)
+            | Core::Drop(x, ..)
+            if *x == l
+    ) {
         return true;
     }
     let mut found = false;
@@ -641,6 +658,11 @@ fn occurrences(e: &Core, in_join: bool, out: &mut HashMap<LocalId, Occ>) {
         Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
             read(x, out);
             occurrences(body, in_join, out);
+            return;
+        }
+        Core::RefSet(x, v, _) | Core::BoxInit(x, v, _) | Core::LazyInit(x, v) => {
+            read(x, out);
+            occurrences(v, in_join, out);
             return;
         }
         Core::Release { block, moved, rest, token, body } => {
@@ -4450,6 +4472,7 @@ fn unfold_body(
         Core::Proj(inner, _) | Core::DictProj(inner, ..) => value(inner, shape),
         Core::Let(_, _, bound, body) => value(bound, shape) && value(body, shape),
         Core::App(head, args) => match &**head {
+            Core::Prim(crate::core::PrimOp::Value(op)) if op.is_effectful() => false,
             Core::Prim(_) | Core::Foreign(_) => args.iter().all(|a| value(a, shape)),
             Core::Global(g, _) => {
                 // A constructor unit is an allocation, admitted only where

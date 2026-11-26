@@ -641,8 +641,9 @@ module Cinch.Typing where
       else if has name ["borrow", "mut-borrow"] then borrow-checked scope (name == "mut-borrow") ty args
       else if name == "ref-set" then ref-set-checked ty args
       else if has name ["memo-alloc", "memo-init", "memo-demand"] then checked-memo-primitive context scope ty name args
+      else if string-starts-with "val-" name then checked-value-primitive context scope gamma facts ty name args
       else primitive-types ty name args)
-      && argument-terms context scope gamma facts args
+      && (if name == "val-local-scope" then True else argument-terms context scope gamma facts args)
     CProved sp ty certificate body -> equal-type-in context ty (core-type body) && checked-term context scope gamma facts body
     CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type-in context carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
     CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
@@ -679,10 +680,11 @@ module Cinch.Typing where
   copyable-type context seen fuel ty = if fuel == 0 then False else let remaining = fuel - 1 in case task-base ty of
     UTuple fields -> copyable-tuple context seen remaining fields
     USigma id name domain body -> copyable-type context seen remaining domain && copyable-type context seen remaining body
-    UApp (UCon name (KFun KType KType)) element -> if cell-type-name name then True else if array-type-name name then copyable-type context seen remaining element
+    UApp (UCon name (KFun KType KType)) element -> if cell-type-name name || has name ["RawPtr", "Borrowed", "MaybeNull"] then True else if array-type-name name then copyable-type context seen remaining element
       else copyable-data context seen remaining ty
     UApp (UApp (UCon name kind) region) carrier -> if name == "Ref" then
       (case borrowed-carrier (task-base ty) of Some payload -> True; None -> False)
+      else if name == "FixedArray" then copyable-type context seen remaining carrier
       else copyable-data context seen remaining ty
     UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "Char", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"]
       || copyable-data context seen remaining ty
@@ -750,6 +752,106 @@ module Cinch.Typing where
           && equal-type row latent && equal-type carrier returned && scope-region-closed region row
         other -> False)
     other -> False
+  typing-fixed-array-elem :: UType -> Option UType
+  typing-fixed-array-elem ty = case task-base ty of
+    UApp (UApp (UCon name kind) n) elem -> if name == "FixedArray" then Some elem else None
+    other -> None
+  typing-ptr-pointee :: String -> UType -> Option UType
+  typing-ptr-pointee expected ty = case task-base ty of
+    UApp (UCon name kind) pointee -> if name == expected then Some pointee else None
+    other -> None
+  typing-ptr-decays :: TypingContext -> UType -> UType -> Bool
+  typing-ptr-decays context carrier pointee =
+    equal-type-in context carrier pointee
+    || (case typing-fixed-array-elem carrier of Some elem -> equal-type-in context elem pointee; None -> False)
+  checked-value-primitive :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> String -> CoreTerm -> Bool
+  checked-value-primitive context scope gamma facts result op args =
+    if op == "val-local-scope" then
+      (case args of
+        CArgument at (CLet lt lty lid lname lsc rhs body) (CArgumentsEnd end) ->
+          (case mutable-borrow (scheme-body lsc) of
+            Some (URigid rid rname rlevel KRegion, carrier) ->
+              let region = URigid rid rname rlevel KRegion in
+              equal-type-in context result lty
+                && equal-type-in context result (core-type body)
+                && scope-region-closed region result
+                && scope-region-closed region (state-residual region (core-effects body))
+                && (case open-memo-region rid scope of
+                  Some opened -> checked-let context opened gamma facts lty lid lsc rhs body
+                  None -> False)
+            other -> False)
+        other -> False)
+    else if op == "val-stack-alloc" then
+      (case (mutable-borrow result, args) of
+        (Some (region, carrier), CArgument at init (CArgumentsEnd end)) ->
+          equal-type-in context carrier (core-type init)
+        other -> False)
+    else if op == "val-ref-as-ptr" then
+      (case (typing-ptr-pointee "Borrowed" result, args) of
+        (Some pointee, CArgument at place (CArgumentsEnd end)) ->
+          (case borrow-type-parts (core-type place) of
+            Some (mutable, region, carrier) -> typing-ptr-decays context carrier pointee
+            None -> False)
+        other -> False)
+    else if op == "val-mut-as-ptr" then
+      (case (typing-ptr-pointee "RawPtr" result, args) of
+        (Some pointee, CArgument at place (CArgumentsEnd end)) ->
+          (case mutable-borrow (core-type place) of
+            Some (region, carrier) -> typing-ptr-decays context carrier pointee
+            None -> False)
+        other -> False)
+    else if op == "val-place-load" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->
+          (case borrow-type-parts (core-type place) of Some parts -> True; None -> False)
+        other -> False)
+    else if op == "val-place-store" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgument ct val (CArgumentsEnd end))) ->
+          type-is "Unit" result && (case mutable-borrow (core-type place) of Some parts -> True; None -> False)
+        other -> False)
+    else if op == "val-place-subborrow" then
+      (case args of
+        CArgument at place (CArgument bt (CString st sty path) (CArgumentsEnd end)) ->
+          (case (borrow-type-parts (core-type place), borrow-type-parts result) of
+            (Some (src-mut, src-r, src-c), Some (dst-mut, dst-r, dst-c)) ->
+              (src-mut || not dst-mut) && equal-type-in context src-r dst-r
+            other -> False)
+        other -> False)
+    else if op == "val-fixed-repeat" then
+      (case (typing-fixed-array-elem result, args) of
+        (Some elem, CArgument at init (CArgumentsEnd end)) -> equal-type-in context elem (core-type init)
+        other -> False)
+    else if op == "val-fixed-get" then
+      (case args of
+        CArgument at arr (CArgument bt idx (CArgumentsEnd end)) ->
+          let carrier = case borrowed-carrier (core-type arr) of Some c -> c; None -> core-type arr in
+          (case typing-fixed-array-elem carrier of Some elem -> equal-type-in context result elem; None -> False)
+        other -> False)
+    else if op == "val-fixed-set" then
+      (case args of
+        CArgument at place (CArgument bt idx (CArgument ct val (CArgumentsEnd end))) ->
+          type-is "Unit" result && (case mutable-borrow (core-type place) of
+            Some (r, carrier) -> (case typing-fixed-array-elem carrier of Some elem -> equal-type-in context elem (core-type val); None -> False)
+            None -> False)
+        other -> False)
+    else if op == "val-fixed-ref" then
+      (case (borrow-type-parts result, args) of
+        (Some (False, r2, elem), CArgument at place (CArgument bt idx (CArgumentsEnd end))) ->
+          (case borrow-type-parts (core-type place) of
+            Some (m, r1, carrier) -> equal-type-in context r1 r2
+              && (case typing-fixed-array-elem carrier of Some aelem -> equal-type-in context elem aelem; None -> False)
+            None -> False)
+        other -> False)
+    else if op == "val-fixed-mut" then
+      (case (mutable-borrow result, args) of
+        (Some (r2, elem), CArgument at place (CArgument bt idx (CArgumentsEnd end))) ->
+          (case mutable-borrow (core-type place) of
+            Some (r1, carrier) -> equal-type-in context r1 r2
+              && (case typing-fixed-array-elem carrier of Some aelem -> equal-type-in context elem aelem; None -> False)
+            None -> False)
+        other -> False)
+    else False
   task-signature :: String -> List CoreGlobal -> Bool
   task-signature owner declarations = case declarations of
     [] -> False

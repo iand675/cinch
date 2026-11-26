@@ -787,6 +787,10 @@ pub struct Exports {
     pub instances: Vec<InstanceExport>,
     pub fixities: Vec<FixityExport>,
     pub foreign: Vec<ForeignExport>,
+    /// Optional self-hosted extension tables (`type_families`, `data_families`,
+    /// `promoted_ctors`, `data_param_kinds`, `promoted_fns`) preserved across
+    /// contract hashing when reading `.cpk` packages produced by Stage 3.
+    pub extra: BTreeMap<String, JsonValue>,
 }
 
 /// The acceptance manifest (core specification, section 11): the primitive
@@ -1142,6 +1146,12 @@ impl Iface {
                 }),
             ),
         ]);
+        let mut exports = exports;
+        if let JsonValue::Obj(map) = &mut exports {
+            for (k, v) in &self.exports.extra {
+                map.insert(k.clone(), v.clone());
+            }
+        }
 
         let mut doc_fields: Vec<(&str, JsonValue)> = vec![
             ("schema", self.schema.into()),
@@ -1707,6 +1717,12 @@ impl Iface {
                 });
             }
         }
+        let mut extra = BTreeMap::new();
+        for key in ["type_families", "data_families", "promoted_ctors", "data_param_kinds", "promoted_fns"] {
+            if let Some(v) = exports_obj.get(key) {
+                extra.insert(key.to_string(), v.clone());
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -1716,7 +1732,7 @@ impl Iface {
             source_hash: get("source_hash")?.as_str()?.to_string(),
             imports,
             params,
-            exports: Exports { values, types, signatures, instances, fixities, foreign },
+            exports: Exports { values, types, signatures, instances, fixities, foreign, extra },
             assumptions: Assumptions {
                 primitives: as_get("primitives")?.as_array()?.iter().map(|v| Ok(v.as_str()?.to_string())).collect::<Result<Vec<_>, ParseError>>()?,
                 foreign: as_get("foreign")?.as_array()?.iter().map(|v| Ok(v.as_str()?.to_string())).collect::<Result<Vec<_>, ParseError>>()?,

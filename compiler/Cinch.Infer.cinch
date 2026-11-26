@@ -7,21 +7,21 @@ module Cinch.Infer where
   import Cinch.Kinds (symbolic-effect-spelling, KindDeclarations, kind-declarations, add-kind-declaration, kind-at)
   import Cinch.Type
   import Cinch.Promote
-  import Cinch.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-document, primitive-plan)
+  import Cinch.Foreign (ForeignPlan, foreign-export-plan, foreign-plan, foreign-plan-with-values, foreign-export-plan-with-values, foreign-document, primitive-plan)
   import Cinch.PrimVerify (SpecDef, MkSpecDef, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, verify-rewrite-rule-for, is-verify-justification-word)
   import Cinch.Index
   import Cinch.Total
   import Cinch.BodyContract
   import Cinch.Guarded
   import Cinch.Proof (Proposition, PNegate, PCompare, Equal, disproved)
-  import Data.Nat (nat-from-int, nat-to-int, saturating-sub)
+  import Data.Nat (nat-from-int, nat-to-int, nat-rem, saturating-sub)
   import Text.Show (int-to-string)
-  import Text.Scan (string-words)
+  import Text.Scan (string-words, string-starts-with, string-split-on)
   import Data.Bytes (bytes-len, bytes-get)
   import Data.String (string-compare, string-byte-length, string-slice, string-utf8-first)
   import Prim.Machine (ge-i64, lt-i64)
   import Cinch.Core
-  import Cinch.Layout (check-layouts)
+  import Cinch.Layout (check-layouts, check-layouts-for, is-value-repr, fixed-array-parts, pod-type-layout, value-layout-of)
   import Cinch.Logical (specification-names, split-specifications, check-specification)
   import Cinch.Unpack (check-unpacked-records)
   import Cinch.Instance
@@ -48,7 +48,7 @@ module Cinch.Infer where
   import Algebra.Monoid (Monoid, mempty)
   import Data.Array
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
-  import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, chunk-list, flatten-lists)
+  import Cinch.Parallel (CompileTuning, default-tuning, tuning-chunk-size, tuning-word-size, chunk-list, flatten-lists)
   import Cinch.Temporal (ContractKind, Safety, Liveness, Recurrence, Stability, contract-kind-keyword, contract-kind-operator, check-contract-shape, contract-assumption-rows, contract-formula-row, contract-formula-clause, contract-kind, contract-renders-formula)
   import Cinch.TemporalCheck (Parameter, TemporalStep, TemporalOpaque, TemporalVerdict, temporal-definition-steps, temporal-definition-parameters, temporal-recursive, temporal-descent, temporal-proposition, verify-safety, verify-stability, verify-recurrence, verify-liveness, temporal-scope-sites, verdict-verified, verdict-message)
   import Cinch.TemporalMc (McContext, MkMcContext, McActionReturn, McReturnDirect, McReturnOption, McReturnList, McActionInput, MkMcActionInput, CheckedMachineInput, MkCheckedMachineInput, McFormula, McAlways, McDeadlockFree, McEventually, McLeadsTo, McRecur, McStable, CheckedMachineContract, MkCheckedMachineContract, CheckedRefinesInput, MkCheckedRefinesInput, McVerdictRow, mc-verdict-subject, mc-verdict-name, mc-verdict-kind, mc-verdict-formula, mc-verdict-assumptions, mc-verdict-result, McOutcome, mc-outcome-verdicts, mc-outcome-errors, check-temporal-machines)
@@ -648,7 +648,7 @@ module Cinch.Infer where
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
   primitive-kinds =
-    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType), ("Sing", KFun KType (KFun KType KType)), ("Same", KFun KType (KFun KType KType))] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> (("b.Scope", scope-kind) : ("b.Task", task-kind) : ("b.Io", KFun KRegion KType) : ("b.Dec", KFun KProp KType) : (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) in
+    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType), ("Sing", KFun KType (KFun KType KType)), ("Same", KFun KType (KFun KType KType)), ("FixedArray", KFun (KValue (UCon "Nat" KType)) (KFun KType KType))] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> (("b.Scope", scope-kind) : ("b.Task", task-kind) : ("b.Io", KFun KRegion KType) : ("b.Dec", KFun KProp KType) : (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) in
     TypeContext False (kind-declarations builtins) ([], hash-map-empty, hash-map-empty, hash-map-empty, RecordIndex hash-map-empty None) [] [ByteObservation "#kernel.bytes-length" None] [] [] primitive-payloads empty-family-context
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
@@ -1982,7 +1982,10 @@ module Cinch.Infer where
 
   let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
   let-binding sp env name sc id level value before =
-    let st = check-discard sp (name == "_") (scheme-body sc) (check-borrow-binding sp env (scheme-body sc) before) in
+    let is-subborrow = (case value of
+      CPrimitive _ _ op _ | has op ["val-place-subborrow", "val-fixed-ref", "val-fixed-mut"] -> True
+      other -> False) in
+    let st = check-discard sp (name == "_") (scheme-body sc) (if is-subborrow then before else check-borrow-binding sp env (scheme-body sc) before) in
     if volatile-borrow-index (normalize st (scheme-body sc)) then
       (MkLocalBinding name sc id level, add-error sp "mutable borrow evidence cannot escape into a stored value" st)
     else index-let-binding sp env name sc id level value st
@@ -5014,7 +5017,7 @@ module Cinch.Infer where
     DRecord s owner ps fields -> (env, st)
     DCodata s owner ps observations -> (env, st)
     DForeign s direction abi symbol name ty | (direction == "export") -> (env, st)
-    DForeign s direction abi symbol name ty -> register-intrinsic word-bits s direction abi symbol name ty classes kinds env st
+    DForeign s direction abi symbol name ty -> register-intrinsic word-bits (all.graph-declarations) s direction abi symbol name ty classes kinds env st
     DPrim s name ty spec-opt bodies -> case make-scheme False classes kinds [] ty st of
       (scheme, checked) ->
         let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
@@ -5092,17 +5095,17 @@ module Cinch.Infer where
         Some other -> (env, add-error sp "source total body cannot replace another declaration" st)
         None -> ((MkBodyBinding binding) : env, st))
     None -> add-binding sp name sc "value" env st
-  register-intrinsic :: Nat -> Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-intrinsic word-bits sp direction abi symbol name syntax classes kinds env st =
+  register-intrinsic :: Nat -> List Decl -> Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-intrinsic word-bits decls sp direction abi symbol name syntax classes kinds env st =
     if not (direction == "import" && abi == "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
     else case mvar-plan symbol of
       Some (operation, expected) -> register-mvar-intrinsic sp name symbol syntax expected classes kinds env st
       None -> case array-or-ad-canonical symbol of
         Some expected -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
-        None -> register-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st
+        None -> register-monomorphic-intrinsic word-bits decls sp symbol name syntax classes kinds env st
   -- | Require a scalar declaration's complete nominal scheme before assigning a canonical operation.
-  register-monomorphic-intrinsic :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st = case scalar-intrinsic symbol of
+  register-monomorphic-intrinsic :: Nat -> List Decl -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-monomorphic-intrinsic word-bits decls sp symbol name syntax classes kinds env st = case scalar-intrinsic symbol of
     Some operation -> case make-scheme False classes kinds [] syntax st of
       (actual, checked) ->
         if list-length (scheme-params actual) /= 0 || list-length (scheme-requirements actual) /= 0 then
@@ -5114,11 +5117,11 @@ module Cinch.Infer where
         else (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate scalar intrinsic binding" checked)
           None -> ((MkIntrinsicBinding name actual symbol) : env, checked))
-    None -> register-other-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st
+    None -> register-other-monomorphic-intrinsic word-bits decls sp symbol name syntax classes kinds env st
   -- | Preserve the existing checked contracts for runtime and non-scalar intrinsic declarations.
-  register-other-monomorphic-intrinsic :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-other-monomorphic-intrinsic word-bits sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
-      None -> register-foreign word-bits sp symbol name syntax classes kinds env st
+  register-other-monomorphic-intrinsic :: Nat -> List Decl -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-other-monomorphic-intrinsic word-bits decls sp symbol name syntax classes kinds env st = case intrinsic-contract symbol of
+      None -> register-foreign word-bits decls sp symbol name syntax classes kinds env st
       Some (text, external) -> case make-scheme False classes kinds [] syntax st of
         (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
           ([], []) -> case parse-scheme symbol (string-to-bytes text) of
@@ -5363,29 +5366,115 @@ module Cinch.Infer where
               Some prior -> (env, add-error sp "duplicate imported wrapping intrinsic" prepared)
               None -> ((MkIntrinsicBinding name actual symbol) : env, check-imported-value sp actual metadata prepared)))
       other -> (env, add-error sp "incomplete imported wrapping intrinsic contract" st)
+  decl-has-hint :: String -> String -> List Decl -> Bool
+  decl-has-hint wanted hint-name decls = case decls of
+    [] -> False
+    (DInlineHint sp name (Ok h)) : rest -> (name == wanted && h == hint-name) || decl-has-hint wanted hint-name rest
+    other : rest -> decl-has-hint wanted hint-name rest
+
+  value-aggregates-from-datas :: List CoreData -> List (String, Nat, Nat)
+  value-aggregates-from-datas datas = case datas of
+    [] -> []
+    d : rest -> case core-data-layout d of
+      ValueData repr sz al fs -> (core-data-name d, sz, al) : (value-aggregates-from-datas rest)
+      other -> value-aggregates-from-datas rest
+
+  find-value-repr :: String -> List Decl -> Option String
+  find-value-repr wanted decls = case decls of
+    [] -> None
+    (DWrapperLayout sp name repr labels) : rest -> if name == wanted && is-value-repr repr then Some repr else find-value-repr wanted rest
+    other : rest -> find-value-repr wanted rest
+
+  find-record-fields :: String -> List Decl -> Option (List (String, TypeExpr))
+  find-record-fields wanted decls = case decls of
+    [] -> None
+    (DRecord sp name ps fields) : rest -> if name == wanted then Some fields else find-record-fields wanted rest
+    other : rest -> find-record-fields wanted rest
+
+  prelim-mod-nat :: Nat -> Nat -> Nat
+  prelim-mod-nat n a = if a <= 1 then 0 else if a <= n then prelim-mod-nat (n - a) a else n
+
+  prelim-align-up :: Nat -> Nat -> Nat
+  prelim-align-up n a = if a <= 1 then n else let r = prelim-mod-nat n a in if r == 0 then n else if r <= a then n + (a - r) else n
+
+  prelim-max-nat :: Nat -> Nat -> Nat
+  prelim-max-nat a b = if a >= b then a else b
+
+  prelim-scalar-size :: Nat -> String -> Option (Nat, Nat)
+  prelim-scalar-size ptr-bytes name =
+    if name == "Unit" then Some (0, 1)
+    else if has name ["Bool", "I8", "U8"] then Some (1, 1)
+    else if has name ["I16", "U16"] then Some (2, 2)
+    else if has name ["I32", "U32", "F32", "Char"] then Some (4, 4)
+    else if has name ["I64", "U64", "F64"] then Some (8, 8)
+    else if has name ["I128", "U128"] then Some (16, 16)
+    else if has name ["Usize", "Isize"] then Some (ptr-bytes, ptr-bytes)
+    else None
+
+  prelim-type-layout :: Nat -> List Decl -> TypeContext -> List String -> UType -> Option (Nat, Nat)
+  prelim-type-layout ptr-bytes decls kinds seen ty = case refinement-view ty of
+    URefine id nm base pred -> prelim-type-layout ptr-bytes decls kinds seen base
+    UApp (UCon name kind) pointee | has name ["RawPtr", "Borrowed", "MaybeNull"] -> Some (ptr-bytes, ptr-bytes)
+    other -> case fixed-array-parts other of
+      Some (n, elem) -> (case prelim-type-layout ptr-bytes decls kinds seen elem of
+        Some (esz, eal) -> Some (n * prelim-align-up esz eal, eal)
+        None -> None)
+      None -> case other of
+        UCon name KType -> (case prelim-scalar-size ptr-bytes name of
+          Some pair -> Some pair
+          None -> if has name seen then None else prelim-record-layout ptr-bytes decls kinds (name : seen) name)
+        other2 -> None
+
+  prelim-fields-layout :: Nat -> List Decl -> TypeContext -> List String -> List (String, TypeExpr) -> Nat -> Nat -> Option (Nat, Nat)
+  prelim-fields-layout ptr-bytes decls kinds seen fields offset natural = case fields of
+    [] -> Some (prelim-align-up offset natural, natural)
+    (fname, fty) : rest -> case convert False kinds [] fty (empty-store "prelim-value") of
+      (ut, st1) -> case prelim-type-layout ptr-bytes decls kinds seen (normalize st1 ut) of
+        Some (fsz, fal) -> let off = prelim-align-up offset fal in
+          prelim-fields-layout ptr-bytes decls kinds seen rest (off + fsz) (prelim-max-nat natural fal)
+        None -> None
+
+  prelim-record-layout :: Nat -> List Decl -> TypeContext -> List String -> String -> Option (Nat, Nat)
+  prelim-record-layout ptr-bytes decls kinds seen name = case find-value-repr name decls of
+    None -> None
+    Some repr -> case find-record-fields name decls of
+      None -> None
+      Some fields -> prelim-fields-layout ptr-bytes decls kinds seen fields 0 1
+
+  prelim-value-aggregates :: Nat -> List Decl -> TypeContext -> List Decl -> List (String, Nat, Nat)
+  prelim-value-aggregates ptr-bytes all-decls kinds todo = case todo of
+    [] -> []
+    (DWrapperLayout sp name repr labels) : rest | is-value-repr repr ->
+      (case prelim-record-layout ptr-bytes all-decls kinds [name] name of
+        Some (sz, al) -> (name, sz, al) : (prelim-value-aggregates ptr-bytes all-decls kinds rest)
+        None -> prelim-value-aggregates ptr-bytes all-decls kinds rest)
+    other : rest -> prelim-value-aggregates ptr-bytes all-decls kinds rest
+
   -- An export attaches a C entry to an already checked source definition.
   -- Keep its plan outside the source namespace so Cinch calls still use
   -- the original definition and its proof and ownership checks.
-  checked-export-declarations :: Nat -> List Decl -> List (String, Kind) -> TypeContext -> List CoreDefinition -> Store -> (List CheckedBinding, Store)
-  checked-export-declarations word-bits declarations classes kinds core st = case declarations of
+  checked-export-declarations :: Nat -> List CoreData -> List Decl -> List Decl -> List (String, Kind) -> TypeContext -> List CoreDefinition -> Store -> (List CheckedBinding, Store)
+  checked-export-declarations word-bits datas all-decls declarations classes kinds core st = case declarations of
     [] -> ([], st)
     (DForeign site direction abi symbol name syntax) : rest | (direction == "export") ->
       (case (abi == "ccall", find-core-definition name core) of
         (True, Some definition) -> (case make-scheme False classes kinds [] syntax st of
           (claimed, checked) -> let actual = map-scheme-types (normalize checked) claimed in
             if not (scheme-equivalent actual (definition.scheme)) then ([], add-error site "a foreign export's type must match its defined function" checked)
-            else (case foreign-export-plan word-bits (foreign-opaque-names (context-aliases kinds)) symbol actual of
+            else (case foreign-export-plan-with-values word-bits (foreign-opaque-names (context-aliases kinds)) (value-aggregates-from-datas datas) (decl-has-hint name "byval" all-decls) (decl-has-hint name "sret" all-decls) symbol actual of
               Err message -> ([], add-error site message checked)
-              Ok plan -> (case checked-export-declarations word-bits rest classes kinds core checked of
+              Ok plan -> (case checked-export-declarations word-bits datas all-decls rest classes kinds core checked of
                 (tail, done) -> ((MkForeignExport name plan) : tail, done))))
         (False, other) -> ([], add-error site "foreign export requires ccall" st)
         other -> ([], add-error site "a foreign export wraps a defined function" st))
-    other : rest -> checked-export-declarations word-bits rest classes kinds core st
+    other : rest -> checked-export-declarations word-bits datas all-decls rest classes kinds core st
 
-  register-foreign :: Nat -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-foreign word-bits sp symbol name syntax classes kinds env st = case make-scheme False classes kinds [] syntax st of
+  register-foreign :: Nat -> List Decl -> Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-foreign word-bits decls sp symbol name syntax classes kinds env st = case make-scheme False classes kinds [] syntax st of
     (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-      case foreign-plan word-bits (foreign-opaque-names (context-aliases kinds)) symbol actual of
+      let ptr-bytes = if word-bits == 32 then 4 else 8 in
+      let aggs = prelim-value-aggregates ptr-bytes decls kinds decls in
+      case foreign-plan-with-values word-bits (foreign-opaque-names (context-aliases kinds)) aggs (decl-has-hint name "byval" decls) (decl-has-hint name "sret" decls) symbol actual of
         Err error -> (env, add-error sp error checked)
         Ok plan -> (case lookup-binding name env of
           Some prior -> (env, add-error sp "duplicate foreign binding" checked)
@@ -5472,7 +5561,7 @@ module Cinch.Infer where
       else (env, add-error sp "decision constructor disagrees with the kernel proof/erasure contract" st)
     other -> (env, add-error sp "unknown kernel decision constructor" st)
   register-decision-syntax :: Span -> String -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
-  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.borrow", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.demand", "b.laterPure", "b.laterAp", "b.laterFix", "b.forceClock", "b.Proof.search"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st else if par-syntax-name name then register-par-syntax sp name metadata env st
+  register-decision-syntax sp name metadata env st = if has name ["b.unrefine", "b.copyOut", "b.borrow", "b.mutBorrow", "b.refSet", "b.delay", "b.force", "b.demand", "b.laterPure", "b.laterAp", "b.laterFix", "b.forceClock", "b.Proof.search", "b.withLocal", "b.refAsPtr", "b.mutAsPtr", "b.fixedArrayRepeat", "b.fixedArrayGet", "b.fixedArraySet", "b.fixedArrayRef", "b.fixedArrayMut", "b.fixedArrayLen"] then register-ownership-syntax sp name metadata env st else if task-syntax-name name then register-task-syntax sp name metadata env st else if par-syntax-name name then register-par-syntax sp name metadata env st
     else if name /= "b.decide" then (env, add-error sp "unknown kernel predicate syntax" st) else
     case builtin-syntax-metadata name of
       Some trusted -> if same-kernel-fields ["name", "operation", "runtime_abi", "first_class", "predicate_kind", "scheme"] metadata trusted then
@@ -5504,37 +5593,256 @@ module Cinch.Infer where
       else case refinement-view carrier of
         URefine id name base predicate -> (CForget sp base body, checked)
         other -> term-error sp "unrefine projects a refinement to its container" checked
+  ownership-syntax-names :: List String
+  ownership-syntax-names = ["b.borrow", "b.mutBorrow", "b.refSet", "b.withLocal", "b.refAsPtr", "b.mutAsPtr", "b.fixedArrayRepeat", "b.fixedArrayGet", "b.fixedArraySet", "b.fixedArrayRef", "b.fixedArrayMut", "b.fixedArrayLen"]
   ownership-syntax-call :: List CheckedBinding -> Expr -> Option (String, List Expr)
   ownership-syntax-call env expr = case application-spine expr [] of
-    (EVar sp name, args) -> if has name ["b.borrow", "b.mutBorrow", "b.refSet"] then
+    (EVar sp name, args) -> if has name ownership-syntax-names then
       (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if symbol == name then Some (name, args) else None; other -> None)
       else None
     other -> None
   ownership-syntax-head :: List CheckedBinding -> Expr -> Option String
   ownership-syntax-head env head = case head of
-    EVar sp name -> if has name ["b.borrow", "b.mutBorrow", "b.refSet"] then
+    EVar sp name -> if has name ownership-syntax-names then
       (case lookup-binding name env of Some (MkSyntaxBinding symbol) -> if symbol == name then Some name else None; other -> None)
       else None
     other -> None
+  fixed-array-kind :: Kind
+  fixed-array-kind = KFun (KValue (UCon "Nat" KType)) (KFun KType KType)
+  join-field-path :: List String -> String
+  join-field-path labels = case labels of
+    [] -> ""
+    [x] -> x
+    x : rest -> x <> "." <> join-field-path rest
+  place-projection-chain :: Expr -> List String -> (Expr, List String)
+  place-projection-chain expr acc = case expr of
+    EProject sp inner label -> place-projection-chain inner (label : acc)
+    other -> (expr, acc)
+  lookup-typed-field :: String -> List (String, UType) -> Option UType
+  lookup-typed-field wanted entries = case entries of
+    [] -> None
+    (label, ty) : rest -> if label == wanted then Some ty else lookup-typed-field wanted rest
+  lookup-record-field-type :: TypeContext -> List CheckedBinding -> Span -> UType -> String -> Store -> (Option UType, Store)
+  lookup-record-field-type kinds env sp carrier label st =
+    let norm = normalize st carrier in
+    case root-name norm of
+      None -> (None, st)
+      Some owner -> case hash-map-lookup owner (context-records kinds) of
+        Some (RecordShape name fields observations) ->
+          if has label fields then
+            (case lookup-expression-value sp kinds (record-storage-name (has-observations observations) owner) env st of
+              (ctor, opened) ->
+                let unified = unify sp (result-type (core-type ctor)) norm opened in
+                case record-typed-fields fields (domains (normalize unified (core-type ctor))) of
+                  Some typed -> (lookup-typed-field label typed, unified)
+                  None -> (None, unified))
+          else (None, st)
+        None -> (None, st)
+  lookup-place-path-type :: TypeContext -> List CheckedBinding -> Span -> UType -> List String -> Store -> (Option UType, Store)
+  lookup-place-path-type kinds env sp carrier labels st = case labels of
+    [] -> (Some (normalize st carrier), st)
+    label : rest -> case lookup-record-field-type kinds env sp carrier label st of
+      (Some fty, s1) -> lookup-place-path-type kinds env sp fty rest s1
+      (None, s1) -> (None, s1)
+  infer-ownership-syntax :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> String -> List Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-ownership-syntax classes kinds families env locals sp operation args expected st =
+    if operation == "b.refSet" then infer-ref-set classes kinds families env locals sp args st
+    else if operation == "b.borrow" || operation == "b.mutBorrow" then infer-borrow classes kinds families env locals sp operation args expected st
+    else if operation == "b.withLocal" then infer-with-local classes kinds families env locals sp args expected st
+    else if operation == "b.refAsPtr" || operation == "b.mutAsPtr" then infer-ref-as-ptr classes kinds families env locals sp (operation == "b.mutAsPtr") args st
+    else if operation == "b.fixedArrayRepeat" then infer-fixed-array-repeat classes kinds families env locals sp args expected st
+    else if operation == "b.fixedArrayGet" then infer-fixed-array-get classes kinds families env locals sp args st
+    else if operation == "b.fixedArraySet" then infer-fixed-array-set classes kinds families env locals sp args st
+    else if operation == "b.fixedArrayRef" || operation == "b.fixedArrayMut" then infer-fixed-array-borrow classes kinds families env locals sp (operation == "b.fixedArrayMut") args st
+    else infer-fixed-array-len classes kinds families env locals sp args st
+  infer-with-local :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-with-local classes kinds families env locals sp args expected st = case args of
+    [init-expr, cb-expr] -> case infer classes kinds families env locals init-expr st of
+      (init-term, s1) ->
+        let carrier = normalize s1 (core-type init-term) in
+        let level = s1.level in
+        (case fresh-id (enter-level s1) of
+          (rid, s2) ->
+            let region = URigid rid "local" (s2.level) KRegion in
+            let mut-ty = UApp (UApp (UCon "Mut" borrow-constructor-kind) region) carrier in
+            (case fresh-id s2 of
+              (mid, s3) ->
+                let alloc-term = CPrimitive sp mut-ty "val-stack-alloc" (CArgument (expr-span init-expr) init-term (CArgumentsEnd sp)) in
+                let finish = (\bname body-term s4 ->
+                  let res-ty = normalize s4 (core-type body-term) in
+                  let closed = restore-level level s4 in
+                  if not (scope-region-closed region res-ty) then
+                    term-error sp "region escape: local mutable reference cannot escape withLocal" closed
+                  else
+                    (let scoped-let = CLet sp res-ty mid bname (mono mut-ty) alloc-term (map-term-types (normalize s4) body-term) in
+                    (CPrimitive sp res-ty "val-local-scope" (CArgument sp scoped-let (CArgumentsEnd sp)), closed))) in
+                (case cb-expr of
+                  ELam lsp [PVar psp pname] body-expr ->
+                    let bound = (MkLocalBinding pname (mono mut-ty) mid (s3.level)) : env in
+                    (case (case expected of UError -> infer classes kinds families bound locals body-expr s3; other -> check classes kinds families bound locals body-expr expected s3) of
+                      (body-term, s4) -> finish pname body-term s4)
+                  ELam lsp [PWild psp] body-expr ->
+                    (case (case expected of UError -> infer classes kinds families env locals body-expr s3; other -> check classes kinds families env locals body-expr expected s3) of
+                      (body-term, s4) -> finish "_" body-term s4)
+                  other ->
+                    (case fresh-meta KRow s3 of
+                      (row, s4) -> case (case expected of UError -> fresh-meta KType s4; known -> (known, s4)) of
+                        (res-m, s5) -> case check classes kinds families env locals cb-expr (UFunEff mut-ty row res-m) s5 of
+                          (cb-term, s6) ->
+                            let call-term = CApplyEff sp res-m row cb-term (CLocal sp mut-ty mid "$local" []) in
+                            finish "$local" call-term s6))))
+    other -> term-error sp "withLocal takes an initial value and a callback" st
+  ptr-decay-pointee :: UType -> UType
+  ptr-decay-pointee carrier = case fixed-array-parts carrier of
+    Some (n, elem) -> elem
+    None -> carrier
+  infer-ref-as-ptr :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Bool -> List Expr -> Store -> (CoreTerm, Store)
+  infer-ref-as-ptr classes kinds families env locals sp mutable args st = case args of
+    [place-expr] -> case infer classes kinds families env locals place-expr st of
+      (place-term, checked) -> let pty = normalize checked (core-type place-term) in
+        if mutable then
+          (case mutable-borrow pty of
+            Some (region, carrier) ->
+              let pointee = ptr-decay-pointee carrier in
+              let res-ty = UApp (UCon "RawPtr" (KFun KType KType)) pointee in
+              (CPrimitive sp res-ty "val-mut-as-ptr" (CArgument sp place-term (CArgumentsEnd sp)), checked)
+            None -> term-error (expr-span place-expr) "mutAsPtr requires a Mut borrow" checked)
+        else
+          (case borrow-type-parts pty of
+            Some (is-mut, region, carrier) ->
+              let pointee = ptr-decay-pointee carrier in
+              let res-ty = UApp (UCon "Borrowed" (KFun KType KType)) pointee in
+              (CPrimitive sp res-ty "val-ref-as-ptr" (CArgument sp place-term (CArgumentsEnd sp)), checked)
+            None -> term-error (expr-span place-expr) "refAsPtr requires a Ref or Mut borrow" checked)
+    other -> term-error sp (if mutable then "mutAsPtr takes exactly one Mut borrow" else "refAsPtr takes exactly one Ref or Mut borrow") st
+  infer-fixed-array-repeat :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-fixed-array-repeat classes kinds families env locals sp args expected st = case args of
+    [val-expr] -> let norm-exp = normalize st expected in
+      (case fixed-array-parts norm-exp of
+        Some (n, elem) -> case check classes kinds families env locals val-expr elem st of
+          (val-term, checked) -> (CPrimitive sp norm-exp "val-fixed-repeat" (CArgument (expr-span val-expr) val-term (CArgumentsEnd sp)), checked)
+        None -> term-error sp "1-argument fixedArrayRepeat needs an expected FixedArray n a type" st)
+    [n-expr, val-expr] -> case n-expr of
+      ELitInt nsp digits -> (case index-number digits of
+        Some iv | iv >= 0 ->
+          let n-ty = UIndex (primitive-type "Nat") (IInteger iv) in
+          let expected-elem = case fixed-array-parts (normalize st expected) of Some (en, ee) -> Some ee; None -> None in
+          (case (case expected-elem of
+            Some ee -> check classes kinds families env locals val-expr ee st
+            None -> infer classes kinds families env locals val-expr st) of
+            (val-term, checked) ->
+              let elem = normalize checked (core-type val-term) in
+              let res-ty = UApp (UApp (UCon "FixedArray" fixed-array-kind) n-ty) elem in
+              (CPrimitive sp res-ty "val-fixed-repeat" (CArgument (expr-span val-expr) val-term (CArgumentsEnd sp)), checked))
+        other -> term-error nsp "fixedArrayRepeat length must be a non-negative integer literal" st)
+      other -> term-error (expr-span n-expr) "fixedArrayRepeat length must be a compile-time natural literal" st
+    other -> term-error sp "fixedArrayRepeat takes (value) or (n, value)" st
+  check-fixed-array-index :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Nat -> Expr -> Store -> (CoreTerm, Store)
+  check-fixed-array-index classes kinds families env locals arr-len idx-expr st = case idx-expr of
+    ELitInt isp digits -> (case index-number digits of
+      Some iv -> if iv < 0 then term-error isp "fixedArray index must be non-negative" st
+        else let k = unrefine (nat-from-int iv) in
+          if k < arr-len then (CInt isp (primitive-type "Usize") (int-to-string iv), st)
+          else term-error isp ("fixedArray index " <> digits <> " out of bounds for length " <> nat-to-string arr-len) st
+      None -> term-error isp "invalid fixedArray index literal" st)
+    other -> check classes kinds families env locals idx-expr (primitive-type "Usize") st
+  infer-fixed-array-get :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
+  infer-fixed-array-get classes kinds families env locals sp args st = case args of
+    [arr-expr, idx-expr] -> case infer classes kinds families env locals arr-expr st of
+      (arr-term, s1) ->
+        let raw-ty = normalize s1 (core-type arr-term) in
+        let carrier = case borrowed-carrier raw-ty of Some c -> c; None -> raw-ty in
+        (case fixed-array-parts carrier of
+          Some (n, elem) -> case check-fixed-array-index classes kinds families env locals n idx-expr s1 of
+            (idx-term, s2) -> (CPrimitive sp elem "val-fixed-get" (CArgument sp arr-term (CArgument (expr-span idx-expr) idx-term (CArgumentsEnd sp))), s2)
+          None -> term-error (expr-span arr-expr) "fixedArrayGet requires a FixedArray (or Ref/Mut to one)" s1)
+    other -> term-error sp "fixedArrayGet takes an array and an index" st
+  infer-fixed-array-set :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
+  infer-fixed-array-set classes kinds families env locals sp args st = case args of
+    [place-expr, idx-expr, val-expr] -> case infer classes kinds families env locals place-expr st of
+      (place-term, s1) -> case mutable-borrow (normalize s1 (core-type place-term)) of
+        Some (region, carrier) -> (case fixed-array-parts carrier of
+          Some (n, elem) -> case check-fixed-array-index classes kinds families env locals n idx-expr s1 of
+            (idx-term, s2) -> case check classes kinds families env locals val-expr elem s2 of
+              (val-term, s3) -> (CPrimitive sp (primitive-type "Unit") "val-fixed-set" (CArgument sp place-term (CArgument (expr-span idx-expr) idx-term (CArgument (expr-span val-expr) val-term (CArgumentsEnd sp)))), s3)
+          None -> term-error (expr-span place-expr) "fixedArraySet requires a Mut borrow of a FixedArray" s1)
+        None -> term-error (expr-span place-expr) "fixedArraySet requires a Mut borrow of a FixedArray" s1
+    other -> term-error sp "fixedArraySet takes a Mut FixedArray, an index, and a value" st
+  infer-fixed-array-borrow :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Bool -> List Expr -> Store -> (CoreTerm, Store)
+  infer-fixed-array-borrow classes kinds families env locals sp mutable args st = case args of
+    [place-expr, idx-expr] -> case infer classes kinds families env locals place-expr st of
+      (place-term, s1) -> let pty = normalize s1 (core-type place-term) in
+        (case borrow-type-parts pty of
+          Some (src-mut, region, carrier) ->
+            if mutable && not src-mut then term-error (expr-span place-expr) "fixedArrayMut requires a Mut borrow" s1
+            else (case fixed-array-parts carrier of
+              Some (n, elem) -> case check-fixed-array-index classes kinds families env locals n idx-expr s1 of
+                (idx-term, s2) ->
+                  let res-ty = UApp (UApp (UCon (if mutable then "Mut" else "Ref") borrow-constructor-kind) region) elem in
+                  let op = if mutable then "val-fixed-mut" else "val-fixed-ref" in
+                  (CPrimitive sp res-ty op (CArgument sp place-term (CArgument (expr-span idx-expr) idx-term (CArgumentsEnd sp))), s2)
+              None -> term-error (expr-span place-expr) "fixedArrayRef/fixedArrayMut requires a FixedArray borrow" s1)
+          None -> term-error (expr-span place-expr) "fixedArrayRef/fixedArrayMut requires a borrow" s1)
+    other -> term-error sp "fixedArrayRef/fixedArrayMut takes a borrow and an index" st
+  infer-fixed-array-len :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
+  infer-fixed-array-len classes kinds families env locals sp args st = case args of
+    [arr-expr] -> case infer classes kinds families env locals arr-expr st of
+      (arr-term, s1) ->
+        let raw-ty = normalize s1 (core-type arr-term) in
+        let carrier = case borrowed-carrier raw-ty of Some c -> c; None -> raw-ty in
+        (case fixed-array-parts carrier of
+          Some (n, elem) -> (CInt sp (primitive-type "Usize") (nat-to-string n), s1)
+          None -> term-error (expr-span arr-expr) "fixedArrayLen requires a FixedArray" s1)
+    other -> term-error sp "fixedArrayLen takes exactly one FixedArray" st
   infer-borrow :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> String -> List Expr -> UType -> Store -> (CoreTerm, Store)
   infer-borrow classes kinds families env locals sp operation args expected st = case args of
     [input] -> let mutable = operation == "b.mutBorrow" in
-      (case borrow-type-parts (normalize st expected) of
-        Some (actual, region, carrier) | actual == mutable ->
-          (case check classes kinds families env locals input carrier st of
-            (value, ready) -> (CPrimitive sp expected (if mutable then "mut-borrow" else "borrow")
-              (CArgument (expr-span input) value (CArgumentsEnd sp)), check-borrow-binding sp env expected ready))
-        other -> term-error sp (if mutable then "mutBorrow needs an expected Mut region type" else "borrow needs an expected Ref region type") st)
+      (case input of
+        EProject psp inner label ->
+          let (root-expr, path-labels) = place-projection-chain input [] in
+          (case infer classes kinds families env locals root-expr st of
+            (root-term, s1) -> case borrow-type-parts (normalize s1 (core-type root-term)) of
+              Some (src-mut, src-r, carrier) ->
+                if mutable && not src-mut then term-error psp "mutBorrow on a field requires a Mut borrow" s1
+                else (case lookup-place-path-type kinds env psp carrier path-labels s1 of
+                  (Some fty, s2) ->
+                    let res-ty = UApp (UApp (UCon (if mutable then "Mut" else "Ref") borrow-constructor-kind) src-r) fty in
+                    let s3 = case expected of UError -> s2; known -> unify sp res-ty known s2 in
+                    let path-str = CString psp (primitive-type "String") (join-field-path path-labels) in
+                    (CPrimitive sp (normalize s3 res-ty) "val-place-subborrow" (CArgument sp root-term (CArgument psp path-str (CArgumentsEnd sp))), s3)
+                  (None, s2) -> term-error psp "unknown record field in place sub-borrow" s2)
+              None -> infer-borrow-plain classes kinds families env locals sp mutable input expected st)
+        other -> infer-borrow-plain classes kinds families env locals sp mutable input expected st)
     other -> term-error sp "borrow and mutBorrow take exactly one argument" st
+  infer-borrow-plain :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Bool -> Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-borrow-plain classes kinds families env locals sp mutable input expected st =
+    case borrow-type-parts (normalize st expected) of
+      Some (actual, region, carrier) | actual == mutable ->
+        (case check classes kinds families env locals input carrier st of
+          (value, ready) -> (CPrimitive sp expected (if mutable then "mut-borrow" else "borrow")
+            (CArgument (expr-span input) value (CArgumentsEnd sp)), check-borrow-binding sp env expected ready))
+      other -> term-error sp (if mutable then "mutBorrow needs an expected Mut region type" else "borrow needs an expected Ref region type") st
   infer-ref-set :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> List Expr -> Store -> (CoreTerm, Store)
   infer-ref-set classes kinds families env locals sp args st = case args of
-    [place, input] -> case infer classes kinds families env locals place st of
-      (cell-term, checked) -> case mutable-borrow (normalize checked (core-type cell-term)) of
-        None -> term-error (expr-span place) "refSet writes through an exclusive Mut borrow" checked
-        Some (region, carrier) -> (case cell-term of
-          CLocal at ty id name actuals -> (case check classes kinds families env locals input carrier checked of
-            (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at cell-term (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
-          other -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
+    [place, input] -> case place of
+      EProject psp inner label ->
+        let (root-expr, path-labels) = place-projection-chain place [] in
+        (case infer classes kinds families env locals root-expr st of
+          (root-term, s1) -> case mutable-borrow (normalize s1 (core-type root-term)) of
+            Some (region, carrier) -> (case lookup-place-path-type kinds env psp carrier path-labels s1 of
+              (Some fty, s2) -> case check classes kinds families env locals input fty s2 of
+                (val-term, s3) ->
+                  let path-str = CString psp (primitive-type "String") (join-field-path path-labels) in
+                  (CPrimitive sp (primitive-type "Unit") "val-place-store" (CArgument sp root-term (CArgument psp path-str (CArgument (expr-span input) val-term (CArgumentsEnd sp)))), s3)
+              (None, s2) -> term-error psp "unknown record field in refSet place write" s2)
+            None -> term-error (expr-span root-expr) "refSet writes through an exclusive Mut borrow" s1)
+      other -> case infer classes kinds families env locals place st of
+        (cell-term, checked) -> case mutable-borrow (normalize checked (core-type cell-term)) of
+          None -> term-error (expr-span place) "refSet writes through an exclusive Mut borrow" checked
+          Some (region, carrier) -> (case cell-term of
+            CLocal at ty id name actuals -> (case check classes kinds families env locals input carrier checked of
+              (value, ready) -> (CPrimitive sp (primitive-type "Unit") "ref-set" (CArgument at cell-term (CArgument (expr-span input) value (CArgumentsEnd sp))), ready))
+            other2 -> term-error (expr-span place) "refSet writes through a bound Mut borrow" checked)
     other -> term-error sp "refSet takes a Mut borrow and a value" st
   thunk-syntax-operation :: List CheckedBinding -> Expr -> Option String
   thunk-syntax-operation env head = case head of
@@ -7153,8 +7461,7 @@ module Cinch.Infer where
         None -> case thunk-syntax-operation env f of
           Some operation -> infer-thunk classes kinds families env locals s operation x st
           None -> case ownership-syntax-call env expr of
-            Some (operation, args) -> if operation == "b.refSet" then infer-ref-set classes kinds families env locals s args st
-              else infer-borrow classes kinds families env locals s operation args UError st
+            Some (operation, args) -> infer-ownership-syntax classes kinds families env locals s operation args UError st
             None -> case projection-syntax-head env f of
               Some operation -> infer-projection classes kinds families env locals s operation x st
               None -> if task-syntax-head env expr then infer-task-application classes kinds families env locals s expr None st else if par-syntax-head env expr then infer-par-application classes kinds families env locals s expr None st else if par-method-head? env expr then par-method-dispatch classes kinds families env locals s expr None st else if decision-syntax-head env f then infer-decision classes kinds families env locals s x st else
@@ -7389,8 +7696,7 @@ module Cinch.Infer where
       Some lifted -> lifted
       None -> (case application-spine expr [] of
         (head, args) -> case ownership-syntax-head env head of
-          Some operation -> if operation == "b.refSet" then infer-ref-set classes kinds families env locals sp args st
-            else infer-borrow classes kinds families env locals sp operation args expected st
+          Some operation -> infer-ownership-syntax classes kinds families env locals sp operation args expected st
           None -> if has-projection-head env head then infer classes kinds families env locals expr st else if task-syntax-at-head env head then infer-task-application classes kinds families env locals sp expr (Some expected) st else if par-syntax-at-head env head then infer-par-application classes kinds families env locals sp expr (Some expected) st else if par-method-head? env head then par-method-dispatch classes kinds families env locals sp expr (Some expected) st else if decision-syntax-head env function then infer-decision-expected classes kinds families env locals sp argument expected st else
             case later-combinator-head env head of
               Some operation -> infer-later-combinator classes kinds families env locals sp operation args (Some expected) st
@@ -11727,6 +12033,133 @@ module Cinch.Infer where
     (DSpec sp inner) : rest -> collect-spec-defs (inner : rest)
     other : rest -> collect-spec-defs rest
 
+  is-unboxed-value-type :: List CoreData -> UType -> Bool
+  is-unboxed-value-type datas ty = case refinement-view ty of
+    URefine id nm base pred -> is-unboxed-value-type datas base
+    other -> case fixed-array-parts other of
+      Some pair -> True
+      None -> case root-name other of
+        Some owner -> (case value-layout-of owner datas of Some layout -> True; None -> False)
+        None -> False
+
+  any-unboxed-value-type :: List CoreData -> List UType -> Bool
+  any-unboxed-value-type datas types = case types of
+    [] -> False
+    first : rest -> is-unboxed-value-type datas first || any-unboxed-value-type datas rest
+
+  any-unboxed-free-local :: List CoreData -> List (Nat, UType) -> Bool
+  any-unboxed-free-local datas free = case free of
+    [] -> False
+    (id, ty) : rest -> is-unboxed-value-type datas ty || any-unboxed-free-local datas rest
+
+  find-value-field :: String -> List ValueField -> Option ValueField
+  find-value-field wanted fields = case fields of
+    [] -> None
+    vf : rest -> if vf.vf-name == wanted then Some vf else find-value-field wanted rest
+
+  resolve-value-field-path :: List CoreData -> UType -> List String -> Nat -> Option (Nat, Nat, UType)
+  resolve-value-field-path datas carrier labels acc-off = case labels of
+    [] -> None
+    label : rest -> case root-name carrier of
+      None -> None
+      Some owner -> case value-layout-of owner datas of
+        None -> None
+        Some (repr, sz, al, vfields) -> case find-value-field label vfields of
+          None -> None
+          Some vf -> let next-off = acc-off + vf.vf-offset in
+            case rest of
+              [] -> Some (next-off, vf.vf-align, vf.vf-type)
+              more -> resolve-value-field-path datas (vf.vf-type) more next-off
+
+  core-data-span :: CoreData -> Span
+  core-data-span d = case d of
+    MkCoreData s name k qs cs -> s
+    WithLayout layout bare -> core-data-span bare
+
+  check-boxed-data-fields :: List CoreData -> List CoreData -> Store -> Store
+  check-boxed-data-fields all-datas todo st = case todo of
+    [] -> st
+    d : rest ->
+      let next = (case core-data-layout d of
+        ValueData repr sz al fs -> st
+        other -> check-boxed-ctors all-datas (core-data-span d) (core-data-constructors d) st) in
+      check-boxed-data-fields all-datas rest next
+
+  check-boxed-ctors :: List CoreData -> Span -> List CoreConstructor -> Store -> Store
+  check-boxed-ctors all-datas sp ctors st = case ctors of
+    [] -> st
+    c : rest ->
+      let next = if any-unboxed-value-type all-datas (core-constructor-fields c) then
+            add-error sp "unboxed value types cannot be stored directly in boxed data or record fields" st else st in
+      check-boxed-ctors all-datas sp rest next
+
+  check-value-terms :: Nat -> Bool -> Bool -> List CoreData -> List CoreTerm -> Store -> Store
+  check-value-terms word-bits no-alloc no-raw-ptr datas terms st = case terms of
+    [] -> st
+    first : rest -> check-value-terms word-bits no-alloc no-raw-ptr datas rest (check-value-term word-bits no-alloc no-raw-ptr datas first st)
+
+  check-value-term :: Nat -> Bool -> Bool -> List CoreData -> CoreTerm -> Store -> Store
+  check-value-term word-bits no-alloc no-raw-ptr datas term st = case term of
+    CPrimitive sp ty "val-mut-as-ptr" args ->
+      let s1 = if no-raw-ptr then add-error sp "mutAsPtr is forbidden in #[no-raw-ptr] functions" st else st in
+      check-value-term word-bits no-alloc no-raw-ptr datas args s1
+    CPrimitive sp ty "mut-borrow" args ->
+      let s1 = if no-alloc then add-error sp "heap allocation is forbidden in #[no-alloc] functions" st else st in
+      check-value-term word-bits no-alloc no-raw-ptr datas args s1
+    CPrimitive sp ty "val-place-subborrow" (CArgument at place (CArgument bt (CString st2 sty path) (CArgumentsEnd end))) ->
+      let s1 = (case borrow-type-parts (core-type place) of
+        Some (is-mut, region, carrier) -> (case resolve-value-field-path datas carrier (string-split-on "." path) 0 of
+          Some (off, fnat, fty) ->
+            if fnat > 1 && prelim-mod-nat off fnat /= 0 then
+              add-error sp "cannot take an interior reference to a misaligned field of a packed struct" st
+            else st
+          None -> st)
+        None -> st) in
+      check-value-term word-bits no-alloc no-raw-ptr datas place s1
+    CPrimitive sp ty "val-fixed-repeat" args ->
+      let s1 = (case fixed-array-parts ty of
+        Some (n, elem) -> (case pod-type-layout word-bits datas elem of
+          Some pair -> st
+          None -> add-error sp "FixedArray requires a POD (non-refcounted) element type" st)
+        None -> st) in
+      check-value-term word-bits no-alloc no-raw-ptr datas args s1
+    CUse sp ty name role actuals ->
+      if role /= "foreign" && any-unboxed-value-type datas actuals then
+        add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st
+      else st
+    CQualifiedUse sp ty name role actuals evidence ->
+      if role /= "foreign" && any-unboxed-value-type datas actuals then
+        add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st
+      else st
+    CPolyElim sp ty value actuals ->
+      let s1 = if any-unboxed-value-type datas actuals then
+            add-error sp "unboxed value types cannot instantiate polymorphic type parameters yet" st else st in
+      check-value-term word-bits no-alloc no-raw-ptr datas value s1
+    CLambda sp ty pat body ->
+      let s1 = if any-unboxed-free-local datas (task-free (task-pattern-ids pat) body) then
+            add-error sp "closures cannot capture unboxed value types yet" st else st in
+      check-value-term word-bits no-alloc no-raw-ptr datas body s1
+    other -> check-value-terms word-bits no-alloc no-raw-ptr datas (term-children other) st
+
+  check-value-clauses :: Nat -> Bool -> Bool -> List CoreData -> List CoreClause -> Store -> Store
+  check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st = case clauses of
+    [] -> st
+    (CoreClause sp ps body) : rest ->
+      check-value-clauses word-bits no-alloc no-raw-ptr datas rest (check-value-term word-bits no-alloc no-raw-ptr datas body st)
+
+  check-value-defs :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
+  check-value-defs word-bits ds datas defs st = case defs of
+    [] -> st
+    (CoreDefinition sp name sc openings givens private clauses) : rest ->
+      let no-alloc = decl-has-hint name "no-alloc" ds in
+      let no-raw-ptr = decl-has-hint name "no-raw-ptr" ds in
+      check-value-defs word-bits ds datas rest (check-value-clauses word-bits no-alloc no-raw-ptr datas clauses st)
+
+  check-value-rules :: Nat -> List Decl -> List CoreData -> List CoreDefinition -> Store -> Store
+  check-value-rules word-bits ds datas core st =
+    let s1 = check-boxed-data-fields datas datas st in
+    check-value-defs word-bits ds datas core s1
+
   finish-module-tuned :: CompileTuning -> HashMap String CoreDefinition -> ElaborationImports -> Bool -> String -> PreparedModule -> List BodyBinding -> Elaboration
   finish-module-tuned tuning cached imports retain home (PreparedModule unkinded ds specs clauses classes method-kinds method-store) bodies =
     let (rows, ordered-classes, external-families, nominals, distinct, read-usage) = (case imports of
@@ -11764,7 +12197,8 @@ module Cinch.Infer where
     let (nominal-data, nominal-store) = case store-errors declared-store of [] -> checked-nominal-data ds linked-kinds declared-data declared-store; other -> (declared-data, declared-store) in
     let (runtime-data, sd) = case store-errors nominal-store of [] -> complete-runtime-data ds classes linked-kinds nominal-data nominal-store; other -> (nominal-data, nominal-store) in
     let (usage, usage-store) = case store-errors sd of [] -> collect-usage nominals distinct read-usage ds (\name -> context-kind name linked-kinds) sd; other -> ([], sd) in
-    let (datas, layout-store) = case store-errors usage-store of [] -> check-unpacked-records ds (check-layouts word-bits ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
+    let (datas, raw-layout-store) = case store-errors usage-store of [] -> check-unpacked-records ds (check-layouts-for word-bits ds runtime-data usage usage-store); other -> (runtime-data, usage-store) in
+    let layout-store = case store-errors raw-layout-store of [] -> check-value-rules word-bits ds datas core raw-layout-store; other -> raw-layout-store in
     let sampler = LawSampling (LawEnvironment instances (env-body-context env) core) (law-layouts datas) in
     let (source-laws, source-sampled) = case store-errors layout-store of
           [] -> check-law-instances classes linked-kinds families env sampler instances ds layout-store
@@ -11788,7 +12222,7 @@ module Cinch.Infer where
     -- Checked Core retains contextual phantom regions. Source provenance retains
     -- the defining header, so a later value signature cannot rewrite an export.
     let (exports, export-store) = case store-errors temporal-store of
-          [] -> checked-export-declarations word-bits ds classes linked-kinds core temporal-store
+          [] -> checked-export-declarations word-bits datas ds ds classes linked-kinds core temporal-store
           other -> ([], temporal-store) in
     if retain then
       Elaboration (store-errors export-store) (exports <> finish-bindings export-store env) (contexts ds) core datas effects
@@ -12401,21 +12835,38 @@ module Cinch.Infer where
     other -> st
   infer-record-projection :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> String -> Store -> (CoreTerm, Store)
   infer-record-projection classes kinds families env locals sp value label st = case infer classes kinds families env locals value st of
-    (scrutinee, inferred) -> let checked = hint-record-receiver sp label (core-type scrutinee) kinds env inferred in
-      (case root-name (normalize checked (core-type scrutinee)) of
-      Some owner -> (case hash-map-lookup owner (context-records kinds) of
-        Some (RecordShape name fields observations) -> if has label fields then
-          (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name (has-observations observations) owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
-            (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
-              (selected, done) -> (case (has-observations observations, thunk-function-parts (normalize done (core-type selected))) of
-                (True, Some (row, result)) ->
-                  let observed = CApply sp result selected (CUnit sp (primitive-type "Unit")) in
-                  (CCase sp result scrutinee (CAlternative sp pattern observed (CAlternativesEnd sp)), done)
-                (True, None) -> term-error sp "codata observation needs its checked closure" done
-                (False, parts) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done))))
-          else term-error sp ("unknown record field " <> label) checked
-        other -> term-error sp "field projection needs the checked defining record contract" checked)
-      None -> term-error sp "field projection needs a known record type" checked)
+    (scrutinee, inferred) ->
+      let norm-scrut = normalize inferred (core-type scrutinee) in
+      case borrow-type-parts norm-scrut of
+        Some (is-mut, region, carrier) ->
+          (case lookup-record-field-type kinds env sp carrier label inferred of
+            (Some fty, s1) ->
+              let path-str = CString sp (primitive-type "String") label in
+              (CPrimitive sp fty "val-place-load" (CArgument sp scrutinee (CArgument sp path-str (CArgumentsEnd sp))), s1)
+            (None, s1) -> term-error sp ("unknown record field " <> label) s1)
+        None -> case scrutinee of
+          CPrimitive psp pty "val-place-load" (CArgument at root (CArgument bt (CString st2 sty prev-path) (CArgumentsEnd end))) ->
+            (case lookup-record-field-type kinds env sp norm-scrut label inferred of
+              (Some fty, s1) ->
+                let path-str = CString sp (primitive-type "String") (prev-path <> "." <> label) in
+                (CPrimitive sp fty "val-place-load" (CArgument sp root (CArgument sp path-str (CArgumentsEnd sp))), s1)
+              (None, s1) -> term-error sp ("unknown record field " <> label) s1)
+          other ->
+            let checked = hint-record-receiver sp label (core-type scrutinee) kinds env inferred in
+            (case root-name (normalize checked (core-type scrutinee)) of
+            Some owner -> (case hash-map-lookup owner (context-records kinds) of
+              Some (RecordShape name fields observations) -> if has label fields then
+                (case bind-pattern classes kinds families env locals (PCon sp (record-storage-name (has-observations observations) owner) (pat-spine sp (record-projection-pattern sp label fields))) (core-type scrutinee) checked of
+                  (bound, pattern, prepared) -> (case lookup-expression-value sp kinds (record-local-name label) bound prepared of
+                    (selected, done) -> (case (has-observations observations, thunk-function-parts (normalize done (core-type selected))) of
+                      (True, Some (row, result)) ->
+                        let observed = CApply sp result selected (CUnit sp (primitive-type "Unit")) in
+                        (CCase sp result scrutinee (CAlternative sp pattern observed (CAlternativesEnd sp)), done)
+                      (True, None) -> term-error sp "codata observation needs its checked closure" done
+                      (False, parts) -> (CCase sp (core-type selected) scrutinee (CAlternative sp pattern selected (CAlternativesEnd sp)), done))))
+                else term-error sp ("unknown record field " <> label) checked
+              other2 -> term-error sp "field projection needs the checked defining record contract" checked)
+            None -> term-error sp "field projection needs a known record type" checked)
   -- Certify eligible definitions using an independent checked preliminary
   -- elaboration. Only after its actual Core reconstructs a total graph can
   -- the full elaboration use that graph in a type-level observation. The

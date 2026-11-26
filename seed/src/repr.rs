@@ -140,8 +140,29 @@ pub enum AdtRepr {
     Obj,
     /// A foreign opaque type or a runtime handle: never counted.
     Raw,
+    /// A POD unboxed value record (`#[repr(value)]`): never heap-allocated
+    /// or refcounted; references (`Ref`/`Mut`) to it are raw native pointers.
+    Value,
     /// A refinement type: its runtime form is the container itself.
     Base(Ty),
+}
+
+/// Whether `ty` is a POD unboxed value type (`#[repr(value)]` record or
+/// `FixedArray n a`) whose `Ref`/`Mut` borrows are uncounted native pointers.
+pub fn is_value_ty(ty: &Ty, types: &dyn TypeReprs) -> bool {
+    match ty {
+        Ty::Adt(name, args) => match name.as_str() {
+            "FixedArray" => true,
+            "refined" => args.get(1).is_some_and(|b| is_value_ty(b, types)),
+            "Sing" => args.first().is_some_and(|b| is_value_ty(b, types)),
+            _ => match types.adt(name, args) {
+                AdtRepr::Value => true,
+                AdtRepr::Base(b) => is_value_ty(&b, types),
+                _ => false,
+            },
+        },
+        _ => false,
+    }
 }
 
 /// The checker's view of named types, for [`repr_of`].
@@ -179,11 +200,26 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             miss(ty);
             Class::Raw
         }
-        // Shared access preserves the referent word. Exclusive access
-        // carries the owned mutable cell so a call preserves its identity.
-        Ty::Ref(_, a) => repr_of(a, params, types, miss),
-        Ty::Mut(..) => Class::Obj,
+        // Shared access preserves the referent word (or is a raw pointer for
+        // unboxed value types). Exclusive access carries the owned mutable
+        // cell for boxed/scalar types, or a raw native pointer for unboxed
+        // value types (`#[repr(value)]` / `FixedArray`).
+        Ty::Ref(_, a) => {
+            if is_value_ty(a, types) {
+                Class::Raw
+            } else {
+                repr_of(a, params, types, miss)
+            }
+        }
+        Ty::Mut(_, a) => {
+            if is_value_ty(a, types) {
+                Class::Raw
+            } else {
+                Class::Obj
+            }
+        }
         Ty::Adt(name, args) => match name.as_str() {
+            "FixedArray" => Class::Raw,
             "refined" => match args.as_slice() {
                 [_, base] => repr_of(base, params, types, miss),
                 _ => {
@@ -208,7 +244,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             | "Secret" | "SchemaSnapshot" | "Database" | "SchemaRead" => Class::Raw,
             _ => match types.adt(name, args) {
                 AdtRepr::Obj => Class::Obj,
-                AdtRepr::Raw => Class::Raw,
+                AdtRepr::Raw | AdtRepr::Value => Class::Raw,
                 AdtRepr::Base(b) => repr_of(&b, params, types, miss),
             },
         },

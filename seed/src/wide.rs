@@ -115,6 +115,7 @@ pub fn insert_edges(program: &mut Program) {
                 data: None,
                 result: Some(Class::Obj),
                 dictionary_values: Vec::new(),
+                ..Default::default()
             },
         });
     }

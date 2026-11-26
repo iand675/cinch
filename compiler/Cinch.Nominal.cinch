@@ -315,7 +315,7 @@ module Cinch.Nominal where
   global-stage-str-nat :: String
   global-stage-str-nat = "m.$23stage$2dquotation.strNat"
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
+  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later", "RawPtr", "Borrowed", "MaybeNull", "FixedArray"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   indexed-name :: String -> HashMap String () -> Bool

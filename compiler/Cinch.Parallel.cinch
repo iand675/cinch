@@ -32,7 +32,7 @@ module Cinch.Parallel where
   export CompileStrategy, Latency, Throughput, Release, Eq_CompileStrategy, Show_CompileStrategy
   export CompileTuning
   export default-tuning, latency-tuning, throughput-tuning, release-tuning
-  export tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size
+  export tuning-with-strategy, tuning-with-workers, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size, tuning-word-size
   export tuning-is-latency, tuning-is-throughput, tuning-is-release
   export strategy-name, parse-compile-strategy, parse-nat-word
   export tuning-chunk-size, chunk-list, flatten-lists, apply-worker-budget
@@ -97,6 +97,9 @@ module Cinch.Parallel where
 
   tuning-with-word-size :: Nat -> CompileTuning -> CompileTuning
   tuning-with-word-size ws tuning = CompileTuning tuning.strategy tuning.workers tuning.prim-verify tuning.jpl tuning.proof-cache tuning.replay-only ws
+
+  tuning-word-size :: CompileTuning -> Nat
+  tuning-word-size tuning = tuning.word-size
 
   tuning-is-latency :: CompileTuning -> Bool
   tuning-is-latency tuning = tuning.strategy == Latency
