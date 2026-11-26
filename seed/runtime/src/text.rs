@@ -52,6 +52,13 @@ const K: [u32; 64] = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
+/// Initial hash values for SHA-256 (first 32 bits of the square roots of
+/// the first 8 primes).
+const SHA256_IV: [u32; 8] = [
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+    0x5be0cd19,
+];
+
 /// The SHA-256 digest of `data`: 32 bytes, the FIPS 180-4 hash.
 pub fn sha256(data: &[u8]) -> [u8; 32] {
     #[cfg(target_os = "macos")]
@@ -61,70 +68,74 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     sha256_portable(data)
 }
 
-fn sha256_portable(data: &[u8]) -> [u8; 32] {
-    // The initial hash value (first 32 bits of the square roots of the
-    // first 8 primes).
-    let mut h: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
-        0x5be0cd19,
-    ];
+#[inline]
+fn sha256_compress(h: &mut [u32; 8], chunk: &[u8]) {
+    let mut w = [0u32; 64];
+    for (i, word) in chunk.chunks_exact(4).enumerate() {
+        w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+    }
+    for i in 16..64 {
+        let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+        let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+        w[i] = w[i - 16]
+            .wrapping_add(s0)
+            .wrapping_add(w[i - 7])
+            .wrapping_add(s1);
+    }
+    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = *h;
+    for i in 0..64 {
+        let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+        let ch = (e & f) ^ (!e & g);
+        let t1 = hh
+            .wrapping_add(s1)
+            .wrapping_add(ch)
+            .wrapping_add(K[i])
+            .wrapping_add(w[i]);
+        let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+        let maj = (a & b) ^ (a & c) ^ (b & c);
+        let t2 = s0.wrapping_add(maj);
+        hh = g;
+        g = f;
+        f = e;
+        e = d.wrapping_add(t1);
+        d = c;
+        c = b;
+        b = a;
+        a = t1.wrapping_add(t2);
+    }
+    h[0] = h[0].wrapping_add(a);
+    h[1] = h[1].wrapping_add(b);
+    h[2] = h[2].wrapping_add(c);
+    h[3] = h[3].wrapping_add(d);
+    h[4] = h[4].wrapping_add(e);
+    h[5] = h[5].wrapping_add(f);
+    h[6] = h[6].wrapping_add(g);
+    h[7] = h[7].wrapping_add(hh);
+}
+
+#[inline]
+fn sha256_finish_stream(mut h: [u32; 8], data: &[u8], total_bytes: u64) -> [u8; 32] {
     // Compress the input in place. Only the tail needs a writable buffer.
     let chunks = data.chunks_exact(64);
     let remainder = chunks.remainder();
-    let mut padded = [0; 128];
+    let mut padded = [0u8; 128];
     padded[..remainder.len()].copy_from_slice(remainder);
     padded[remainder.len()] = 0x80;
     let end = if remainder.len() < 56 { 64 } else { 128 };
-    let bits = (data.len() as u64).wrapping_mul(8).to_be_bytes();
+    let bits = total_bytes.wrapping_mul(8).to_be_bytes();
     padded[end - bits.len()..end].copy_from_slice(&bits);
-    let mut w = [0u32; 64];
     for chunk in chunks.chain(padded[..end].chunks_exact(64)) {
-        for (i, word) in chunk.chunks_exact(4).enumerate() {
-            w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
-        }
-        for i in 16..64 {
-            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
-            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16]
-                .wrapping_add(s0)
-                .wrapping_add(w[i - 7])
-                .wrapping_add(s1);
-        }
-        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = h;
-        for i in 0..64 {
-            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-            let ch = (e & f) ^ (!e & g);
-            let t1 = hh
-                .wrapping_add(s1)
-                .wrapping_add(ch)
-                .wrapping_add(K[i])
-                .wrapping_add(w[i]);
-            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-            let maj = (a & b) ^ (a & c) ^ (b & c);
-            let t2 = s0.wrapping_add(maj);
-            hh = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(t1);
-            d = c;
-            c = b;
-            b = a;
-            a = t1.wrapping_add(t2);
-        }
-        h[0] = h[0].wrapping_add(a);
-        h[1] = h[1].wrapping_add(b);
-        h[2] = h[2].wrapping_add(c);
-        h[3] = h[3].wrapping_add(d);
-        h[4] = h[4].wrapping_add(e);
-        h[5] = h[5].wrapping_add(f);
-        h[6] = h[6].wrapping_add(g);
-        h[7] = h[7].wrapping_add(hh);
+        sha256_compress(&mut h, chunk);
     }
     let mut out = [0u8; 32];
     for (i, word) in h.iter().enumerate() {
         out[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
     }
     out
+}
+
+fn sha256_portable(data: &[u8]) -> [u8; 32] {
+    sha256_finish_stream(SHA256_IV, data, data.len() as u64)
 }
 
 // ---------------------------------------------------------------------------
@@ -160,53 +171,99 @@ const K512: [u64; 80] = [
 /// length field is the message's bit length as a big-endian 128-bit
 /// integer (a `usize` byte count never overflows it).
 pub fn sha512(data: &[u8]) -> [u8; 64] {
+    #[cfg(target_os = "macos")]
+    if let Some(digest) = crate::sys::darwin::sha512(data) {
+        return digest;
+    }
+    sha512_portable(data)
+}
+
+fn sha512_portable(data: &[u8]) -> [u8; 64] {
     // The initial hash value (first 64 bits of the square roots of the
     // first 8 primes).
     let mut h: [u64; 8] = [
         0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
         0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
     ];
-    // Padding: 0x80, zeros, then the bit length as a big-endian u128.
-    let mut padded: Vec<u8> = Vec::with_capacity(data.len() + 144);
-    padded.extend_from_slice(data);
-    padded.push(0x80);
-    while padded.len() % 128 != 112 {
-        padded.push(0);
-    }
-    padded.extend_from_slice(&((data.len() as u128) * 8).to_be_bytes());
-    let mut w = [0u64; 80];
-    for chunk in padded.chunks_exact(128) {
-        for (i, word) in chunk.chunks_exact(8).enumerate() {
-            w[i] = u64::from_be_bytes([word[0], word[1], word[2], word[3], word[4], word[5], word[6], word[7]]);
-        }
-        for i in 16..80 {
-            let s0 = w[i - 15].rotate_right(1) ^ w[i - 15].rotate_right(8) ^ (w[i - 15] >> 7);
-            let s1 = w[i - 2].rotate_right(19) ^ w[i - 2].rotate_right(61) ^ (w[i - 2] >> 6);
-            w[i] = w[i - 16]
-                .wrapping_add(s0)
-                .wrapping_add(w[i - 7])
-                .wrapping_add(s1);
-        }
-        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = h;
-        for i in 0..80 {
-            let s1 = e.rotate_right(14) ^ e.rotate_right(18) ^ e.rotate_right(41);
-            let ch = (e & f) ^ (!e & g);
-            let t1 = hh
+    // Compress the input in place. Only the tail needs a writable buffer.
+    let chunks = data.chunks_exact(128);
+    let remainder = chunks.remainder();
+    let mut padded = [0u8; 256];
+    padded[..remainder.len()].copy_from_slice(remainder);
+    padded[remainder.len()] = 0x80;
+    let end = if remainder.len() < 112 { 128 } else { 256 };
+    let bits = (data.len() as u128).wrapping_mul(8).to_be_bytes();
+    padded[end - bits.len()..end].copy_from_slice(&bits);
+
+    macro_rules! sha512_round {
+        ($a:expr, $b:expr, $c:expr, $d:expr, $e:expr, $f:expr, $g:expr, $hh:expr, $k:expr, $w:expr) => {{
+            let s1 = $e.rotate_right(14) ^ $e.rotate_right(18) ^ $e.rotate_right(41);
+            let ch = ($e & $f) ^ (!$e & $g);
+            let t1 = $hh
                 .wrapping_add(s1)
                 .wrapping_add(ch)
-                .wrapping_add(K512[i])
-                .wrapping_add(w[i]);
-            let s0 = a.rotate_right(28) ^ a.rotate_right(34) ^ a.rotate_right(39);
-            let maj = (a & b) ^ (a & c) ^ (b & c);
+                .wrapping_add($k)
+                .wrapping_add($w);
+            let s0 = $a.rotate_right(28) ^ $a.rotate_right(34) ^ $a.rotate_right(39);
+            let maj = ($a & $b) ^ ($a & $c) ^ ($b & $c);
             let t2 = s0.wrapping_add(maj);
-            hh = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(t1);
-            d = c;
-            c = b;
-            b = a;
-            a = t1.wrapping_add(t2);
+            $d = $d.wrapping_add(t1);
+            $hh = t1.wrapping_add(t2);
+        }};
+    }
+
+    macro_rules! sha512_sched {
+        ($w:expr, $idx:expr) => {{
+            let i = $idx & 15;
+            let w15 = $w[(i + 1) & 15];
+            let w2 = $w[(i + 14) & 15];
+            let s0 = w15.rotate_right(1) ^ w15.rotate_right(8) ^ (w15 >> 7);
+            let s1 = w2.rotate_right(19) ^ w2.rotate_right(61) ^ (w2 >> 6);
+            $w[i] = $w[i]
+                .wrapping_add(s0)
+                .wrapping_add($w[(i + 9) & 15])
+                .wrapping_add(s1);
+            $w[i]
+        }};
+    }
+
+    let mut w = [0u64; 16];
+    for chunk in chunks.chain(padded[..end].chunks_exact(128)) {
+        for (i, word) in chunk.chunks_exact(8).enumerate() {
+            w[i] = u64::from_be_bytes([
+                word[0], word[1], word[2], word[3], word[4], word[5], word[6], word[7],
+            ]);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = h;
+        // Rounds 0..16: message schedule words come directly from the block.
+        for base in (0..16).step_by(8) {
+            sha512_round!(a, b, c, d, e, f, g, hh, K512[base], w[base]);
+            sha512_round!(hh, a, b, c, d, e, f, g, K512[base + 1], w[base + 1]);
+            sha512_round!(g, hh, a, b, c, d, e, f, K512[base + 2], w[base + 2]);
+            sha512_round!(f, g, hh, a, b, c, d, e, K512[base + 3], w[base + 3]);
+            sha512_round!(e, f, g, hh, a, b, c, d, K512[base + 4], w[base + 4]);
+            sha512_round!(d, e, f, g, hh, a, b, c, K512[base + 5], w[base + 5]);
+            sha512_round!(c, d, e, f, g, hh, a, b, K512[base + 6], w[base + 6]);
+            sha512_round!(b, c, d, e, f, g, hh, a, K512[base + 7], w[base + 7]);
+        }
+        // Rounds 16..80: 16-word rolling message schedule, 8 rounds unrolled.
+        for base in (16..80).step_by(8) {
+            let w0 = sha512_sched!(w, base);
+            sha512_round!(a, b, c, d, e, f, g, hh, K512[base], w0);
+            let w1 = sha512_sched!(w, base + 1);
+            sha512_round!(hh, a, b, c, d, e, f, g, K512[base + 1], w1);
+            let w2 = sha512_sched!(w, base + 2);
+            sha512_round!(g, hh, a, b, c, d, e, f, K512[base + 2], w2);
+            let w3 = sha512_sched!(w, base + 3);
+            sha512_round!(f, g, hh, a, b, c, d, e, K512[base + 3], w3);
+            let w4 = sha512_sched!(w, base + 4);
+            sha512_round!(e, f, g, hh, a, b, c, d, K512[base + 4], w4);
+            let w5 = sha512_sched!(w, base + 5);
+            sha512_round!(d, e, f, g, hh, a, b, c, K512[base + 5], w5);
+            let w6 = sha512_sched!(w, base + 6);
+            sha512_round!(c, d, e, f, g, hh, a, b, K512[base + 6], w6);
+            let w7 = sha512_sched!(w, base + 7);
+            sha512_round!(b, c, d, e, f, g, hh, a, K512[base + 7], w7);
         }
         h[0] = h[0].wrapping_add(a);
         h[1] = h[1].wrapping_add(b);
@@ -234,15 +291,30 @@ pub fn sha512(data: &[u8]) -> [u8; 64] {
 /// security decisions.
 pub fn sha1(data: &[u8]) -> [u8; 20] {
     let mut h: [u32; 5] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
-    let mut padded: Vec<u8> = Vec::with_capacity(data.len() + 72);
-    padded.extend_from_slice(data);
-    padded.push(0x80);
-    while padded.len() % 64 != 56 {
-        padded.push(0);
+    // Compress the input in place. Only the tail needs a writable buffer.
+    let chunks = data.chunks_exact(64);
+    let remainder = chunks.remainder();
+    let mut padded = [0u8; 128];
+    padded[..remainder.len()].copy_from_slice(remainder);
+    padded[remainder.len()] = 0x80;
+    let end = if remainder.len() < 56 { 64 } else { 128 };
+    let bits = (data.len() as u64).wrapping_mul(8).to_be_bytes();
+    padded[end - bits.len()..end].copy_from_slice(&bits);
+
+    macro_rules! sha1_step {
+        ($a:expr, $b:expr, $c:expr, $d:expr, $e:expr, $f:expr, $k:expr, $w:expr) => {{
+            $e = $a
+                .rotate_left(5)
+                .wrapping_add($f)
+                .wrapping_add($e)
+                .wrapping_add($k)
+                .wrapping_add($w);
+            $b = $b.rotate_left(30);
+        }};
     }
-    padded.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
+
     let mut w = [0u32; 80];
-    for chunk in padded.chunks_exact(64) {
+    for chunk in chunks.chain(padded[..end].chunks_exact(64)) {
         for (i, word) in chunk.chunks_exact(4).enumerate() {
             w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
         }
@@ -250,24 +322,37 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
             w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);
         }
         let [mut a, mut b, mut c, mut d, mut e] = h;
-        for i in 0..80 {
-            let (f, k) = match i {
-                0..=19 => ((b & c) | (!b & d), 0x5a827999u32),
-                20..=39 => (b ^ c ^ d, 0x6ed9eba1),
-                40..=59 => ((b & c) | (b & d) | (c & d), 0x8f1bbcdc),
-                _ => (b ^ c ^ d, 0xca62c1d6),
-            };
-            let temp = a
-                .rotate_left(5)
-                .wrapping_add(f)
-                .wrapping_add(e)
-                .wrapping_add(k)
-                .wrapping_add(w[i]);
-            e = d;
-            d = c;
-            c = b.rotate_left(30);
-            b = a;
-            a = temp;
+        // Rounds 0..20
+        for base in (0..20).step_by(5) {
+            sha1_step!(a, b, c, d, e, d ^ (b & (c ^ d)), 0x5a827999u32, w[base]);
+            sha1_step!(e, a, b, c, d, c ^ (a & (b ^ c)), 0x5a827999u32, w[base + 1]);
+            sha1_step!(d, e, a, b, c, b ^ (e & (a ^ b)), 0x5a827999u32, w[base + 2]);
+            sha1_step!(c, d, e, a, b, a ^ (d & (e ^ a)), 0x5a827999u32, w[base + 3]);
+            sha1_step!(b, c, d, e, a, e ^ (c & (d ^ e)), 0x5a827999u32, w[base + 4]);
+        }
+        // Rounds 20..40
+        for base in (20..40).step_by(5) {
+            sha1_step!(a, b, c, d, e, b ^ c ^ d, 0x6ed9eba1u32, w[base]);
+            sha1_step!(e, a, b, c, d, a ^ b ^ c, 0x6ed9eba1u32, w[base + 1]);
+            sha1_step!(d, e, a, b, c, e ^ a ^ b, 0x6ed9eba1u32, w[base + 2]);
+            sha1_step!(c, d, e, a, b, d ^ e ^ a, 0x6ed9eba1u32, w[base + 3]);
+            sha1_step!(b, c, d, e, a, c ^ d ^ e, 0x6ed9eba1u32, w[base + 4]);
+        }
+        // Rounds 40..60
+        for base in (40..60).step_by(5) {
+            sha1_step!(a, b, c, d, e, (b & c) | (d & (b | c)), 0x8f1bbcdcu32, w[base]);
+            sha1_step!(e, a, b, c, d, (a & b) | (c & (a | b)), 0x8f1bbcdcu32, w[base + 1]);
+            sha1_step!(d, e, a, b, c, (e & a) | (b & (e | a)), 0x8f1bbcdcu32, w[base + 2]);
+            sha1_step!(c, d, e, a, b, (d & e) | (a & (d | e)), 0x8f1bbcdcu32, w[base + 3]);
+            sha1_step!(b, c, d, e, a, (c & d) | (e & (c | d)), 0x8f1bbcdcu32, w[base + 4]);
+        }
+        // Rounds 60..80
+        for base in (60..80).step_by(5) {
+            sha1_step!(a, b, c, d, e, b ^ c ^ d, 0xca62c1d6u32, w[base]);
+            sha1_step!(e, a, b, c, d, a ^ b ^ c, 0xca62c1d6u32, w[base + 1]);
+            sha1_step!(d, e, a, b, c, e ^ a ^ b, 0xca62c1d6u32, w[base + 2]);
+            sha1_step!(c, d, e, a, b, d ^ e ^ a, 0xca62c1d6u32, w[base + 3]);
+            sha1_step!(b, c, d, e, a, c ^ d ^ e, 0xca62c1d6u32, w[base + 4]);
         }
         h[0] = h[0].wrapping_add(a);
         h[1] = h[1].wrapping_add(b);
@@ -290,12 +375,6 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
 /// words on the wire). Retained for legacy content identity; broken
 /// against collision attacks, never a new security decision.
 pub fn md5(data: &[u8]) -> [u8; 16] {
-    /// The per-round left-rotation amounts (RFC 1321's `s` table).
-    const S: [u32; 64] = [
-        7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5,
-        9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10,
-        15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
-    ];
     /// The 64 additive constants (RFC 1321's `T` table:
     /// `floor(2^32 * abs(sin(i + 1)))`).
     const K: [u32; 64] = [
@@ -314,32 +393,61 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
     let mut b0: u32 = 0xefcdab89;
     let mut c0: u32 = 0x98badcfe;
     let mut d0: u32 = 0x10325476;
-    let mut padded: Vec<u8> = Vec::with_capacity(data.len() + 72);
-    padded.extend_from_slice(data);
-    padded.push(0x80);
-    while padded.len() % 64 != 56 {
-        padded.push(0);
-    }
+    // Compress the input in place. Only the tail needs a writable buffer.
+    let chunks = data.chunks_exact(64);
+    let remainder = chunks.remainder();
+    let mut padded = [0u8; 128];
+    padded[..remainder.len()].copy_from_slice(remainder);
+    padded[remainder.len()] = 0x80;
+    let end = if remainder.len() < 56 { 64 } else { 128 };
     // The bit length is little-endian for MD5.
-    padded.extend_from_slice(&((data.len() as u64) * 8).to_le_bytes());
-    for chunk in padded.chunks_exact(64) {
+    let bits = (data.len() as u64).wrapping_mul(8).to_le_bytes();
+    padded[end - bits.len()..end].copy_from_slice(&bits);
+
+    macro_rules! md5_step {
+        ($a:expr, $b:expr, $c:expr, $d:expr, $f:expr, $m:expr, $k:expr, $s:expr) => {{
+            $a = $b.wrapping_add(
+                $a.wrapping_add($f)
+                    .wrapping_add($k)
+                    .wrapping_add($m)
+                    .rotate_left($s),
+            );
+        }};
+    }
+
+    for chunk in chunks.chain(padded[..end].chunks_exact(64)) {
         let mut m = [0u32; 16];
         for (i, word) in chunk.chunks_exact(4).enumerate() {
             m[i] = u32::from_le_bytes([word[0], word[1], word[2], word[3]]);
         }
         let (mut a, mut b, mut c, mut d) = (a0, b0, c0, d0);
-        for i in 0..64 {
-            let (f, g) = match i {
-                0..=15 => ((b & c) | (!b & d), i),
-                16..=31 => ((d & b) | (!d & c), (5 * i + 1) % 16),
-                32..=47 => (b ^ c ^ d, (3 * i + 5) % 16),
-                _ => (c ^ (b | !d), (7 * i) % 16),
-            };
-            let f2 = f.wrapping_add(a).wrapping_add(K[i]).wrapping_add(m[g]);
-            a = d;
-            d = c;
-            c = b;
-            b = b.wrapping_add(f2.rotate_left(S[i]));
+        // Round 1 (0..16): g = i
+        for base in (0..16).step_by(4) {
+            md5_step!(a, b, c, d, d ^ (b & (c ^ d)), m[base], K[base], 7);
+            md5_step!(d, a, b, c, c ^ (a & (b ^ c)), m[base + 1], K[base + 1], 12);
+            md5_step!(c, d, a, b, b ^ (d & (a ^ b)), m[base + 2], K[base + 2], 17);
+            md5_step!(b, c, d, a, a ^ (c & (d ^ a)), m[base + 3], K[base + 3], 22);
+        }
+        // Round 2 (16..32): g = (5 * i + 1) & 15
+        for base in (16..32).step_by(4) {
+            md5_step!(a, b, c, d, c ^ (d & (b ^ c)), m[(5 * base + 1) & 15], K[base], 5);
+            md5_step!(d, a, b, c, b ^ (c & (a ^ b)), m[(5 * (base + 1) + 1) & 15], K[base + 1], 9);
+            md5_step!(c, d, a, b, a ^ (b & (d ^ a)), m[(5 * (base + 2) + 1) & 15], K[base + 2], 14);
+            md5_step!(b, c, d, a, d ^ (a & (c ^ d)), m[(5 * (base + 3) + 1) & 15], K[base + 3], 20);
+        }
+        // Round 3 (32..48): g = (3 * i + 5) & 15
+        for base in (32..48).step_by(4) {
+            md5_step!(a, b, c, d, b ^ c ^ d, m[(3 * base + 5) & 15], K[base], 4);
+            md5_step!(d, a, b, c, a ^ b ^ c, m[(3 * (base + 1) + 5) & 15], K[base + 1], 11);
+            md5_step!(c, d, a, b, d ^ a ^ b, m[(3 * (base + 2) + 5) & 15], K[base + 2], 16);
+            md5_step!(b, c, d, a, c ^ d ^ a, m[(3 * (base + 3) + 5) & 15], K[base + 3], 23);
+        }
+        // Round 4 (48..64): g = (7 * i) & 15
+        for base in (48..64).step_by(4) {
+            md5_step!(a, b, c, d, c ^ (b | !d), m[(7 * base) & 15], K[base], 6);
+            md5_step!(d, a, b, c, b ^ (a | !c), m[(7 * (base + 1)) & 15], K[base + 1], 10);
+            md5_step!(c, d, a, b, a ^ (d | !b), m[(7 * (base + 2)) & 15], K[base + 2], 15);
+            md5_step!(b, c, d, a, d ^ (c | !a), m[(7 * (base + 3)) & 15], K[base + 3], 21);
         }
         a0 = a0.wrapping_add(a);
         b0 = b0.wrapping_add(b);
@@ -363,6 +471,21 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
 /// (`H(key)`), per the specification; the two 64-byte pads are `k ^
 /// 0x36` (inner) and `k ^ 0x5c` (outer).
 pub fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    #[cfg(target_os = "macos")]
+    {
+        return crate::sys::darwin::hmac_sha256(key, message);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        hmac_sha256_portable(key, message)
+    }
+}
+
+/// Zero-copy, zero-allocation portable HMAC-SHA-256: compresses the 64-byte
+/// `ipad` directly into the initial SHA-256 state, streams `message` in place
+/// with no buffer copy, and hashes the 96-byte `outer` block on the stack.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+fn hmac_sha256_portable(key: &[u8], message: &[u8]) -> [u8; 32] {
     const BLOCK: usize = 64;
     let mut k = [0u8; BLOCK];
     if key.len() > BLOCK {
@@ -376,13 +499,12 @@ pub fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
         ipad[i] ^= k[i];
         opad[i] ^= k[i];
     }
-    let mut inner = Vec::with_capacity(BLOCK + message.len());
-    inner.extend_from_slice(&ipad);
-    inner.extend_from_slice(message);
-    let inner_digest = sha256(&inner);
-    let mut outer = Vec::with_capacity(BLOCK + 32);
-    outer.extend_from_slice(&opad);
-    outer.extend_from_slice(&inner_digest);
+    let mut inner_h = SHA256_IV;
+    sha256_compress(&mut inner_h, &ipad);
+    let inner_digest = sha256_finish_stream(inner_h, message, (BLOCK + message.len()) as u64);
+    let mut outer = [0u8; BLOCK + 32];
+    outer[..BLOCK].copy_from_slice(&opad);
+    outer[BLOCK..].copy_from_slice(&inner_digest);
     sha256(&outer)
 }
 
@@ -491,28 +613,41 @@ mod tests {
 
     #[test]
     fn sha512_matches_the_fips_180_4_vectors() {
-        assert_eq!(
-            hex64(&sha512(b"abc")),
-            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
-        );
-        assert_eq!(
-            hex64(&sha512(b"")),
-            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
-        );
-        assert_eq!(
-            hex64(&sha512(b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu")),
-            "8e959b75dae313da8cf4f72814fc143f8f7779c6eb9f7fa17299aeadb6889018501d289e4900f7e4331b99dec4b5433ac7d329eeb6dd26545e96e55b874be909"
-        );
+        let million = vec![b'a'; 1_000_000];
+        let vectors: &[(&[u8], &str)] = &[
+            (
+                b"abc",
+                "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+            ),
+            (
+                b"",
+                "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+            ),
+            (
+                b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
+                "8e959b75dae313da8cf4f72814fc143f8f7779c6eb9f7fa17299aeadb6889018501d289e4900f7e4331b99dec4b5433ac7d329eeb6dd26545e96e55b874be909",
+            ),
+            (
+                &million,
+                "e718483d0ce769644e2e42c7bc15b4638e1f98b13b2044285632a803afa973ebde0ff244877ea60a4cb0432ce577c31beb009c5c2c49aa2e4eadb217ad8cc09b",
+            ),
+        ];
+        for &(input, expected) in vectors {
+            assert_eq!(hex64(&sha512(input)), expected);
+            assert_eq!(hex64(&sha512_portable(input)), expected);
+        }
     }
 
     #[test]
     fn sha1_matches_the_fips_180_1_vectors() {
+        let million = vec![b'a'; 1_000_000];
         assert_eq!(hex64(&sha1(b"abc")), "a9993e364706816aba3e25717850c26c9cd0d89d");
         assert_eq!(hex64(&sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
         assert_eq!(
             hex64(&sha1(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")),
             "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
         );
+        assert_eq!(hex64(&sha1(&million)), "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
     }
 
     #[test]
@@ -520,24 +655,106 @@ mod tests {
         assert_eq!(hex64(&md5(b"abc")), "900150983cd24fb0d6963f7d28e17f72");
         assert_eq!(hex64(&md5(b"")), "d41d8cd98f00b204e9800998ecf8427e");
         assert_eq!(hex64(&md5(b"message digest")), "f96b697d7cb7938d525a2f31aaf161d0");
+        assert_eq!(
+            hex64(&md5(b"abcdefghijklmnopqrstuvwxyz")),
+            "c3fcd3d76192e4007dfb496cca67e13b"
+        );
+        assert_eq!(
+            hex64(&md5(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")),
+            "d174ab98d277d9f5a5611c2c9f419d9f"
+        );
+        assert_eq!(
+            hex64(&md5(b"12345678901234567890123456789012345678901234567890123456789012345678901234567890")),
+            "57edf4a22be3c955ac49da2e2107b67a"
+        );
     }
 
     #[test]
     fn hmac_sha256_matches_the_rfc_4231_vectors() {
-        // Case 2: key "Jefe", data "what do ya want for nothing?".
-        assert_eq!(
-            hex64(&hmac_sha256(b"Jefe", b"what do ya want for nothing?")),
-            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
-        );
-        // Case 6: a key longer than the 64-byte block exercises the
-        // H(key) branch.
-        assert_eq!(
-            hex64(&hmac_sha256(
+        let vectors: &[(&[u8], &[u8], &str)] = &[
+            // Case 1
+            (
+                &[0x0bu8; 20],
+                b"Hi There",
+                "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
+            ),
+            // Case 2: key "Jefe", data "what do ya want for nothing?".
+            (
+                b"Jefe",
+                b"what do ya want for nothing?",
+                "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843",
+            ),
+            // Case 3
+            (
+                &[0xaau8; 20],
+                &[0xddu8; 50],
+                "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe",
+            ),
+            // Case 6: a key longer than the 64-byte block exercises the
+            // H(key) branch.
+            (
                 &[0xaau8; 131],
-                b"Test Using Larger Than Block-Size Key - Hash Key First"
-            )),
-            "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
-        );
+                b"Test Using Larger Than Block-Size Key - Hash Key First",
+                "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54",
+            ),
+            // Case 7
+            (
+                &[0xaau8; 131],
+                b"This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.",
+                "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2",
+            ),
+        ];
+        for &(key, msg, expected) in vectors {
+            assert_eq!(hex64(&hmac_sha256(key, msg)), expected);
+            assert_eq!(hex64(&hmac_sha256_portable(key, msg)), expected);
+        }
+    }
+
+    #[test]
+    fn digests_agree_across_padding_boundaries_and_large_inputs() {
+        let lengths = [
+            0usize, 1, 55, 56, 63, 64, 65, 111, 112, 119, 120, 127, 128, 129, 255, 256, 1_048_576,
+        ];
+        let max_len = *lengths.last().unwrap();
+        let buf: Vec<u8> = (0..max_len).map(|i| (i.wrapping_mul(37).wrapping_add(13)) as u8).collect();
+        let keys: &[&[u8]] = &[b"", b"short", &[0x5au8; 64], &[0x3cu8; 65], &[0x99u8; 131]];
+
+        for &len in &lengths {
+            let slice = &buf[..len];
+            assert_eq!(sha256(slice), sha256_portable(slice), "sha256 len={len}");
+            assert_eq!(sha512(slice), sha512_portable(slice), "sha512 len={len}");
+            for &key in keys {
+                assert_eq!(
+                    hmac_sha256(key, slice),
+                    hmac_sha256_portable(key, slice),
+                    "hmac_sha256 key_len={} msg_len={len}",
+                    key.len()
+                );
+            }
+        }
+        // Boundary checks for SHA-1 and MD5 at 55, 56, 63, 64, 65, 128 bytes.
+        let sha1_bounds: &[(usize, &str)] = &[
+            (55, "c1c8bbdc22796e28c0e15163d20899b65621d65a"),
+            (56, "c2db330f6083854c99d4b5bfb6e8f29f201be699"),
+            (63, "03f09f5b158a7a8cdad920bddc29b81c18a551f5"),
+            (64, "0098ba824b5c16427bd7a1122a5a442a25ec644d"),
+            (65, "11655326c708d70319be2610e8a57d9a5b959d3b"),
+            (128, "ad5b3fdbcb526778c2839d2f151ea753995e26a0"),
+        ];
+        let md5_bounds: &[(usize, &str)] = &[
+            (55, "ef1772b6dff9a122358552954ad0df65"),
+            (56, "3b0c8ac703f828b04c6c197006d17218"),
+            (63, "b06521f39153d618550606be297466d5"),
+            (64, "014842d480b571495a4a0363793f7367"),
+            (65, "c743a45e0d2e6a95cb859adae0248435"),
+            (128, "e510683b3f5ffe4093d021808bc6ff70"),
+        ];
+        for &(n, expected) in sha1_bounds {
+            assert_eq!(hex64(&sha1(&vec![b'a'; n])), expected, "sha1 len={n}");
+        }
+        for &(n, expected) in md5_bounds {
+            assert_eq!(hex64(&md5(&vec![b'a'; n])), expected, "md5 len={n}");
+        }
     }
 
     #[test]

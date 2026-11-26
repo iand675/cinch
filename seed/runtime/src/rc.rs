@@ -132,6 +132,56 @@ use crate::block::{self, Scan, SCAN_OBJ, SCAN_RAW};
 /// a block address or 0, with this tag in its two low bits.
 const MARK_LINK: i64 = 2;
 
+/// Local stack capacity for [`cinch_mark_mt`]'s fast path before spilling
+/// deeper subtrees to O(1)-stack pointer reversal.
+const MARK_STACK: usize = 64;
+
+/// Low `RC_BITS` mask for in-place header count updates (`RC_SHIFT == 0`
+/// is asserted in `block_kinds.rs`).
+const RC_MASK: u64 = (1u64 << block::RC_BITS) - 1;
+const _: () = assert!(block::RC_SHIFT == 0);
+const _: () = assert!(block::RC_FRAME_RELEASED == block::RC_FRAME - 1);
+
+/// Replace only the low `RC_BITS` count field of header `h`, preserving
+/// `kind` and `layout`.
+#[inline(always)]
+const fn with_rc(h: u64, rc: i64) -> u64 {
+    (h & !RC_MASK) | ((rc as u64) & RC_MASK)
+}
+
+/// Whether the block at `p` with header `h` is a valid live block with zero
+/// counted slots (no children to scan or release).
+///
+/// Returns `false` for any non-live kind (`KIND_NONE` or `> KIND_LAST`),
+/// so corrupt headers fall through to `corrupt()`.
+#[inline(always)]
+unsafe fn is_leaf_block(p: *const u8, h: u64) -> bool {
+    let k = block::kind(h);
+    if block::kind_has_shape(k) {
+        let l = block::layout(h);
+        !block::shape_escaped(l) && block::shape_field_mask(l) == 0
+    } else if k == block::KIND_ARRAY {
+        let entry = unsafe { p.cast::<u64>().read() };
+        entry == SCAN_RAW || entry > block::SCAN_TOBJ
+    } else {
+        matches!(
+            k,
+            block::KIND_KNOT
+                | block::KIND_NAT
+                | block::KIND_INT
+                | block::KIND_BYTES
+                | block::KIND_BYTES_STATIC
+                | block::KIND_SYM
+                | block::KIND_BOXED_SCALAR
+                | block::KIND_RAW
+                | block::KIND_MVAR
+                | block::KIND_BYTES_MAPPED
+                | block::KIND_ATOMIC
+                | block::KIND_RWLOCK
+        )
+    }
+}
+
 /// Whether the program counts references ([`cinch_reclaim_enable`]).
 static RECLAIM: AtomicBool = AtomicBool::new(false);
 
@@ -200,8 +250,12 @@ pub unsafe extern "C" fn cinch_dup(word: i64) {
         // count field is not a count to change.
         block::RC_IMMORTAL | block::RC_FRAME | block::RC_FRAME_RELEASED => {}
         // No overflow check: the heap cap keeps every count below `RC_MAX`
-        // (block_kinds.rs).
-        n if n > 0 => unsafe { block::write_header(p, block::header(n + 1, block::kind(h), block::layout(h))) },
+        // (block_kinds.rs), and `RC_SHIFT == 0` so adding 1 changes only rc.
+        n if n > 0 => {
+            let next = h.wrapping_add(1);
+            debug_assert_eq!(next, block::header(n + 1, block::kind(h), block::layout(h)));
+            unsafe { block::write_header(p, next) };
+        }
         _ => unsafe { dup_atomic(p) },
     }
 }
@@ -230,8 +284,12 @@ pub unsafe extern "C" fn cinch_drop(word: i64) {
         // and never freed: the activation's frame owns its memory.
         block::RC_IMMORTAL | block::RC_FRAME_RELEASED => {}
         block::RC_FRAME => unsafe { cinch_frame_release(word) },
-        block::RC_FRESH => unsafe { release(p) },
-        n if n > 1 => unsafe { block::write_header(p, block::header(n - 1, block::kind(h), block::layout(h))) },
+        block::RC_FRESH => unsafe { release(p, h) },
+        n if n > 1 => {
+            let next = h.wrapping_sub(1);
+            debug_assert_eq!(next, block::header(n - 1, block::kind(h), block::layout(h)));
+            unsafe { block::write_header(p, next) };
+        }
         _ => unsafe { drop_atomic(p) },
     }
 }
@@ -267,7 +325,7 @@ pub unsafe extern "C" fn cinch_drop_slow(word: i64) {
         block::RC_FRAME | block::RC_FRAME_RELEASED if crate::heap::rc_debug() => corrupt(),
         block::RC_FRAME => unsafe { cinch_frame_release(word) },
         block::RC_FRAME_RELEASED => {}
-        block::RC_FRESH => unsafe { release(p) },
+        block::RC_FRESH => unsafe { release(p, h) },
         _ => corrupt(),
     }
 }
@@ -336,7 +394,12 @@ pub unsafe extern "C" fn cinch_frame_release(word: i64) {
     // Mark first: a child that points back here, or a second path into
     // this block while the walk is in progress, then finds the payload
     // released instead of dropping its children twice.
-    unsafe { block::write_header(p, block::header(block::RC_FRAME_RELEASED, block::kind(h), block::layout(h))) };
+    let released = h.wrapping_sub(1);
+    debug_assert_eq!(
+        released,
+        block::header(block::RC_FRAME_RELEASED, block::kind(h), block::layout(h))
+    );
+    unsafe { block::write_header(p, released) };
     unsafe { release_children(p, h, crate::heap::rc_debug()) };
 }
 
@@ -430,31 +493,37 @@ unsafe fn dup_atomic(p: *mut u8) {
 /// references and does not use it again.
 #[inline]
 unsafe fn drop_atomic(p: *mut u8) {
-    if unsafe { take_atomic(p) } {
-        unsafe { release(p) }
+    if let Some(h) = unsafe { take_atomic(p) } {
+        unsafe { release(p, h) }
     }
 }
 
-/// Drop one reference to the atomic block `p` and report whether it was
-/// the last. When it was, this thread owns `p` alone and its header is a
-/// count of one again, as [`release`] expects of a dying block.
+/// Drop one reference to the atomic block `p` and return its restored
+/// `RC_FRESH` header when this was the last reference. When it returns
+/// `Some`, this thread owns `p` alone and its header in memory is a count
+/// of one again, as [`release`] expects of a dying block.
 ///
 /// # Safety
 ///
 /// As for [`drop_atomic`].
 #[inline]
-unsafe fn take_atomic(p: *mut u8) -> bool {
+unsafe fn take_atomic(p: *mut u8) -> Option<u64> {
     let old = unsafe { block::header_cell(p) }.fetch_add(1, Ordering::Release);
     if block::rc(old) != -1 {
-        return false;
+        return None;
     }
     // Every other thread's last use of `p` was released by its own
     // decrement; acquire them before reading or freeing the block.
     fence(Ordering::Acquire);
     // The add carried out of the count into the kind; restore the header
     // from the value before it.
-    unsafe { block::write_header(p, block::header(block::RC_FRESH, block::kind(old), block::layout(old))) };
-    true
+    let restored = with_rc(old, block::RC_FRESH);
+    debug_assert_eq!(
+        restored,
+        block::header(block::RC_FRESH, block::kind(old), block::layout(old))
+    );
+    unsafe { block::write_header(p, restored) };
+    Some(restored)
 }
 
 /// Make every mortal block reachable from `word` atomically counted: the
@@ -464,6 +533,12 @@ unsafe fn take_atomic(p: *mut u8) -> bool {
 /// immortal blocks, which are never counted, and at blocks already
 /// marked, whose reachable blocks are all marked already (module docs).
 ///
+/// Uses a fixed 64-entry local stack for the common depth <= 64 case
+/// (zero heap slot mutation and O(1) returns without rescanning), with
+/// tail-descent on a node's last counted slot and inline skipping of leaf
+/// blocks. Any subtree deeper than 64 spills seamlessly to
+/// [`mark_mt_pointer_reversal`], keeping total native stack usage O(1).
+///
 /// # Safety
 ///
 /// `word` is 0, an immediate, or a live block word, and every block
@@ -471,30 +546,111 @@ unsafe fn take_atomic(p: *mut u8) -> bool {
 /// only.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
-    if !is_block_word(word) || !unsafe { claim(word) } {
+    if !is_block_word(word) {
         return;
     }
+    let Some(mut h) = (unsafe { claim(word) }) else {
+        return;
+    };
     let mut cur = word as usize as *mut u8;
+    if unsafe { is_leaf_block(cur, h) } {
+        return;
+    }
+    let mut stack = [std::mem::MaybeUninit::<(*mut u8, usize)>::uninit(); MARK_STACK];
+    let mut sp: usize = 0;
+    // The slots of `cur` still to visit, or `None` on a fresh visit.
+    let mut resume: Option<usize> = None;
+    loop {
+        let scan = unsafe { Scan::of(cur, h) };
+        let mut next = resume.take().unwrap_or_else(|| scan.words());
+        let mut child: Option<(*mut u8, u64, usize)> = None;
+        while let Some((at, _)) = scan.counted_below(next) {
+            next = at;
+            let w = unsafe { cur.cast::<i64>().add(at).read() };
+            if is_block_word(w) {
+                if let Some(ch) = unsafe { claim(w) } {
+                    let c = w as usize as *mut u8;
+                    if unsafe { is_leaf_block(c, ch) } {
+                        continue;
+                    }
+                    child = Some((c, ch, at));
+                    break;
+                }
+            }
+        }
+        if let Some((c, ch, at)) = child {
+            if scan.counted_below(at).is_none() {
+                // `at` is the last counted slot of `cur`: tail-descend
+                // without consuming a stack entry.
+                cur = c;
+                h = ch;
+                continue;
+            }
+            if sp < MARK_STACK {
+                stack[sp].write((cur, at));
+                sp += 1;
+                cur = c;
+                h = ch;
+                continue;
+            }
+            // Depth exceeded `MARK_STACK`: mark the entire subtree rooted
+            // at `c` using strictly O(1)-stack pointer reversal, then
+            // resume scanning `cur` below `at`.
+            unsafe { mark_mt_pointer_reversal(c, ch) };
+            resume = Some(at);
+            continue;
+        }
+        if sp == 0 {
+            return;
+        }
+        sp -= 1;
+        // SAFETY: `stack[0..sp]` was written before `sp` was incremented.
+        let (parent, at) = unsafe { stack[sp].assume_init() };
+        cur = parent;
+        h = unsafe { block::read_header(cur) };
+        resume = Some(at);
+    }
+}
+
+/// O(1)-stack pointer-reversal fallback for [`cinch_mark_mt`] when
+/// traversal depth exceeds [`MARK_STACK`]. `root` has already been
+/// claimed (its count is negated) and is not a leaf block.
+///
+/// # Safety
+///
+/// `root` is a live, already-claimed non-leaf block with header `h`, and
+/// every unmarked block reachable from it is reachable from this thread
+/// only.
+#[inline(never)]
+unsafe fn mark_mt_pointer_reversal(root: *mut u8, mut h: u64) {
+    let mut cur = root;
     let mut parent: *mut u8 = std::ptr::null_mut();
     // The slots of `cur` still to visit, or `None` on a fresh visit.
     let mut resume: Option<usize> = None;
     loop {
-        let scan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        let scan = unsafe { Scan::of(cur, h) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
-        let mut child: Option<*mut u8> = None;
+        let mut child: Option<(*mut u8, u64)> = None;
         while let Some((at, _)) = scan.counted_below(next) {
             next = at;
             let slot = unsafe { cur.cast::<i64>().add(at) };
             let w = unsafe { slot.read() };
-            if is_block_word(w) && unsafe { claim(w) } {
-                unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
-                child = Some(w as usize as *mut u8);
-                break;
+            if is_block_word(w) {
+                if let Some(ch) = unsafe { claim(w) } {
+                    let c = w as usize as *mut u8;
+                    if unsafe { is_leaf_block(c, ch) } {
+                        continue;
+                    }
+                    unsafe { slot.write(parent as usize as i64 | MARK_LINK) };
+                    child = Some((c, ch));
+                    break;
+                }
             }
         }
-        if let Some(c) = child {
+        if let Some((c, ch)) = child {
             parent = cur;
             cur = c;
+            h = ch;
             continue;
         }
         if parent.is_null() {
@@ -504,7 +660,8 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
         // just finished and resume below it.
         let done = cur;
         cur = parent;
-        let pscan = unsafe { Scan::of(cur, block::read_header(cur)) };
+        h = unsafe { block::read_header(cur) };
+        let pscan = unsafe { Scan::of(cur, h) };
         let mut at = pscan.words();
         let link = loop {
             let Some((slot, _)) = pscan.counted_below(at) else {
@@ -532,11 +689,17 @@ pub unsafe extern "C" fn cinch_mark_mt(word: i64) {
 ///
 /// As for [`cinch_mark_mt`]; `word` is 0 or an array block word.
 pub(crate) unsafe fn mark_mt_array(word: i64) {
-    if !is_block_word(word) || !unsafe { claim(word) } {
+    if !is_block_word(word) {
         return;
     }
+    let Some(h) = (unsafe { claim(word) }) else {
+        return;
+    };
     let p = word as usize as *const u8;
-    let scan = unsafe { Scan::of(p, block::read_header(p)) };
+    if unsafe { is_leaf_block(p, h) } {
+        return;
+    }
+    let scan = unsafe { Scan::of(p, h) };
     let mut at = scan.words();
     while let Some((slot, _)) = scan.counted_below(at) {
         at = slot;
@@ -545,15 +708,16 @@ pub(crate) unsafe fn mark_mt_array(word: i64) {
 }
 
 /// Mark the block behind the block word `word` when it is mortal and not
-/// marked yet: negate its count. Returns whether it was marked now, so
-/// that its children still need visiting.
+/// marked yet: negate its count. Returns `Some(marked_header)` when it
+/// was marked now so that its children still need visiting, or `None`
+/// when already marked, immortal, or a frame block.
 ///
 /// # Safety
 ///
 /// `word` is a live block word; when its count is positive, only this
 /// thread can reach it.
 #[inline]
-unsafe fn claim(word: i64) -> bool {
+unsafe fn claim(word: i64) -> Option<u64> {
     let p = word as usize as *mut u8;
     let h = unsafe { block::read_header(p) };
     if crate::heap::rc_debug() {
@@ -566,14 +730,16 @@ unsafe fn claim(word: i64) -> bool {
         // Immortal (a static, an interned cell) or a frame block: neither
         // is counted, so a task body that reaches one never marks it. A
         // released frame block's field is its marker, not a count to negate.
-        return false;
+        return None;
     }
     #[cfg(test)]
     if block::kind(h) == block::KIND_ARRAY {
         crate::cycle::retire_array(p as usize);
     }
-    unsafe { block::write_header(p, block::header(-n, block::kind(h), block::layout(h))) };
-    true
+    let marked = with_rc(h, -n);
+    debug_assert_eq!(marked, block::header(-n, block::kind(h), block::layout(h)));
+    unsafe { block::write_header(p, marked) };
+    Some(marked)
 }
 
 /// Whether payload word `slot` of the constructor block behind `word` is
@@ -609,7 +775,7 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
         // reference up, and 0 is a word the release skips.
         unsafe {
             at.write(0);
-            release(p);
+            release(p, h);
         }
     } else {
         if unsafe { field_counted(word, slot) } {
@@ -620,31 +786,57 @@ pub(crate) unsafe fn take_field(word: i64, slot: usize) -> i64 {
     field
 }
 
-/// The iterative release (module docs): free `root` and every block only
-/// it kept alive, children before parents, slots in reverse order.
+/// Release `root` (header `h`) and every block only it kept alive, children
+/// before parents, slots in reverse order.
 ///
-/// The walk reads the debug setting, the layout table and the calling
-/// thread's small heap once, not once per block, and visits only the
-/// counted slots of each block ([`Scan::counted_below`]).
+/// Leaf blocks (zero counted slots) dispose immediately without entering
+/// the pointer-reversal loop.
 ///
 /// # Safety
 ///
-/// `root` is a live mortal block whose last reference the caller holds.
-unsafe fn release(root: *mut u8) {
+/// `root` is a live mortal block whose header is `h` and whose last
+/// reference the caller holds.
+#[inline]
+unsafe fn release(root: *mut u8, h: u64) {
     let debug = crate::heap::rc_debug();
     let local = crate::small::local();
+    if unsafe { is_leaf_block(root, h) } {
+        unsafe { dispose(root, h, debug, local) };
+        return;
+    }
+    unsafe { release_graph(root, h, debug, local) };
+}
+
+/// The iterative release (module docs) for a non-leaf block `root` whose
+/// header is `h`: free `root` and every block only it kept alive, children
+/// before parents, slots in reverse order.
+///
+/// Leaf children are disposed inline without parking `cur`, avoiding two
+/// header writes, a slot write, and a rescan per leaf child.
+///
+/// # Safety
+///
+/// `root` is a live mortal block whose header is `h` and whose last
+/// reference the caller holds; `debug` and `local` are cached from the
+/// calling thread.
+#[inline(never)]
+unsafe fn release_graph(
+    root: *mut u8,
+    mut h: u64,
+    debug: bool,
+    local: Option<&crate::small::Heap>,
+) {
+    if !live_kind(block::kind(h)) {
+        corrupt();
+    }
     let mut cur = root;
     let mut parent: *mut u8 = std::ptr::null_mut();
     // The slots of `cur` still to visit, or `None` on a fresh visit.
     let mut resume: Option<usize> = None;
     loop {
-        let h = unsafe { block::read_header(cur) };
-        if !live_kind(block::kind(h)) {
-            corrupt();
-        }
         let scan = unsafe { Scan::of(cur, h) };
         let mut next = resume.take().unwrap_or_else(|| scan.words());
-        let mut child: Option<*mut u8> = None;
+        let mut child: Option<(*mut u8, u64)> = None;
         while let Some((at, code)) = scan.counted_below(next) {
             next = at;
             let slot = unsafe { cur.cast::<i64>().add(at) };
@@ -661,36 +853,52 @@ unsafe fn release(root: *mut u8) {
             if debug {
                 check(w, ch);
             }
-            let dies = match block::rc(ch) {
-                block::RC_IMMORTAL => false,
+            let dying = match block::rc(ch) {
+                block::RC_IMMORTAL => None,
                 // A frame block is never freed by a release: its activation
                 // owns the memory, and `cinch_frame_release` owns its
                 // payload. The walk leaves both markers alone rather than
                 // decrementing one, which is not a count.
-                block::RC_FRAME | block::RC_FRAME_RELEASED => false,
-                block::RC_FRESH => true,
+                block::RC_FRAME | block::RC_FRAME_RELEASED => None,
+                block::RC_FRESH => Some(ch),
                 n if n > 1 => {
-                    unsafe { block::write_header(c, block::header(n - 1, block::kind(ch), block::layout(ch))) };
-                    false
+                    let dec = ch.wrapping_sub(1);
+                    debug_assert_eq!(dec, block::header(n - 1, block::kind(ch), block::layout(ch)));
+                    unsafe { block::write_header(c, dec) };
+                    None
                 }
                 // Shared with other threads: whichever drop takes the last
                 // reference frees it, here or there.
                 _ => unsafe { take_atomic(c) },
             };
-            if dies {
-                // `c` dies: park `cur` (its cursor in its count field, its
-                // parent in the vacated slot) and descend.
+            if let Some(ch) = dying {
+                if unsafe { is_leaf_block(c, ch) } {
+                    // Leaf child: dispose directly without parking `cur`.
+                    unsafe { dispose(c, ch, debug, local) };
+                    continue;
+                }
+                if !live_kind(block::kind(ch)) {
+                    corrupt();
+                }
+                // `c` dies and may have children: park `cur` (its cursor in
+                // its count field, its parent in the vacated slot) and descend.
+                let parked = with_rc(h, at as i64);
+                debug_assert_eq!(
+                    parked,
+                    block::header(at as i64, block::kind(h), block::layout(h))
+                );
                 unsafe {
-                    block::write_header(cur, block::header(at as i64, block::kind(h), block::layout(h)));
+                    block::write_header(cur, parked);
                     slot.write(parent as usize as i64);
                 }
-                child = Some(c);
+                child = Some((c, ch));
                 break;
             }
         }
-        if let Some(c) = child {
+        if let Some((c, ch)) = child {
             parent = cur;
             cur = c;
+            h = ch;
             continue;
         }
         unsafe { dispose(cur, h, debug, local) };
@@ -700,8 +908,8 @@ unsafe fn release(root: *mut u8) {
         // Return to the parent: its cursor names the slot holding its own
         // parent link.
         cur = parent;
-        let ph = unsafe { block::read_header(cur) };
-        let at = block::rc(ph) as usize;
+        h = unsafe { block::read_header(cur) };
+        let at = block::rc(h) as usize;
         parent = unsafe { cur.cast::<i64>().add(at).read() } as usize as *mut u8;
         resume = Some(at);
     }
@@ -1316,6 +1524,94 @@ mod tests {
         assert_eq!(freed_by(|| unsafe { cinch_drop_slow(w) }), vec![child as usize]);
         assert_eq!(rc_of(w), block::RC_FRAME_RELEASED);
         assert!(freed_by(|| unsafe { cinch_drop_slow(w) }).is_empty());
+    }
+
+    #[test]
+    fn mark_mt_handles_wide_nodes_deep_lists_and_rc_debug() {
+        crate::heap::FORCE_RC_DEBUG.with(|d| d.set(true));
+
+        // 1. Wide constructor (40 words, escaped descriptor, 16+ counted fields)
+        //    mixing leaf children, subtrees, immediates, and raw slots.
+        let mut fields = Vec::new();
+        let mut counted_nodes = Vec::new();
+        let mut expected_freed = Vec::new();
+        for w in 0..WIDE_WORDS {
+            match wide_code(w) {
+                block::SCAN_OBJ => {
+                    let leaf = ctor(NIL, &[]);
+                    let inner = ctor(CONS_O, &[leaf, immortal_nil()]);
+                    counted_nodes.push(leaf);
+                    counted_nodes.push(inner);
+                    expected_freed.push((leaf, inner));
+                    fields.push(inner);
+                }
+                block::SCAN_TOBJ => {
+                    if w % 2 == 0 {
+                        let b = unsafe { crate::abi::cinch_bytes_new(8) };
+                        counted_nodes.push(b);
+                        expected_freed.push((b, 0));
+                        fields.push(b);
+                    } else {
+                        fields.push(((w as i64) << 1) | 1);
+                    }
+                }
+                _ => fields.push(0x10),
+            }
+        }
+        let wide_root = ctor(wide(), &fields);
+        let before_words = words_of(wide_root, WIDE_WORDS as usize);
+        unsafe { cinch_mark_mt(wide_root) };
+        assert_eq!(words_of(wide_root, WIDE_WORDS as usize), before_words);
+        assert_eq!(rc_of(wide_root), -1);
+        for &n in &counted_nodes {
+            assert_eq!(rc_of(n), -1);
+        }
+        let freed = freed_by(|| unsafe { cinch_drop(wide_root) });
+        assert_eq!(freed.len(), counted_nodes.len() + 1);
+        assert_eq!(*freed.last().unwrap(), wide_root as usize);
+
+        // 2. Deep list (>100,000 cells) on a small 256 KiB stack, verifying
+        //    the hybrid stack -> pointer-reversal spill under RC debug mode.
+        const DEEP_N: usize = 100_000;
+        let handle = std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(|| {
+                crate::heap::FORCE_RC_DEBUG.with(|d| d.set(true));
+                let mut xs = immortal_nil();
+                let mut leaves = Vec::with_capacity(16);
+                for i in 0..DEEP_N {
+                    let head = if i % 1000 == 0 {
+                        let lf = ctor(NIL, &[]);
+                        if leaves.len() < 16 {
+                            leaves.push(lf);
+                        }
+                        lf
+                    } else {
+                        ((i as i64) << 1) | 1
+                    };
+                    xs = ctor(CONS_T, &[head, xs]);
+                }
+                unsafe { cinch_mark_mt(xs) };
+                for &lf in &leaves {
+                    assert_eq!(rc_of(lf), -1);
+                }
+                let mut cell = xs;
+                let mut seen = 0usize;
+                while cell != immortal_nil() {
+                    assert_eq!(rc_of(cell), -1);
+                    cell = words_of(cell, 2)[1];
+                    seen += 1;
+                }
+                assert_eq!(seen, DEEP_N);
+                let freed = freed_by(|| unsafe { cinch_drop(xs) }).len();
+                crate::heap::FORCE_RC_DEBUG.with(|d| d.set(false));
+                freed
+            })
+            .expect("spawn deep mark thread");
+        let expected_cells = DEEP_N + (DEEP_N / 1000);
+        assert_eq!(handle.join().expect("deep mark thread"), expected_cells);
+
+        crate::heap::FORCE_RC_DEBUG.with(|d| d.set(false));
     }
 
 }
