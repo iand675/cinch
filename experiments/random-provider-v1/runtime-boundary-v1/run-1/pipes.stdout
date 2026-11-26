@@ -1,7 +1,0 @@
-
-running 2 tests
-test platform::pipe_tests::piped_child_signal_death_and_bad_selector ... ok
-test platform::pipe_tests::piped_child_streams_round_trip ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out; finished in 0.00s
-

@@ -1,2 +1,0 @@
-/usr/bin/ld: /workspace/dasl-stdlib-entropy/experiments/random-provider-v1/staticlib-pair-v1/cinch-consumers-v1/uuid-io/run-1/consumer.o: warning: relocation against `Data.Nat.Add_Nat.+.tapp' in read-only section `.text'
-/usr/bin/ld: warning: creating DT_TEXTREL in a PIE

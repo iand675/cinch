@@ -1,6 +1,0 @@
-{
-  "status": "failed before extracting any source or invoking any compiler",
-  "error": "prefix guard rejected git archive parent directory entries compiler/ and compiler/runtime/",
-  "retained_empty_directories": "sources/baseline",
-  "correction": "allow only these known parent directory entries; keep source files constrained to compiler/runtime/"
-}

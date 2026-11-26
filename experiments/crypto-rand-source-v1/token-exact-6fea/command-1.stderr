@@ -1,1 +1,0 @@
-cinch: 42:17: containment (determinism of effects): `store` is an effect the declared pure effect row does not account for (specification section 4)

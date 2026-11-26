@@ -1,7 +1,0 @@
-{
-  "status": "deferred before any child or output epoch was created",
-  "action": "4096iteration structural-only target-count gate",
-  "required_start_bytes": 367001600,
-  "observed_free_bytes_after_guard_failure": 354066432,
-  "error": "350MiB start guard failed; no automatic retry"
-}

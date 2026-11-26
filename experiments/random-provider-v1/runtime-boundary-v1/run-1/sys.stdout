@@ -1,9 +1,0 @@
-
-running 4 tests
-test sys::tests::getpid_agrees_with_std ... ok
-test sys::tests::only_the_sys_layer_declares_foreign_functions ... ok
-test sys::tests::the_scanner_sees_a_declaration ... ok
-test sys::tests::the_thread_stack_range_contains_this_frame ... ok
-
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 165 filtered out; finished in 0.01s
-

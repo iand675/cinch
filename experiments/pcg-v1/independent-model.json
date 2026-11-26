@@ -1,1 +1,0 @@
-{"reference_sha256": "f6029b9df1fa40efe14903aa17274ba44269cf29909194d4238eee1b878c7725", "seeds": 8, "outputs": 2048, "snapshots_and_appends": 24, "independent_model": "unbounded Python integers modulo 2^128, scalar DXSM, explicit big-endian bytes"}

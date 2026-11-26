@@ -654,9 +654,9 @@ def build_checklist(root, cfg, previous=None):
         item('gap:task-helper','Reject mutable task captures hidden by helpers','blocked','Cinch development passes six controls including both unchanged Tasks examples and the unsafe Bytes refusal. Rust development passes the original helper regression, 19 concurrency tests and 186 unit tests. Portable transfer and replay on the matching compilers remain.',
              'Capture requirements survive helpers, aliases and interfaces, with both bad and valid cases checked.',link('compiler/evidence/current/current-cinch-task-source-forwarder-results.json' if cinch_forwarder else 'compiler/evidence/current/current-native-task-capture-counterexample.json')),
         item('gap:rust-annotations','Preserve Rust class/default annotation binders','verified' if annotation_published else 'blocked','Published8ba8 passes independent audit: all21 complete groups,332 tests, both44-module projects, actual inherited execution42 and three old/new CLI comparisons. Original refusal controls remain.' if annotation_published else 'The published995f compiler rejects three valid annotation examples. The private8ba8 repair has finished execution of its affected groups and both44-module checks; independent audit and publication remain required.',
-             'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('compiler/evidence/current/current-native-default-annotation-results.json') if annotation_published else link('design/next-steps.md')),
+             'Complete the affected proof/syntax/interface groups and both compiler-source projects, retain kind/scope refusals, then publish the validated repair.',link('compiler/evidence/current/current-native-default-annotation-results.json') if annotation_published else link('design/roadmap.md')),
         item('gap:records','Finish record interface transport','recheck','A known earlier compiler gap; latest exact behavior still needs a complete check.',
-             'The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.',link('design/next-steps.md')),
+             'The original record construction, projection, privacy, layout and interface assertions pass on the matching compiler.',link('design/roadmap.md')),
         item('gap:copyout','Finish Copy / borrow / Thunk ownership','recheck' if copyout_proof else 'blocked' if stage3_failures_current else 'recheck',
              'The development pipeline and runtime groups pass. A shared immutable array is accepted, affine Thunk elements refuse for Copy, and the tuple case returns 42 with zero leaks. The combined compiler still needs its own Stage3 replay.' if copyout_proof else
              'The earlier Stage3 fails to resolve copyOut before checking Copy evidence for Array (Thunk {} Int).',
@@ -667,7 +667,7 @@ def build_checklist(root, cfg, previous=None):
              'The development parser passes the complete syntax target with checked staging nodes and splices. The evaluator still needs to issue the named arrayReplicate refusal and expand valid generators.' if stage_syntax else 'Exact candidate Stage3 reports an unsupported declaration before checking whether arrayReplicate is available at compile time.' if stage3_failures_current else 'The original array and language cases require staging and declaration behavior.',
              'Preserve original sources and expected named refusals; execute the matching staging and language suites.',link('compiler/evidence/current/current-staging-expansion-results.json' if stage_expansion_proof else 'compiler/evidence/current/current-staging-evaluation-results.json' if stage_evaluation_proof else 'compiler/evidence/current/current-staging-surface-results.json' if stage_syntax else stage3_failure_path if stage3_failures_current else 'compiler/evidence/current/current-original-array-suite-results.json')),
         item('gap:hidden-types','Stop choosing a concrete hidden constructor type','pending','Native existential/hidden-type introduction remains a required investigation and repair.',
-             'Hidden types remain existential, with correct construction, scoped elimination, kind checks and no guessed Nat carrier.',link('design/next-steps.md')),
+             'Hidden types remain existential, with correct construction, scoped elimination, kind checks and no guessed Nat carrier.',link('design/roadmap.md')),
         item('gap:fixities','Reverify defining-module-only fixities','recheck','The earlier self-built controls prove that both identical and changed importer declarations refuse.',
              'Repeat the original defining-owner, facade/rename and importer-refusal controls through the final matching Stage3.',link('compiler/evidence/current/current-record-indexed-external-acceptance-results.json')),
         item('gap:coverage','Audit every frontend-facing test outside the Stage3 matrix','pending',
@@ -1250,7 +1250,7 @@ def build_checklist(root, cfg, previous=None):
     active.append(dict(title='Link the compiled standard library in each self-built stage',
         status='passed', phase='The stage driver checks imports with .cinchif files and links library.o '
         'with the matching libcinchruntime.a. The old copied-source fixture is historical evidence.',
-        passed=1, failed=0, total=1, evidence=link('design/runtime-object-linkage.md')))
+        passed=1, failed=0, total=1, evidence=link('design/compilation-and-interfaces.md')))
     foldable_consumer = read(cfg.get('schema10FoldableObjectConsumer'))
     if foldable_consumer:
         rows = {row['name']: row['exit_code'] for row in foldable_consumer['rows']}

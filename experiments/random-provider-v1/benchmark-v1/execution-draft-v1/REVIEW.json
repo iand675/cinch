@@ -1,7 +1,0 @@
-{
-  "status": "static schedule review rejected; no executable invoked",
-  "diagnosis": "Rotating condition offset combined with round*13+position cancels most per-condition order variation. Global order counts were balanced but per-condition balance was not.",
-  "correction": "Index variant orders by round_index plus original_condition_index; assert all per-condition positions and permutations for the full30sample schedule.",
-  "source_sha256": "8f0d8ae3634e269e54b6f96eaa6966be5cabdf7a88e10c7ad8cfed554bd4910d",
-  "plan_sha256": "6d6eb308725a06e027b99147d35517c149e377dcc1ef4fa42f6a8d20856597d6"
-}

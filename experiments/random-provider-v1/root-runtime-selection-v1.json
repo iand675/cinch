@@ -1,9 +1,0 @@
-{
-  "scope": "QualifiedRootruntimewarmselection updated atomically to an independent file; allhistoricalfrozenD91 aliases unchanged.",
-  "previous_warm_sha256": "d91ce012395a99e1148232d20ec316979cd7d0cb13647a3283ba4820192c0abf",
-  "new_warm_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
-  "new_frozen_sha256": "bdf524d891ad27d2f36676ef3133b22f10b196d40ea97c08cc88787b07cc1cf3",
-  "warm_independent_inode": true,
-  "old_D91_unchanged": true,
-  "qualification": "experiments/random-provider-v1/root-integration-qualified-v1.json"
-}

@@ -1,13 +1,8 @@
 # Example catalogue
 
-Source: <https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e>  
-Exported: 2026-10-22T18:59:36Z
+See also the [repository README](../README.md), [documentation hub](../documentation.md), and [language tutorial](../learn/00-tutorial.md).
 
----
-
-[Documentation overview](../overview.md)
-
-The accompanying files include twelve `.cinch` files in provisional language notation. There is no executable compiler, and the files have not been typechecked. They specify intended behavior and rejection criteria. Some files contain complete small algorithms under the proposed prelude; others are explicitly labeled API or proof-package sketches.
+The accompanying files in `examples/source/` are twelve `.cinch` design-conformance examples (plus `codec.wit` and `schema-tool.sh`) illustrating Cinch's intended behavior and rejection criteria across bounded indexing, length-indexed filtering, map fusion, productive streams, staging, hot upgrades, SIMD, FFI, Wasm components, and structured concurrency. For runnable project examples, see `examples/compiler/`, [`examples/cxx/`](cxx/README.md), [`examples/godot/`](godot/README.md), and [`examples/gpu-pipeline/`](gpu-pipeline/README.md).
 
 # Files and assumptions
 

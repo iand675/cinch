@@ -1,123 +1,75 @@
-# Designing a Safe Language
+# Cinch
 
-Complete documentation export — 2026-10-22T18:59:36Z
+Cinch is a strict functional systems language with dependent and refinement types, row-typed effects, linear ownership, precise reference counting (no garbage collector), and native LLVM and WebAssembly compilation.
 
-This archive contains the current overview and **all 26 pages linked from it**: nine specifications, fourteen tutorials, and three example, design-decision, and reference pages. It preserves the complete text and code, not summaries. The original pages were not modified.
+The repository contains both the **Rust bootstrap compiler** (`seed/`) and the **self-hosted Cinch compiler** (`compiler/`), together with the runtime (`seed/runtime/`), standard library (`seed/prelude/`, 331 modules), editor tooling (`tooling/`), package registry prototype (`registry/`), and documentation site (`website/`, published at [cinch.systems](https://cinch.systems)).
 
-## Current reader documentation
+## Highlights
 
-The Rust seed compiler in `seed/` now implements a substantial language, and the Cinch compiler in `compiler/` is the self-hosted implementation being brought to parity with it. The original export record below describes the October 2026 design archive, including its historical implementation-status wording. For current behaviour, read the [documentation hub](documentation.md), [22-chapter language tutorial](learn/00-tutorial.md), [compiler user's guide](reference/00-guide.md), and [checked library reference](library/00-index.md). Specified work still being built is marked **Coming soon**; open design questions are labelled separately. The site serves these paths at `/documentation/`, `/learn/`, `/reference/`, and `/library/`.
+- **Dependent & refinement types:** stratified universes (`Type 0 : Type 1 : ...`, `Prop`), dependent functions and pairs (`Sigma`), indexed inductive families (`Vec`, `Fin`, `Dec`), zero-cost refinements (`NonEmpty`, `NonZero`, `InRange`) backed by table-driven implication, difference logic, and linear Farkas solvers, plus predicative Rank-N polymorphism.
+- **Memory safety without a GC:** path-sensitive `%0`/`%1`/`%aff`/`%many` usage checking, region-scoped borrows (`Ref r a`, `Mut r a`), Perceus precise reference counting with borrow inference and in-place reuse, ABI 10 self-describing block headers, and stack allocation of non-escaping blocks.
+- **Row-typed effects & lexical capabilities:** algebraic effect rows, one-shot `handle`/`resume`, lexically passed capabilities (`using (io :: Io r)`, `with (io = ...) in`), and selectable `do` sequencing modules.
+- **Concurrency & data parallelism:** stackful green threads (`sched.rs`), linear `Task` handles (`withScope`, `spawn`, `joinAllOrCancel`), native `MVar`, TL2 `Effect.Stm`, pure parallelism, and data-parallel arrays with Typed Array IR fusion and an Apple Metal GPU backend.
+- **Native & Wasm deployment:** LLVM IR codegen with selective `tailcc` guaranteed tail calls, contification, call-pattern specialization, constructed product results, C/C++ and Godot GDExtension interop (`cinch cxx`), `wasm32` / WIT targets, and compile-time safety assertions (`#[no-alloc]`, `#[profile "jpl"]`).
+- **Self-hosting:** the Cinch compiler in `compiler/` (65 `Bootstrap.*.cinch` modules) compiles itself through a four-stage bootstrap ladder to a byte-for-byte Stage 2/Stage 3 fixed point on interface schema 10 and runtime ABI 10.
 
-## Start here
+## Quick start
 
-- Read the rendered documentation as a site: `cd website && npm install && npm run dev`, then open <http://localhost:4321>. `npm run build` writes a static copy to `website/dist/`. See [website/README.md](website/README.md).
-- Read [the overview](overview.md) in any Markdown editor.
-- Browse [the example catalogue](examples/catalogue.md) and the individual sources below.
+Enter the [devenv](https://devenv.sh) shell for Rust, LLVM/`clang`, Tree-sitter, and Node 24:
 
-The Astro site in `website/` is the rendering of every page: its loader
-turns each Markdown file in the repository (overview, specifications,
-tutorials, design, examples, context) into a page. The original
-documentation export's pre-rendered `*.html` pages were removed on
-2026-10-25 in favor of that rendering; `manifest.json` and `SHA256SUMS`
-remain as the record of what the export contained. The language was
-renamed to Cinch on 2026-10-27, so the recorded file names follow the
-new `.cinch`/`.cinchif` spelling. `SHA256SUMS` was re-pinned on
-2026-10-28 to the bytes actually in the tree, because the example
-sources are not frozen: 02, 03, 05, 08, and 12 were rewritten to their
-as-intended form as the compiler grew the language features their
-proofs and pipelines need (the examples sweep, `cbd276e`, `2fa5c75`)
-and 05's build-input comment followed the rename. The original export
-hashes live in git history; `source-data/pages.json` keeps the
-verbatim original page text regardless.
+```sh
+devenv shell
+```
 
-## Export contents
+Build the Rust compiler and run an example:
 
-- **27 documentation pages**, in Markdown (the export's standalone HTML
-  renderings were removed on 2026-10-25; see above).
-- **12 `.cinch` source files and one WIT interface**, extracted from the example catalogue; five evolved afterward (see the re-pin note above) and seven remain byte-exact to the export. The final runtime-effects filename is an export label for its named code block.
-- Historical [design conversation](context/design-conversation.md), with 25 visible messages; no message content was omitted by the reader.
-- `source-data/pages.json` retains the exact original Markdown and ordered block text, plus source URLs, page IDs, update times, and revision numbers.
-- `manifest.json` maps pages and example files to their sources. `SHA256SUMS` verifies every other archive file.
+```sh
+cargo build --manifest-path seed/Cargo.toml --release --bin cinch
+seed/target/release/cinch run examples/compiler/fib.cinch
+```
 
-## Fidelity and status
+Common workflows:
 
-Markdown files add a title, source link, and export timestamp, and convert links between included pages to local relative links. Source bodies and code remain unchanged otherwise; exact originals are in `source-data/pages.json`. HTML is a convenience rendering of the same content. Page comments, private back-of-page notes, external websites, and historical sandbox attachments are outside this export.
+```sh
+# Check, build, or inspect Core/LLVM IR
+cinch check path/to/Main.cinch
+cinch build path/to/Main.cinch -o main
+cinch core emit path/to/Main.cinch
+cinch repl
+cinch lsp
 
-This is draft language-design documentation, not an implemented or compiler-tested language. Provisional syntax, API sketches, proof obligations, expected rejection cases, and open decisions retain their original qualifications. No source code was executed or typechecked.
+# Run the Rust compiler and runtime test suites
+cargo test --manifest-path seed/Cargo.toml --lib
+cargo test --manifest-path seed/runtime/Cargo.toml
 
-## Overview
+# Run the four-stage self-hosting bootstrap ladder
+tooling/bootstrap.sh check
+```
 
-- [Language design overview](overview.md) · [original page](https://chatgpt.com/space/page_b647a1112d5c8191a20ef25f039a366a)
+Standalone Stage 3 nightly binaries for Linux (`x86_64`, `aarch64`) and macOS (Apple Silicon) are published via GitHub prereleases and documented in [`tooling/nightly-release.md`](tooling/nightly-release.md).
 
-## Specifications
+## Documentation
 
-- [Core language specification](specifications/core-language-specification.md) · [original page](https://chatgpt.com/space/page_1e97031528908191b713513863e30e6b)
-- [Modules and compilation specification](specifications/modules-and-compilation-specification.md) · [original page](https://chatgpt.com/space/page_d64504b7cf08819185f30f677ededc93)
-- [Runtime evolution specification](specifications/runtime-evolution-specification.md) · [original page](https://chatgpt.com/space/page_d92d79c6a7748191817f7baeb2489fe5)
-- [Platform proofs and SIMD specification](specifications/platform-proofs-and-simd-specification.md) · [original page](https://chatgpt.com/space/page_b24cfef55f608191b1494b251d782fe4)
-- [Foreign function interface specification](specifications/foreign-function-interface-specification.md) · [original page](https://chatgpt.com/space/page_4f4effb6396c8191a2b8bf41e791ca09)
-- [WebAssembly and WASI specification](specifications/webassembly-and-wasi-specification.md) · [original page](https://chatgpt.com/space/page_93721e2e8a6081919c8e74d0c3f11211)
-- [Concurrency specification](specifications/concurrency-specification.md) · [original page](https://chatgpt.com/space/page_25f65d18f4508191ada994923cd97c35)
-- [Surface syntax and grammar](specifications/surface-syntax-and-grammar.md) · [original page](https://chatgpt.com/space/page_18d4c95146a48191a722223f1e8dd18a)
-- [Runtime capabilities, effects and sequencing](specifications/runtime-capabilities-effects-and-sequencing.md) · [original page](https://chatgpt.com/space/page_f7f7e6466b348191803f2f900098b667)
+| Guide | Contents |
+| --- | --- |
+| [**Documentation hub**](documentation.md) | Entry point for readers (served at `/documentation/`) |
+| [**Language tutorial**](learn/00-tutorial.md) | 22-chapter hands-on tutorial with checked examples and exercises |
+| [**Compiler user's guide**](reference/00-guide.md) | 29-chapter reference manual covering CLI, syntax, types, effects, FFI, layout, REPL, LSP, and packages |
+| [**Support matrix & roadmap**](reference/16-support-and-roadmap.md) | Per-feature implementation status in `seed/` |
+| [**Standard library reference**](library/00-index.md) | Generated API reference for all checked stdlib modules (published with Hoogle-style search at `/packages/stdlib/`) |
+| [**Specifications**](specifications/) | Normative language, grammar, primitive, FFI, concurrency, Wasm, and runtime evolution specs |
+| [**Design architecture**](design/README.md) | Consolidated architecture docs covering type system, reclamation, concurrency, codegen, self-hosting, and roadmap |
 
-## Tutorials
+## Repository layout
 
-- [Tutorial 1 Values and dependent types](tutorials/01-values-and-dependent-types.md) · [original page](https://chatgpt.com/space/page_7e6a395e629c819195dc11bcf37cf789)
-- [Tutorial 2 Proofs and runtime checks](tutorials/02-proofs-and-runtime-checks.md) · [original page](https://chatgpt.com/space/page_811f5c451ea481919981aba5cd276baf)
-- [Tutorial 3 Ownership and effects](tutorials/03-ownership-and-effects.md) · [original page](https://chatgpt.com/space/page_564c957a4e5c8191b7166e65d755285c)
-- [Tutorial 4 Modules and laws](tutorials/04-modules-and-laws.md) · [original page](https://chatgpt.com/space/page_c16fa5ea6e148191831f925724d373f2)
-- [Tutorial 5 Streams and coinduction](tutorials/05-streams-and-coinduction.md) · [original page](https://chatgpt.com/space/page_7af778a2dd6881919c77d929cd4d8cb8)
-- [Tutorial 6 Processes and temporal contracts](tutorials/06-processes-and-temporal-contracts.md) · [original page](https://chatgpt.com/space/page_2d2960d3ed2c8191a601fdeb3e741de8)
-- [Tutorial 7 Rewrites and stream fusion](tutorials/07-rewrites-and-stream-fusion.md) · [original page](https://chatgpt.com/space/page_f812b35e00ec8191ae0252ac9dda7bc7)
-- [Tutorial 8 Staging and schema generation](tutorials/08-staging-and-schema-generation.md) · [original page](https://chatgpt.com/space/page_668e270bca9c8191a1822f4548af4a0c)
-- [Tutorial 9 Compatible hot upgrades](tutorials/09-compatible-hot-upgrades.md) · [original page](https://chatgpt.com/space/page_630a9348c72c8191b3e2cd5fd9f3153d)
-- [Tutorial 10 Platform specific SIMD](tutorials/10-platform-specific-simd.md) · [original page](https://chatgpt.com/space/page_cb25fa2f09f881918ae41fba88919548)
-- [Tutorial 11 Foreign libraries](tutorials/11-foreign-libraries.md) · [original page](https://chatgpt.com/space/page_eb03321bfde48191bcd197291ad9eadf)
-- [Tutorial 12 WebAssembly components](tutorials/12-webassembly-components.md) · [original page](https://chatgpt.com/space/page_f0fa8d6024188191862d6256eb506b72)
-- [Tutorial 13 Structured concurrency](tutorials/13-structured-concurrency.md) · [original page](https://chatgpt.com/space/page_1a35ce96cd3c819197921ef44d2d156e)
-- [Tutorial 14 Haskell-like syntax, effects and runtime selection](tutorials/14-haskell-like-syntax-effects-and-runtime-selection.md) · [original page](https://chatgpt.com/space/page_edc8263b2390819188b488f4fbcf2372)
-
-## Examples
-
-- [Example catalogue](examples/catalogue.md) · [original page](https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e)
-
-## Design decisions and references
-
-- [Open decisions and implementation plan](design/open-decisions-and-implementation-plan.md) · [original page](https://chatgpt.com/space/page_a2ab477ad93881918c2b00c47fe9c608)
-- [References and related work](design/references-and-related-work.md) · [original page](https://chatgpt.com/space/page_e5b11110b6408191b7b5389ab932a93f)
-
-## Individual source examples
-
-- [01-bounded-index.cinch](examples/source/01-bounded-index.cinch)
-- [02-vector-filter.cinch](examples/source/02-vector-filter.cinch)
-- [03-map-fusion.cinch](examples/source/03-map-fusion.cinch)
-- [04-productive-stream.cinch](examples/source/04-productive-stream.cinch)
-- [05-schema-generator.cinch](examples/source/05-schema-generator.cinch)
-- [06-counter-upgrade.cinch](examples/source/06-counter-upgrade.cinch)
-- [07-rejected-programs.cinch](examples/source/07-rejected-programs.cinch)
-- [08-platform-simd.cinch](examples/source/08-platform-simd.cinch)
-- [09-foreign-codec.cinch](examples/source/09-foreign-codec.cinch)
-- [10-wasm-component.cinch](examples/source/10-wasm-component.cinch)
-- [11-structured-tasks.cinch](examples/source/11-structured-tasks.cinch)
-- [codec.wit](examples/source/codec.wit)
-- [12-runtime-effects.cinch](examples/source/12-runtime-effects.cinch)
-
-## Original collection
-
-[Language design overview](https://chatgpt.com/space/page_b647a1112d5c8191a20ef25f039a366a)
-
-## Added after the export
-
-Pages authored locally in this repository after the 2026-10-22 export. They are not part of the export manifest and are not covered by `SHA256SUMS`.
-
-- [Primitive types specification](specifications/primitive-types-specification.md) · draft 0.1: the unboxed machine scalars (`Bool`, `Char`, `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Usize`, `Isize`), their explicit checked, wrapping and saturating operations, conversions, and their FFI, Wasm and SIMD correspondence.
-- [Lazy computation and reclamation specification](specifications/lazy-computation-and-reclamation-specification.md) · draft 0.1: explicit laziness without a garbage collector. Affine thunks (`Thunk {e} a`, force consumes), region memo cells (`Lazy r a`, call-by-need within a region), and duplicable thunks (`%many`, recompute), with effects, erasure, concurrency and upgrade obligations.
-- [Surface grammar local amendments](specifications/surface-grammar-local-amendments.md) · draft 0.1: the deltas between the draft 0.2 EBNF and what the implementation adopted (tuple types, `~` memo bindings, effect-row type arguments, record forms).
-- [Compiled interface metadata](design/compiled-interface-metadata.md) · design note: how compiled modules share interface metadata (`.cinchif` artifacts, instance coherence, ABI symbol tables, assumption manifests, the Rust runtime link model).
-- [Dependent core kernel design](design/dependent-core-kernel.md) · design note: universes, Pi/Sigma, conversion, indexed families, erasure and totality for the dependent core (P7).
-- [Ownership, usage and regions design](design/ownership-and-usage.md) · design note: `%0`/`%1`/`%aff`/`%many` usage checking, `Share`, `Ref`/`Mut` regions and escape rules (P5).
-- [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md) · design note: handler calculus, `do` with sequencing modules, lexical capabilities and runtime identity (P6).
-- [Codata and guardedness design](design/codata-guardedness.md) · design note: `codata`, `Later`, `corec` productivity and bisimulation (P8).
-- [Package management](design/package-management.md) · design note: release identity, checked compatibility, client-side resolution, the registry protocol, public and private packages, withdrawal and takedown, and the SLSA provenance layer.
-- [Registry service](registry/README.md) · runnable v0 with public and private packages: `cd registry && npm test`, then `CINCH_REGISTRY_ADMIN_TOKEN=... node server.mjs`. Node 24 with built-in SQLite and no third-party dependencies.
+| Path | Description |
+| --- | --- |
+| [`seed/`](seed/README.md) | Rust bootstrap compiler (Stage 0), CLI (`repl`, `lsp`, `doc`, `pkg`, `jit`, `cxx`), `cinchruntime` (`seed/runtime/`), and standard library sources (`seed/prelude/`) |
+| [`compiler/`](compiler/README.md) | Self-hosted Cinch compiler (`Bootstrap.*.cinch`), bootstrap pins (`pins/`), conformance log (`CONFORMANCE.md`), and verification evidence (`evidence/`) |
+| [`tooling/`](tooling/README.md) | Bootstrap ladder driver, deterministic IR sharder, modular build/profiling scripts, Nix cache derivations ([`tooling/nix/`](tooling/nix/README.md)), Tree-sitter grammars, and editor integrations |
+| [`registry/`](registry/README.md) | Zero-dependency Node 24 + SQLite package registry prototype with public/private namespaces, DSSE statements, and SLSA verification |
+| [`website/`](website/README.md) | Astro + Starlight documentation site, package catalogue, nightly downloads, and live WebAssembly Game of Life demo |
+| [`examples/`](examples/catalogue.md) | Language examples, C/C++ interop ([`examples/cxx/`](examples/cxx/README.md)), Godot GDExtension ([`examples/godot/`](examples/godot/README.md)), and Metal GPU pipeline ([`examples/gpu-pipeline/`](examples/gpu-pipeline/README.md)) |
+| [`benchmarks/`](benchmarks/stdlib/README.md) | Standard library and array/Futhark benchmark suites |
+| [`learn/`](learn/00-tutorial.md), [`reference/`](reference/00-guide.md), [`library/`](library/00-index.md) | Published tutorial, reference manual, and generated stdlib API docs |
+| [`specifications/`](specifications/), [`design/`](design/README.md) | Normative specifications and consolidated architecture docs |

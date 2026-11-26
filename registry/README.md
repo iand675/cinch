@@ -222,12 +222,12 @@ This prototype is deliberately small. A public registry needs:
 
 ## Mapping to the design
 
-| Design section | Implementation |
+| Design topic (`design/package-management.md`) | Implementation |
 | --- | --- |
-| Section 2, content identity | `lib/canonical.mjs`, package identity check in `lib/store.mjs` |
-| Section 6, registry and private packages | `server.mjs` API, memberships, token scoping |
-| Section 6, withdrawal statements | `lib/store.mjs` `addStatement`, `lib/signer.mjs` DSSE |
-| Section 8, SLSA | Structural L1 verification, optional trusted-builder L2 verification, attestation storage |
+| Content identity (`package_id`) | `lib/canonical.mjs`, package identity check in `lib/store.mjs` |
+| Public/private namespaces & token scoping | `server.mjs` API, memberships, token checks |
+| Signed withdrawal statements | `lib/store.mjs` `addStatement`, `lib/signer.mjs` DSSE |
+| SLSA provenance | Structural L1 verification, optional trusted-builder L2 verification, attestation storage |
 
 The protocol is intentionally independent of this implementation. A Rust or
 self-hosted Cinch service can replace it without changing the client contract.
