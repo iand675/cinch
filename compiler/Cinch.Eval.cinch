@@ -696,6 +696,8 @@ module Cinch.Eval where
     DInlineHint s name hint -> []
     DUnrollHint s name hint -> []
     DContract s keyword name subject clauses -> []
+    DMachine s name syntax -> []
+    DRefines s concrete syntax -> []
     -- A target-selected declaration is whatever it wraps: pruning already
     -- dropped the ones the active profile does not select.
     DConditional s clauses inner -> decl-unmodeleds inner

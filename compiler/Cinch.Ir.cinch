@@ -566,6 +566,8 @@ module Cinch.Ir where
     DInlineHint s name hint -> []
     DUnrollHint s name hint -> []
     DContract s keyword name subject clauses -> []
+    DMachine s name syntax -> []
+    DRefines s concrete syntax -> []
     -- A target-selected declaration lowers as the declaration it wraps;
     -- pruning already removed the ones this target does not satisfy.
     DConditional s clauses inner -> decl-refusal fns ds inner

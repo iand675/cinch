@@ -39,7 +39,7 @@ module Cinch.Pipeline where
   import Cinch.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, prepare-admitted-resolution, resolve-overlay-with, unshadowed-interfaces)
   import Cinch.Stage (expand-stages-with-report, explain-expansion-errors)
   import Cinch.Report (Diagnostic, render-diagnostics, render-source-diagnostics)
-  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows)
+  import Cinch.Export (export-interfaces-aliased, export-object-interfaces, interface-hash, build-generated-manifest, checked-primitive-rows, checked-temporal-rows)
   import Cinch.Interface (fnv-source-hash, sha256-hex)
   import Cinch.TargetLiterals (target-literal-errors)
   import Cinch.Target (TargetProfile, selection-arch, target-ir-header, target-profile, target-view-program, host-profile)
@@ -602,7 +602,7 @@ module Cinch.Pipeline where
       Ok rows -> case write-interface-output ir (Ok rows) of
         0 -> case write-runtime-module ir (emit-target-program-tuned tuning profile inlining debug reclaim checked (Some provider)) of
           0 -> (case fs-write (build-manifest-path ir)
-              (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) entry (manifest-target profile) admitted rows)) of
+              (canonical-bytes (build-generated-manifest (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) entry (manifest-target profile) admitted rows)) of
             Ok written -> pipeline-ok
             Err error -> write-failure ir "bootstrap.export: cannot write build manifest" pipeline-write-failed)
           code -> code
@@ -1018,7 +1018,7 @@ module Cinch.Pipeline where
           Err message -> write-failure ir (source-overlay-error profile src view interfaces message) pipeline-check-refused
           Ok (remaining, effective, replaced) -> case (remaining.modules, replaced) of
             ([], first : rest) -> (case mode of
-              CheckOnly -> case serialize-artifacts [] JArrEnd profile (path-stem (path-from-string name)) effective replaced of
+              CheckOnly -> case serialize-artifacts [] JArrEnd (JObj "contracts" JArrEnd JObjEnd) profile (path-stem (path-from-string name)) effective replaced of
                 done -> write-interface-output ir (Ok [])
               other -> write-interface-output ir (Ok []))
             (other, []) -> after-check-artifacts-tuned tuning profile inlining reclaim mode name src effective []
@@ -1103,12 +1103,12 @@ module Cinch.Pipeline where
   serialize-exported :: forall r. using (io :: Io r) => CheckedProgram -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) -> Result String (List (String, Json)) ->{IO r, Diverge} Unit
   serialize-exported checked profile entry admitted replaced exported = case exported of
     Err message -> ()
-    Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) profile entry admitted (replaced <> rows)
+    Ok rows -> serialize-artifacts (checked.generated) (checked-primitive-rows checked) (checked-temporal-rows checked) profile entry admitted (replaced <> rows)
 
-  serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
-  serialize-artifacts generated primitives profile entry admitted rows =
+  serialize-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Unit
+  serialize-artifacts generated primitives temporal profile entry admitted rows =
     let arena = arena-new arena-first-chunk in
-    let written = ignore-artifact-outcome (write-build-artifacts generated primitives profile entry admitted rows) in
+    let written = ignore-artifact-outcome (write-build-artifacts generated primitives temporal profile entry admitted rows) in
     case arena-leave arena of _ -> written
 
   -- The artifact write's outcome is already reported through the files it
@@ -1119,14 +1119,14 @@ module Cinch.Pipeline where
     Err message -> ()
     Ok done -> ()
 
-  write-build-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
-  write-build-artifacts generated primitives profile entry interfaces rows =
+  write-build-artifacts :: forall r. using (io :: Io r) => List (String, List String) -> Json -> Json -> TargetProfile -> String -> List LoadedInterface -> List (String, Json) ->{IO r, Diverge} Result String Unit
+  write-build-artifacts generated primitives temporal profile entry interfaces rows =
     case process-run (command (path-from-string "mkdir") ["-p", "build"]) "" of
       Ok (0, output) -> (case write-interface-package (path-from-string ("build/" <> entry <> ".cpk"))
           (complete-build-interfaces interfaces rows) of
         Err message -> Err message
         Ok done -> case fs-write (path-from-string (string-concat "build/" (string-concat entry ".manifest.json")))
-            (canonical-bytes (build-generated-manifest generated primitives entry (manifest-target profile) interfaces rows)) of
+            (canonical-bytes (build-generated-manifest generated primitives temporal entry (manifest-target profile) interfaces rows)) of
           Ok written -> Ok ()
           Err error -> Err "cannot write build manifest")
       other -> Err "cannot create the build directory"

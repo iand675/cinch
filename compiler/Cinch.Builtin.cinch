@@ -303,6 +303,7 @@ module Cinch.Builtin where
     , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
     , ("ignore", "b.ignore"), ("unrefine", "b.unrefine"), ("copyOut", "b.copyOut"), ("borrow", "b.borrow"), ("mutBorrow", "b.mutBorrow"), ("refSet", "b.refSet")
     , ("delay", "b.delay"), ("force", "b.force"), ("demand", "b.demand")
+    , ("laterPure", "b.laterPure"), ("laterAp", "b.laterAp"), ("laterFix", "b.laterFix"), ("forceClock", "b.forceClock")
     , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No"), ("Dec", "b.Dec")
     , ("refl", "b.refl"), ("Fin", "b.Fin"), ("Vec", "b.Vec"), ("Proof.search", "b.Proof.search")
     ]
@@ -473,6 +474,10 @@ module Cinch.Builtin where
     , task-rule "delay" "Delay" 1 False
     , task-rule "force" "Force" 1 False
     , task-rule "demand" "Demand" 1 False
+    , task-rule "laterPure" "LaterPure" 1 False
+    , task-rule "laterAp" "LaterAp" 2 False
+    , task-rule "laterFix" "LaterFix" 1 False
+    , task-rule "forceClock" "ForceClock" 1 False
     , decision-rule
     , task-rule "Proof.search" "ProofSearch" 1 False
     , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"

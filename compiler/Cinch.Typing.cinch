@@ -1008,6 +1008,8 @@ module Cinch.Typing where
     CScope sp ty region evidence callback -> use-count-once interrupted id callback
     CPrimitive sp ty op (CArgument at cell (CArgument bt callback (CArgumentsEnd end))) | (op == "memo-init") ->
       use-count-sequence (use-count interrupted id cell) (use-count-choice (Some (0, 0)) (use-count-once interrupted id callback))
+    CPrimitive sp ty op (CArgument at callback (CArgumentsEnd end)) | same op "thunk-delay" ->
+      use-count-choice (Some (0, 0)) (use-count-once interrupted id callback)
     CSpawn sp ty token callback ->
       use-count-after interrupted token (use-count interrupted id token) (use-count-once interrupted id callback)
     -- A parallel callback runs inside its call and is dropped before the
@@ -1266,7 +1268,9 @@ module Cinch.Typing where
         Some error -> Some error
         None -> usage-equations-error context function rest
   affine-thunk :: UType -> Bool
-  affine-thunk ty = case deferral-parts (task-base ty) of Some parts -> True; None -> False
+  affine-thunk ty = case clocked-later-parts (task-base ty) of
+    Some _ -> False
+    None -> case deferral-parts (task-base ty) of Some parts -> True; None -> False
   thunk-use-error :: Span -> String -> Option (Span, String)
   thunk-use-error sp detail = Some (sp, string-concat "multiplicity %aff: a thunk must be used at most once" detail)
   task-bound-error :: Span -> Nat -> UType -> CoreTerm -> Option (Span, String)
@@ -1455,9 +1459,11 @@ module Cinch.Typing where
         (TaskTrace failure (checked.trace-regions <> task-regions (core-type callback)) (checked.trace-shared))
   knot-region-name :: UType -> Option String
   knot-region-name region = case region of
-    URigid id name level KRegion -> (case unpack name of
-      first : rest -> if char-code first == 35 then Some (pack rest) else None
-      [] -> None)
+    URigid id name level KRegion ->
+      if string-starts-with "#core" name then None
+      else (case unpack name of
+        first : rest -> if char-code first == 35 then Some (pack rest) else None
+        [] -> None)
     other -> None
   first-knot-name :: List UType -> Option String
   first-knot-name regions = case regions of

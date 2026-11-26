@@ -219,6 +219,8 @@ module Cinch.Kinds where
     UCon name actual ->
       if promoted-ctor-name name || promoted-str-name name || is-promoted-fn-name name then True
       else if name == "Sing" || name == "Same" then True
+      else if name == "Later" && (kind-equal actual later-kind || kind-equal actual clocked-later-kind) then True
+      else if name == "Global" && kind-equal actual KRegion then True
       else (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope.bound) of Some expected -> kind-equal actual expected; None -> False)
     URigid id name level actual -> (case lookup-id id (scope.rigid) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-authorized kinds scope carrier && local-carrier carrier id scope; None -> False)

@@ -28,7 +28,7 @@ module Cinch.Type where
   export shared-pattern-carrier, pattern-constructor-type
   export borrow-constructor-kind, borrow-type-parts, borrow-regions, borrow-region-conflict
   export thunk-kind, thunk-type, thunk-parts
-  export later-kind, later-type, later-parts, deferral-parts, later-unrestricted
+  export later-kind, later-type, later-parts, clocked-later-kind, clocked-later-type, clocked-later-parts, deferral-parts, later-unrestricted
   export lazy-kind, lazy-type, lazy-parts
   export without-index-levels, index-of-type, typed-index-carrier, index-runtime-admissible, typed-index-admissible, open-pi, open-sigma, open-refinement
   export type-free-bound
@@ -248,11 +248,21 @@ module Cinch.Type where
     other -> None
   later-kind :: Kind
   later-kind = KFun KType KType
+  clocked-later-kind :: Kind
+  clocked-later-kind = KFun KRegion (KFun KType KType)
   later-type :: UType -> UType
   later-type result = UApp (UCon "Later" later-kind) result
+  clocked-later-type :: UType -> UType -> UType
+  clocked-later-type clock result = UApp (UApp (UCon "Later" clocked-later-kind) clock) result
+  clocked-later-parts :: UType -> Option (UType, UType)
+  clocked-later-parts ty = case ty of
+    UApp (UApp (UCon name kind) clock) result ->
+      if same-tag name "Later" && kind-equal kind clocked-later-kind then Some (clock, result) else None
+    other -> None
   later-parts :: UType -> Option UType
   later-parts ty = case ty of
     UApp (UCon name kind) result -> if same-tag name "Later" && kind-equal kind later-kind then Some result else None
+    UApp (UApp (UCon name kind) clock) result -> if same-tag name "Later" && kind-equal kind clocked-later-kind then Some result else None
     other -> None
   -- Forcing a guarded value uses the same closure ABI, with a pure row.
   deferral-parts :: UType -> Option (UType, UType)

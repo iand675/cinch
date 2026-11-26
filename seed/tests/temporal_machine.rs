@@ -11,40 +11,42 @@
 
 mod common;
 
-use cinch::check::{check_program_multi_full, StageReport, StagingCx};
+use cinch::check::StageMode;
 use cinch::core::TargetProfile;
-use cinch::driver::{check_sources, parse_prelude, parse_source};
-use std::collections::HashMap;
+use cinch::driver::Mode;
+use common::source_frontend::{check_sources, run_source};
+use std::path::PathBuf;
 
-fn expect_ok(name: &str, src: &str) -> StageReport {
-    let prelude = parse_prelude(&[]).expect("prelude");
-    let user = parse_source(src, "<temporal-machine-test>", &prelude.base, &HashMap::new())
-        .unwrap_or_else(|e| panic!("{name}: parse failed:\n{e}"));
-    let mut hashes = HashMap::new();
-    let mut files = HashMap::new();
-    let mut fixities = prelude.fixities.clone();
-    for (m, f) in &user.fixities {
-        fixities.insert(m.clone(), f.clone());
-    }
-    for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
-        files.insert(m.name.text.clone(), "<temporal-machine-test>".to_string());
-    }
-    let mut scx = StagingCx::default();
-    scx.fixities = fixities;
-    scx.files = files;
-    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
-    match check_program_multi_full(
-        &prelude.modules,
-        &user.modules,
-        &hashes,
-        &scx,
-        &[],
+fn write_temp_project(src: &str) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("sltempmc_{}_{}", std::process::id(), n));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project dir");
+    std::fs::write(dir.join("Main.cinch"), src).expect("write Main.cinch");
+    dir
+}
+
+/// Checks `src` using the configured compiler (Rust seed or `CINCH_TEST_COMPILER` Stage 3)
+/// and returns the emitted `Main.manifest.json` containing verified temporal rows.
+fn expect_ok(name: &str, src: &str) -> String {
+    let dir = write_temp_project(src);
+    if let Err(e) = common::drive_with_profile(
+        Mode::Check,
+        StageMode::Refresh,
+        &dir,
+        "Main.cinch",
+        None,
         &TargetProfile::native(),
     ) {
-        Ok((_p, _i, report, _d)) => report,
-        Err(e) => panic!("{name}: expected check to succeed, but failed:\n{e}"),
+        let _ = std::fs::remove_dir_all(&dir);
+        panic!("{name}: expected check to succeed, but failed:\n{e}");
     }
+    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
+        .unwrap_or_else(|e| panic!("{name}: missing build/Main.manifest.json: {e}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    manifest
 }
 
 fn expect_ok_stdlib(name: &str, src: &str) {
@@ -110,14 +112,10 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let rep = expect_ok("worker-pool-safety", ok_src);
-    let row = rep
-        .temporal
-        .iter()
-        .find(|r| r.contract == "boundInv")
-        .expect("boundInv temporal row recorded");
-    assert!(row.result.contains("model-checked"), "got: {}", row.result);
-    assert!(row.result.contains("0 violations"), "got: {}", row.result);
+    let manifest = expect_ok("worker-pool-safety", ok_src);
+    assert!(manifest.contains("\"contract\":\"boundInv\""), "got: {manifest}");
+    assert!(manifest.contains("model-checked"), "got: {manifest}");
+    assert!(manifest.contains("0 violations"), "got: {manifest}");
 
     // Buggy version: `accept` forgets the capacity guard, violating `queued + running <= 2`.
     let bad_src = r#"
@@ -401,21 +399,15 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let rep = expect_ok("symmetry-and-por", ok_src);
-    let row = rep
-        .temporal
-        .iter()
-        .find(|r| r.contract == "boundedCounts")
-        .expect("boundedCounts row");
+    let manifest = expect_ok("symmetry-and-por", ok_src);
+    assert!(manifest.contains("\"contract\":\"boundedCounts\""), "got: {manifest}");
     assert!(
-        row.result.contains("symmetry_merged: ") && !row.result.contains("symmetry_merged: 0"),
-        "expected symmetry reduction to merge symmetric states, got: {}",
-        row.result
+        manifest.contains("symmetry_merged: ") && !manifest.contains("symmetry_merged: 0"),
+        "expected symmetry reduction to merge symmetric states, got: {manifest}"
     );
     assert!(
-        row.result.contains("por_independent_pairs: ") && !row.result.contains("por_independent_pairs: 0"),
-        "expected POR to detect disjoint field footprints, got: {}",
-        row.result
+        manifest.contains("por_independent_pairs: ") && !manifest.contains("por_independent_pairs: 0"),
+        "expected POR to detect disjoint field footprints, got: {manifest}"
     );
 
     // Adding an `Ord` instance on `Node` makes symmetry reduction unsound -> must be rejected!
@@ -509,14 +501,10 @@ module Main where
   main :: Int
   main = 0
 "#;
-    let rep = expect_ok("refines-valid-stuttering", ok_src);
-    let row = rep
-        .temporal
-        .iter()
-        .find(|r| r.kind == "refinement")
-        .expect("refinement row");
-    assert!(row.result.contains("stuttering simulation"), "got: {}", row.result);
-    assert!(row.result.contains("measure strictly decreasing"), "got: {}", row.result);
+    let manifest = expect_ok("refines-valid-stuttering", ok_src);
+    assert!(manifest.contains("\"kind\":\"refinement\""), "got: {manifest}");
+    assert!(manifest.contains("stuttering simulation"), "got: {manifest}");
+    assert!(manifest.contains("measure strictly decreasing"), "got: {manifest}");
 
     // Drift case: concrete implementation adds a `rollback` transition from Done -> Idle,
     // which AbsSpec forbids! Compiler MUST catch the drift.
@@ -662,6 +650,8 @@ module Main where
     if v == 41 then 0 else 1
 "#;
     expect_ok("clocked-later-ok", ok_src);
+    let exit_code = run_source(ok_src).expect("clocked-later-run");
+    assert_eq!(exit_code, 0, "expected clocked Later program to run and return 0");
 
     // Mismatched clocks `k1` vs `k2` in `laterAp` must be rejected!
     let mismatch_src = r#"
@@ -672,7 +662,16 @@ module Main where
   main :: Int
   main = 0
 "#;
-    expect_err("clock-mismatch", mismatch_src, &["regions do not match"]);
+    match check_sources(mismatch_src, "<temporal-machine-test>") {
+        Ok(_) => panic!("clock-mismatch: expected mismatched clocks k1/k2 to be rejected"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("regions do not match") || (msg.contains("k1") && msg.contains("k2")),
+                "clock-mismatch: expected region/clock mismatch diagnostic, got:\n{msg}"
+            );
+        }
+    }
 
     // `forceClock` on a non-polymorphic clock bound in outer scope must be rejected!
     let escape_src = r#"

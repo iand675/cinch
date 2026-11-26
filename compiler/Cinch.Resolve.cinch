@@ -1351,10 +1351,31 @@ module Cinch.Resolve where
     -- names no definition of this module is refused here rather than
     -- silently dropped.
     DContract s keyword name subject clauses ->
-      if not (defines-value subject declarations) then
-        ([], fail s (cat ["the temporal contract `", name, "` names no definition `", home, ".", subject, "`: a contract attaches to a definition of its own module that the checker elaborates (core specification section 10)"]))
+      if not (defines-value subject declarations || defines-machine subject declarations) then
+        ([], fail s (cat ["the temporal contract `", name, "` names no definition `", home, ".", subject, "`: a contract attaches to a definition or machine of its own module that the checker elaborates (core specification section 10)"]))
       else case rename-contract-clauses visible (contract-scope subject declarations) clauses of
         (renamed, errors) -> ([DContract s keyword name (global-name home subject) renamed], errors)
+    DMachine s name (MkMachineSyntax state-ty init-expr actions fair sf sym max-st obs) ->
+      let state-r = rename-type visible Nil state-ty in
+      let (init-r, init-errs) = rename-expr visible Nil init-expr in
+      let (actions-r, act-errs) = rename-visible-names s visible "machine action" actions in
+      let (fair-r, fair-errs) = rename-visible-names s visible "machine fairness action" fair in
+      let (sf-r, sf-errs) = rename-visible-names s visible "machine strong-fairness action" sf in
+      let (sym-r, sym-errs) = rename-visible-names s visible "machine symmetry type" sym in
+      let (obs-r, obs-errs) = (case obs of
+        None -> (None, Nil)
+        Some expr -> (case rename-expr visible Nil expr of (e, errs) -> (Some e, errs))) in
+      ([DMachine s (global-name home name) (MkMachineSyntax state-r init-r actions-r fair-r sf-r sym-r max-st obs-r)],
+        init-errs <> act-errs <> fair-errs <> sf-errs <> sym-errs <> obs-errs)
+    DRefines s concrete (MkRefinesSyntax abstract view-expr measure-opt) ->
+      let c-err = (if defines-machine concrete declarations then Nil else fail s (cat ["refinement names unknown concrete machine `", home, ".", concrete, "`"])) in
+      let a-err = (if defines-machine abstract declarations then Nil else fail s (cat ["refinement names unknown abstract machine `", home, ".", abstract, "`"])) in
+      let (view-r, view-errs) = rename-expr visible Nil view-expr in
+      let (measure-r, measure-errs) = (case measure-opt of
+        None -> (None, Nil)
+        Some expr -> (case rename-expr visible Nil expr of (e, errs) -> (Some e, errs))) in
+      ([DRefines s (global-name home concrete) (MkRefinesSyntax (global-name home abstract) view-r measure-r)],
+        c-err <> a-err <> view-errs <> measure-errs)
     -- The parser could not model this declaration at all, so the text it
     -- could not read is the only useful thing to report. Falling through to
     -- the catch-all below would claim namespace work is missing when the
@@ -1380,6 +1401,20 @@ module Cinch.Resolve where
     (DFun s actual clauses) : rest -> name == actual || defines-value name rest
     other : rest -> defines-value name rest
 
+  defines-machine :: String -> List Decl -> Bool
+  defines-machine name declarations = case declarations of
+    Nil -> False
+    Cons (DMachine s actual syntax) rest -> name == actual || defines-machine name rest
+    Cons other rest -> defines-machine name rest
+
+  rename-visible-names :: Span -> Visible -> String -> List String -> (List String, List Diagnostic)
+  rename-visible-names sp visible role names = case names of
+    Nil -> (Nil, Nil)
+    Cons name rest -> case rename-visible-names sp visible role rest of
+      (more, errors) -> case visible-lookup name visible of
+        Some binding -> (Cons (binding-symbol binding) more, errors)
+        None -> (Cons name more, fail sp (cat ["unknown ", role, " `", name, "`"]) <> errors)
+
   -- The scope a contract's formulas read: the target definition's
   -- parameters, named by the pattern variables of its first clause (core
   -- specification section 10: the formulas are specification notation over
@@ -1397,13 +1432,10 @@ module Cinch.Resolve where
     (patterns, body) : rest -> patterns-names patterns
 
   -- A liveness formula names a finite structured-concurrency obligation,
-  -- not a value: `joined` and `cleanup` are the two claim words the language
-  -- defines (core specification section 10), so they stay exactly as
-  -- written. Every other formula is specification notation over the
-  -- definition's parameters and resolves like a body.
+  -- not a value: `joined`, `cleanup` and `fair_handoff` stay as written.
   claim-word :: Expr -> Bool
   claim-word body = case body of
-    EVar s word -> word == "joined" || word == "cleanup"
+    EVar s word -> word == "joined" || word == "cleanup" || word == "fair_handoff"
     other -> False
 
   rename-contract-clauses :: Visible -> List String -> List ContractClause -> (List ContractClause, List Diagnostic)
@@ -1416,11 +1448,22 @@ module Cinch.Resolve where
         else case rename-expr visible locals body of
           (renamed, errors) -> case rename-contract-clauses visible locals rest of
             (others, more) -> ((ContractFormula s op renamed) : others, errors <> more)
+      ContractLeadsTo s op lhs rhs ->
+        let (lhs-r, e1) = rename-expr visible locals lhs in
+        let (rhs-r, e2) = rename-expr visible locals rhs in
+        (case rename-contract-clauses visible locals rest of
+          (others, more) -> ((ContractLeadsTo s op lhs-r rhs-r) : others, e1 <> e2 <> more))
+      ContractDeadlockFree s op -> case rename-contract-clauses visible locals rest of
+        (others, more) -> ((ContractDeadlockFree s op) : others, more)
       ContractAssume s body -> case rename-expr visible locals body of
         (renamed, errors) -> case rename-contract-clauses visible locals rest of
           (others, more) -> ((ContractAssume s renamed) : others, errors <> more)
       ContractAssumed s text -> case rename-contract-clauses visible locals rest of
         (others, more) -> ((ContractAssumed s text) : others, more)
+      ContractAssumeFair s strong actions ->
+        let (actions-r, act-errs) = rename-visible-names s visible "contract fairness action" actions in
+        (case rename-contract-clauses visible locals rest of
+          (others, more) -> ((ContractAssumeFair s strong actions-r) : others, act-errs <> more))
 
   is-verify-justification :: RewriteJustification -> Bool
   is-verify-justification evidence = case evidence of

@@ -713,8 +713,36 @@ module Cinch.TemporalCheck where
   -- and `joinAllOrCancel`. The finite liveness claims read them as their
   -- subject (core specification section 10; concurrency specification
   -- section 2).
+  string-contains-at :: String -> String -> Nat -> Nat -> Bool
+  string-contains-at haystack needle idx limit =
+    if idx > limit then False
+    else if string-starts-with needle (string-slice haystack idx (string-length haystack)) then True
+    else string-contains-at haystack needle (idx + 1) limit
+
+  string-contains :: String -> String -> Bool
+  string-contains haystack needle =
+    let hlen = string-length haystack in
+    let nlen = string-length needle in
+    if nlen == 0 then True
+    else if nlen > hlen then False
+    else string-contains-at haystack needle 0 (hlen - nlen)
+
+  name-concurrency-sites :: String -> List String
+  name-concurrency-sites name =
+    let mvar = if string-contains name "mvar" || string-contains name "MVar" then ["mvar"] else Nil in
+    let stm = if string-contains name "tvar" || string-contains name "TVar" || string-contains name "atomically" || string-contains name "Stm" || string-contains name "STM" then ["stm"] else Nil in
+    mvar <> stm
+
+  row-concurrency-sites :: UType -> List String
+  row-concurrency-sites row =
+    let text = type-text row in
+    let mvar = if string-contains text "MVar" then ["mvar"] else Nil in
+    let stm = if string-contains text "STM" then ["stm"] else Nil in
+    mvar <> stm
+
   temporal-scope-sites :: CoreTerm -> List String
   temporal-scope-sites term = case term of
+    CUse sp ty name role actuals -> name-concurrency-sites name
     CScope sp ty region evidence callback -> "scope" : (temporal-scope-sites callback)
     CSpawn sp ty token spawn-body -> "spawn" : (temporal-scope-sites token <> temporal-scope-sites spawn-body)
     CJoin sp ty token handles -> "join" : (temporal-scope-sites token <> temporal-scope-sites handles)
@@ -727,7 +755,10 @@ module Cinch.TemporalCheck where
     CPolyElim sp ty fields poly-args -> temporal-scope-sites fields
     CArgument sp value rest -> temporal-scope-sites value <> temporal-scope-sites rest
     CApply sp ty f x -> temporal-scope-sites f <> temporal-scope-sites x
-    CApplyEff sp ty row f x -> temporal-scope-sites f <> temporal-scope-sites x
+    CApplyEff sp ty row f x -> row-concurrency-sites row <> temporal-scope-sites f <> temporal-scope-sites x
+    CPrimitive sp ty op args -> temporal-scope-sites args
+    CRecursiveValues sp ty region members body -> temporal-scope-sites members <> temporal-scope-sites body
+    CRecursiveBinding id name value rest -> temporal-scope-sites value <> temporal-scope-sites rest
     -- The checking forms wrap a body without changing the sites it
     -- contains: a discharged requirement, a refinement certificate, an
     -- erased proof arrow, and a lambda (a `withScope` callback is one).
@@ -751,15 +782,27 @@ module Cinch.TemporalCheck where
     other -> []
 
   -- `liveness`: `eventually (Q)` (core specification section 10). Only the
-  -- finite structured-concurrency obligations verify (`joined`, `cleanup`),
-  -- and only within a `withScope`; an unbounded eventual claim is refused by
-  -- name, because it needs a well-founded progress argument and stated
-  -- fairness assumptions the checker does not derive.
+  -- finite structured-concurrency obligations verify (`joined`, `cleanup`)
+  -- and fair MVar handoff (`fair_handoff`); an unbounded eventual claim is
+  -- refused by name, and optimistic `Effect.Stm` requires an explicit fairness
+  -- assumption.
   verify-liveness :: String -> String -> String -> String -> List String -> List String -> TemporalVerdict
   verify-liveness claim-name display claim formula assumptions sites =
     if claim == "unbounded" then
       TemporalRefused (cat
         ["temporal liveness: refused: the contract `", claim-name, "` on `", display, "` claims `", formula, "`, an unbounded eventual claim: it needs a well-founded progress argument and stated fairness assumptions, which this checker does not derive (core specification section 10): refused, never trusted. The finite structured-concurrency obligations `eventually = (joined)` and `eventually = (cleanup)` verify within their scope"])
+    else if claim == "fair_handoff" then
+      (if has-site sites "stm" then
+        (if has-any assumptions then
+          TemporalVerified "verified under explicit fairness assumption: Effect.Stm is optimistic/unfair by default, so progress relies on the stated assumption"
+        else
+          TemporalRefused (cat
+            ["temporal liveness: the contract `", claim-name, "` on `", display, "` uses `Effect.Stm`, which does not guarantee fairness under contention (optimistic retries can starve); either switch to fair `MVar` or state an explicit fairness assumption (`assume = \"...\"`)"]))
+      else if has-site sites "mvar" then
+        TemporalVerified "verified from the fair MVar runtime guarantee: FIFO mutex acquisition and FIFO taker/putter handoff queues prevent contention starvation without extra fairness assumptions"
+      else
+        TemporalRefused (cat
+          ["temporal liveness: the contract `", claim-name, "` on `", display, "` claims `fair_handoff` but finds neither an `MVar` nor an `STM` operation in the body"]))
     else if not (has-any assumptions) then
       TemporalRefused (cat
         ["temporal liveness: the contract `", claim-name, "` on `", display, "` states no assumption: a liveness claim relies on the runtime's scheduling and cancellation policies and must state them (concurrency specification section 10; core specification section 10: temporal contracts state their assumptions when relied upon)"])

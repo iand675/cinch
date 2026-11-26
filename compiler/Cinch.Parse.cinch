@@ -1042,6 +1042,14 @@ module Cinch.Parse where
         (case parse-conditional-decl toks src fix of
           POk decl tail -> POk decl tail
           PBad -> parse-sig-or-eq toks src fix)
+        else if s == "machine" then
+        (case parse-machine toks src fix of
+          POk decl tail -> POk decl tail
+          PBad -> parse-sig-or-eq toks src fix)
+        else if s == "refines" then
+        (case parse-refines toks src fix of
+          POk decl tail -> POk decl tail
+          PBad -> parse-sig-or-eq toks src fix)
         else if s == "unsafe" then
         (case rest of keyword : more -> if is-word-t (lt-token keyword) "prim" then parse-prim True rest src fix else parse-sig-or-eq toks src fix; [] -> PBad)
         else parse-sig-or-eq toks src fix
@@ -2234,23 +2242,28 @@ module Cinch.Parse where
     POk clause rest -> contract-clauses rest src fix (clause : acc)
     PBad -> PBad
 
-  -- `<clause> = (P)`, or `assume = "text"` for a stated environmental
-  -- assumption. The clause word is recorded as written.
+  -- `<clause> = (P)`, `leads_to = (P) ~> (Q)`, `deadlock_free = (True)`,
+  -- `fair = [a, b]`, `strong_fair = [a]`, or `assume = "text"`.
   parse-contract-clause :: List LToken -> Bytes -> List (String, Fix) -> Ps ContractClause
   parse-contract-clause toks src fix = case toks of
     name-token : rest -> case lt-token name-token of
       TVar name -> case expect-punct-t rest "=" of
         PBad -> PBad
-        POk _ after-equals -> case after-equals of
-          value-token : after-value -> case lt-token value-token of
-            TStr text ->
-              if name == "assume" then
-                POk (ContractAssumed (sp-of name-token) (bytes-to-string text)) after-value
-              else PBad
-            _ -> case parse-contract-clause-term (sp-of name-token) name after-equals src fix of
-              POk clause done -> POk clause done
+        POk _ after-equals ->
+          if name == "fair" || name == "strong_fair" then
+            case parse-name-bracket-list after-equals of
+              POk names done -> POk (ContractAssumeFair (sp-of name-token) (name == "strong_fair") names) done
               PBad -> PBad
-          [] -> PBad
+          else case after-equals of
+            value-token : after-value -> case lt-token value-token of
+              TStr text ->
+                if name == "assume" then
+                  POk (ContractAssumed (sp-of name-token) (bytes-to-string text)) after-value
+                else PBad
+              _ -> case parse-contract-clause-term (sp-of name-token) name after-equals src fix of
+                POk clause done -> POk clause done
+                PBad -> PBad
+            [] -> PBad
       other -> PBad
     [] -> PBad
 
@@ -2263,7 +2276,177 @@ module Cinch.Parse where
         PBad -> PBad
         POk _ closed ->
           if name == "assume" then POk (ContractAssume sp body) closed
+          else if name == "deadlock_free" then POk (ContractDeadlockFree sp name) closed
+          else if name == "leads_to" then
+            parse-leads-to-rhs sp name body closed src fix
           else POk (ContractFormula sp name body) closed
+
+  parse-leads-to-rhs :: Span -> String -> Expr -> List LToken -> Bytes -> List (String, Fix) -> Ps ContractClause
+  parse-leads-to-rhs sp name lhs toks src fix = case toks of
+    Cons arrow after-arrow ->
+      if is-leads-to-arrow (lt-token arrow) then
+        case expect-punct-t after-arrow "(" of
+          PBad -> PBad
+          POk _ opened -> case parse-expr opened src fix of
+            PBad -> PBad
+            POk rhs after-rhs -> case expect-punct-t after-rhs ")" of
+              PBad -> PBad
+              POk _ closed -> POk (ContractLeadsTo sp name lhs rhs) closed
+      else PBad
+    Nil -> PBad
+
+  is-leads-to-arrow :: Token -> Bool
+  is-leads-to-arrow tok = case tok of
+    TOp op -> string-compare op "~>" == 0
+    TWord w -> string-compare w "to" == 0
+    TVar w -> string-compare w "to" == 0
+    other -> False
+
+  -- `[name1, name2, ...]` for `actions`, `fair`, `strong_fair`, `symmetry`.
+  parse-name-bracket-list :: List LToken -> Ps (List String)
+  parse-name-bracket-list toks = case expect-punct-t toks "[" of
+    PBad -> PBad
+    POk _ opened -> parse-name-bracket-items opened Nil
+
+  parse-name-bracket-items :: List LToken -> List String -> Ps (List String)
+  parse-name-bracket-items toks acc = case toks of
+    Nil -> PBad
+    Cons t rest ->
+      if is-punct-t (lt-token t) "]" then POk (reverse acc) rest
+      else case parse-value-name toks of
+        PBad -> PBad
+        POk name after-name -> parse-name-bracket-tail after-name (Cons name acc)
+
+  parse-name-bracket-tail :: List LToken -> List String -> Ps (List String)
+  parse-name-bracket-tail toks acc = case toks of
+    Nil -> PBad
+    Cons t rest ->
+      if is-punct-t (lt-token t) "]" then POk (reverse acc) rest
+      else if is-punct-t (lt-token t) "," then parse-name-bracket-items rest acc
+      else PBad
+
+  -- `machine Name where { state = S; init = e; actions = [...]; ... }`
+  data MachineDraft where
+    MkMachineDraft :: Option TypeExpr -> Option Expr -> Option (List String) -> List String -> List String -> List String -> Option Nat -> Option Expr -> MachineDraft
+
+  empty-machine-draft :: MachineDraft
+  empty-machine-draft = MkMachineDraft None None None Nil Nil Nil None None
+
+  parse-machine :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-machine toks src fix = case toks of
+    Cons kw after-kw -> case parse-ctor-name after-kw of
+      PBad -> PBad
+      POk name after-name -> case expect-word-t after-name "where" of
+        PBad -> PBad
+        POk _ after-where -> case expect-punct-t after-where "{" of
+          PBad -> PBad
+          POk _ opened -> case parse-machine-clauses opened src fix empty-machine-draft of
+            PBad -> PBad
+            POk draft closed -> finish-machine (sp-of kw) name draft closed
+    Nil -> PBad
+
+  finish-machine :: Span -> String -> MachineDraft -> List LToken -> Ps Decl
+  finish-machine sp name draft toks =
+    if not (at-boundary toks) then PBad
+    else case draft of
+      MkMachineDraft (Some state-ty) (Some init-expr) (Some actions) fair sf sym max-st obs ->
+        POk (DMachine sp name (MkMachineSyntax state-ty init-expr actions fair sf sym max-st obs)) toks
+      other -> PBad
+
+  parse-machine-clauses :: List LToken -> Bytes -> List (String, Fix) -> MachineDraft -> Ps MachineDraft
+  parse-machine-clauses toks src fix draft = case toks of
+    Nil -> PBad
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-machine-clauses rest src fix draft
+        else if string-compare p "}" == 0 then POk draft rest
+        else PBad
+      TEOF -> POk draft toks
+      TVar field -> case expect-punct-t rest "=" of
+        PBad -> PBad
+        POk _ rhs -> parse-machine-field field rhs src fix draft
+      other -> PBad
+
+  parse-machine-field :: String -> List LToken -> Bytes -> List (String, Fix) -> MachineDraft -> Ps MachineDraft
+  parse-machine-field field rhs src fix draft = case draft of
+    MkMachineDraft state-ty init-expr actions fair sf sym max-st obs ->
+      if string-compare field "state" == 0 then
+        case parse-type rhs src of
+          POk ty tail -> parse-machine-clauses tail src fix (MkMachineDraft (Some ty) init-expr actions fair sf sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "init" == 0 then
+        case parse-expr rhs src fix of
+          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty (Some expr) actions fair sf sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "observe" == 0 then
+        case parse-expr rhs src fix of
+          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf sym max-st (Some expr))
+          PBad -> PBad
+      else if string-compare field "actions" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr (Some names) fair sf sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "fair" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions (fair <> names) sf sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "strong_fair" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair (sf <> names) sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "symmetry" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf (sym <> names) max-st obs)
+          PBad -> PBad
+      else if string-compare field "max_states" == 0 then
+        case rhs of
+          Cons tok tail -> case lt-token tok of
+            TInt digits -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf sym (Some (str-nat digits)) obs)
+            other -> PBad
+          Nil -> PBad
+      else PBad
+
+  -- `refines Concrete Abstract where { view = f; [measure = r] }`
+  parse-refines :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-refines toks src fix = case toks of
+    Cons kw after-kw -> case parse-ctor-name after-kw of
+      PBad -> PBad
+      POk concrete after-concrete -> case parse-ctor-name after-concrete of
+        PBad -> PBad
+        POk abstract after-abstract -> case expect-word-t after-abstract "where" of
+          PBad -> PBad
+          POk _ after-where -> case expect-punct-t after-where "{" of
+            PBad -> PBad
+            POk _ opened -> case parse-refines-clauses opened src fix None None of
+              PBad -> PBad
+              POk (Some view-expr, measure-opt) closed ->
+                if at-boundary closed then POk (DRefines (sp-of kw) concrete (MkRefinesSyntax abstract view-expr measure-opt)) closed
+                else PBad
+              other -> PBad
+    Nil -> PBad
+
+  parse-refines-clauses :: List LToken -> Bytes -> List (String, Fix) -> Option Expr -> Option Expr -> Ps (Option Expr, Option Expr)
+  parse-refines-clauses toks src fix view-opt measure-opt = case toks of
+    Nil -> PBad
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-refines-clauses rest src fix view-opt measure-opt
+        else if string-compare p "}" == 0 then POk (view-opt, measure-opt) rest
+        else PBad
+      TEOF -> POk (view-opt, measure-opt) toks
+      TVar field -> case expect-punct-t rest "=" of
+        PBad -> PBad
+        POk _ rhs ->
+          if string-compare field "view" == 0 then
+            case parse-expr rhs src fix of
+              POk expr tail -> parse-refines-clauses tail src fix (Some expr) measure-opt
+              PBad -> PBad
+          else if string-compare field "measure" == 0 then
+            case parse-expr rhs src fix of
+              POk expr tail -> parse-refines-clauses tail src fix view-opt (Some expr)
+              PBad -> PBad
+          else PBad
+      other -> PBad
 
   -- instance Name params :: Type where { members }
   parse-instance :: List LToken -> Bytes -> List (String, Fix) -> Bool -> Ps Decl
