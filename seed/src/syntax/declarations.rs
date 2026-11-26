@@ -658,12 +658,29 @@ fn declaration(decl: &mut Decl, visit: &mut impl FnMut(&mut Name, RefKind)) {
             if let Some(body) = &mut upgrade.migrate { term(body, visit); }
             if let Some(body) = &mut upgrade.related { term(body, visit); }
         }
+        Decl::Machine(machine) => {
+            visit(&mut machine.name, RefKind::Type);
+            term(&mut machine.init, visit);
+            for a in &mut machine.actions { visit(a, RefKind::Value); }
+            for s in &mut machine.symmetry { path(s, RefKind::Type, visit); }
+            if let Some(obs) = &mut machine.observe { term(obs, visit); }
+        }
+        Decl::Refines(refines) => {
+            term(&mut refines.view, visit);
+            if let Some(m) = &mut refines.measure { term(m, visit); }
+        }
         Decl::Contract(contract) => {
             visit(&mut contract.target, RefKind::Value);
             for clause in &mut contract.clauses {
                 match clause {
                     ContractClause::Formula { body, .. } | ContractClause::AssumeProp { body } => term(body, visit),
-                    ContractClause::AssumeNamed { .. } => {}
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        term(from, visit);
+                        term(to, visit);
+                    }
+                    ContractClause::DeadlockFree { .. }
+                    | ContractClause::AssumeNamed { .. }
+                    | ContractClause::AssumeFair { .. } => {}
                 }
             }
         }

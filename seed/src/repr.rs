@@ -213,7 +213,7 @@ pub fn repr_of(ty: &Ty, params: &[String], types: &dyn TypeReprs, miss: &mut dyn
             },
         },
         Ty::Tuple(_) | Ty::Sigma { .. } | Ty::App(..) | Ty::Former(_) => Class::Obj,
-        Ty::Fun(..) | Ty::Pi { .. } | Ty::Thunk { .. } | Ty::Later(_) | Ty::Lazy { .. } | Ty::Handler { .. } => {
+        Ty::Fun(..) | Ty::Pi { .. } | Ty::Thunk { .. } | Ty::Later { .. } | Ty::Lazy { .. } | Ty::Handler { .. } => {
             Class::Obj
         }
         // A polymorphic value is its family's dictionary block

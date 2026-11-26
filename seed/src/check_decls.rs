@@ -228,7 +228,7 @@ fn check_group_positivity(
                 }
                 Ok(())
             }
-            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
+            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => {
                 // A thunk's body runs at force time: the same positive
                 // reading as a product component. A `Later` payload is a
                 // guarded future observation (core language specification
@@ -274,7 +274,7 @@ fn mentions_group(t: &Ty, group: &[String]) -> bool {
                 || scheme.val_params.iter().any(|(_, ty)| mentions_group(ty, &visible))
                 || scheme.ctx.iter().any(|(_, app)| app.args.iter().any(|ty| mentions_group(ty, &visible)))
         }
-        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+        Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. }
         | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => mentions_group(inner, group),
         Ty::Handler { input, output, .. } => mentions_group(input, group) || mentions_group(output, group),
         _ => group.iter().any(|name| t.mentions_idx(name)),
@@ -327,7 +327,7 @@ fn ty_mentions(t: &Ty, name: &str) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => ty_mentions(dom, name) || ty_mentions(cod, name),
         Ty::Forall(scheme) => !scheme.params.iter().any(|p| p == name) && ty_mentions(&scheme.ty, name),
-        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
+        Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
         Ty::Ref(_, i) | Ty::Mut(_, i) => ty_mentions(i, name),
         Ty::Handler { input, output, .. } => {
             ty_mentions(input, name) || ty_mentions(output, name)
@@ -3594,6 +3594,18 @@ impl Checker {
                             "an `upgrade` declaration in a parameterized module is not supported in the bootstrap slice (its migration terms would need the module's parameters)",
                         ));
                     }
+                    ast::Decl::Machine(m) => {
+                        return Err(Error::at(
+                            m.span,
+                            "a `machine` declaration in a parameterized module is not supported in the bootstrap slice",
+                        ));
+                    }
+                    ast::Decl::Refines(r) => {
+                        return Err(Error::at(
+                            r.span,
+                            "a `refines` declaration in a parameterized module is not supported in the bootstrap slice",
+                        ));
+                    }
                     ast::Decl::Contract(c) => {
                         return Err(Error::at(
                             c.span,
@@ -5917,6 +5929,12 @@ impl Checker {
                     // specification section 3: migration field checking).
                     self.pending_upgrades.push((module.clone(), u.clone()));
                 }
+                ast::Decl::Machine(m) => {
+                    self.pending_machines.push((module.clone(), m.clone()));
+                }
+                ast::Decl::Refines(r) => {
+                    self.pending_refines.push((module.clone(), r.clone()));
+                }
                 ast::Decl::Contract(c) => {
                     // Temporal contracts (core specification section 10)
                     // attach to a definition of their own module: each is
@@ -7680,7 +7698,7 @@ impl Checker {
         match self.ctor_of_type(&info, &info.name) {
             Ok(v) => match &v.kind {
                 ValueKind::Ctor { field_tys, .. } => {
-                    matches!(field_tys.get(i), Some(Ty::Later(_)))
+                    matches!(field_tys.get(i), Some(Ty::Later { .. }))
                 }
                 _ => false,
             },
@@ -14688,7 +14706,7 @@ fn ty_has_raw_ptr(t: &Ty, opaque: &HashSet<String>, out: &mut Option<String>) ->
         Ty::Fun(a, _, _, b) => {
             ty_has_raw_ptr(a, opaque, out) || ty_has_raw_ptr(b, opaque, out)
         }
-        Ty::Ref(_, a) | Ty::Mut(_, a) | Ty::Later(a) => ty_has_raw_ptr(a, opaque, out),
+        Ty::Ref(_, a) | Ty::Mut(_, a) | Ty::Later { inner: a, .. } => ty_has_raw_ptr(a, opaque, out),
         Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } => ty_has_raw_ptr(inner, opaque, out),
         Ty::Pi { dom, cod, .. } => ty_has_raw_ptr(dom, opaque, out) || ty_has_raw_ptr(cod, opaque, out),
         Ty::Sigma { dom, cod, .. } => {
@@ -15428,7 +15446,19 @@ impl Checker {
                             }
                         }
                     }
-                    ast::ContractClause::AssumeNamed { .. } => {}
+                    ast::ContractClause::LeadsTo { from, to, .. } => {
+                        let mut refs = Vec::new();
+                        ast::collect_term_refs(from, &mut refs);
+                        ast::collect_term_refs(to, &mut refs);
+                        for r in refs {
+                            if r.quals.is_empty() && !mentioned.contains(&r.name) {
+                                mentioned.push(r.name.clone());
+                            }
+                        }
+                    }
+                    ast::ContractClause::DeadlockFree { .. }
+                    | ast::ContractClause::AssumeNamed { .. }
+                    | ast::ContractClause::AssumeFair { .. } => {}
                 }
             }
         }
@@ -15509,6 +15539,24 @@ impl Checker {
                 }
                 ast::ContractClause::AssumeNamed { text, .. } => {
                     assumption_rows.push(format!("assume \"{text}\""));
+                }
+                ast::ContractClause::LeadsTo { op, .. } | ast::ContractClause::DeadlockFree { op } => {
+                    return Err(Error::at(
+                        op.span,
+                        format!(
+                            "`{}` contracts apply to `machine` declarations, not function `{}`",
+                            op.text, pending.name
+                        ),
+                    ));
+                }
+                ast::ContractClause::AssumeFair { span, .. } => {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "`fair`/`strong_fair` action clauses apply to `machine` contracts, not function `{}`",
+                            pending.name
+                        ),
+                    ));
                 }
             }
         }
@@ -15912,16 +15960,64 @@ impl Checker {
         let claim = match fterm {
             ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "joined" => Some("joined"),
             ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "cleanup" => Some("cleanup"),
+            ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "fair_handoff" => Some("fair_handoff"),
             _ => None,
         };
         let Some(claim) = claim else {
             return Err(Error::at(
                 contract.span,
                 format!(
-                    "temporal liveness: refused: the contract `{contract_name}` on `{display}` claims `{formula}`, an unbounded eventual claim: it needs a well-founded progress argument and stated fairness assumptions, which this checker does not derive (core specification section 10): refused, never trusted. The finite structured-concurrency obligations `eventually = (joined)` and `eventually = (cleanup)` verify within their scope"
+                    "temporal liveness: refused: the contract `{contract_name}` on `{display}` claims `{formula}`, an unbounded eventual claim: it needs a well-founded progress argument and stated fairness assumptions, which this checker does not derive (core specification section 10): refused, never trusted. The finite structured-concurrency obligations `eventually = (joined)`, `eventually = (cleanup)`, and fair `MVar` `eventually = (fair_handoff)` verify on functions; use `machine` + `contract liveness` for general TLA+-style bounded liveness"
                 ),
             ));
         };
+        if claim == "fair_handoff" {
+            // Inspect references in the function body to distinguish fair `MVar`
+            // (strict FIFO registration lock + FIFO wait-queue handoff) from
+            // optimistic/unfair `STM`.
+            let mut body_refs = Vec::new();
+            for eq in &pending.eqs {
+                for term in eq.terms() {
+                    ast::collect_term_refs(term, &mut body_refs);
+                }
+            }
+            let uses_mvar = body_refs.iter().any(|r| {
+                r.name.starts_with("mvar-")
+                    || r.quals.iter().any(|q| q == "MVar")
+            });
+            let uses_stm = body_refs.iter().any(|r| {
+                matches!(
+                    r.name.as_str(),
+                    "atomically" | "atomically-or-cancel" | "retry" | "or-else"
+                ) || r.name.starts_with("tvar-")
+                    || r.name.starts_with("tmvar-")
+                    || r.name.starts_with("tqueue-")
+                    || r.quals.iter().any(|q| q == "Stm")
+            });
+            if uses_stm && assumption_rows.is_empty() {
+                return Err(Error::at(
+                    contract.span,
+                    format!(
+                        "temporal liveness: refused: `{display}` uses `Effect.Stm`, which is optimistic and does not guarantee fairness under contention (starvation is possible); either switch to fair `MVar` (strict FIFO registration lock + FIFO handoff) or declare an explicit fairness assumption such as `assume = \"stm-fair-commit\"`"
+                    ),
+                ));
+            }
+            if !uses_mvar && !uses_stm {
+                return Err(Error::at(
+                    contract.span,
+                    format!(
+                        "temporal liveness: `{contract_name}` on `{display}` claims `eventually (fair_handoff)`, but `{display}` performs no `MVar` or `STM` synchronization"
+                    ),
+                ));
+            }
+            let result = if uses_mvar && !uses_stm {
+                "verified: contention fairness discharged automatically by `MVar` strict FIFO FairMutex registration and FIFO wait-queue handoff (subject to cooperative scheduler yielding)".to_string()
+            } else {
+                "verified under explicit STM fairness assumption (Effect.Stm itself does not guarantee starvation freedom)".to_string()
+            };
+            self.record_temporal_fact(pending, contract, formula, result, assumption_rows);
+            return Ok(());
+        }
         if assumption_rows.is_empty() {
             return Err(Error::at(
                 contract.span,
@@ -16429,7 +16525,13 @@ impl Checker {
                     match cl {
                         ast::ContractClause::Formula { body, .. }
                         | ast::ContractClause::AssumeProp { body } => self.for_each_span(body, f),
-                        ast::ContractClause::AssumeNamed { span, .. } => f(span),
+                        ast::ContractClause::LeadsTo { from, to, .. } => {
+                            self.for_each_span(from, f);
+                            self.for_each_span(to, f);
+                        }
+                        ast::ContractClause::DeadlockFree { op } => f(&op.span),
+                        ast::ContractClause::AssumeNamed { span, .. }
+                        | ast::ContractClause::AssumeFair { span, .. } => f(span),
                     }
                 }
             }
@@ -19744,6 +19846,9 @@ fn check_program_multi_full_prepared_impl(
     // functions (runtime evolution specification section 3: migration
     // field checking over the two records' field tables).
     c.check_upgrades()?;
+    // Explicit-state temporal machines (`machine`), their temporal contracts,
+    // and checked stuttering refinements (`refines`).
+    c.check_machines_and_refines()?;
     // Temporal contracts (core specification section 10) verify with
     // their definitions; anything the collection table still holds names
     // no definition the checker elaborates.

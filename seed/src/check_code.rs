@@ -474,7 +474,7 @@ impl Checker {
                 eff: eff.clone(),
                 inner: pair(inner, b),
             },
-            (Ty::Later(a), Ty::Later(b)) => Ty::Later(pair(a, b)),
+            (Ty::Later { clock, inner: a }, Ty::Later { inner: b, .. }) => Ty::Later { clock: *clock, inner: pair(a, b) },
             (Ty::Lazy { eff, region, inner }, Ty::Lazy { inner: b, .. }) => Ty::Lazy {
                 eff: eff.clone(),
                 region: region.clone(),

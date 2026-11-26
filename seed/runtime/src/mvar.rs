@@ -1,20 +1,141 @@
-//! Native single-place variables. Each box owns its mutex and FIFO queues;
-//! a suspended call holds the box alive and parks through `crate::park`.
+//! Native single-place variables. Each box owns a strict FIFO fair lock and
+//! FIFO wait queues; a suspended call holds the box alive and parks through
+//! `crate::park`.
 //!
 //! Values are marked shared *before* entering the box, even if the box is
 //! currently private. Consequently the generic mark walk need not inspect
 //! its changing Rust-owned fields. The box's Rust destructor releases the
 //! slot and queued values; the generic block scan sees no counted slots.
-//! Reads duplicate under the mutex, takes transfer ownership, and queued
+//! Reads duplicate under the fair lock, takes transfer ownership, and queued
 //! handoffs publish their result before waking the recipient. No lock is
 //! held across a park. Cancellation and handoff serialize under that same
-//! mutex, with an already completed handoff taking precedence.
+//! fair lock, with an already completed handoff taking precedence.
 
 #[cfg(not(target_family = "wasm"))]
 use crate::park;
 use crate::{abi, block, rc};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
+
+#[cfg(not(target_family = "wasm"))]
+mod fair_lock {
+    use crate::park;
+    use std::cell::UnsafeCell;
+    use std::collections::VecDeque;
+    use std::ops::{Deref, DerefMut};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    struct LockWaiter {
+        granted: AtomicBool,
+        parker: park::Parker,
+    }
+
+    struct Inner {
+        locked: bool,
+        queue: VecDeque<Arc<LockWaiter>>,
+    }
+
+    /// Strict FIFO fair mutex with direct ownership handoff (zero barging).
+    /// Contending callers enqueue in arrival order and park through `crate::park`
+    /// so fibers yield cooperatively to the scheduler rather than stalling an OS thread.
+    pub(super) struct FairMutex<T> {
+        inner: Mutex<Inner>,
+        data: UnsafeCell<T>,
+    }
+
+    // SAFETY: Access to `data` is serialized by `FairMutex::lock`, whose
+    // direct-handoff `Release`/`Acquire` edge establishes happens-before.
+    unsafe impl<T: Send> Send for FairMutex<T> {}
+    unsafe impl<T: Send> Sync for FairMutex<T> {}
+
+    pub(super) struct FairMutexGuard<'a, T> {
+        mutex: &'a FairMutex<T>,
+    }
+
+    impl<T> FairMutex<T> {
+        pub(super) fn new(value: T) -> Self {
+            Self {
+                inner: Mutex::new(Inner {
+                    locked: false,
+                    queue: VecDeque::new(),
+                }),
+                data: UnsafeCell::new(value),
+            }
+        }
+
+        pub(super) fn lock(&self) -> FairMutexGuard<'_, T> {
+            let waiter = {
+                let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+                if !g.locked && g.queue.is_empty() {
+                    g.locked = true;
+                    return FairMutexGuard { mutex: self };
+                }
+                let w = Arc::new(LockWaiter {
+                    granted: AtomicBool::new(false),
+                    parker: park::current(),
+                });
+                g.queue.push_back(Arc::clone(&w));
+                w
+            };
+            while !waiter.granted.load(Ordering::Acquire) {
+                park::park();
+            }
+            FairMutexGuard { mutex: self }
+        }
+    }
+
+    impl<T> Deref for FairMutexGuard<'_, T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            unsafe { &*self.mutex.data.get() }
+        }
+    }
+
+    impl<T> DerefMut for FairMutexGuard<'_, T> {
+        fn deref_mut(&mut self) -> &mut T {
+            unsafe { &mut *self.mutex.data.get() }
+        }
+    }
+
+    impl<T> Drop for FairMutexGuard<'_, T> {
+        fn drop(&mut self) {
+            let next = {
+                let mut g = self.mutex.inner.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(next) = g.queue.pop_front() {
+                    // Direct handoff: `locked` remains true so no newcomer can barge ahead.
+                    next.granted.store(true, Ordering::Release);
+                    Some(next)
+                } else {
+                    g.locked = false;
+                    None
+                }
+            };
+            if let Some(next) = next {
+                next.parker.unpark();
+            }
+        }
+    }
+}
+
+#[cfg(target_family = "wasm")]
+mod fair_lock {
+    use std::sync::{Mutex, MutexGuard};
+
+    pub(super) struct FairMutex<T>(Mutex<T>);
+
+    impl<T> FairMutex<T> {
+        pub(super) fn new(value: T) -> Self {
+            Self(Mutex::new(value))
+        }
+
+        pub(super) fn lock(&self) -> MutexGuard<'_, T> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner())
+        }
+    }
+}
+
+use fair_lock::FairMutex;
 
 // ABI with seed/src/mvar_codegen.rs.
 const TAKE: i64 = 0;
@@ -142,7 +263,7 @@ impl State {
 
 pub(crate) struct MVar {
     format: i64,
-    state: Mutex<State>,
+    state: FairMutex<State>,
 }
 
 unsafe fn cell<'a>(word: i64) -> &'a MVar {
@@ -175,7 +296,7 @@ pub unsafe extern "C" fn cinch_mvar_new(value: i64, format: i64, full: i64) -> i
         block::RC_FRESH,
         MVar {
             format,
-            state: Mutex::new(State {
+            state: FairMutex::new(State {
                 value,
                 ..State::default()
             }),
@@ -209,7 +330,7 @@ pub unsafe extern "C" fn cinch_mvar_access(
     } else {
         None
     };
-    let mut state = lock(&m.state);
+    let mut state = m.state.lock();
     let result = match op {
         IS_EMPTY => return i64::from(state.value.is_none()),
         TAKE => state.take(),
@@ -251,7 +372,7 @@ pub unsafe extern "C" fn cinch_mvar_access(
         }
         drop(state);
         suspend(&waiter, mode);
-        state = lock(&m.state);
+        state = m.state.lock();
     }
 }
 
@@ -384,7 +505,7 @@ mod tests {
     fn registered(m: i64, takers: usize, readers: usize, writers: usize) {
         let start = Instant::now();
         loop {
-            let s = lock(&unsafe { cell(m) }.state);
+            let s = unsafe { cell(m) }.state.lock();
             if (s.takers.len(), s.readers.len(), s.writers.len()) == (takers, readers, writers) {
                 return;
             }
@@ -467,5 +588,32 @@ mod tests {
             assert_eq!(count(read), -1);
             rc::cinch_drop(read);
         }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn fair_mutex_hands_off_in_strict_fifo_order_without_barging() {
+        let fair = Arc::new(FairMutex::new(Vec::<usize>::new()));
+        let guard = fair.lock();
+        let mut handles = Vec::new();
+        for id in 0..6 {
+            let f = Arc::clone(&fair);
+            let (tx, rx) = mpsc::channel();
+            handles.push(std::thread::spawn(move || {
+                tx.send(()).unwrap();
+                let mut log = f.lock();
+                log.push(id);
+            }));
+            rx.recv().unwrap();
+            // Wait until this thread has actually enqueued onto the fair lock
+            // so arrival order is strictly 0, 1, 2, 3, 4, 5.
+            std::thread::sleep(Duration::from_millis(15));
+        }
+        drop(guard);
+        for h in handles {
+            h.join().unwrap();
+        }
+        let log = fair.lock();
+        assert_eq!(*log, vec![0, 1, 2, 3, 4, 5]);
     }
 }

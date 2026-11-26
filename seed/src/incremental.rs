@@ -594,6 +594,13 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
             out.push(path_ref(RefKind::Type, &u.old.segments, u.old.span()));
             out.push(path_ref(RefKind::Type, &u.new.segments, u.new.span()));
         }
+        Decl::Machine(m) => {
+            ast::collect_type_refs(&m.state, out);
+            for s in &m.symmetry {
+                out.push(path_ref(RefKind::Type, &s.segments, s.span()));
+            }
+        }
+        Decl::Refines(_) => {}
         Decl::Effect(e) => {
             for (_, ty) in &e.ops {
                 ast::collect_type_refs(ty, out);
@@ -677,6 +684,21 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
             }
             if let Some(r) = &u.related {
                 ast::collect_term_refs(r, out);
+            }
+        }
+        Decl::Machine(m) => {
+            ast::collect_term_refs(&m.init, out);
+            for a in &m.actions {
+                out.push(RefSite { kind: RefKind::Value, quals: Vec::new(), name: a.text.clone(), span: a.span });
+            }
+            if let Some(obs) = &m.observe {
+                ast::collect_term_refs(obs, out);
+            }
+        }
+        Decl::Refines(r) => {
+            ast::collect_term_refs(&r.view, out);
+            if let Some(m) = &r.measure {
+                ast::collect_term_refs(m, out);
             }
         }
         Decl::Generate { stmts, .. } => {
