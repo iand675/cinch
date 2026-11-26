@@ -741,3 +741,199 @@ module Main where
 "#;
     expect_ok_stdlib("stm-with-explicit-fairness-assume", stm_assumed);
 }
+
+// ----------------------------------------------------------------- 8. Multi-Param Actions, Option/Tuple Domains & Field Diffs
+
+#[test]
+fn multi_param_option_tuple_actions_and_field_diff_traces() {
+    // Multi-actor transfer taking two Node parameters (`from`, `to`) plus `Option Bool`
+    // (or tuple `(Node, Bool)`) verifying total conservation and field diffs on violation!
+    let ok_src = r#"
+module Main where
+  data Node where
+    A :: Node
+    B :: Node
+
+  record Bank where
+    balA :: Nat
+    balB :: Nat
+
+  transfer :: Node -> Node -> InRange 1 1 Nat -> Bank -> Option Bank
+  transfer src dst amt s = case (src, dst) of
+    (A, B) ->
+      let a = s.balA in
+      if a >= 1 then Some (Bank { balA = a - 1, balB = s.balB + 1 }) else None
+    (B, A) ->
+      let b = s.balB in
+      if b >= 1 then Some (Bank { balA = s.balA + 1, balB = b - 1 }) else None
+    _ -> None
+
+  touch :: Option Node -> Bank -> Option Bank
+  touch opt s = case opt of
+    None -> Some s
+    Some _ -> None
+
+  machine Ledger where
+    state = Bank
+    init = Bank { balA = 2, balB = 0 }
+    actions = [transfer, touch]
+
+  contract safety conservation for Ledger where
+    always = (\s -> s.balA + s.balB == 2)
+
+  main :: Int
+  main = 0
+"#;
+    let manifest = expect_ok("multi-param-ledger", ok_src);
+    assert!(manifest.contains("\"contract\":\"conservation\""), "got: {manifest}");
+
+    // Field-diff counterexample check: buggy pool shows `(changed: queued: ...)` in trace.
+    let diff_src = r#"
+module Main where
+  record Pool where
+    queued :: Nat
+    running :: Nat
+
+  enqueue :: Pool -> Option Pool
+  enqueue s =
+    if s.queued < 3
+    then Some (Pool { queued = s.queued + 1, running = s.running })
+    else None
+
+  machine DiffPool where
+    state = Pool
+    init = Pool { queued = 0, running = 0 }
+    actions = [enqueue]
+
+  contract safety capTwo for DiffPool where
+    always = (\s -> s.queued <= 1)
+
+  main :: Int
+  main = 0
+"#;
+    expect_err(
+        "field-diff-trace",
+        diff_src,
+        &["(changed: queued: 0 -> 1)", "(changed: queued: 1 -> 2)"],
+    );
+}
+
+// ----------------------------------------------------------------- 9. Compositional Verification: Assume-Guarantee & Multi-View Refinement
+
+#[test]
+fn assume_guarantee_environment_assumptions_and_horizontal_refinement() {
+    // Component machine `Worker` has an unconstrained environment action `dropPower`
+    // that can flip `powered = False`. Without an environment assumption, `always`
+    // on `healthy` fails; WITH `assume = (\s -> s.powered)` it verifies honestly and
+    // records the assumption in the manifest!
+    let base = r#"
+module Main where
+  record EnvWorker where
+    powered :: Bool
+    jobs :: Nat
+
+  runJob :: EnvWorker -> Option EnvWorker
+  runJob s =
+    if s.powered && s.jobs < 2
+    then Some (EnvWorker { powered = True, jobs = s.jobs + 1 })
+    else None
+
+  dropPower :: EnvWorker -> Option EnvWorker
+  dropPower s =
+    if s.powered
+    then Some (EnvWorker { powered = False, jobs = s.jobs })
+    else None
+
+  machine Worker where
+    state = EnvWorker
+    init = EnvWorker { powered = True, jobs = 0 }
+    actions = [runJob, dropPower]
+"#;
+
+    let unassumed = format!(
+        "{base}
+  contract safety staysPowered for Worker where
+    always = (\\s -> s.powered)
+
+  main :: Int
+  main = 0
+"
+    );
+    expect_err("assume-guarantee-without-env", &unassumed, &["dropPower"]);
+
+    let assumed = format!(
+        "{base}
+  contract safety boundedUnderPower for Worker where
+    always = (\\s -> s.powered && s.jobs <= 2)
+    assume = (\\s -> s.powered)
+
+  main :: Int
+  main = 0
+"
+    );
+    let manifest = expect_ok("assume-guarantee-with-env", &assumed);
+    assert!(manifest.contains("assume ("), "expected assume row in manifest: {manifest}");
+
+    // Horizontal product composition + dual projection refinements (`FullSystem refines AuthSpec`
+    // AND `FullSystem refines QueueSpec`) verifying two independent subsystem specs simultaneously!
+    let composed = r#"
+module Main where
+  record Auth where
+    authed :: Bool
+
+  login :: Auth -> Option Auth
+  login s = if not s.authed then Some (Auth { authed = True }) else None
+
+  machine AuthSpec where
+    state = Auth
+    init = Auth { authed = False }
+    actions = [login]
+
+  record Queue where
+    depth :: Nat
+
+  push :: Queue -> Option Queue
+  push s = if s.depth < 2 then Some (Queue { depth = s.depth + 1 }) else None
+
+  machine QueueSpec where
+    state = Queue
+    init = Queue { depth = 0 }
+    actions = [push]
+
+  record Full where
+    authed :: Bool
+    depth :: Nat
+
+  sysLogin :: Full -> Option Full
+  sysLogin s = if not s.authed then Some (Full { authed = True, depth = s.depth }) else None
+
+  sysEnqueue :: Full -> Option Full
+  sysEnqueue s =
+    if s.authed && s.depth < 2
+    then Some (Full { authed = s.authed, depth = s.depth + 1 })
+    else None
+
+  machine FullSystem where
+    state = Full
+    init = Full { authed = False, depth = 0 }
+    actions = [sysLogin, sysEnqueue]
+
+  viewAuth :: Full -> Auth
+  viewAuth s = Auth { authed = s.authed }
+
+  viewQueue :: Full -> Queue
+  viewQueue s = Queue { depth = s.depth }
+
+  refines FullSystem AuthSpec where
+    view = viewAuth
+
+  refines FullSystem QueueSpec where
+    view = viewQueue
+
+  main :: Int
+  main = 0
+"#;
+    let cman = expect_ok("horizontal-dual-refines", composed);
+    assert!(cman.contains("refines FullSystem AuthSpec"), "got: {cman}");
+    assert!(cman.contains("refines FullSystem QueueSpec"), "got: {cman}");
+}

@@ -1917,8 +1917,89 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Export(_)
         | Decl::Fixity(_)
         | Decl::OpaqueType(_)
-        | Decl::Foreign(_)
-        | Decl::Contract(_) => {}
+        | Decl::Foreign(_) => {}
+        Decl::Contract(c) => {
+            out.push(RefSite {
+                kind: RefKind::Value,
+                quals: Vec::new(),
+                name: c.target.text.clone(),
+                span: c.target.span,
+            });
+            for clause in &c.clauses {
+                match clause {
+                    ContractClause::Formula { body, .. } | ContractClause::AssumeProp { body } => {
+                        collect_term_refs(body, out);
+                    }
+                    ContractClause::LeadsTo { from, to, .. } => {
+                        collect_term_refs(from, out);
+                        collect_term_refs(to, out);
+                    }
+                    ContractClause::AssumeFair { actions, .. } => {
+                        for a in actions {
+                            out.push(RefSite {
+                                kind: RefKind::Value,
+                                quals: Vec::new(),
+                                name: a.text.clone(),
+                                span: a.span,
+                            });
+                        }
+                    }
+                    ContractClause::DeadlockFree { .. } | ContractClause::AssumeNamed { .. } => {}
+                }
+            }
+        }
+        Decl::Machine(m) => {
+            collect_type_refs(&m.state, out);
+            collect_term_refs(&m.init, out);
+            for a in &m.actions {
+                out.push(RefSite {
+                    kind: RefKind::Value,
+                    quals: Vec::new(),
+                    name: a.text.clone(),
+                    span: a.span,
+                });
+            }
+            for a in &m.fair {
+                out.push(RefSite {
+                    kind: RefKind::Value,
+                    quals: Vec::new(),
+                    name: a.text.clone(),
+                    span: a.span,
+                });
+            }
+            for a in &m.strong_fair {
+                out.push(RefSite {
+                    kind: RefKind::Value,
+                    quals: Vec::new(),
+                    name: a.text.clone(),
+                    span: a.span,
+                });
+            }
+            for sym in &m.symmetry {
+                out.push(ref_of_path(RefKind::Type, &sym.segments, sym.span()));
+            }
+            if let Some(obs) = &m.observe {
+                collect_term_refs(obs, out);
+            }
+        }
+        Decl::Refines(r) => {
+            out.push(RefSite {
+                kind: RefKind::Value,
+                quals: Vec::new(),
+                name: r.concrete.text.clone(),
+                span: r.concrete.span,
+            });
+            out.push(RefSite {
+                kind: RefKind::Value,
+                quals: Vec::new(),
+                name: r.abstract_target.text.clone(),
+                span: r.abstract_target.span,
+            });
+            collect_term_refs(&r.view, out);
+            if let Some(m) = &r.measure {
+                collect_term_refs(m, out);
+            }
+        }
         Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
         Decl::Conditional { when, inner } => {
             for clause in when { collect_term_refs(clause, out); }
@@ -1975,25 +2056,6 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             }
             if let Some(r) = &u.related {
                 collect_term_refs(r, out);
-            }
-        }
-        Decl::Machine(m) => {
-            collect_type_refs(&m.state, out);
-            collect_term_refs(&m.init, out);
-            for a in &m.actions {
-                out.push(RefSite { kind: RefKind::Value, quals: Vec::new(), name: a.text.clone(), span: a.span });
-            }
-            for s in &m.symmetry {
-                out.push(ref_of_path(RefKind::Type, &s.segments, s.span()));
-            }
-            if let Some(obs) = &m.observe {
-                collect_term_refs(obs, out);
-            }
-        }
-        Decl::Refines(r) => {
-            collect_term_refs(&r.view, out);
-            if let Some(m) = &r.measure {
-                collect_term_refs(m, out);
             }
         }
         Decl::Signature(s) => {

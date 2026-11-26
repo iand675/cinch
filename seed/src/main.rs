@@ -22,6 +22,12 @@ usage:
                                    report the first structural divergence
   cinch verify-prims <file.cinch...> [--policy=dev|jpl] [--checker=kernel|compiled]
                                    formally verify inline LLVM prim bodies
+  cinch model inspect <file.cinch> [Machine] [--json]
+                                   inspect state machines, domains, POR/symmetry, and contracts
+  cinch model trace <file.cinch> <Machine> [--state N | --deadlock | --where <pred>]
+                                   find shortest BFS trace with per-step field diffs
+  cinch model dot <file.cinch> <Machine> [-o <out.dot>]
+                                   export explored state transition graph as Graphviz DOT
   cinch doc extract <file.cinch> [--iface <cinchif>] [--legacy] [--out <json>]
   cinch doc render <file.cinch> [--iface <cinchif>] [--legacy] [--plain] [--out <markdown>]
   cinch doc html <root> [--out-dir <dir>] [--iface-dir <dir>] [--legacy] [--title <text>]
@@ -134,6 +140,7 @@ fn main() {
         Some("core") => exit(cinch::driver::core_cli(&args[1..])),
         Some("verify-prims") => exit(cinch::prim_verify::cli(&args[1..])),
         Some("verify-codegen") => exit(cinch::prim_verify::cli_verify_codegen(&args[1..])),
+        Some("model") => exit(cinch::model_cli::cli(&args[1..])),
         Some("cxx") => exit(cinch::cxx::cli(&args[1..])),
         Some("doc") => exit(cinch::cinchdoc::cli(&args[1..])),
         Some("repl") => {

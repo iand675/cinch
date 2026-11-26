@@ -16009,7 +16009,12 @@ struct TemporalPending {
 fn render_formula_term(t: &ast::Term) -> String {
     fn arg(t: &ast::Term) -> String {
         match t {
-            ast::Term::Var(_) | ast::Term::Con(_) | ast::Term::Int(..) => render_formula_term(t),
+            ast::Term::Var(_)
+            | ast::Term::Con(_)
+            | ast::Term::Int(..)
+            | ast::Term::Str(..)
+            | ast::Term::Unit(_)
+            | ast::Term::Proj(..) => render_formula_term(t),
             // A prefix application binds tighter than the operators.
             ast::Term::App(f, _, _)
                 if matches!(&**f, ast::Term::Var(p)
@@ -16037,8 +16042,43 @@ fn render_formula_term(t: &ast::Term) -> String {
         }
         ast::Term::Con(p) => p.parts().join("."),
         ast::Term::Int(v, _) => v.clone(),
+        ast::Term::Str(v, _) => format!("{v:?}"),
+        ast::Term::Unit(_) => "()".to_string(),
         ast::Term::Neg(e, _) => format!("-{}", arg(e)),
         ast::Term::Ann(e, _, _) => render_formula_term(e),
+        ast::Term::Proj(base, field, _) => format!("{}.{}", arg(base), field.text),
+        ast::Term::Lam(params, body, _) => {
+            let ps: Vec<String> = params
+                .iter()
+                .map(|p| match p {
+                    ast::Pat::Var(n, _) => n.text.clone(),
+                    ast::Pat::Wild(_) => "_".to_string(),
+                    _ => "_".to_string(),
+                })
+                .collect();
+            format!("\\{} -> {}", ps.join(" "), render_formula_term(body))
+        }
+        ast::Term::If { cond, then, els, .. } => {
+            if matches!(&**els, ast::Term::Con(c) if c.parts() == ["False"]) {
+                format!("{} && {}", render_formula_term(cond), render_formula_term(then))
+            } else if matches!(&**then, ast::Term::Con(c) if c.parts() == ["True"]) {
+                format!("{} || {}", render_formula_term(cond), render_formula_term(els))
+            } else {
+                format!(
+                    "if {} then {} else {}",
+                    render_formula_term(cond),
+                    render_formula_term(then),
+                    render_formula_term(els)
+                )
+            }
+        }
+        ast::Term::Tuple(items, _) => {
+            let parts: Vec<String> = items.iter().map(render_formula_term).collect();
+            format!("({})", parts.join(", "))
+        }
+        ast::Term::Case(scrut, _, _) => {
+            format!("case {} of {{ ... }}", render_formula_term(scrut))
+        }
         ast::Term::App(f, args, _) => {
             if let ast::Term::Var(p) = &**f {
                 if p.quals.is_empty()
@@ -20476,6 +20516,8 @@ fn check_program_multi_full_prepared_impl(
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
             temporal: Vec::new(),
+            machines: Vec::new(),
+            machine_trace_result: None,
         }
     };
     trace_checker_phase(phase_trace, "prepare", "staging.end", None);
@@ -20545,7 +20587,7 @@ fn check_program_multi_full_prepared_impl(
     c.check_upgrades()?;
     // Explicit-state temporal machines (`machine`), their temporal contracts,
     // and checked stuttering refinements (`refines`).
-    c.check_machines_and_refines()?;
+    c.check_machines_and_refines_mode(!scx.machine_inspect_only, scx.machine_trace_query.as_ref())?;
     // Temporal contracts (core specification section 10) verify with
     // their definitions; anything the collection table still holds names
     // no definition the checker elaborates.
@@ -20560,6 +20602,8 @@ fn check_program_multi_full_prepared_impl(
     report.literal_folds = std::mem::take(&mut c.literal_folds);
     report.data_imports = std::mem::take(&mut c.data_imports);
     report.temporal = std::mem::take(&mut c.temporal_rows);
+    report.machines = std::mem::take(&mut c.machine_reports);
+    report.machine_trace_result = c.machine_trace_result.take();
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
@@ -20744,6 +20788,10 @@ pub struct StagingCx {
     /// (modules specification section 11 delegates introspection to a
     /// tool run over the subprocess capability; decision D65).
     pub schema_tool: Option<String>,
+    /// Non-aborting state-machine inspection mode (used by `cinch model`, REPL, and LSP).
+    pub machine_inspect_only: bool,
+    /// Optional predicate trace query `(machine_name, pred_term)` for `cinch model trace --where`.
+    pub machine_trace_query: Option<(String, ast::Term)>,
 }
 
 impl Default for StagingCx {
@@ -20756,6 +20804,8 @@ impl Default for StagingCx {
             workdir: std::path::PathBuf::new(),
             entry_modules: Vec::new(),
             schema_tool: None,
+            machine_inspect_only: false,
+            machine_trace_query: None,
         }
     }
 }
@@ -20792,6 +20842,10 @@ pub struct StageReport {
     /// each contract's kind, formula, verification result and stated
     /// assumptions.
     pub temporal: Vec<TemporalRow>,
+    /// Explored state-machine reports for CLI, REPL, and LSP debugging.
+    pub machines: Vec<MachineReport>,
+    /// Optional predicate trace result for `cinch model trace --where`.
+    pub machine_trace_result: Option<(usize, String)>,
 }
 
 /// The compile-time evaluation context: everything the interpreter needs
@@ -20960,6 +21014,8 @@ impl Checker {
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
             temporal: Vec::new(),
+            machines: Vec::new(),
+            machine_trace_result: None,
         })
     }
 
